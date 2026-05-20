@@ -3,16 +3,24 @@ import { Icon } from "@/components/jk/Icon";
 import { TopBar } from "@/components/jk/TopBar";
 import { AppLayout } from "@/components/jk/AppLayout";
 import { FraudWarningModal } from "@/components/jk/FraudWarningModal";
-import { useRef, useState, useCallback } from "react";
+import { DuplicateChecker } from "@/components/jk/DuplicateChecker";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { setAiResult, setFormData, API_BASE_URL } from "@/lib/aiStore";
 import {
   useLocationFromPhoto,
   type GpsStatus,
 } from "@/hooks/useLocationFromPhoto";
+import { useDuplicateCheck } from "@/hooks/useDuplicateCheck";
+import {
+  useRoadSearch,
+  type RoadSuggestion,
+} from "@/hooks/useRoadSearch";
 import {
   validatePhotoDate,
+  isExifBlocking,
   type PhotoDateValidationStatus,
 } from "@/lib/validatePhotoDate";
+import { getCurrentUser } from "@/lib/auth";
 
 export const Route = createFileRoute("/upload")({
   component: UploadPage,
@@ -108,6 +116,7 @@ function GpsBanner({
 
 function UploadPage() {
   const navigate = useNavigate();
+  const user = getCurrentUser();
 
   // Dua input terpisah: kamera dan galeri
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -131,18 +140,38 @@ function UploadPage() {
     status: PhotoDateValidationStatus;
     title: string;
     message: string;
+    isWarningOnly: boolean;
   }>({
     isOpen: false,
     status: "no_exif_date",
     title: "",
     message: "",
+    isWarningOnly: false,
   });
+
+  // State untuk tombol "Gunakan GPS Saya" (foto tanpa EXIF GPS)
+  const [isRequestingLiveGps, setIsRequestingLiveGps] = useState(false);
+  const [liveGpsError, setLiveGpsError] = useState("");
+
+  // Koordinat yang dipilih dari road search (Nominatim)
+  const [roadCoords, setRoadCoords] = useState<{ lat: number; lng: number } | null>(null);
+
+  // State untuk menyembunyikan tombol submit utama saat "Dukung Laporan" dipilih
+  const [isSubmitHidden, setIsSubmitHidden] = useState(false);
 
   // ── Callbacks untuk hook lokasi ──────────────────────────────────────────
 
   const handleLocationResolved = useCallback(
-    (resolvedNamaJalan: string, resolvedKecamatan: string | null, _lat: number, _lng: number) => {
-      if (resolvedNamaJalan) setNamaJalan(resolvedNamaJalan);
+    (
+      resolvedNamaJalan: string,
+      resolvedKecamatan: string | null,
+      _lat: number,
+      _lng: number,
+      roadNameLocked: boolean
+    ) => {
+      // Jika LocationIQ menemukan address.road → isi dan kunci field nama jalan
+      // Jika tidak → kosongkan agar user bisa ketik nama gang/jalan manual
+      setNamaJalan(roadNameLocked ? resolvedNamaJalan : "");
       if (resolvedKecamatan && ALL_KECAMATAN.includes(resolvedKecamatan)) {
         setKecamatan(resolvedKecamatan);
       }
@@ -151,12 +180,137 @@ function UploadPage() {
   );
 
   const handleLocationFailed = useCallback((_reason: GpsStatus) => {
-    // Tidak perlu action tambahan — GpsBanner sudah menampilkan pesan
-    // User akan mengisi manual lewat form
+    // GPS tidak tersedia — user akan memilih jalan via autocomplete Nominatim
+    setLiveGpsError("");
   }, []);
 
   const { locationState, handleCameraCapture, handleGallerySelect, resetLocation } =
     useLocationFromPhoto(handleLocationResolved, handleLocationFailed);
+
+  // Saat GPS dari hook berhasil (live/EXIF), hapus roadCoords agar tidak konflik
+  useEffect(() => {
+    if (locationState.status === "success") {
+      setRoadCoords(null);
+      setLiveGpsError("");
+    }
+  }, [locationState.status]);
+
+  // ── Road Search (Nominatim Autocomplete) ─────────────────────────────────
+
+  /**
+   * Dipanggil saat user memilih saran jalan dari dropdown.
+   * Mengisi nama jalan, kecamatan, dan menyimpan koordinat dari Nominatim.
+   */
+  const handleRoadSelect = useCallback(
+    (suggestion: RoadSuggestion) => {
+      setNamaJalan(suggestion.roadName);
+      if (suggestion.kecamatan && ALL_KECAMATAN.includes(suggestion.kecamatan)) {
+        setKecamatan(suggestion.kecamatan);
+      }
+      setRoadCoords({ lat: suggestion.lat, lng: suggestion.lng });
+      setLiveGpsError("");
+    },
+    []
+  );
+
+  const roadSearch = useRoadSearch(handleRoadSelect);
+
+  // ── Live GPS untuk foto tanpa EXIF ───────────────────────────────────────
+
+  /** Minta koordinat GPS live dari browser — tombol fallback saat foto tidak punya EXIF GPS */
+  const handleRequestLiveGps = useCallback(async () => {
+    setIsRequestingLiveGps(true);
+    setLiveGpsError("");
+    try {
+      const pos = await new Promise<GeolocationCoordinates>((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error("Geolocation tidak didukung browser ini."));
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (p) => resolve(p.coords),
+          (err) => reject(err),
+          { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 }
+        );
+      });
+      // Simpan ke roadCoords agar dipakai saat submit
+      setRoadCoords({ lat: pos.latitude, lng: pos.longitude });
+    } catch (err) {
+      if (
+        err instanceof GeolocationPositionError &&
+        err.code === GeolocationPositionError.PERMISSION_DENIED
+      ) {
+        setLiveGpsError(
+          "Izin lokasi ditolak. Aktifkan GPS di pengaturan browser, atau pilih nama jalan dari saran untuk mendapatkan koordinat otomatis."
+        );
+      } else {
+        setLiveGpsError(
+          "Gagal mendapatkan GPS. Pilih nama jalan dari saran untuk mendapatkan koordinat otomatis."
+        );
+      }
+    } finally {
+      setIsRequestingLiveGps(false);
+    }
+  }, []);
+
+  /**
+   * Apakah perlu menampilkan panel GPS fallback?
+   * Ya, jika foto tidak punya GPS EXIF dan live GPS dari hook juga tidak aktif.
+   */
+  const needsGpsFallback =
+    locationState.status === "exif_no_gps" ||
+    locationState.status === "permission_denied" ||
+    locationState.status === "timeout" ||
+    locationState.status === "error";
+
+  /**
+   * Koordinat efektif yang akan dipakai saat submit:
+   * - Prioritas 1: GPS dari hook (live kamera / EXIF galeri)
+   * - Prioritas 2: Koordinat dari road search Nominatim
+   * - Prioritas 3: Koordinat dari tombol live GPS fallback
+   */
+  const effectiveLat: number | null = locationState.lat ?? roadCoords?.lat ?? null;
+  const effectiveLng: number | null = locationState.lng ?? roadCoords?.lng ?? null;
+
+  // ── Duplicate Check Hook ─────────────────────────────────────────────────
+  // Requirement 6.6: useDuplicateCheck menggunakan state form yang sudah ada
+
+  const isGpsActive = locationState.status === "success" && locationState.roadNameLocked;
+  const isGpsDetecting =
+    locationState.status === "detecting" || locationState.status === "geocoding";
+
+  const {
+    checkState,
+    result: duplicateResult,
+    hasDuplicates,
+    addEvidenceState,
+    addEvidenceTargetId,
+    addEvidenceMessage,
+    submitEvidence,
+    reset: resetDuplicateCheck,
+  } = useDuplicateCheck(
+    effectiveLat,
+    effectiveLng,
+    kecamatan,
+    namaJalan,
+    isGpsActive
+  );
+
+  // Handler saat tombol "Dukung Laporan" diklik
+  const handleSupportReport = useCallback(
+    async (reportId: string) => {
+      if (!selectedFile) return;
+      const reporterName = user?.name ?? "Petugas";
+      // Sembunyikan tombol submit utama (Requirement 4.7)
+      setIsSubmitHidden(true);
+      await submitEvidence(reportId, selectedFile, reporterName);
+      // Jika error, aktifkan kembali tombol submit (Requirement 4.9)
+      if (addEvidenceState === "error") {
+        setIsSubmitHidden(false);
+      }
+    },
+    [selectedFile, user, submitEvidence, addEvidenceState]
+  );
 
   // ── File handling ────────────────────────────────────────────────────────
 
@@ -199,16 +353,30 @@ function UploadPage() {
     const dateValidation = await validatePhotoDate(file);
 
     if (dateValidation.status !== "valid") {
-      // Tolak foto — tampilkan modal peringatan
-      setFraudModal({
-        isOpen: true,
-        status: dateValidation.status,
-        title: dateValidation.title,
-        message: dateValidation.message,
-      });
-      // Kosongkan input file agar user harus memilih ulang
-      if (galleryInputRef.current) galleryInputRef.current.value = "";
-      return; // hentikan proses, jangan lanjut ke applyFile
+      if (isExifBlocking(dateValidation.status)) {
+        // Status benar-benar memblokir (too_old, future_date) → tolak foto
+        setFraudModal({
+          isOpen: true,
+          status: dateValidation.status,
+          title: dateValidation.title,
+          message: dateValidation.message,
+          isWarningOnly: false,
+        });
+        // Kosongkan input file agar user harus memilih ulang
+        if (galleryInputRef.current) galleryInputRef.current.value = "";
+        return; // hentikan proses
+      } else {
+        // Status hanya peringatan (no_exif_date, exif_read_error) → lanjut upload
+        // tapi tampilkan info bahwa GPS perlu diisi manual
+        setFraudModal({
+          isOpen: true,
+          status: dateValidation.status,
+          title: dateValidation.title,
+          message: dateValidation.message,
+          isWarningOnly: true,
+        });
+        // Lanjut ke applyFile — TIDAK return
+      }
     }
     // ── End Validasi ──────────────────────────────────────────────────────
 
@@ -226,16 +394,30 @@ function UploadPage() {
     // Validasi anti-fraud tanggal EXIF (sama seperti galeri)
     const dateValidation = await validatePhotoDate(file);
     if (dateValidation.status !== "valid") {
-      setFraudModal({
-        isOpen: true,
-        status: dateValidation.status,
-        title: dateValidation.title,
-        message: dateValidation.message,
-      });
-      return;
+      if (isExifBlocking(dateValidation.status)) {
+        // Blokir upload
+        setFraudModal({
+          isOpen: true,
+          status: dateValidation.status,
+          title: dateValidation.title,
+          message: dateValidation.message,
+          isWarningOnly: false,
+        });
+        return;
+      } else {
+        // Hanya peringatan — lanjut upload
+        setFraudModal({
+          isOpen: true,
+          status: dateValidation.status,
+          title: dateValidation.title,
+          message: dateValidation.message,
+          isWarningOnly: true,
+        });
+        // Lanjut ke applyFile — TIDAK return
+      }
     }
 
-    if (!applyFile(file)) return;
+    if (!applyFile(file, "gallery")) return;
     handleGallerySelect(file);
   }
 
@@ -248,8 +430,13 @@ function UploadPage() {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     resetLocation();
+    resetDuplicateCheck();
+    roadSearch.reset();
+    setIsSubmitHidden(false);
     setNamaJalan("");
     setKecamatan("Sidoarjo");
+    setRoadCoords(null);
+    setLiveGpsError("");
     if (cameraInputRef.current)  cameraInputRef.current.value  = "";
     if (galleryInputRef.current) galleryInputRef.current.value = "";
   }
@@ -265,6 +452,18 @@ function UploadPage() {
       setErrorMsg("Pilih foto terlebih dahulu sebelum menganalisis.");
       return;
     }
+
+    // ── Validasi koordinat GPS ────────────────────────────────────────────
+    // Koordinat wajib ada — dari EXIF, live GPS kamera, road search, atau GPS fallback
+    if (effectiveLat === null || effectiveLng === null) {
+      setErrorMsg(
+        "Koordinat GPS belum tersedia. " +
+        "Pilih nama jalan dari saran untuk mendapatkan koordinat otomatis, " +
+        "atau gunakan tombol \"Gunakan GPS Saya\"."
+      );
+      return;
+    }
+    // ── End validasi koordinat ────────────────────────────────────────────
 
     setAnalysisState("loading");
     setErrorMsg("");
@@ -293,8 +492,8 @@ function UploadPage() {
         catatan,
         previewUrl: previewUrl ?? "",
         fileName: selectedFile.name,
-        lat: locationState.lat ?? undefined,
-        lng: locationState.lng ?? undefined,
+        lat: effectiveLat,
+        lng: effectiveLng,
       });
 
       setAnalysisState("idle");
@@ -498,18 +697,24 @@ function UploadPage() {
                   Informasi Lokasi
                 </h3>
                 {/* Indikator sumber GPS */}
-                {locationState.status === "success" && (
+                {locationState.status === "success" && locationState.roadNameLocked && (
                   <span className="font-id-code text-[10px] text-[#065F46] bg-[#D1FAE5] border border-[#6EE7B7] px-2 py-0.5 rounded-full flex items-center gap-1">
                     <Icon name="check_circle" className="!text-[12px]" filled />
                     {locationState.source === "camera" ? "GPS Live" : "EXIF GPS"}
+                  </span>
+                )}
+                {locationState.status === "success" && !locationState.roadNameLocked && (
+                  <span className="font-id-code text-[10px] text-[#92400E] bg-[#FEF3C7] border border-[#FCD34D] px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Icon name="search" className="!text-[12px]" />
+                    Cari Nama Jalan
                   </span>
                 )}
                 {(locationState.status === "exif_no_gps" ||
                   locationState.status === "permission_denied" ||
                   locationState.status === "timeout") && (
                   <span className="font-id-code text-[10px] text-[#92400E] bg-[#FEF3C7] border border-[#FCD34D] px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <Icon name="edit" className="!text-[12px]" />
-                    Isi Manual
+                    <Icon name="search" className="!text-[12px]" />
+                    Cari Jalan
                   </span>
                 )}
                 {isGpsWorking && (
@@ -520,34 +725,137 @@ function UploadPage() {
                 )}
               </div>
 
-              {/* Nama Jalan */}
+              {/* Nama Jalan — dengan autocomplete Nominatim */}
               <div className="flex flex-col gap-1.5">
                 <label className="font-label-md text-label-md text-[#0F172A]">
                   Nama Jalan
-                  {locationState.status !== "success" && (
-                    <span className="text-[#EF4444] ml-1">*</span>
-                  )}
+                  <span className="text-[#EF4444] ml-1">*</span>
                 </label>
+
+                {/* Input dengan dropdown saran */}
                 <div className="relative">
                   <Icon
                     name="location_on"
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant !text-[20px]"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant !text-[20px] z-10"
                   />
                   <input
                     value={namaJalan}
-                    onChange={(e) => setNamaJalan(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNamaJalan(val);
+                      // Reset koordinat road search jika user mengedit manual
+                      setRoadCoords(null);
+                      roadSearch.onQueryChange(val);
+                    }}
+                    onBlur={() => {
+                      // Delay dismiss agar klik pada saran sempat terpanggil
+                      setTimeout(() => roadSearch.onDismiss(), 150);
+                    }}
+                    onFocus={() => {
+                      if (namaJalan.length >= 3) roadSearch.onQueryChange(namaJalan);
+                    }}
                     placeholder={
                       isGpsWorking
                         ? "Mendeteksi lokasi..."
-                        : "Contoh: Jl. Raya Porong No. 7"
+                        : "Ketik nama jalan untuk mencari..."
                     }
                     disabled={isGpsWorking}
-                    className="w-full pl-10 pr-4 py-3 border border-border-subtle rounded-xl font-body-md text-body-md bg-surface-container-low focus:ring-2 focus:ring-primary-container focus:border-primary-container outline-none disabled:opacity-60 disabled:cursor-wait"
+                    readOnly={isGpsActive}
+                    className={`w-full pl-10 pr-10 py-3 border border-border-subtle rounded-xl font-body-md text-body-md bg-surface-container-low focus:ring-2 focus:ring-primary-container focus:border-primary-container outline-none disabled:opacity-60 disabled:cursor-wait ${isGpsActive ? "bg-surface-container cursor-default text-on-surface-variant" : ""}`}
                   />
+
+                  {/* Indikator kanan: spinner searching / lock GPS / check road selected */}
                   {isGpsWorking && (
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-primary-container/30 border-t-primary-container rounded-full animate-spin" />
                   )}
+                  {roadSearch.status === "searching" && !isGpsWorking && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-on-surface-variant/30 border-t-on-surface-variant rounded-full animate-spin" />
+                  )}
+                  {isGpsActive && (
+                    <Icon
+                      name="lock"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant !text-[16px] opacity-50"
+                    />
+                  )}
+                  {!isGpsActive && !isGpsWorking && roadCoords && roadSearch.status !== "searching" && (
+                    <Icon
+                      name="check_circle"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#059669] !text-[18px]"
+                      filled
+                    />
+                  )}
                 </div>
+
+                {/* Dropdown saran jalan */}
+                {roadSearch.showSuggestions && (
+                  <div className="relative z-50">
+                    <ul className="absolute top-0 left-0 right-0 bg-white border border-border-subtle rounded-xl shadow-lg overflow-hidden max-h-[220px] overflow-y-auto">
+                      {roadSearch.suggestions.map((s) => (
+                        <li key={s.placeId}>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => {
+                              // Gunakan onMouseDown agar terpanggil sebelum onBlur
+                              e.preventDefault();
+                              roadSearch.onSelect(s);
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-surface-container-low flex items-start gap-3 border-b border-border-subtle last:border-b-0 transition-colors"
+                          >
+                            <Icon
+                              name="signpost"
+                              className="text-primary-container !text-[18px] shrink-0 mt-0.5"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-label-md text-[13px] font-semibold text-[#0F172A] truncate">
+                                {s.roadName}
+                              </p>
+                              {s.kecamatan && (
+                                <p className="font-label-sm text-[11px] text-on-surface-variant mt-0.5">
+                                  Kec. {s.kecamatan}, Sidoarjo
+                                </p>
+                              )}
+                            </div>
+                            <Icon
+                              name="my_location"
+                              className="text-[#94A3B8] !text-[14px] shrink-0 mt-1"
+                            />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Status pencarian */}
+                {roadSearch.status === "not_found" && namaJalan.length >= 3 && (
+                  <p className="text-[11px] text-[#64748B] flex items-center gap-1">
+                    <Icon name="search_off" className="!text-[14px]" />
+                    Tidak ditemukan di Sidoarjo. Coba kata kunci lain.
+                  </p>
+                )}
+                {roadSearch.status === "error" && (
+                  <p className="text-[11px] text-[#991B1B] flex items-center gap-1">
+                    <Icon name="wifi_off" className="!text-[14px]" />
+                    Gagal terhubung ke layanan pencarian. Coba lagi.
+                  </p>
+                )}
+                {isGpsActive && (
+                  <p className="text-[11px] text-[#64748B]">
+                    Diisi otomatis dari GPS — nama jalan terverifikasi LocationIQ.
+                  </p>
+                )}
+                {locationState.status === "success" && !locationState.roadNameLocked && (
+                  <p className="text-[11px] text-[#92400E] flex items-center gap-1">
+                    <Icon name="info" className="!text-[13px]" />
+                    Nama jalan tidak ditemukan di area ini. Ketik nama jalan atau gang secara manual.
+                  </p>
+                )}
+                {!isGpsActive && roadCoords && (
+                  <p className="text-[11px] text-[#059669] flex items-center gap-1">
+                    <Icon name="check_circle" className="!text-[14px]" filled />
+                    Koordinat didapat dari Nominatim ({roadCoords.lat.toFixed(5)}, {roadCoords.lng.toFixed(5)})
+                  </p>
+                )}
               </div>
 
               {/* Kecamatan */}
@@ -557,8 +865,8 @@ function UploadPage() {
                   <select
                     value={kecamatan}
                     onChange={(e) => setKecamatan(e.target.value)}
-                    disabled={isGpsWorking}
-                    className="w-full appearance-none px-4 py-3 border border-border-subtle rounded-xl font-body-md text-body-md bg-surface-container-low focus:ring-2 focus:ring-primary-container outline-none disabled:opacity-60 disabled:cursor-wait"
+                    disabled={isGpsWorking || isGpsActive}
+                    className={`w-full appearance-none px-4 py-3 border border-border-subtle rounded-xl font-body-md text-body-md bg-surface-container-low focus:ring-2 focus:ring-primary-container outline-none disabled:opacity-60 disabled:cursor-wait ${isGpsActive ? "cursor-default" : ""}`}
                   >
                     {KECAMATAN_LIST.map((g) => (
                       <optgroup key={g.group} label={g.group}>
@@ -569,13 +877,13 @@ function UploadPage() {
                     ))}
                   </select>
                   <Icon
-                    name="expand_more"
+                    name={isGpsActive ? "lock" : "expand_more"}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none"
                   />
                 </div>
               </div>
 
-              {/* Koordinat GPS (readonly, tampil jika ada) */}
+              {/* Koordinat GPS (readonly, tampil jika ada dari EXIF/live GPS) */}
               {locationState.lat !== null && locationState.lng !== null && (
                 <div className="flex flex-col gap-1.5">
                   <label className="font-label-md text-label-md text-[#0F172A]">Koordinat GPS</label>
@@ -590,6 +898,68 @@ function UploadPage() {
                       className="w-full pl-10 pr-4 py-3 border border-border-subtle rounded-xl font-id-code text-[12px] bg-surface-container text-on-surface-variant cursor-default"
                     />
                   </div>
+                </div>
+              )}
+
+              {/* ── GPS Fallback ────────────────────────────────────────────────────
+                  Muncul saat foto tidak punya EXIF GPS dan live GPS tidak aktif.
+                  User bisa klik "Gunakan GPS Saya" atau pilih jalan dari autocomplete
+                  (koordinat akan otomatis terisi dari Nominatim).
+              ─────────────────────────────────────────────────────────────────── */}
+              {needsGpsFallback && locationState.lat === null && !roadCoords && (
+                <div className="flex flex-col gap-3 bg-[#FFFBEB] border border-[#FCD34D] rounded-xl p-4">
+                  <div className="flex items-start gap-2">
+                    <Icon name="info" className="text-[#92400E] !text-[18px] shrink-0 mt-0.5" />
+                    <p className="text-[12px] text-[#78350F] leading-relaxed">
+                      Foto ini tidak memiliki data GPS. Pilih nama jalan dari saran di atas
+                      untuk mendapatkan koordinat otomatis, atau gunakan GPS perangkat Anda.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRequestLiveGps}
+                    disabled={isRequestingLiveGps}
+                    className="flex items-center justify-center gap-2 w-full h-10 bg-[#1A4F8A] text-white rounded-xl text-[13px] font-semibold hover:bg-[#0F3260] active:scale-95 transition-all disabled:opacity-60 disabled:cursor-wait"
+                  >
+                    {isRequestingLiveGps ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Mengambil GPS...
+                      </>
+                    ) : (
+                      <>
+                        <Icon name="my_location" className="!text-[18px]" />
+                        Gunakan GPS Saya
+                      </>
+                    )}
+                  </button>
+                  {liveGpsError && (
+                    <p className="text-[11px] text-[#991B1B] flex items-center gap-1">
+                      <Icon name="error" className="!text-[14px]" />
+                      {liveGpsError}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Konfirmasi koordinat dari GPS fallback (roadCoords dari live GPS) */}
+              {needsGpsFallback && locationState.lat === null && roadCoords && (
+                <div className="flex items-center gap-2 bg-[#D1FAE5] border border-[#6EE7B7] rounded-xl px-4 py-3">
+                  <Icon name="check_circle" className="text-[#065F46] !text-[18px] shrink-0" filled />
+                  <div>
+                    <p className="text-[12px] font-semibold text-[#065F46]">Koordinat GPS berhasil diambil</p>
+                    <p className="font-id-code text-[10px] text-[#065F46] opacity-70 mt-0.5">
+                      {roadCoords.lat.toFixed(6)}, {roadCoords.lng.toFixed(6)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setRoadCoords(null); setLiveGpsError(""); }}
+                    className="ml-auto text-[#065F46] hover:text-[#047857]"
+                    title="Hapus koordinat"
+                  >
+                    <Icon name="close" className="!text-[16px]" />
+                  </button>
                 </div>
               )}
 
@@ -623,35 +993,86 @@ function UploadPage() {
               </div>
             </section>
 
+            {/* ── Duplicate Checker ── */}
+            {/* Requirement 6.1: Ditempatkan di antara "Informasi Lokasi" dan tombol submit */}
+            {selectedFile && (
+              <section className="bg-surface-container-lowest rounded-xl border border-border-subtle p-4">
+                <DuplicateChecker
+                  userLat={effectiveLat}
+                  userLng={effectiveLng}
+                  isGpsActive={isGpsActive || roadCoords !== null}
+                  isGpsDetecting={isGpsDetecting}
+                  district={kecamatan}
+                  checkState={checkState}
+                  spatialDuplicates={duplicateResult.spatial_duplicates}
+                  textualDuplicates={duplicateResult.textual_duplicates}
+                  hasDuplicates={hasDuplicates}
+                  addEvidenceState={addEvidenceState}
+                  addEvidenceTargetId={addEvidenceTargetId}
+                  addEvidenceMessage={addEvidenceMessage}
+                  selectedFile={selectedFile}
+                  reporterName={user?.name ?? "Petugas"}
+                  onSupportReport={handleSupportReport}
+                  isSubmitHidden={isSubmitHidden}
+                />
+              </section>
+            )}
+
           </div>
         </main>
 
         {/* ── Footer Actions ── */}
         <div className="sticky bottom-0 bg-surface border-t border-border-subtle shadow-[0_-4px_12px_rgba(0,0,0,0.05)] w-full">
           <div style={{ maxWidth: "42rem", marginLeft: "auto", marginRight: "auto" }} className="p-4 flex flex-col gap-3">
-            <button
-              type="button"
-              onClick={handleAnalyze}
-              disabled={isLoading || !selectedFile || isGpsWorking}
-              className="w-full h-[52px] bg-primary-container text-white rounded-xl flex items-center justify-center gap-2 font-headline-sm-mobile text-[16px] font-bold active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
-            >
-              {isLoading ? (
-                <>
-                  <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Menganalisis...
-                </>
-              ) : isGpsWorking ? (
-                <>
-                  <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Mendeteksi Lokasi...
-                </>
-              ) : (
-                <>
-                  <Icon name="auto_awesome" />
-                  Analisis Sekarang
-                </>
-              )}
-            </button>
+            {/* Tombol submit utama — disembunyikan jika petugas memilih "Dukung Laporan" */}
+            {!isSubmitHidden && (
+              <button
+                type="button"
+                onClick={handleAnalyze}
+                disabled={isLoading || !selectedFile || isGpsWorking}
+                className="w-full h-[52px] bg-primary-container text-white rounded-xl flex items-center justify-center gap-2 font-headline-sm-mobile text-[16px] font-bold active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+              >
+                {isLoading ? (
+                  <>
+                    <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Menganalisis...
+                  </>
+                ) : isGpsWorking ? (
+                  <>
+                    <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Mendeteksi Lokasi...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="auto_awesome" />
+                    Analisis Sekarang
+                  </>
+                )}
+              </button>
+            )}
+
+            {/* Info saat tombol submit disembunyikan */}
+            {isSubmitHidden && addEvidenceState !== "error" && (
+              <div className="w-full h-[52px] bg-[#D1FAE5] border border-[#6EE7B7] rounded-xl flex items-center justify-center gap-2 text-[#065F46] text-[14px] font-semibold">
+                <Icon name="check_circle" className="!text-[20px]" filled />
+                {addEvidenceState === "success"
+                  ? "Bukti foto berhasil dikirim!"
+                  : "Mengirim bukti foto..."}
+              </div>
+            )}
+
+            {/* Aktifkan kembali tombol submit jika add-evidence error */}
+            {isSubmitHidden && addEvidenceState === "error" && (
+              <button
+                type="button"
+                onClick={() => setIsSubmitHidden(false)}
+                className="w-full h-[52px] bg-primary-container text-white rounded-xl flex items-center justify-center gap-2 font-headline-sm-mobile text-[16px] font-bold active:scale-95 transition-all"
+              >
+                <Icon name="auto_awesome" />
+                Buat Laporan Baru
+              </button>
+            )}
+
             <button
               type="button"
               disabled={isLoading || isGpsWorking}
@@ -671,6 +1092,7 @@ function UploadPage() {
         title={fraudModal.title}
         message={fraudModal.message}
         onClose={closeFraudModal}
+        isWarningOnly={fraudModal.isWarningOnly}
       />
     </AppLayout>
   );

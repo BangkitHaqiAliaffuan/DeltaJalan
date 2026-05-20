@@ -51,19 +51,26 @@ function CreateReportPage() {
     setSubmitState("loading");
     setErrorMsg("");
 
+    // formData sudah dijamin tidak null oleh useEffect redirect di atas
+    if (!formData) return;
+
     try {
-      // Ambil file foto asli dari object URL yang tersimpan di formData.
-      // Kita perlu mengkonversi object URL kembali ke File/Blob untuk dikirim
-      // sebagai multipart/form-data ke Laravel.
       const imageBlob = await fetch(formData.previewUrl).then((r) => r.blob());
+
+      // Pastikan koordinat GPS tersedia — tidak boleh pakai default diam-diam
+      if (formData.lat === undefined || formData.lng === undefined) {
+        throw new Error(
+          "Koordinat GPS tidak tersedia. Kembali ke halaman upload dan isi koordinat lokasi."
+        );
+      }
 
       // Buat FormData untuk dikirim ke Laravel API
       const fd = new FormData();
       fd.append("reporter_name", user?.name ?? formData.namaJalan);
       fd.append("road_name", formData.namaJalan);
       fd.append("district", formData.kecamatan);
-      fd.append("latitude", String(formData.lat ?? -7.4478));
-      fd.append("longitude", String(formData.lng ?? 112.7183));
+      fd.append("latitude", String(formData.lat));
+      fd.append("longitude", String(formData.lng));
       // Kirim file foto asli dengan nama file yang benar
       fd.append("image", imageBlob, formData.fileName);
 
@@ -257,9 +264,9 @@ function CreateReportPage() {
                     <input
                       readOnly
                       value={
-                        formData.lat && formData.lng
+                        formData.lat !== undefined && formData.lng !== undefined
                           ? `${formData.lat.toFixed(6)}, ${formData.lng.toFixed(6)}`
-                          : "-7.447800, 112.718300 (default Sidoarjo)"
+                          : "Koordinat tidak tersedia"
                       }
                       className="w-full pl-10 pr-4 py-3 border border-border-subtle rounded-xl font-id-code text-[13px] bg-surface-container text-on-surface-variant cursor-not-allowed"
                     />

@@ -1,1 +1,6 @@
 backend_AI\dataset_merged
+
+# Environment variables — jangan commit API key
+.env
+.env.local
+.env.*.local

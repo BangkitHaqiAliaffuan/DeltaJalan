@@ -1,0 +1,7 @@
+Masalah yang sedang dihadapi 
+
+Bagaimana data agar tidak double sudah ditambahkan fitur search jalan auto complete sehingga data akan memastikan tidak ada nama jalan yang sama 
+
+lalu perlu di cek apakah fitur autosearch jalan tersebut bisa mencari koordinat
+
+dan sepertinya harus menggunakan foto batch untuk analisis ai jadi tidak perlu upload 1 1 tiap laporan dan jadikan satu saja tiap hasil analisis ainya 

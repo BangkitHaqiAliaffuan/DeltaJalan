@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Report;
+use App\Models\ReportEvidence;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -88,16 +89,268 @@ class ReportController extends Controller
     }
 
     /**
+     * Endpoint pengecekan duplikasi laporan.
+     *
+     * Mencari laporan aktif (status != 'Selesai') berdasarkan:
+     * 1. Spatial: radius 15 meter dari koordinat GPS (Haversine Formula)
+     * 2. Textual: kecamatan + nama jalan (ILIKE)
+     *
+     * Endpoint ini bersifat PUBLIK (tidak perlu autentikasi).
+     *
+     * GET /api/v1/reports/check-duplicate
+     * Query params: latitude, longitude, district, road_name
+     *
+     * @param  Request  $request
+     * @return JsonResponse
+     */
+    public function checkDuplicate(Request $request): JsonResponse
+    {
+        try {
+            $lat      = $request->query('latitude');
+            $lng      = $request->query('longitude');
+            $district = $request->query('district');
+            $roadName = $request->query('road_name');
+
+            $spatialDuplicates = [];
+            $textualDuplicates = [];
+
+            // ── Pencarian Spasial (Haversine Formula) ─────────────────────
+            if ($lat !== null && $lng !== null && is_numeric($lat) && is_numeric($lng)) {
+                $latF = (float) $lat;
+                $lngF = (float) $lng;
+
+                if ($latF >= -11 && $latF <= 6 && $lngF >= 95 && $lngF <= 141) {
+                    $spatialResults = DB::select("
+                        SELECT
+                            id, report_code, road_name, district,
+                            latitude, longitude, status, support_count, created_at,
+                            (
+                                6371000 * acos(
+                                    LEAST(1.0, cos(radians(:lat1)) * cos(radians(latitude::float))
+                                    * cos(radians(longitude::float) - radians(:lng1))
+                                    + sin(radians(:lat2)) * sin(radians(latitude::float)))
+                                )
+                            ) AS distance_meters
+                        FROM reports
+                        WHERE status != 'Selesai'
+                        HAVING (
+                            6371000 * acos(
+                                LEAST(1.0, cos(radians(:lat3)) * cos(radians(latitude::float))
+                                * cos(radians(longitude::float) - radians(:lng2))
+                                + sin(radians(:lat4)) * sin(radians(latitude::float)))
+                            )
+                        ) <= 15
+                        ORDER BY distance_meters ASC
+                        LIMIT 20
+                    ", [
+                        'lat1' => $latF, 'lng1' => $lngF,
+                        'lat2' => $latF,
+                        'lat3' => $latF, 'lng2' => $lngF,
+                        'lat4' => $latF,
+                    ]);
+
+                    $spatialDuplicates = array_map(function ($row) {
+                        return [
+                            'id'              => $row->id,
+                            'report_code'     => $row->report_code,
+                            'road_name'       => $row->road_name,
+                            'district'        => $row->district,
+                            'latitude'        => (float) $row->latitude,
+                            'longitude'       => (float) $row->longitude,
+                            'status'          => $row->status,
+                            'support_count'   => (int) $row->support_count,
+                            'created_at'      => $row->created_at,
+                            'distance_meters' => round((float) $row->distance_meters, 1),
+                        ];
+                    }, $spatialResults);
+                }
+            }
+
+            // ── Pencarian Tekstual (ILIKE) ────────────────────────────────
+            if ($district) {
+                $query = Report::where('status', '!=', 'Selesai')
+                    ->where('district', $district);
+
+                if ($roadName && strlen(trim($roadName)) >= 1) {
+                    $query->where('road_name', 'ilike', '%' . trim($roadName) . '%');
+                }
+
+                $textualResults = $query
+                    ->select([
+                        'id', 'report_code', 'road_name', 'district',
+                        'latitude', 'longitude', 'status', 'support_count', 'created_at',
+                    ])
+                    ->orderBy('created_at', 'desc')
+                    ->limit(20)
+                    ->get();
+
+                $textualDuplicates = $textualResults->map(function ($report) {
+                    return [
+                        'id'            => $report->id,
+                        'report_code'   => $report->report_code,
+                        'road_name'     => $report->road_name,
+                        'district'      => $report->district,
+                        'latitude'      => $report->latitude ? (float) $report->latitude : null,
+                        'longitude'     => $report->longitude ? (float) $report->longitude : null,
+                        'status'        => $report->status,
+                        'support_count' => (int) $report->support_count,
+                        'created_at'    => $report->created_at?->toIso8601String(),
+                    ];
+                })->toArray();
+            }
+
+            return response()->json([
+                'spatial_duplicates' => $spatialDuplicates,
+                'textual_duplicates' => $textualDuplicates,
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('JalanKita: checkDuplicate error.', ['error' => $e->getMessage()]);
+            return response()->json([
+                'spatial_duplicates' => [],
+                'textual_duplicates' => [],
+            ], 200);
+        }
+    }
+
+    /**
+     * Endpoint penambahan bukti foto ke laporan yang sudah ada.
+     *
+     * POST /api/v1/reports/{id}/add-evidence
+     * Memerlukan autentikasi Sanctum.
+     *
+     * @param  Request  $request
+     * @param  string   $id  UUID laporan
+     * @return JsonResponse
+     */
+    public function addEvidence(Request $request, string $id): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'image'         => ['required', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
+                'reporter_name' => ['required', 'string', 'max:100'],
+                'notes'         => ['nullable', 'string', 'max:500'],
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data yang dikirim tidak valid.',
+                'errors'  => $e->errors(),
+            ], 422);
+        }
+
+        $report = Report::find($id);
+        if (! $report) {
+            return response()->json([
+                'success' => false,
+                'message' => "Laporan dengan ID {$id} tidak ditemukan.",
+            ], 404);
+        }
+
+        $imageFile = $request->file('image');
+        $imageHash = $this->calculateImageHash($imageFile->getPathname());
+
+        if ($imageHash !== null) {
+            if (Report::where('image_hash', $imageHash)->exists()) {
+                return response()->json([
+                    'success'    => false,
+                    'message'    => 'Foto ini sudah digunakan pada laporan lain.',
+                    'error_code' => 'DUPLICATE_IMAGE',
+                ], 422);
+            }
+            if (ReportEvidence::where('image_hash', $imageHash)->exists()) {
+                return response()->json([
+                    'success'    => false,
+                    'message'    => 'Foto ini sudah pernah dikirim sebagai bukti sebelumnya.',
+                    'error_code' => 'DUPLICATE_IMAGE',
+                ], 422);
+            }
+        }
+
+        try {
+            $evidence = DB::transaction(function () use ($report, $imageFile, $validated, $imageHash) {
+                $filename  = Str::uuid() . '-evidence-' . time() . '.' . $imageFile->getClientOriginalExtension();
+                $imagePath = $imageFile->storeAs('reports/evidences', $filename, 'public');
+
+                if (! $imagePath) {
+                    throw new \RuntimeException('Gagal menyimpan foto bukti ke storage.');
+                }
+
+                $evidence = ReportEvidence::create([
+                    'report_id'     => $report->id,
+                    'image_path'    => $imagePath,
+                    'image_hash'    => $imageHash,
+                    'reporter_name' => $validated['reporter_name'],
+                    'notes'         => $validated['notes'] ?? null,
+                ]);
+
+                $report->increment('support_count');
+                return $evidence;
+            });
+
+            Log::info('JalanKita: Evidence ditambahkan.', [
+                'report_id'     => $report->id,
+                'report_code'   => $report->report_code,
+                'reporter_name' => $validated['reporter_name'],
+                'evidence_id'   => $evidence->id,
+                'timestamp'     => now()->toIso8601String(),
+            ]);
+
+            $report->refresh();
+            $report->load('evidences');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Foto bukti berhasil ditambahkan ke laporan ' . $report->report_code . '.',
+                'data'    => [
+                    'report' => [
+                        'id'            => $report->id,
+                        'report_code'   => $report->report_code,
+                        'road_name'     => $report->road_name,
+                        'district'      => $report->district,
+                        'status'        => $report->status,
+                        'support_count' => $report->support_count,
+                    ],
+                    'evidence' => [
+                        'id'            => $evidence->id,
+                        'image_url'     => $evidence->image_url,
+                        'reporter_name' => $evidence->reporter_name,
+                        'created_at'    => $evidence->created_at->toIso8601String(),
+                    ],
+                    'all_evidences' => $report->evidences->map(fn ($e) => [
+                        'id'            => $e->id,
+                        'image_url'     => $e->image_url,
+                        'reporter_name' => $e->reporter_name,
+                        'created_at'    => $e->created_at->toIso8601String(),
+                    ]),
+                ],
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('JalanKita: Gagal menyimpan evidence.', [
+                'error'     => $e->getMessage(),
+                'report_id' => $id,
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat menyimpan bukti foto. Silakan coba lagi.',
+                'debug'   => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+    }
+
+    /**
      * Menyimpan laporan kerusakan jalan baru.
      *
      * Alur proses:
      * 1. Validasi input dari frontend
      * 2. Cek anti-fraud tanggal EXIF foto (opsional/fallback)
-     * 3. Simpan foto asli ke storage
-     * 4. Kirim foto ke FastAPI untuk analisis AI
-     * 5. Simpan foto hasil AI (base64 → file fisik)
-     * 6. Simpan semua data ke PostgreSQL dalam satu transaksi
-     * 7. Kembalikan response JSON lengkap ke frontend
+     * 3. Hitung ImageHash dan cek duplikasi foto
+     * 4. Simpan foto asli ke storage
+     * 5. Kirim foto ke FastAPI untuk analisis AI
+     * 6. Simpan foto hasil AI (base64 → file fisik)
+     * 7. Simpan semua data ke PostgreSQL dalam satu transaksi
+     * 8. Kembalikan response JSON lengkap ke frontend
      *
      * @param  Request  $request  Data form dari frontend React
      * @return JsonResponse
@@ -132,8 +385,6 @@ class ReportController extends Controller
         }
 
         // ── LANGKAH 2: Anti-Fraud EXIF Check ─────────────────────────────
-        // Cek tanggal pengambilan foto dari metadata EXIF.
-        // Ini adalah lapisan keamanan tambahan di sisi server.
         $imageFile = $request->file('image');
         $exifCheck = $this->validatePhotoDateExif($imageFile->getPathname());
 
@@ -156,7 +407,6 @@ class ReportController extends Controller
         }
 
         // Catat warning jika tidak ada EXIF (foto dari screenshot/internet)
-        // tapi JANGAN tolak — biarkan laporan tetap masuk dengan catatan sistem
         $systemNotes = null;
         if ($exifCheck['status'] === 'no_exif_date') {
             $systemNotes = '[PERINGATAN] Foto tidak memiliki metadata EXIF tanggal. ' .
@@ -164,22 +414,41 @@ class ReportController extends Controller
                            'Perlu verifikasi manual oleh supervisor.';
         }
 
-        // ── LANGKAH 3-6: Proses dalam Database Transaction ───────────────
-        // DB::transaction memastikan semua operasi berhasil atau semua dibatalkan.
-        // Jika salah satu langkah gagal (misal: gagal simpan file), tidak ada
-        // data yang "menggantung" di database.
-        try {
-            $report = DB::transaction(function () use ($validated, $imageFile, $systemNotes) {
+        // ── LANGKAH 3: Image Hash Check (Anti-Duplikasi Foto) ─────────────
+        // Hitung MD5 hash dari konten biner foto sebelum menyimpan ke storage.
+        $imageHash = $this->calculateImageHash($imageFile->getPathname());
 
-                // ── 3a: Generate kode laporan unik ────────────────────────
+        if ($imageHash !== null) {
+            $existingReport = Report::where('image_hash', $imageHash)->first();
+            if ($existingReport) {
+                return response()->json([
+                    'success'    => false,
+                    'message'    => 'Foto ini sudah pernah digunakan untuk laporan ' .
+                                    $existingReport->report_code . '. ' .
+                                    'Gunakan fitur "Dukung Laporan" jika Anda menemukan kerusakan yang sama.',
+                    'error_code' => 'DUPLICATE_IMAGE',
+                    'existing_report' => [
+                        'id'          => $existingReport->id,
+                        'report_code' => $existingReport->report_code,
+                        'road_name'   => $existingReport->road_name,
+                        'district'    => $existingReport->district,
+                        'status'      => $existingReport->status,
+                    ],
+                ], 422);
+            }
+        }
+
+        // ── LANGKAH 4-7: Proses dalam Database Transaction ───────────────
+        // DB::transaction memastikan semua operasi berhasil atau semua dibatalkan.
+        try {
+            $report = DB::transaction(function () use ($validated, $imageFile, $systemNotes, $imageHash) {
+
+                // ── 4a: Generate kode laporan unik ────────────────────────
                 $reportCode = $this->generateReportCode();
 
-                // ── 3b: Simpan foto asli ke storage ──────────────────────
-                // Nama file: {uuid}-{timestamp}.{ext} untuk menghindari konflik
+                // ── 4b: Simpan foto asli ke storage ──────────────────────
                 $originalFilename = Str::uuid() . '-' . time() . '.' . $imageFile->getClientOriginalExtension();
 
-                // Simpan ke storage/app/public/reports/originals/
-                // 'public' disk = storage/app/public/ yang bisa diakses via symlink
                 $originalPath = $imageFile->storeAs(
                     self::ORIGINALS_FOLDER,
                     $originalFilename,
@@ -190,10 +459,10 @@ class ReportController extends Controller
                     throw new \RuntimeException('Gagal menyimpan foto asli ke storage.');
                 }
 
-                // ── 3c: Kirim foto ke FastAPI untuk analisis AI ───────────
+                // ── 4c: Kirim foto ke FastAPI untuk analisis AI ───────────
                 $aiData = $this->callFastApiAnalyze($imageFile->getPathname(), $imageFile->getClientOriginalName());
 
-                // ── 3d: Proses hasil FastAPI ──────────────────────────────
+                // ── 4d: Proses hasil FastAPI ──────────────────────────────
                 $resultPath       = null;
                 $totalDetections  = 0;
                 $overallSeverity  = 'Baik';
@@ -201,14 +470,13 @@ class ReportController extends Controller
                 $localSystemNotes = null;
 
                 if ($aiData['success']) {
-                    // FastAPI berhasil merespons — proses hasilnya
                     $payload = $aiData['data'];
 
                     $totalDetections = $payload['total'] ?? 0;
                     $overallSeverity = $payload['overall_severity'] ?? 'Baik';
                     $aiRawOutput     = $payload['detections'] ?? null;
 
-                    // ── 3e: Decode base64 → simpan foto hasil AI ─────────
+                    // ── 4e: Decode base64 → simpan foto hasil AI ─────────
                     if (! empty($payload['image_result'])) {
                         $resultPath = $this->saveBase64Image(
                             $payload['image_result'],
@@ -216,21 +484,18 @@ class ReportController extends Controller
                         );
                     }
                 } else {
-                    // FastAPI tidak merespons atau error — mode fallback
-                    // Laporan tetap tersimpan, tapi data AI kosong
                     $localSystemNotes = '[FALLBACK] FastAPI tidak merespons: ' . $aiData['error'];
                     Log::warning('JalanKita: FastAPI tidak merespons saat menyimpan laporan.', [
                         'error' => $aiData['error'],
                     ]);
                 }
 
-                // Gabungkan system notes dari EXIF check dan FastAPI fallback
+                // Gabungkan system notes
                 $finalSystemNotes = implode(' | ', array_filter([
                     $localSystemNotes,
-                    // $systemNotes dari scope luar (EXIF warning)
                 ]));
 
-                // ── 3f: Simpan ke database PostgreSQL ────────────────────
+                // ── 4f: Simpan ke database PostgreSQL ────────────────────
                 $report = Report::create([
                     'report_code'          => $reportCode,
                     'reporter_name'        => $validated['reporter_name'],
@@ -240,6 +505,8 @@ class ReportController extends Controller
                     'longitude'            => $validated['longitude'],
                     'image_original_path'  => $originalPath,
                     'image_result_path'    => $resultPath,
+                    'image_hash'           => $imageHash,
+                    'support_count'        => 0,
                     'total_detections'     => $totalDetections,
                     'overall_severity'     => $overallSeverity,
                     'ai_raw_output'        => $aiRawOutput,
@@ -271,7 +538,7 @@ class ReportController extends Controller
             ], 500);
         }
 
-        // ── LANGKAH 7: Kembalikan Response ke Frontend ────────────────────
+        // ── LANGKAH 8: Kembalikan Response ke Frontend ────────────────────
         // Muat ulang model untuk mendapatkan data terbaru dari database
         $report->refresh();
 
@@ -300,6 +567,33 @@ class ReportController extends Controller
     }
 
     // ── Helper Methods ────────────────────────────────────────────────────
+
+    /**
+     * Menghitung MD5 hash dari konten biner file gambar.
+     *
+     * Digunakan untuk mendeteksi foto yang identik secara konten,
+     * mencegah petugas mengirim laporan ganda dengan foto yang sama.
+     *
+     * @param  string  $filePath  Path absolut ke file foto
+     * @return string|null        MD5 hash (32 karakter hex), atau null jika gagal
+     */
+    private function calculateImageHash(string $filePath): ?string
+    {
+        try {
+            $hash = md5_file($filePath);
+            if ($hash === false) {
+                Log::warning('JalanKita: md5_file() mengembalikan false.', ['path' => $filePath]);
+                return null;
+            }
+            return $hash;
+        } catch (\Exception $e) {
+            Log::warning('JalanKita: Gagal menghitung image hash.', [
+                'error' => $e->getMessage(),
+                'path'  => $filePath,
+            ]);
+            return null;
+        }
+    }
 
     /**
      * Generate kode laporan unik dengan format LP-{TAHUN}-{5 DIGIT ANGKA}.

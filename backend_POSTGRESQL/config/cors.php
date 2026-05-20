@@ -45,6 +45,7 @@ return [
     'allowed_origins' => [
         'http://localhost:3000',   // React default
         'https://af3e-2404-c0-b203-e4b-b039-aeca-3b55-7fd1.ngrok-free.app',
+        'https://225a-114-8-223-252.ngrok-free.app',
         'http://localhost:5173',   // Vite default
         'http://localhost:8080',   // Port alternatif
         'http://127.0.0.1:3000',

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Model Eloquent untuk tabel 'reports'.
@@ -26,6 +27,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property array|null $ai_raw_output   Payload deteksi lengkap dari FastAPI
  * @property string $status              Status workflow laporan
  * @property string|null $system_notes   Catatan internal sistem
+ * @property string|null $image_hash     MD5 hash foto asli (anti-duplikasi)
+ * @property int    $support_count       Jumlah petugas yang mendukung laporan ini
  */
 class Report extends Model
 {
@@ -50,6 +53,8 @@ class Report extends Model
         'longitude',
         'image_original_path',
         'image_result_path',
+        'image_hash',
+        'support_count',
         'total_detections',
         'overall_severity',
         'ai_raw_output',
@@ -70,6 +75,7 @@ class Report extends Model
         'latitude'         => 'decimal:8',  // Presisi 8 desimal
         'longitude'        => 'decimal:8',  // Presisi 8 desimal
         'total_detections' => 'integer',
+        'support_count'    => 'integer',
     ];
 
     /**
@@ -80,6 +86,7 @@ class Report extends Model
         'total_detections' => 0,
         'overall_severity' => 'Baik',
         'status'           => 'Menunggu Review',
+        'support_count'    => 0,
     ];
 
     // ── Konstanta Enum ────────────────────────────────────────────────────
@@ -145,5 +152,15 @@ class Report extends Model
             'Rusak Ringan' => '#F59E0B',
             default        => '#10B981', // Baik
         };
+    }
+
+    // ── Relationships ─────────────────────────────────────────────────────
+
+    /**
+     * Laporan ini memiliki banyak foto bukti tambahan.
+     */
+    public function evidences(): HasMany
+    {
+        return $this->hasMany(ReportEvidence::class, 'report_id');
     }
 }

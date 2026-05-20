@@ -3,6 +3,10 @@
  *
  * Modal peringatan anti-fraud untuk foto yang tidak lolos validasi tanggal EXIF.
  *
+ * Dua mode:
+ * - isWarningOnly=false (default): foto DITOLAK, tombol "Pilih Foto Lain"
+ * - isWarningOnly=true: foto DIIZINKAN tapi perlu GPS manual, tombol "Mengerti, Lanjutkan"
+ *
  * Menggunakan Portal untuk render ke document.body — ini WAJIB untuk semua modal
  * agar fixed inset-0 benar-benar cover seluruh viewport termasuk sidebar.
  */
@@ -18,6 +22,11 @@ interface FraudWarningModalProps {
   title: string;
   message: string;
   onClose: () => void;
+  /**
+   * true  = hanya peringatan, upload tetap lanjut (no_exif_date / exif_read_error)
+   * false = foto ditolak, user harus pilih foto lain (too_old / future_date)
+   */
+  isWarningOnly?: boolean;
 }
 
 const STATUS_CONFIG: Record<
@@ -33,13 +42,13 @@ const STATUS_CONFIG: Record<
   }
 > = {
   no_exif_date: {
-    icon: "no_photography",
-    iconColor: "text-[#991B1B]",
-    headerBg: "bg-[#FEE2E2]",
-    headerBorder: "border-[#FCA5A5]",
-    badgeText: "TIDAK ADA METADATA",
-    badgeBg: "bg-[#FEE2E2]",
-    badgeTextColor: "text-[#991B1B]",
+    icon: "info",
+    iconColor: "text-[#92400E]",
+    headerBg: "bg-[#FEF3C7]",
+    headerBorder: "border-[#FCD34D]",
+    badgeText: "TANPA METADATA",
+    badgeBg: "bg-[#FEF3C7]",
+    badgeTextColor: "text-[#92400E]",
   },
   too_old: {
     icon: "event_busy",
@@ -60,13 +69,13 @@ const STATUS_CONFIG: Record<
     badgeTextColor: "text-[#991B1B]",
   },
   exif_read_error: {
-    icon: "broken_image",
-    iconColor: "text-[#991B1B]",
-    headerBg: "bg-[#FEE2E2]",
-    headerBorder: "border-[#FCA5A5]",
-    badgeText: "FORMAT TIDAK VALID",
-    badgeBg: "bg-[#FEE2E2]",
-    badgeTextColor: "text-[#991B1B]",
+    icon: "info",
+    iconColor: "text-[#92400E]",
+    headerBg: "bg-[#FEF3C7]",
+    headerBorder: "border-[#FCD34D]",
+    badgeText: "METADATA TIDAK TERBACA",
+    badgeBg: "bg-[#FEF3C7]",
+    badgeTextColor: "text-[#92400E]",
   },
   valid: {
     icon: "check_circle",
@@ -85,6 +94,7 @@ export function FraudWarningModal({
   title,
   message,
   onClose,
+  isWarningOnly = false,
 }: FraudWarningModalProps) {
   // Lock body scroll saat modal terbuka
   useEffect(() => {
@@ -112,10 +122,12 @@ export function FraudWarningModal({
 
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.no_exif_date;
 
-  const tipText =
-    status === "no_exif_date" || status === "exif_read_error"
-      ? "Gunakan tombol Kamera untuk mengambil foto langsung, atau pilih foto JPG asli dari kamera perangkat Anda (bukan screenshot atau foto yang diunduh)."
-      : "Ambil foto baru langsung di lokasi kerusakan jalan menggunakan tombol Kamera untuk mendapatkan koordinat GPS yang akurat.";
+  // Teks tips berbeda tergantung mode
+  const tipText = isWarningOnly
+    ? "Foto tetap dapat diupload. Isi koordinat lokasi secara manual pada form di bawah, atau gunakan tombol \"Gunakan GPS Saya\" untuk mengambil koordinat dari perangkat Anda."
+    : status === "too_old" || status === "future_date"
+      ? "Ambil foto baru langsung di lokasi kerusakan jalan menggunakan tombol Kamera untuk mendapatkan koordinat GPS yang akurat."
+      : "Gunakan tombol Kamera untuk mengambil foto langsung, atau pilih foto JPG asli dari kamera perangkat Anda (bukan screenshot atau foto yang diunduh).";
 
   return (
     <Portal>
@@ -126,11 +138,6 @@ export function FraudWarningModal({
         onClick={onClose}
         aria-hidden="true"
       >
-        {/*
-          Modal panel.
-          max-w-sm sekarang aman karena sudah di-override di styles.css @layer utilities.
-          overflow-hidden dihapus — tidak diperlukan dan bisa mempengaruhi child positioning.
-        */}
         <div
           className="w-full max-w-sm bg-white rounded-2xl shadow-2xl"
           style={{ maxHeight: "90vh", overflowY: "auto" }}
@@ -191,17 +198,31 @@ export function FraudWarningModal({
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="px-5 pb-5">
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-full h-11 bg-[#1A4F8A] text-white rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#0F3260] active:scale-95 transition-all"
-              style={{ fontFamily: "'Inter', sans-serif" }}
-            >
-              <Icon name="arrow_back" className="!text-[18px]" />
-              Pilih Foto Lain
-            </button>
+          {/* Footer — tombol berbeda tergantung mode */}
+          <div className="px-5 pb-5 flex flex-col gap-2">
+            {isWarningOnly ? (
+              /* Mode peringatan: lanjutkan upload */
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full h-11 bg-[#1A4F8A] text-white rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#0F3260] active:scale-95 transition-all"
+                style={{ fontFamily: "'Inter', sans-serif" }}
+              >
+                <Icon name="check" className="!text-[18px]" />
+                Mengerti, Lanjutkan
+              </button>
+            ) : (
+              /* Mode blokir: harus pilih foto lain */
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full h-11 bg-[#1A4F8A] text-white rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#0F3260] active:scale-95 transition-all"
+                style={{ fontFamily: "'Inter', sans-serif" }}
+              >
+                <Icon name="arrow_back" className="!text-[18px]" />
+                Pilih Foto Lain
+              </button>
+            )}
           </div>
         </div>
       </div>
