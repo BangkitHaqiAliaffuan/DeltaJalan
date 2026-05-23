@@ -27,14 +27,38 @@ export interface UploadFormData {
   lng?: number;
 }
 
+// ── Batch-specific types ──────────────────────────────────────────────────
+
+export interface BatchPhotoResult {
+  fileIndex:    number;
+  fileName:     string;
+  imageResult:  string;   // base64 JPEG dengan bounding box (kosong jika tidak ada deteksi)
+  previewUrl:   string;   // object URL foto asli
+  detections:   Detection[];
+  severity:     string;
+  confidence:   number;
+  hasError:     boolean;
+}
+
+export interface BatchResultData {
+  photos:          BatchPhotoResult[];
+  totalDetections: number;
+  overallSeverity: string;
+  reportCode:      string;
+  trustScore:      number;
+  trustLabel:      string;
+}
+
 interface AiStore {
-  result: AiAnalysisResult | null;
-  formData: UploadFormData | null;
+  result:      AiAnalysisResult | null;
+  formData:    UploadFormData | null;
+  batchResult: BatchResultData | null;
 }
 
 const store: AiStore = {
-  result: null,
-  formData: null,
+  result:      null,
+  formData:    null,
+  batchResult: null,
 };
 
 export function setAiResult(result: AiAnalysisResult) {
@@ -53,9 +77,18 @@ export function getFormData(): UploadFormData | null {
   return store.formData;
 }
 
+export function setBatchResult(data: BatchResultData) {
+  store.batchResult = data;
+}
+
+export function getBatchResult(): BatchResultData | null {
+  return store.batchResult;
+}
+
 export function clearAiStore() {
-  store.result = null;
-  store.formData = null;
+  store.result      = null;
+  store.formData    = null;
+  store.batchResult = null;
 }
 
 // Severity color mapping

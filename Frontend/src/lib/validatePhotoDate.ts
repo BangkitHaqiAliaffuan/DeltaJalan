@@ -4,19 +4,15 @@
  * Validasi anti-fraud tanggal foto menggunakan metadata EXIF DateTimeOriginal.
  *
  * Aturan:
- * 1. Jika DateTimeOriginal KOSONG → izinkan dengan status "no_exif_date" (foto dari internet
- *    tetap bisa diupload, tapi koordinat GPS harus diisi manual / live)
+ * 1. Jika DateTimeOriginal KOSONG → tolak (foto tanpa metadata tanggal ditolak)
  * 2. Jika tanggal foto > MAX_AGE_DAYS hari yang lalu dari hari ini → tolak (foto lama)
  * 3. Jika tanggal foto di masa depan → tolak (manipulasi metadata)
- * 4. Jika lolos semua → terima
+ * 4. Jika gagal baca EXIF → tolak (tidak bisa diverifikasi)
+ * 5. Jika lolos semua → terima
  *
- * Catatan: Validasi ini HANYA berlaku untuk foto dari galeri.
+ * Catatan: Validasi ini HANYA berlaku untuk foto dari galeri / drag & drop.
  * Foto dari kamera langsung (capture="environment") tidak perlu validasi ini
- * karena koordinat GPS diambil live saat itu juga.
- *
- * PERUBAHAN v2: Status "no_exif_date" dan "exif_read_error" tidak lagi memblokir upload.
- * Foto tanpa EXIF tetap diizinkan — sistem akan meminta user mengisi koordinat GPS
- * secara manual atau menggunakan live GPS. Hanya tanggal manipulatif yang ditolak.
+ * karena foto diambil secara real-time.
  */
 
 import exifr from "exifr";
@@ -30,19 +26,16 @@ export const MAX_AGE_DAYS = 2;
 
 export type PhotoDateValidationStatus =
   | "valid"
-  | "no_exif_date"      // tidak ada DateTimeOriginal → foto dari internet/screenshot, DIIZINKAN tapi perlu GPS manual
+  | "no_exif_date"      // tidak ada metadata tanggal EXIF → DITOLAK
   | "too_old"           // foto terlalu lama (> MAX_AGE_DAYS hari) → DITOLAK
   | "future_date"       // tanggal foto di masa depan (manipulasi metadata) → DITOLAK
-  | "exif_read_error";  // gagal membaca EXIF → DIIZINKAN, perlakukan seperti no_exif_date
+  | "exif_read_error";  // gagal membaca EXIF → DITOLAK
 
 /**
- * Status yang hanya membutuhkan peringatan (upload tetap lanjut, GPS manual diperlukan).
- * Berbeda dengan status yang benar-benar memblokir upload.
+ * Status yang hanya membutuhkan peringatan (upload tetap lanjut).
+ * Saat ini kosong — semua status error memblokir upload.
  */
-export const EXIF_WARNING_ONLY_STATUSES: PhotoDateValidationStatus[] = [
-  "no_exif_date",
-  "exif_read_error",
-];
+export const EXIF_WARNING_ONLY_STATUSES: PhotoDateValidationStatus[] = [];
 
 /** Cek apakah status ini hanya peringatan (tidak memblokir upload) */
 export function isExifWarningOnly(status: PhotoDateValidationStatus): boolean {
@@ -134,7 +127,7 @@ export async function validatePhotoDate(file: File): Promise<PhotoDateValidation
     });
   } catch {
     // File tidak punya EXIF sama sekali (PNG, screenshot, foto dari internet, dll)
-    // TIDAK diblokir — user akan diminta mengisi koordinat GPS secara manual
+    // DITOLAK — foto harus memiliki metadata tanggal untuk diverifikasi
     return {
       status: "no_exif_date",
       photoDate: null,
@@ -142,8 +135,8 @@ export async function validatePhotoDate(file: File): Promise<PhotoDateValidation
       title: "Foto Tanpa Metadata",
       message:
         "Foto ini tidak memiliki metadata tanggal (EXIF), kemungkinan diunduh dari internet " +
-        "atau merupakan screenshot. Upload tetap diizinkan — " +
-        "silakan isi koordinat lokasi secara manual atau gunakan GPS perangkat Anda.",
+        "atau merupakan screenshot. Upload ditolak — " +
+        "gunakan foto asli yang diambil langsung dari kamera perangkat Anda.",
     };
   }
 
@@ -164,8 +157,8 @@ export async function validatePhotoDate(file: File): Promise<PhotoDateValidation
       title: "Foto Tanpa Metadata Tanggal",
       message:
         "Foto ini tidak memiliki metadata tanggal pengambilan (EXIF), kemungkinan diunduh " +
-        "dari internet atau merupakan screenshot. Upload tetap diizinkan — " +
-        "silakan isi koordinat lokasi secara manual atau gunakan GPS perangkat Anda.",
+        "dari internet atau merupakan screenshot. Upload ditolak — " +
+        "gunakan foto asli yang diambil langsung dari kamera perangkat Anda.",
     };
   }
 
@@ -179,7 +172,7 @@ export async function validatePhotoDate(file: File): Promise<PhotoDateValidation
       title: "Format Tanggal Tidak Terbaca",
       message:
         "Format tanggal pada metadata foto tidak dapat dibaca. " +
-        "Upload tetap diizinkan — silakan isi koordinat lokasi secara manual.",
+        "Upload ditolak — gunakan foto asli dari kamera perangkat Anda.",
     };
   }
 

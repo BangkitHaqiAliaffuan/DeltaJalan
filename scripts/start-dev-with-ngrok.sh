@@ -26,7 +26,7 @@ echo ""
 
 # Start FastAPI server
 echo "🔧 Menjalankan FastAPI AI Server..."
-cd backend_AI
+cd ../backend_AI
 python -m uvicorn server:app --host 0.0.0.0 --port 8000 &
 FASTAPI_PID=$!
 echo "   PID: $FASTAPI_PID"

@@ -3,17 +3,14 @@ import { Icon } from "@/components/jk/Icon";
 import { TopBar } from "@/components/jk/TopBar";
 import { AppLayout } from "@/components/jk/AppLayout";
 import { Portal } from "@/components/jk/Portal";
-import { getCurrentUser } from "@/lib/auth";
-import { getAiResult, getFormData, SEVERITY_CONFIG, clearAiStore } from "@/lib/aiStore";
+import { getCurrentUser, getToken } from "@/lib/auth";
+import { getAiResult, getFormData, SEVERITY_CONFIG, clearAiStore, API_BASE_URL } from "@/lib/aiStore";
 import { useState, useEffect } from "react";
 
 export const Route = createFileRoute("/create-report")({
   component: CreateReportPage,
   head: () => ({ meta: [{ title: "Buat Laporan — JalanKita" }] }),
 });
-
-// URL base Laravel API — sesuaikan jika port berbeda
-const LARAVEL_API_URL = "http://localhost:8080/api";
 
 // Status pengiriman laporan ke backend Laravel
 type SubmitState = "idle" | "loading" | "success" | "error";
@@ -74,8 +71,17 @@ function CreateReportPage() {
       // Kirim file foto asli dengan nama file yang benar
       fd.append("image", imageBlob, formData.fileName);
 
-      const response = await fetch(`${LARAVEL_API_URL}/reports`, {
+      const token = getToken();
+      if (!token) {
+        throw new Error("Sesi telah habis, silakan login kembali.");
+      }
+
+      // Gunakan API_BASE_URL dari aiStore.ts agar dinamis
+      const response = await fetch(`${API_BASE_URL}/reports`, {
         method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        },
         body: fd,
         // Jangan set Content-Type manual — browser akan otomatis set
         // multipart/form-data dengan boundary yang benar

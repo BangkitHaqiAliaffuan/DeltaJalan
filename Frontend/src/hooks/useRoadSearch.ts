@@ -2,40 +2,46 @@
  * useRoadSearch
  *
  * Hook untuk autocomplete nama jalan menggunakan LocationIQ Autocomplete API.
- * Membatasi pencarian ke wilayah Sidoarjo (bounding box) agar hasil relevan.
+ * Membatasi hasil ke wilayah Kabupaten Sidoarjo dengan dua lapisan filter:
+ *
+ * 1. Server-side: viewbox + bounded=1 agar LocationIQ memprioritaskan Sidoarjo
+ * 2. Client-side: buang semua hasil yang koordinatnya di luar bounding box Sidoarjo
+ *    → Ini yang mencegah "Jl. Gajah Mada Mojokerto" masuk ke hasil
  *
  * Fitur:
- * - Debounce 400ms agar tidak spam request ke LocationIQ
+ * - Debounce 400ms
  * - Hanya cari jika query ≥ 3 karakter
- * - Normalisasi hasil ke format nama jalan yang konsisten
- * - Ekstrak kecamatan dari hasil dan cocokkan ke 18 kecamatan Sidoarjo
- * - Kembalikan koordinat lat/lng dari hasil yang dipilih user
+ * - Normalisasi nama jalan
+ * - Ekstrak kecamatan dari hasil
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ── Konstanta ──────────────────────────────────────────────────────────────
 
-/** API key LocationIQ dari environment variable Vite */
 const LOCATIONIQ_KEY = import.meta.env.VITE_LOCATIONIQ_KEY as string;
-
-/** Endpoint autocomplete LocationIQ */
 const LOCATIONIQ_AUTOCOMPLETE_URL = "https://us1.locationiq.com/v1/autocomplete";
 
-/** Endpoint reverse geocoding LocationIQ (untuk resolve koordinat dari place_id) */
-const LOCATIONIQ_REVERSE_URL = "https://us1.locationiq.com/v1/reverse";
-
-/** Debounce delay dalam ms */
-const DEBOUNCE_MS = 400;
-
-/** Minimum karakter sebelum mulai search */
+const DEBOUNCE_MS      = 400;
 const MIN_QUERY_LENGTH = 3;
 
 /**
- * Bounding box Kabupaten Sidoarjo.
- * Format LocationIQ viewbox: lng_min,lat_min,lng_max,lat_max
+ * Bounding box Kabupaten Sidoarjo (sedikit diperlebar agar jalan di perbatasan masuk).
+ * Format LocationIQ viewbox: "lng_min,lat_min,lng_max,lat_max"
+ *
+ * Koordinat referensi:
+ *   Barat  : 112.50  Timur : 112.95
+ *   Selatan: -7.65   Utara : -7.25
  */
-const SIDOARJO_VIEWBOX = "112.50,-7.65,112.95,-7.25";
+const SIDOARJO_BBOX = {
+  lngMin: 112.50,
+  lngMax: 112.95,
+  latMin: -7.65,
+  latMax: -7.25,
+};
+
+/** Format viewbox untuk LocationIQ */
+const SIDOARJO_VIEWBOX = `${SIDOARJO_BBOX.lngMin},${SIDOARJO_BBOX.latMin},${SIDOARJO_BBOX.lngMax},${SIDOARJO_BBOX.latMax}`;
 
 /** 18 kecamatan Sidoarjo */
 const KECAMATAN_MAP: Record<string, string> = {
@@ -62,37 +68,37 @@ const KECAMATAN_MAP: Record<string, string> = {
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface RoadSuggestion {
-  /** Nama jalan yang sudah dinormalisasi, siap disimpan ke database */
-  roadName: string;
-  /** Kecamatan yang terdeteksi (null jika tidak dikenali) */
-  kecamatan: string | null;
-  /** Koordinat GPS */
-  lat: number;
-  lng: number;
-  /** Label lengkap untuk ditampilkan di dropdown */
+  roadName:     string;
+  kecamatan:    string | null;
+  lat:          number;
+  lng:          number;
   displayLabel: string;
-  /** ID unik untuk key React */
-  placeId: string;
+  placeId:      string;
 }
 
-export type RoadSearchStatus =
-  | "idle"
-  | "searching"
-  | "found"
-  | "not_found"
-  | "error";
+export type RoadSearchStatus = "idle" | "searching" | "found" | "not_found" | "error";
 
 export interface UseRoadSearchReturn {
-  status: RoadSearchStatus;
-  suggestions: RoadSuggestion[];
+  status:          RoadSearchStatus;
+  suggestions:     RoadSuggestion[];
   showSuggestions: boolean;
-  onQueryChange: (query: string) => void;
-  onSelect: (suggestion: RoadSuggestion) => void;
-  onDismiss: () => void;
-  reset: () => void;
+  onQueryChange:   (query: string) => void;
+  onSelect:        (suggestion: RoadSuggestion) => void;
+  onDismiss:       () => void;
+  reset:           () => void;
 }
 
 // ── Helper ─────────────────────────────────────────────────────────────────
+
+/** Cek apakah koordinat berada di dalam bounding box Sidoarjo */
+function isInSidoarjoBbox(lat: number, lng: number): boolean {
+  return (
+    lat >= SIDOARJO_BBOX.latMin &&
+    lat <= SIDOARJO_BBOX.latMax &&
+    lng >= SIDOARJO_BBOX.lngMin &&
+    lng <= SIDOARJO_BBOX.lngMax
+  );
+}
 
 /** Cocokkan string ke salah satu dari 18 kecamatan Sidoarjo */
 function matchKecamatan(raw: string): string | null {
@@ -108,68 +114,64 @@ function matchKecamatan(raw: string): string | null {
 // ── LocationIQ API Types ───────────────────────────────────────────────────
 
 interface LocationIQAddress {
-  road?: string;
-  house_number?: string;
+  road?:          string;
+  house_number?:  string;
   neighbourhood?: string;
-  suburb?: string;
+  suburb?:        string;
   city_district?: string;
-  town?: string;
-  village?: string;
-  county?: string;
-  city?: string;
-  [key: string]: string | undefined;
+  town?:          string;
+  village?:       string;
+  county?:        string;
+  city?:          string;
+  [key: string]:  string | undefined;
 }
 
-interface LocationIQAutocompleteResult {
-  place_id: string;
-  lat: string;
-  lon: string;
-  display_name: string;
+interface LocationIQResult {
+  place_id:       string;
+  lat:            string;
+  lon:            string;
+  display_name:   string;
   display_place?: string;
-  display_address?: string;
-  address: LocationIQAddress;
-  type: string;
-  class: string;
+  address:        LocationIQAddress;
 }
 
 // ── LocationIQ Search ──────────────────────────────────────────────────────
 
 async function searchLocationIQ(query: string): Promise<RoadSuggestion[]> {
   const url = new URL(LOCATIONIQ_AUTOCOMPLETE_URL);
-  url.searchParams.set("key", LOCATIONIQ_KEY);
-  url.searchParams.set("q", query);
-  url.searchParams.set("format", "json");
+  url.searchParams.set("key",             LOCATIONIQ_KEY);
+  url.searchParams.set("q",              `${query} Sidoarjo`);
+  url.searchParams.set("format",         "json");
   url.searchParams.set("addressdetails", "1");
-  url.searchParams.set("limit", "7");
-  url.searchParams.set("countrycodes", "id");
-  url.searchParams.set("viewbox", SIDOARJO_VIEWBOX);
-  url.searchParams.set("bounded", "1");
-  url.searchParams.set("accept-language", "id");
-  // Fokus ke tipe jalan agar hasil lebih relevan
-  url.searchParams.set("tag", "highway:*,place:*");
+  url.searchParams.set("limit",          "10");   // minta lebih banyak, nanti difilter
+  url.searchParams.set("countrycodes",   "id");
+  url.searchParams.set("viewbox",        SIDOARJO_VIEWBOX);
+  url.searchParams.set("bounded",        "1");    // server-side: prioritaskan dalam viewbox
+  url.searchParams.set("accept-language","id");
 
   const res = await fetch(url.toString());
+  if (!res.ok) throw new Error(`LocationIQ error: ${res.status}`);
 
-  if (!res.ok) {
-    throw new Error(`LocationIQ autocomplete error: ${res.status}`);
-  }
-
-  const data: LocationIQAutocompleteResult[] = await res.json();
-
+  const data: LocationIQResult[] = await res.json();
   const suggestions: RoadSuggestion[] = [];
 
   for (const item of data) {
-    const addr = item.address ?? {};
+    const lat = parseFloat(item.lat);
+    const lng = parseFloat(item.lon);
 
-    // Ambil nama jalan dari address.road (paling konsisten untuk database)
-    const road = addr.road?.trim() ?? "";
+    // ── Filter client-side layer 1: koordinat di luar Sidoarjo ──────────
+    if (!isInSidoarjoBbox(lat, lng)) continue;
 
-    // Jika tidak ada road, coba ambil dari display_place sebagai fallback
+    const addr     = item.address ?? {};
+
+    // ── Filter client-side layer 2: nama kota/kabupaten bukan Sidoarjo ──
+    // Tangkap kasus di mana koordinat borderline tapi jelas bukan Sidoarjo
+    const cityRaw  = (addr.city ?? addr.county ?? addr.town ?? "").toLowerCase();
+    if (cityRaw && !cityRaw.includes("sidoarjo")) continue;
+    const road     = addr.road?.trim() ?? "";
     const roadName = road || item.display_place?.trim() || "";
-
     if (!roadName) continue;
 
-    // Kecamatan dari city_district atau suburb (sesuai struktur LocationIQ Sidoarjo)
     const kecRaw =
       addr.city_district ??
       addr.suburb ??
@@ -178,19 +180,17 @@ async function searchLocationIQ(query: string): Promise<RoadSuggestion[]> {
       "";
     const kecamatan = matchKecamatan(kecRaw);
 
-    // Label tampilan: "Nama Jalan, Kec. X, Sidoarjo"
-    const labelParts: string[] = [roadName];
+    const labelParts = [roadName];
     if (kecamatan) labelParts.push(`Kec. ${kecamatan}`);
     labelParts.push("Sidoarjo");
-    const displayLabel = labelParts.join(", ");
 
     suggestions.push({
       roadName,
       kecamatan,
-      lat: parseFloat(item.lat),
-      lng: parseFloat(item.lon),
-      displayLabel,
-      placeId: item.place_id,
+      lat,
+      lng,
+      displayLabel: labelParts.join(", "),
+      placeId:      item.place_id,
     });
   }
 
@@ -209,12 +209,12 @@ async function searchLocationIQ(query: string): Promise<RoadSuggestion[]> {
 export function useRoadSearch(
   onSelect: (suggestion: RoadSuggestion) => void
 ): UseRoadSearchReturn {
-  const [status, setStatus] = useState<RoadSearchStatus>("idle");
-  const [suggestions, setSuggestions] = useState<RoadSuggestion[]>([]);
+  const [status, setStatus]                   = useState<RoadSearchStatus>("idle");
+  const [suggestions, setSuggestions]         = useState<RoadSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const abortRef    = useRef<AbortController | null>(null);
 
   const onQueryChange = useCallback((query: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -257,9 +257,7 @@ export function useRoadSearch(
     [onSelect]
   );
 
-  const onDismiss = useCallback(() => {
-    setShowSuggestions(false);
-  }, []);
+  const onDismiss = useCallback(() => setShowSuggestions(false), []);
 
   const reset = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -276,13 +274,5 @@ export function useRoadSearch(
     };
   }, []);
 
-  return {
-    status,
-    suggestions,
-    showSuggestions,
-    onQueryChange,
-    onSelect: handleSelect,
-    onDismiss,
-    reset,
-  };
+  return { status, suggestions, showSuggestions, onQueryChange, onSelect: handleSelect, onDismiss, reset };
 }

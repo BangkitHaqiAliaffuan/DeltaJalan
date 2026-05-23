@@ -125,9 +125,7 @@ export function FraudWarningModal({
   // Teks tips berbeda tergantung mode
   const tipText = isWarningOnly
     ? "Foto tetap dapat diupload. Isi koordinat lokasi secara manual pada form di bawah, atau gunakan tombol \"Gunakan GPS Saya\" untuk mengambil koordinat dari perangkat Anda."
-    : status === "too_old" || status === "future_date"
-      ? "Ambil foto baru langsung di lokasi kerusakan jalan menggunakan tombol Kamera untuk mendapatkan koordinat GPS yang akurat."
-      : "Gunakan tombol Kamera untuk mengambil foto langsung, atau pilih foto JPG asli dari kamera perangkat Anda (bukan screenshot atau foto yang diunduh).";
+    : "Gunakan tombol Kamera untuk mengambil foto langsung, atau pilih foto JPG asli dari kamera perangkat Anda (bukan screenshot atau foto yang diunduh).";
 
   return (
     <Portal>

@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from ultralytics import YOLO
 from PIL import Image
-import io, base64, cv2, numpy as np
+import io, base64, cv2, numpy as np, os
 from pathlib import Path
 
 app = FastAPI(title="JalanKita API", version="1.0.0")
@@ -12,13 +12,18 @@ app = FastAPI(title="JalanKita API", version="1.0.0")
 # CORS — izinkan frontend dev server (port 8080, 5173, 3000)
 app.add_middleware(
     CORSMiddleware,
+    # Jangan gunakan wildcard "*" di production — hanya origin yang dikenal.
+    # Tambahkan FRONTEND_URL dan NGROK_URL dari environment variable.
     allow_origins=[
-        "http://localhost:8080",
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:8080",
-        "http://127.0.0.1:5173",
-        "*",  # fallback untuk development
+        origin for origin in [
+            "http://localhost:8080",
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "http://127.0.0.1:8080",
+            "http://127.0.0.1:5173",
+            os.environ.get("FRONTEND_URL", ""),
+            os.environ.get("NGROK_URL", ""),
+        ] if origin  # filter out empty string
     ],
     allow_credentials=True,
     allow_methods=["*"],

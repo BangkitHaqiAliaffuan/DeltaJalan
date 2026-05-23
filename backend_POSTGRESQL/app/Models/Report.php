@@ -60,6 +60,21 @@ class Report extends Model
         'ai_raw_output',
         'status',
         'system_notes',
+        // Batch upload
+        'batch_id',
+        'is_batch_main',
+        'is_batch_sub',
+        'parent_report_id',
+        // Trust score
+        'trust_score',
+        'trust_label',
+        'trust_breakdown',
+        // Koordinat sumber
+        'koordinat_sumber',
+        // AI results (batch)
+        'ai_jenis_kerusakan',
+        'ai_severity',
+        'ai_confidence',
     ];
 
     /**
@@ -72,10 +87,15 @@ class Report extends Model
      */
     protected $casts = [
         'ai_raw_output'    => 'array',      // JSONB ↔ PHP array
+        'trust_breakdown'  => 'array',      // JSONB ↔ PHP array
         'latitude'         => 'decimal:8',  // Presisi 8 desimal
         'longitude'        => 'decimal:8',  // Presisi 8 desimal
         'total_detections' => 'integer',
         'support_count'    => 'integer',
+        'trust_score'      => 'integer',
+        'is_batch_main'    => 'boolean',
+        'is_batch_sub'     => 'boolean',
+        'ai_confidence'    => 'decimal:3',
     ];
 
     /**

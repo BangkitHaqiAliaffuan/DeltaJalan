@@ -39,19 +39,20 @@ return [
     |--------------------------------------------------------------------------
     |
     | Daftar origin (domain + port) yang boleh mengakses API.
-    | Untuk development, kita izinkan semua port localhost yang umum dipakai.
+    | Tambahkan FRONTEND_URL di .env untuk production.
+    | URL ngrok untuk development diambil dari .env agar tidak di-hardcode di sini.
     |
     */
-    'allowed_origins' => [
-        'http://localhost:3000',   // React default
-        'https://af3e-2404-c0-b203-e4b-b039-aeca-3b55-7fd1.ngrok-free.app',
-        'https://225a-114-8-223-252.ngrok-free.app',
-        'http://localhost:5173',   // Vite default
-        'http://localhost:8080',   // Port alternatif
+    'allowed_origins' => array_values(array_filter([
+        env('FRONTEND_URL'),               // production domain (set di .env)
+        env('NGROK_URL'),                  // ngrok URL aktif (set di .env, jangan commit)
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://localhost:8080',
         'http://127.0.0.1:3000',
         'http://127.0.0.1:5173',
         'http://127.0.0.1:8080',
-    ],
+    ])),
 
     /*
     |--------------------------------------------------------------------------

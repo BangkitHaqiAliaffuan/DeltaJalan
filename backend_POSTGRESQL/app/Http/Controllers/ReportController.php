@@ -384,6 +384,15 @@ class ReportController extends Controller
             ], 422);
         }
 
+        // ── Validasi koordinat berada di wilayah Sidoarjo ─────────────────
+        if (!$this->isInSidoarjo((float) $validated['latitude'], (float) $validated['longitude'])) {
+            return response()->json([
+                'success'    => false,
+                'message'    => 'Koordinat berada di luar wilayah Kabupaten Sidoarjo. Pastikan GPS aktif dan Anda berada di lokasi kerusakan.',
+                'error_code' => 'KOORDINAT_DILUAR_WILAYAH',
+            ], 422);
+        }
+
         // ── LANGKAH 2: Anti-Fraud EXIF Check ─────────────────────────────
         $imageFile = $request->file('image');
         $exifCheck = $this->validatePhotoDateExif($imageFile->getPathname());
@@ -406,16 +415,28 @@ class ReportController extends Controller
             ], 422);
         }
 
-        // Catat warning jika tidak ada EXIF (foto dari screenshot/internet)
-        $systemNotes = null;
+        // Jika tidak ada EXIF (foto dari screenshot/internet), tolak mutlak
         if ($exifCheck['status'] === 'no_exif_date') {
-            $systemNotes = '[PERINGATAN] Foto tidak memiliki metadata EXIF tanggal. ' .
-                           'Kemungkinan foto dari galeri tanpa GPS atau screenshot. ' .
-                           'Perlu verifikasi manual oleh supervisor.';
+            return response()->json([
+                'success' => false,
+                'message' => 'Foto tidak memiliki metadata tanggal (EXIF). Screenshot atau foto unduhan tidak diizinkan untuk dilaporkan.',
+                'error_code' => 'PHOTO_NO_EXIF_DATE',
+            ], 422);
         }
 
+        // Jika EXIF terbaca tapi tanggal tidak bisa diparse, tolak
+        if ($exifCheck['status'] === 'exif_read_error') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Metadata tanggal pada foto tidak dapat dibaca. Gunakan foto asli dari kamera perangkat Anda.',
+                'error_code' => 'PHOTO_EXIF_READ_ERROR',
+            ], 422);
+        }
+
+        $systemNotes = null;
+
         // ── LANGKAH 3: Image Hash Check (Anti-Duplikasi Foto) ─────────────
-        // Hitung MD5 hash dari konten biner foto sebelum menyimpan ke storage.
+        // Hitung SHA-256 hash dari konten biner foto sebelum menyimpan ke storage.
         $imageHash = $this->calculateImageHash($imageFile->getPathname());
 
         if ($imageHash !== null) {
@@ -438,10 +459,22 @@ class ReportController extends Controller
             }
         }
 
+        // ── LANGKAH 3.5: Validasi nama jalan vs koordinat ─────────────────
+        // Dilakukan di sini (sebelum transaction) agar LocationIQ timeout
+        // tidak menahan koneksi database.
+        $roadValidation = $this->validateRoadNameVsCoordinate(
+            $validated['road_name'],
+            (float) $validated['latitude'],
+            (float) $validated['longitude']
+        );
+
+        // Ekstrak GPS EXIF sebelum transaction untuk dipakai di trust score.
+        $exifGps = $this->extractExifGps($imageFile->getPathname());
+
         // ── LANGKAH 4-7: Proses dalam Database Transaction ───────────────
         // DB::transaction memastikan semua operasi berhasil atau semua dibatalkan.
         try {
-            $report = DB::transaction(function () use ($validated, $imageFile, $systemNotes, $imageHash) {
+            $report = DB::transaction(function () use ($validated, $imageFile, $systemNotes, $imageHash, $roadValidation, $exifGps) {
 
                 // ── 4a: Generate kode laporan unik ────────────────────────
                 $reportCode = $this->generateReportCode();
@@ -468,6 +501,8 @@ class ReportController extends Controller
                 $overallSeverity  = 'Baik';
                 $aiRawOutput      = null;
                 $localSystemNotes = null;
+                $gpsMismatchNotes = null;
+                $fakeGpsSuspected = false;
 
                 if ($aiData['success']) {
                     $payload = $aiData['data'];
@@ -489,16 +524,44 @@ class ReportController extends Controller
                         'error' => $aiData['error'],
                     ]);
                 }
+                
+                // ── Cek GPS Mismatch ──────────────────────────────────────
+                // Jika GPS EXIF jauh dari koordinat form, tandai fake_gps_suspected
+                // agar trust score berkurang.
+                if ($exifGps) {
+                    $distance = $this->haversineDistance(
+                        $exifGps['lat'], $exifGps['lng'],
+                        (float) $validated['latitude'], (float) $validated['longitude']
+                    );
+                    if ($distance > 500) {
+                        $gpsMismatchNotes = '[PERINGATAN] GPS EXIF foto berjarak ' . round($distance) . 'm dari koordinat input form. Perlu diverifikasi.';
+                        $fakeGpsSuspected = true;
+                    }
+                } else {
+                    $gpsMismatchNotes = '[INFO] Foto tidak memuat GPS EXIF, jarak validasi menggunakan koordinat dari form manual atau Browser GPS.';
+                }
+
+                // ── Hitung Trust Score ────────────────────────────────────
+                $trustResult = app(\App\Services\TrustScoreService::class)->calculate([
+                    'exif_lat'           => $exifGps ? $exifGps['lat'] : null,
+                    'exif_lng'           => $exifGps ? $exifGps['lng'] : null,
+                    'road_name_matched'  => $roadValidation['matched'],
+                    'ai_detections'      => $aiRawOutput ?? [],
+                    'ai_context_valid'   => !empty($aiRawOutput) && count($aiRawOutput) > 0,
+                    'fake_gps_suspected' => $fakeGpsSuspected,
+                ]);
 
                 // Gabungkan system notes
                 $finalSystemNotes = implode(' | ', array_filter([
                     $localSystemNotes,
+                    $gpsMismatchNotes,
                 ]));
 
                 // ── 4f: Simpan ke database PostgreSQL ────────────────────
                 $report = Report::create([
                     'report_code'          => $reportCode,
-                    'reporter_name'        => $validated['reporter_name'],
+                    // Prioritaskan nama dari auth token, fallback ke input form
+                    'reporter_name'        => auth()->user()?->name ?? $validated['reporter_name'],
                     'road_name'            => $validated['road_name'],
                     'district'             => $validated['district'],
                     'latitude'             => $validated['latitude'],
@@ -512,6 +575,10 @@ class ReportController extends Controller
                     'ai_raw_output'        => $aiRawOutput,
                     'status'               => 'Menunggu Review',
                     'system_notes'         => $finalSystemNotes ?: null,
+                    // Trust score
+                    'trust_score'          => $trustResult['score'],
+                    'trust_label'          => $trustResult['label'],
+                    'trust_breakdown'      => $trustResult['breakdown'],
                 ]);
 
                 return $report;
@@ -538,6 +605,19 @@ class ReportController extends Controller
             ], 500);
         }
 
+        // ── Log aktivitas petugas untuk anomaly detection ─────────────────
+        $reporterName = $report->reporter_name;
+        $dailyCount = Report::where('reporter_name', $reporterName)
+            ->whereDate('created_at', today())
+            ->count();
+        Log::info('JalanKita: Laporan tunggal disimpan.', [
+            'reporter_name' => $reporterName,
+            'report_code'   => $report->report_code,
+            'trust_score'   => $report->trust_score,
+            'trust_label'   => $report->trust_label,
+            'daily_count'   => $dailyCount,
+        ]);
+
         // ── LANGKAH 8: Kembalikan Response ke Frontend ────────────────────
         // Muat ulang model untuk mendapatkan data terbaru dari database
         $report->refresh();
@@ -558,12 +638,76 @@ class ReportController extends Controller
                 'severity_color'      => $report->severity_color,
                 'status'              => $report->status,
                 'ai_raw_output'       => $report->ai_raw_output,
+                // Trust score (sekarang tersedia untuk single upload juga)
+                'trust_score'         => $report->trust_score,
+                'trust_label'         => $report->trust_label,
                 // URL gambar yang bisa langsung dipakai oleh frontend React
                 'image_original_url'  => $report->image_original_url,
                 'image_result_url'    => $report->image_result_url,
                 'created_at'          => $report->created_at->toIso8601String(),
             ],
         ], 201);
+    }
+
+    // ── Daftar Laporan ──────────────────────────────────────────────────
+
+    /**
+     * GET /api/reports
+     * Daftar laporan — petugas hanya melihat laporannya sendiri,
+     * supervisor melihat semua (bisa difilter via ?status=).
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $user = auth()->user();
+
+        $query = Report::query();
+
+        // Petugas hanya melihat laporannya sendiri
+        if ($user->role === 'petugas') {
+            $query->where('reporter_name', $user->name);
+        }
+
+        // Filter status (ubah underscore ke spasi untuk cocok dengan ENUM)
+        if ($request->filled('status')) {
+            $status = str_replace('_', ' ', $request->input('status'));
+            $query->where('status', $status);
+        }
+
+        // Filter user_reports=true — paksa filter berdasarkan user name
+        if ($request->boolean('user_reports')) {
+            $query->where('reporter_name', $user->name);
+        }
+
+        $limit = min((int) $request->input('limit', 50), 100);
+
+        $reports = $query->orderBy('created_at', 'desc')
+            ->limit($limit)
+            ->get()
+            ->map(function ($report) {
+                return [
+                    'id'                 => $report->id,
+                    'report_code'        => $report->report_code,
+                    'reporter_name'      => $report->reporter_name,
+                    'road_name'          => $report->road_name,
+                    'district'           => $report->district,
+                    'latitude'           => $report->latitude ? (float) $report->latitude : null,
+                    'longitude'          => $report->longitude ? (float) $report->longitude : null,
+                    'overall_severity'   => $report->overall_severity,
+                    'total_detections'   => $report->total_detections,
+                    'status'             => $report->status,
+                    'trust_score'        => $report->trust_score,
+                    'trust_label'        => $report->trust_label,
+                    'image_original_url' => $report->image_original_url,
+                    'image_result_url'   => $report->image_result_url,
+                    'created_at'         => $report->created_at?->toIso8601String(),
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data'    => $reports,
+            'total'   => $reports->count(),
+        ]);
     }
 
     // ── Helper Methods ────────────────────────────────────────────────────
@@ -580,9 +724,9 @@ class ReportController extends Controller
     private function calculateImageHash(string $filePath): ?string
     {
         try {
-            $hash = md5_file($filePath);
+            $hash = hash_file('sha256', $filePath);
             if ($hash === false) {
-                Log::warning('JalanKita: md5_file() mengembalikan false.', ['path' => $filePath]);
+                Log::warning('JalanKita: hash_file() mengembalikan false.', ['path' => $filePath]);
                 return null;
             }
             return $hash;
@@ -858,6 +1002,332 @@ class ReportController extends Controller
         }
     }
 
+    // ── Batch Upload Methods ──────────────────────────────────────────────
+
+    /**
+     * Simpan laporan batch (satu laporan utama + sub-laporan per foto).
+     *
+     * POST /api/reports/batch
+     * Memerlukan autentikasi Sanctum.
+     *
+     * @param  Request  $request
+     * @return JsonResponse
+     */
+    public function storeBatch(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'batch_id'           => 'required|uuid',
+                'road_name'          => 'required|string|max:255',
+                'district'           => 'required|string|in:' . implode(',', $this->getKecamatanList()),
+                'latitude'           => 'required|numeric|between:-11,6',
+                'longitude'          => 'required|numeric|between:95,141',
+                'koordinat_sumber'   => 'required|in:exif,browser_gps,manual',
+                'fake_gps_suspected' => 'boolean',
+                'analyses'           => 'required|json',
+                'files'              => 'required|array|min:1',
+                'files.*'            => 'required|file|mimes:jpeg,jpg,png|max:5120',
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data yang dikirim tidak valid.',
+                'errors'  => $e->errors(),
+            ], 422);
+        }
+
+        $analyses = json_decode($validated['analyses'], true);
+
+        if (!is_array($analyses) || count($analyses) === 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data analyses tidak valid atau kosong.',
+            ], 422);
+        }
+
+        // ── Validasi koordinat berada di wilayah Sidoarjo ─────────────────
+        if (!$this->isInSidoarjo((float) $validated['latitude'], (float) $validated['longitude'])) {
+            return response()->json([
+                'success'    => false,
+                'message'    => 'Koordinat berada di luar wilayah Kabupaten Sidoarjo.',
+                'error_code' => 'KOORDINAT_DILUAR_WILAYAH',
+            ], 422);
+        }
+
+        // ── Validasi nama jalan vs koordinat (tidak bisa di-bypass dari frontend) ──
+        $roadValidation = $this->validateRoadNameVsCoordinate(
+            $validated['road_name'],
+            (float) $validated['latitude'],
+            (float) $validated['longitude']
+        );
+
+        // ── Deteksi EXIF cloning ──────────────────────────────────────────
+        // Jika >80% foto dalam batch memiliki koordinat GPS EXIF yang identik,
+        // ini indikasi EXIF di-clone dari satu foto ke foto lainnya.
+        $exifCloneSuspected = false;
+        $exifCoords = [];
+        foreach ($analyses as $a) {
+            if (!empty($a['has_exif_gps']) && isset($a['exif_lat'], $a['exif_lng'])) {
+                $key = round((float)$a['exif_lat'], 4) . ',' . round((float)$a['exif_lng'], 4);
+                $exifCoords[$key] = ($exifCoords[$key] ?? 0) + 1;
+            }
+        }
+        $photosWithExif = count($analyses) - count(array_filter($analyses, fn($a) => empty($a['has_exif_gps'])));
+        if ($photosWithExif >= 3 && count($exifCoords) === 1) {
+            $exifCloneSuspected = true;
+        } elseif ($photosWithExif >= 5) {
+            $maxSame = max($exifCoords);
+            if ($maxSame >= $photosWithExif * 0.8) {
+                $exifCloneSuspected = true;
+            }
+        }
+
+        // ── Hitung trust score ────────────────────────────────────────────
+        $firstAnalysis = $analyses[0] ?? [];
+        $batchFakeGps = $validated['fake_gps_suspected'] ?? false;
+        if ($exifCloneSuspected) {
+            $batchFakeGps = true; // EXIF cloning = fake GPS
+        }
+        $trustResult   = app(\App\Services\TrustScoreService::class)->calculate([
+            'exif_lat'           => $validated['koordinat_sumber'] === 'exif' ? $validated['latitude']  : null,
+            'exif_lng'           => $validated['koordinat_sumber'] === 'exif' ? $validated['longitude'] : null,
+            'road_name_matched'  => $roadValidation['matched'],
+            'ai_detections'      => $firstAnalysis['detections']    ?? [],
+            'ai_context_valid'   => $firstAnalysis['context_valid'] ?? false,
+            'fake_gps_suspected' => $batchFakeGps,
+        ]);
+
+        // Catat EXIF cloning di system notes main report nanti
+        $batchNotes = null;
+        if ($exifCloneSuspected) {
+            $batchNotes = '[PERINGATAN] Terdeteksi ' . $photosWithExif . ' foto dengan koordinat GPS EXIF identik — kemungkinan EXIF di-clone.';
+        }
+
+        try {
+            $result = DB::transaction(function () use ($validated, $analyses, $request, $trustResult, $roadValidation, $batchNotes, $exifCloneSuspected) {
+                // ── Buat laporan utama ────────────────────────────────────
+                $severities  = array_column($analyses, 'severity');
+                $mainReport  = Report::create([
+                    'report_code'      => $this->generateReportCode(),
+                    'reporter_name'    => auth()->user()->name ?? 'Petugas',
+                    'road_name'        => $validated['road_name'],
+                    'district'         => $validated['district'],
+                    'latitude'         => $validated['latitude'],
+                    'longitude'        => $validated['longitude'],
+                    'koordinat_sumber' => $validated['koordinat_sumber'],
+                    'status'           => 'Menunggu Review',
+                    'batch_id'         => $validated['batch_id'],
+                    'is_batch_main'    => true,
+                    'trust_score'      => $trustResult['score'],
+                    'trust_label'      => $trustResult['label'],
+                    'trust_breakdown'  => $trustResult['breakdown'],
+                    'ai_severity'      => $this->aggregateSeverity($severities),
+                    'system_notes'     => $batchNotes,
+                ]);
+
+                // ── Buat sub-laporan per foto ─────────────────────────────
+                $subReports = [];
+                foreach ($analyses as $idx => $analysis) {
+                    // Lewati foto yang ditolak karena EXIF tidak valid
+                    if (!empty($analysis['exif_invalid'])) {
+                        Log::info('JalanKita: Sub-laporan dilewati karena foto ditolak EXIF.', [
+                            'file_index'  => $idx,
+                            'file_name'   => $analysis['file_name'] ?? '',
+                            'exif_reason' => $analysis['exif_reason'] ?? '',
+                        ]);
+                        continue;
+                    }
+
+                    $file      = $request->file('files')[$idx] ?? null;
+                    $photoPath = null;
+                    $imageHash = null;
+
+                    // Koordinat per foto: gunakan GPS EXIF jika ada, fallback ke koordinat form
+                    // Ini menyelesaikan celah 2.2 — setiap foto punya koordinat sendiri
+                    $photoLat        = (float) ($analysis['photo_lat'] ?? $validated['latitude']);
+                    $photoLng        = (float) ($analysis['photo_lng'] ?? $validated['longitude']);
+                    $koordinatSumber = $analysis['koordinat_sumber'] ?? $validated['koordinat_sumber'];
+
+                    if ($file) {
+                        // Cek duplikasi hash per file
+                        $imageHash = $this->calculateImageHash($file->getPathname());
+
+                        if ($imageHash && Report::where('image_hash', $imageHash)->exists()) {
+                            Log::info('JalanKita: Foto duplikat dilewati dalam batch.', [
+                                'file_index' => $idx,
+                                'hash'       => $imageHash,
+                            ]);
+                            continue;
+                        }
+
+                        $filename  = Str::uuid() . '-batch-' . time() . '.' . $file->getClientOriginalExtension();
+                        $photoPath = $file->storeAs(self::ORIGINALS_FOLDER, $filename, 'public');
+                    }
+
+                    // Hitung trust score per foto berdasarkan GPS EXIF foto itu sendiri
+                    $photoTrustResult = app(\App\Services\TrustScoreService::class)->calculate([
+                        'exif_lat'           => $analysis['has_exif_gps'] ? $analysis['exif_lat'] : null,
+                        'exif_lng'           => $analysis['has_exif_gps'] ? $analysis['exif_lng'] : null,
+                        'road_name_matched'  => $roadValidation['matched'],
+                        'ai_detections'      => $analysis['detections'] ?? [],
+                        'ai_context_valid'   => $analysis['context_valid'] ?? false,
+                        // Jika GPS EXIF jauh dari koordinat form, tandai sebagai suspicious
+                        'fake_gps_suspected' => $analysis['gps_mismatch'] ?? false,
+                    ]);
+
+                    // Tambahkan catatan jika GPS EXIF jauh dari koordinat form
+                    $subNotes = null;
+                    if (!empty($analysis['gps_mismatch'])) {
+                        $dist = round($analysis['gps_distance_meters'] ?? 0);
+                        $subNotes = "[PERINGATAN] GPS EXIF foto berjarak {$dist}m dari koordinat yang diinput. Perlu verifikasi.";
+                    } elseif (empty($analysis['has_exif_gps'])) {
+                        $subNotes = '[INFO] Foto tidak memiliki GPS EXIF. Koordinat dari input form.';
+                    }
+
+                    $subReport = Report::create([
+                        'report_code'         => $this->generateReportCode(),
+                        'reporter_name'       => auth()->user()->name ?? 'Petugas',
+                        'road_name'           => $validated['road_name'],
+                        'district'            => $validated['district'],
+                        'latitude'            => $photoLat,
+                        'longitude'           => $photoLng,
+                        'koordinat_sumber'    => $koordinatSumber,
+                        'status'              => 'Menunggu Review',
+                        'batch_id'            => $validated['batch_id'],
+                        'is_batch_sub'        => true,
+                        'parent_report_id'    => $mainReport->id,
+                        'trust_score'         => $photoTrustResult['score'],
+                        'trust_label'         => $photoTrustResult['label'],
+                        'ai_jenis_kerusakan'  => $analysis['detections'][0]['type'] ?? null,
+                        'ai_severity'         => $analysis['severity'] ?? 'ringan',
+                        'ai_confidence'       => $analysis['confidence'] ?? null,
+                        'image_original_path' => $photoPath,
+                        'image_hash'          => $imageHash,
+                        'system_notes'        => $subNotes,
+                    ]);
+
+                    $subReports[] = $subReport->id;
+                }
+
+                return [
+                    'main_report'       => $mainReport,
+                    'sub_reports_count' => count($subReports),
+                ];
+            });
+
+        } catch (\Exception $e) {
+            Log::error('JalanKita: Gagal menyimpan laporan batch.', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat menyimpan laporan batch. Silakan coba lagi.',
+                'debug'   => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
+
+        $mainReport = $result['main_report'];
+
+        // Log aktivitas untuk anomaly detection
+        $reporterName = $mainReport->reporter_name;
+        $dailyCount = Report::where('reporter_name', $reporterName)
+            ->whereDate('created_at', today())
+            ->count();
+        Log::info('JalanKita: Laporan batch berhasil disimpan.', [
+            'batch_id'           => $validated['batch_id'],
+            'main_report_code'   => $mainReport->report_code,
+            'sub_reports_count'  => $result['sub_reports_count'],
+            'trust_score'        => $trustResult['score'],
+            'trust_label'        => $trustResult['label'],
+            'reporter_name'      => $reporterName,
+            'daily_count'        => $dailyCount,
+            'exif_clone_suspect' => $exifCloneSuspected,
+        ]);
+
+        return response()->json([
+            'success'           => true,
+            'main_report_id'    => $mainReport->id,
+            'main_report_code'  => $mainReport->report_code,
+            'sub_reports_count' => $result['sub_reports_count'],
+            'trust_score'       => $trustResult['score'],
+            'trust_label'       => $trustResult['label'],
+            'overall_severity'  => $mainReport->ai_severity,
+            'road_matched'      => $roadValidation['matched'],
+        ], 201);
+    }
+
+    // ── Trust & Validation Methods ────────────────────────────────────────
+
+    /**
+     * Validasi nama jalan vs koordinat menggunakan LocationIQ reverse geocoding.
+     *
+     * Tidak memblokir laporan jika LocationIQ tidak tersedia — hanya mencatat.
+     * Supervisor tetap bisa melihat hasil validasi ini di trust breakdown.
+     *
+     * @param  string  $namaJalan  Nama jalan yang diinput user
+     * @param  float   $lat        Latitude koordinat
+     * @param  float   $lng        Longitude koordinat
+     * @return array{matched: bool, similarity: float|null, geocoded_road: string, reason: string}
+     */
+    private function validateRoadNameVsCoordinate(string $namaJalan, float $lat, float $lng): array
+    {
+        try {
+            $response = Http::timeout(5)->get('https://us1.locationiq.com/v1/reverse', [
+                'key'    => config('services.locationiq.key'),
+                'lat'    => $lat,
+                'lon'    => $lng,
+                'format' => 'json',
+            ]);
+
+            if (!$response->ok()) {
+                // LocationIQ tidak tersedia — jangan block laporan, catat saja
+                return ['matched' => false, 'similarity' => null, 'geocoded_road' => '', 'reason' => 'locationiq_unavailable'];
+            }
+
+            $data        = $response->json();
+            $geocodedRoad = $data['address']['road']
+                ?? $data['address']['residential']
+                ?? $data['display_name']
+                ?? '';
+
+            similar_text(strtolower(trim($namaJalan)), strtolower(trim($geocodedRoad)), $percent);
+
+            return [
+                'matched'       => $percent >= 80,
+                'similarity'    => round($percent, 1),
+                'geocoded_road' => $geocodedRoad,
+                'reason'        => $percent >= 80 ? 'ok' : 'mismatch',
+            ];
+        } catch (\Exception $e) {
+            return ['matched' => false, 'similarity' => null, 'geocoded_road' => '', 'reason' => 'exception'];
+        }
+    }
+
+    /**
+     * Aggregate severity dari array severities — ambil yang terparah.
+     *
+     * @param  array  $severities  Array string severity ('ringan', 'sedang', 'berat')
+     * @return string  Severity terparah
+     */
+    private function aggregateSeverity(array $severities): string
+    {
+        $order  = ['berat' => 3, 'sedang' => 2, 'ringan' => 1];
+        $max    = 0;
+        $result = 'ringan';
+
+        foreach ($severities as $s) {
+            $val = $order[strtolower((string) $s)] ?? 0;
+            if ($val > $max) {
+                $max    = $val;
+                $result = strtolower((string) $s);
+            }
+        }
+
+        return $result;
+    }
+
     /**
      * Daftar 18 kecamatan di Kabupaten Sidoarjo.
      * Digunakan untuk validasi field 'district'.
@@ -887,4 +1357,100 @@ class ReportController extends Controller
             'Prambon',
         ];
     }
+
+    /**
+     * Cek apakah koordinat berada di dalam bounding box Kabupaten Sidoarjo.
+     *
+     * Bounding box: lat -7.65 s/d -7.25, lng 112.50 s/d 112.95
+     * Sumber: OpenStreetMap administrative boundary Kabupaten Sidoarjo.
+     *
+     * @param  float  $lat  Latitude
+     * @param  float  $lng  Longitude
+     * @return bool
+     */
+    private function isInSidoarjo(float $lat, float $lng): bool
+    {
+        return $lat >= -7.65 && $lat <= -7.25
+            && $lng >= 112.50 && $lng <= 112.95;
+    }
+
+    /**
+     * Ekstrak koordinat GPS dari metadata EXIF foto.
+     */
+    private function extractExifGps(string $filePath): ?array
+    {
+        if (!function_exists('exif_read_data')) {
+            return null;
+        }
+
+        try {
+            $exifData = @exif_read_data($filePath, 'GPS', false);
+
+            if (!$exifData || !isset($exifData['GPSLatitude'], $exifData['GPSLongitude'])) {
+                return null;
+            }
+
+            $lat = $this->convertGpsDmsToDecimal(
+                $exifData['GPSLatitude'],
+                $exifData['GPSLatitudeRef'] ?? 'N'
+            );
+            $lng = $this->convertGpsDmsToDecimal(
+                $exifData['GPSLongitude'],
+                $exifData['GPSLongitudeRef'] ?? 'E'
+            );
+
+            if ($lat === null || $lng === null) {
+                return null;
+            }
+
+            if ($lat < -11 || $lat > 6 || $lng < 95 || $lng > 141) {
+                return null;
+            }
+
+            return ['lat' => $lat, 'lng' => $lng];
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    private function convertGpsDmsToDecimal(array $dms, string $ref): ?float
+    {
+        if (count($dms) < 3) return null;
+
+        $parseRational = function (string $rational): float {
+            $parts = explode('/', $rational);
+            if (count($parts) === 2 && (float) $parts[1] !== 0.0) {
+                return (float) $parts[0] / (float) $parts[1];
+            }
+            return (float) $parts[0];
+        };
+
+        $degrees = $parseRational((string) $dms[0]);
+        $minutes = $parseRational((string) $dms[1]);
+        $seconds = $parseRational((string) $dms[2]);
+
+        $decimal = $degrees + ($minutes / 60) + ($seconds / 3600);
+
+        if (in_array(strtoupper($ref), ['S', 'W'])) {
+            $decimal = -$decimal;
+        }
+
+        return round($decimal, 8);
+    }
+
+    /**
+     * Hitung jarak antara dua koordinat GPS menggunakan Haversine Formula.
+     */
+    private function haversineDistance(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        $earthRadius = 6371000;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLng = deg2rad($lng2 - $lng1);
+
+        $a = sin($dLat / 2) ** 2
+           + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
+
+        return $earthRadius * 2 * asin(sqrt($a));
+    }
 }
+

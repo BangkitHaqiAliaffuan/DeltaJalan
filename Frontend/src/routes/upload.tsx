@@ -5,12 +5,13 @@ import { AppLayout } from "@/components/jk/AppLayout";
 import { FraudWarningModal } from "@/components/jk/FraudWarningModal";
 import { DuplicateChecker } from "@/components/jk/DuplicateChecker";
 import { useRef, useState, useCallback, useEffect } from "react";
-import { setAiResult, setFormData, API_BASE_URL } from "@/lib/aiStore";
+import { setAiResult, setFormData, setBatchResult, API_BASE_URL } from "@/lib/aiStore";
 import {
   useLocationFromPhoto,
   type GpsStatus,
 } from "@/hooks/useLocationFromPhoto";
 import { useDuplicateCheck } from "@/hooks/useDuplicateCheck";
+import { useGPS } from "@/hooks/useGPS";
 import {
   useRoadSearch,
   type RoadSuggestion,
@@ -20,7 +21,8 @@ import {
   isExifBlocking,
   type PhotoDateValidationStatus,
 } from "@/lib/validatePhotoDate";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, getToken } from "@/lib/auth";
+import type { BatchAnalysisResponse } from "@/types/laporan";
 
 export const Route = createFileRoute("/upload")({
   component: UploadPage,
@@ -116,9 +118,10 @@ function GpsBanner({
 
 function UploadPage() {
   const navigate = useNavigate();
+  const { gps, startWatching, stopWatching } = useGPS();
   const user = getCurrentUser();
 
-  // Dua input terpisah: kamera dan galeri
+  // Dua input terpisah: kamera dan galeri — keduanya support multiple untuk batch
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -159,6 +162,21 @@ function UploadPage() {
   // State untuk menyembunyikan tombol submit utama saat "Dukung Laporan" dipilih
   const [isSubmitHidden, setIsSubmitHidden] = useState(false);
 
+  // ── State Batch Upload (Task 4A) ─────────────────────────────────────────
+  const [selectedFiles, setSelectedFiles]   = useState<File[]>([]);
+  const [previewUrls, setPreviewUrls]       = useState<string[]>([]);
+  const [roadNameSource, setRoadNameSource] = useState<'autocomplete' | 'manual' | null>(null);
+  const [uploadPhase, setUploadPhase]       = useState<
+    'idle' | 'uploading' | 'analyzing' | 'validating' | 'done' | 'error'
+  >('idle');
+  const [batchError, setBatchError] = useState("");
+
+  // Status EXIF per file dalam batch — ditampilkan langsung di grid preview
+  // key = index file dalam selectedFiles
+  const [fileExifStatus, setFileExifStatus] = useState<
+    Record<number, { status: 'checking' | 'valid' | 'warning' | 'rejected'; message: string }>
+  >({});
+
   // ── Callbacks untuk hook lokasi ──────────────────────────────────────────
 
   const handleLocationResolved = useCallback(
@@ -195,6 +213,10 @@ function UploadPage() {
     }
   }, [locationState.status]);
 
+  // Mulai watch GPS untuk deteksi fake GPS (data dipakai di handleSubmitBatch)
+  // useGPS() hanya idle sampai startWatching() dipanggil.
+  useEffect(() => { startWatching(); }, []);
+
   // ── Road Search (Nominatim Autocomplete) ─────────────────────────────────
 
   /**
@@ -209,6 +231,8 @@ function UploadPage() {
       }
       setRoadCoords({ lat: suggestion.lat, lng: suggestion.lng });
       setLiveGpsError("");
+      // Tandai sebagai dipilih dari autocomplete (Task 4E)
+      setRoadNameSource('autocomplete');
     },
     []
   );
@@ -254,6 +278,18 @@ function UploadPage() {
   }, []);
 
   /**
+   * Koordinat efektif yang akan dipakai saat submit:
+   * - Prioritas 1: GPS dari hook (live kamera / EXIF galeri)
+   * - Prioritas 2: Koordinat dari road search Nominatim
+   * - Prioritas 3: Koordinat dari tombol live GPS fallback
+   *
+   * Dideklarasikan di sini (sebelum handler batch) agar bisa dipakai
+   * di handleSubmitBatch tanpa "Cannot access before initialization".
+   */
+  const effectiveLat: number | null = locationState.lat ?? roadCoords?.lat ?? null;
+  const effectiveLng: number | null = locationState.lng ?? roadCoords?.lng ?? null;
+
+  /**
    * Apakah perlu menampilkan panel GPS fallback?
    * Ya, jika foto tidak punya GPS EXIF dan live GPS dari hook juga tidak aktif.
    */
@@ -263,14 +299,254 @@ function UploadPage() {
     locationState.status === "timeout" ||
     locationState.status === "error";
 
+  // ── Handler Batch Upload (Task 4C) ───────────────────────────────────────
+
   /**
-   * Koordinat efektif yang akan dipakai saat submit:
-   * - Prioritas 1: GPS dari hook (live kamera / EXIF galeri)
-   * - Prioritas 2: Koordinat dari road search Nominatim
-   * - Prioritas 3: Koordinat dari tombol live GPS fallback
+   * Handler saat user memilih beberapa file sekaligus.
+   * Validasi tipe dan ukuran, gabungkan dengan file yang sudah ada (maks 20).
+   * Langsung cek EXIF per file di background — tampilkan warning/rejected di grid.
    */
-  const effectiveLat: number | null = locationState.lat ?? roadCoords?.lat ?? null;
-  const effectiveLng: number | null = locationState.lng ?? roadCoords?.lng ?? null;
+  const handleFilesSelected = useCallback(async (files: FileList | null) => {
+    if (!files) return;
+    const valid: File[] = [];
+    Array.from(files).forEach(file => {
+      if (!['image/jpeg', 'image/jpg', 'image/png'].includes(file.type)) return;
+      if (file.size > 5 * 1024 * 1024) return;
+      valid.push(file);
+    });
+    const startIdx = selectedFiles.length;
+    const merged   = [...selectedFiles, ...valid].slice(0, 20);
+    setSelectedFiles(merged);
+    setPreviewUrls(prev => {
+      prev.forEach(u => URL.revokeObjectURL(u));
+      return merged.map(f => URL.createObjectURL(f));
+    });
+
+    // Tandai semua file baru sebagai "checking" dulu
+    setFileExifStatus(prev => {
+      const next = { ...prev };
+      valid.slice(0, 20 - selectedFiles.length).forEach((_, i) => {
+        next[startIdx + i] = { status: 'checking', message: 'Memeriksa metadata...' };
+      });
+      return next;
+    });
+
+    // Validasi EXIF per file secara paralel — tidak blokir UI
+    const checks = valid.slice(0, 20 - selectedFiles.length).map(async (file, i) => {
+      const idx    = startIdx + i;
+      const result = await validatePhotoDate(file);
+      let status: 'valid' | 'warning' | 'rejected';
+      let message: string;
+
+      if (result.status === 'valid') {
+        status  = 'valid';
+        message = 'Foto valid';
+      } else if (isExifBlocking(result.status)) {
+        status  = 'rejected';
+        message = result.message;
+      } else {
+        // Fallback — semua status error di atas sudah blocking,
+        // cabang ini hanya tercapai jika ada status baru yang ditambahkan
+        status  = 'warning';
+        message = 'Metadata foto tidak lengkap — gunakan foto asli dari kamera';
+      }
+
+      setFileExifStatus(prev => ({ ...prev, [idx]: { status, message } }));
+    });
+
+    await Promise.all(checks);
+  }, [selectedFiles]);
+
+  /**
+   * Hapus satu foto dari daftar batch.
+   */
+  const removeBatchFile = useCallback((idx: number) => {
+    URL.revokeObjectURL(previewUrls[idx]);
+    setSelectedFiles(prev => prev.filter((_, i) => i !== idx));
+    setPreviewUrls(prev => prev.filter((_, i) => i !== idx));
+    // Re-index fileExifStatus setelah file dihapus
+    setFileExifStatus(prev => {
+      const next: typeof prev = {};
+      Object.entries(prev).forEach(([key, val]) => {
+        const k = parseInt(key);
+        if (k < idx) next[k] = val;
+        else if (k > idx) next[k - 1] = val;
+        // k === idx dibuang
+      });
+      return next;
+    });
+  }, [previewUrls]);
+
+  /**
+   * Submit batch: kirim ke AI server → simpan laporan batch.
+   * Alur dua fase sesuai solution.md Task 4G.
+   */
+  const handleSubmitBatch = useCallback(async () => {
+    setBatchError("");
+
+    if (selectedFiles.length === 0) {
+      setBatchError("Pilih minimal 1 foto untuk batch upload.");
+      return;
+    }
+    if (roadNameSource !== 'autocomplete') {
+      setBatchError("Nama jalan harus dipilih dari saran autocomplete, bukan diketik manual.");
+      return;
+    }
+
+    // Gunakan koordinat dari EXIF/live GPS/road search (sama seperti single upload)
+    const batchLat = effectiveLat;
+    const batchLng = effectiveLng;
+
+    if (!batchLat || !batchLng) {
+      setBatchError("Koordinat belum tersedia. Pilih nama jalan dari saran untuk mendapatkan koordinat otomatis.");
+      return;
+    }
+
+    const token = getToken() ?? '';
+
+    try {
+      // ── Fase 1: Kirim ke AI server untuk analisis ─────────────────────
+      setUploadPhase('uploading');
+      const fd1 = new FormData();
+      // Gunakan key "files[]" (bukan "files[0]") agar Laravel parse sebagai array
+      selectedFiles.forEach((f) => fd1.append('files[]', f));
+      fd1.append('latitude',  String(batchLat));
+      fd1.append('longitude', String(batchLng));
+
+      setUploadPhase('analyzing');
+      const r1 = await fetch(`${API_BASE_URL}/analyze-batch`, {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body:    fd1,
+      });
+
+      if (!r1.ok) {
+        const errData = await r1.json().catch(() => ({}));
+        // Tampilkan detail validasi error jika ada
+        const detail = errData.errors
+          ? Object.values(errData.errors as Record<string, string[]>).flat().join(' | ')
+          : null;
+        throw new Error(detail ?? errData.message ?? `Analisis AI gagal (HTTP ${r1.status})`);
+      }
+
+      const batchData: BatchAnalysisResponse = await r1.json();
+
+      if (batchData.photos_rejected === batchData.total_files) {
+        throw new Error("Semua foto ditolak karena tidak memiliki metadata EXIF tanggal yang valid, atau tidak bisa dibaca.");
+      }
+
+      // ── Fase 2: Simpan laporan ke database ────────────────────────────
+      setUploadPhase('validating');
+      const fd2 = new FormData();
+      fd2.append('batch_id',          batchData.batch_id);
+      fd2.append('road_name',         namaJalan);
+      fd2.append('district',          kecamatan);
+      fd2.append('latitude',          String(batchLat));
+      fd2.append('longitude',         String(batchLng));
+      fd2.append('koordinat_sumber',  locationState.source === 'camera' ? 'browser_gps' : locationState.lat ? 'exif' : 'manual');
+      fd2.append('fake_gps_suspected', gps.fake_gps_suspected ? '1' : '0');
+      fd2.append('analyses',          JSON.stringify(batchData.analyses));
+      // Gunakan key "files[]" agar Laravel parse sebagai array
+      selectedFiles.forEach((f) => fd2.append('files[]', f));
+
+      const r2 = await fetch(`${API_BASE_URL}/reports/batch`, {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body:    fd2,
+      });
+
+      if (!r2.ok) {
+        const errData = await r2.json().catch(() => ({}));
+        const detail = errData.errors
+          ? Object.values(errData.errors as Record<string, string[]>).flat().join(' | ')
+          : null;
+        throw new Error(detail ?? errData.message ?? `Simpan laporan gagal (HTTP ${r2.status})`);
+      }
+
+      const reportData = await r2.json();
+
+      // ── Simpan ke aiStore SEBELUM navigate ────────────────────────────
+      const batchAnalyses = batchData.analyses;
+
+      const normSev = (s: string) =>
+        s === 'berat' ? 'Rusak Berat' : s === 'sedang' ? 'Rusak Sedang' : 'Rusak Ringan';
+
+      const overallSev = normSev(reportData.overall_severity ?? 'ringan');
+
+      const allDetections = batchAnalyses.flatMap(a =>
+        a.detections.map(d => ({
+          class:      d.type,
+          severity:   normSev(a.severity),
+          confidence: d.confidence,
+          bbox:       { x1: d.bbox[0] ?? 0, y1: d.bbox[1] ?? 0, x2: d.bbox[2] ?? 0, y2: d.bbox[3] ?? 0 },
+        }))
+      );
+
+      // Synthetic single result — agar guard di ai-result tidak redirect
+      setAiResult({
+        detections:       allDetections,
+        total:            allDetections.length,
+        overall_severity: overallSev,
+        image_result:     batchAnalyses[0]?.image_result ?? '',
+        status:           'success',
+      });
+
+      // Data batch lengkap per foto — untuk tampilan carousel di ai-result
+      setBatchResult({
+        photos: batchAnalyses.map((a, idx) => ({
+          fileIndex:   a.file_index,
+          fileName:    a.file_name,
+          imageResult: a.image_result ?? '',
+          previewUrl:  previewUrls[idx] ?? '',
+          detections:  a.detections.map(d => ({
+            class:      d.type,
+            severity:   normSev(a.severity),
+            confidence: d.confidence,
+            bbox:       { x1: d.bbox[0] ?? 0, y1: d.bbox[1] ?? 0, x2: d.bbox[2] ?? 0, y2: d.bbox[3] ?? 0 },
+          })),
+          severity:    normSev(a.severity),
+          confidence:  a.confidence,
+          hasError:    !!a.error,
+        })),
+        totalDetections: allDetections.length,
+        overallSeverity: overallSev,
+        reportCode:      reportData.main_report_code ?? '',
+        trustScore:      reportData.trust_score ?? 0,
+        trustLabel:      reportData.trust_label ?? 'merah',
+      });
+
+      setFormData({
+        namaJalan,
+        kecamatan,
+        tanggal,
+        catatan,
+        previewUrl: previewUrls[0] ?? '',
+        fileName:   `${selectedFiles.length} foto (batch)`,
+        lat:        batchLat,
+        lng:        batchLng,
+      });
+
+      setUploadPhase('done');
+
+      console.info('JalanKita: Batch upload berhasil.', {
+        batchId:         batchData.batch_id,
+        mainReportCode:  reportData.main_report_code,
+        subReportsCount: reportData.sub_reports_count,
+        trustScore:      reportData.trust_score,
+        trustLabel:      reportData.trust_label,
+      });
+
+      // Navigate setelah store terisi
+      navigate({ to: '/ai-result' });
+
+    } catch (err) {
+      setUploadPhase('error');
+      setBatchError(err instanceof Error ? err.message : 'Terjadi kesalahan saat upload batch.');
+    }
+  }, [
+    selectedFiles, roadNameSource, effectiveLat, effectiveLng,
+    namaJalan, kecamatan, tanggal, catatan, previewUrls, navigate, locationState.source, locationState.lat,
+  ]);
 
   // ── Duplicate Check Hook ─────────────────────────────────────────────────
   // Requirement 6.6: useDuplicateCheck menggunakan state form yang sudah ada
@@ -318,8 +594,8 @@ function UploadPage() {
     if (!file.type.match(/^image\/(jpeg|jpg|png)$/)) {
       return "File harus berupa gambar JPG atau PNG.";
     }
-    if (file.size > 10 * 1024 * 1024) {
-      return "Ukuran file maksimal 10MB.";
+    if (file.size > 5 * 1024 * 1024) {
+      return "Ukuran file maksimal 5MB.";
     }
     return null;
   }
@@ -336,25 +612,41 @@ function UploadPage() {
 
   /** Dipanggil saat user mengambil foto via kamera */
   async function handleCameraChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (files.length > 1) {
+      // Mode batch: validasi EXIF per file sudah ada di handleFilesSelected
+      // Foto dari kamera tidak perlu validasi tanggal (foto baru)
+      await handleFilesSelected(files);
+      return;
+    }
+
+    // Mode single: alur lama
+    const file = files[0];
     if (!applyFile(file, "camera")) return;
-    // Strategi 1: live GPS
     await handleCameraCapture(file);
   }
 
   /** Dipanggil saat user memilih foto dari galeri */
   async function handleGalleryChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (files.length > 1) {
+      // Mode batch: validasi EXIF per file sudah ada di handleFilesSelected
+      await handleFilesSelected(files);
+      return;
+    }
+
+    // Mode single: alur lama dengan validasi EXIF
+    const file = files[0];
 
     // ── Validasi Anti-Fraud Tanggal EXIF ──────────────────────────────────
-    // Hanya berlaku untuk foto galeri (bukan kamera langsung)
     const dateValidation = await validatePhotoDate(file);
 
     if (dateValidation.status !== "valid") {
       if (isExifBlocking(dateValidation.status)) {
-        // Status benar-benar memblokir (too_old, future_date) → tolak foto
         setFraudModal({
           isOpen: true,
           status: dateValidation.status,
@@ -362,12 +654,9 @@ function UploadPage() {
           message: dateValidation.message,
           isWarningOnly: false,
         });
-        // Kosongkan input file agar user harus memilih ulang
         if (galleryInputRef.current) galleryInputRef.current.value = "";
-        return; // hentikan proses
+        return;
       } else {
-        // Status hanya peringatan (no_exif_date, exif_read_error) → lanjut upload
-        // tapi tampilkan info bahwa GPS perlu diisi manual
         setFraudModal({
           isOpen: true,
           status: dateValidation.status,
@@ -375,13 +664,10 @@ function UploadPage() {
           message: dateValidation.message,
           isWarningOnly: true,
         });
-        // Lanjut ke applyFile — TIDAK return
       }
     }
-    // ── End Validasi ──────────────────────────────────────────────────────
 
     if (!applyFile(file, "gallery")) return;
-    // Strategi 2: baca EXIF GPS
     await handleGallerySelect(file);
   }
 
@@ -429,6 +715,13 @@ function UploadPage() {
     setSelectedFile(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
+    // Reset batch juga
+    previewUrls.forEach(u => URL.revokeObjectURL(u));
+    setSelectedFiles([]);
+    setPreviewUrls([]);
+    setFileExifStatus({});
+    setBatchError("");
+    setUploadPhase('idle');
     resetLocation();
     resetDuplicateCheck();
     roadSearch.reset();
@@ -437,6 +730,7 @@ function UploadPage() {
     setKecamatan("Sidoarjo");
     setRoadCoords(null);
     setLiveGpsError("");
+    setRoadNameSource(null);
     if (cameraInputRef.current)  cameraInputRef.current.value  = "";
     if (galleryInputRef.current) galleryInputRef.current.value = "";
   }
@@ -530,8 +824,144 @@ function UploadPage() {
           */}
           <div style={{ maxWidth: "42rem", marginLeft: "auto", marginRight: "auto" }} className="flex flex-col gap-4">
 
-            {/* ── Upload Zone ── */}
-            {!selectedFile ? (
+            {/* ── Upload Zone / Preview ── */}
+            {selectedFiles.length > 0 ? (
+              /* ── Preview Batch (multi-foto) ── */
+              <div className="rounded-xl border border-border-subtle overflow-hidden shadow-sm bg-surface-container-lowest">
+                <div className="px-4 pt-3 pb-2 flex items-center justify-between border-b border-border-subtle">
+                  <span className="font-label-md text-[13px] font-semibold text-[#0F172A]">
+                    {selectedFiles.length} foto dipilih
+                    <span className="text-on-surface-variant font-normal ml-1">(maks 20)</span>
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="flex items-center gap-1 text-primary-container font-label-md text-[12px] font-semibold hover:underline"
+                    >
+                      <Icon name="add_a_photo" className="!text-[14px]" />
+                      Tambah
+                    </button>
+                    <button
+                      type="button"
+                      onClick={removeFile}
+                      className="flex items-center gap-1 text-[#EF4444] font-label-md text-[12px] font-semibold hover:underline"
+                    >
+                      <Icon name="delete_sweep" className="!text-[14px]" />
+                      Hapus Semua
+                    </button>
+                  </div>
+                </div>
+                <div className="p-3 grid grid-cols-3 gap-2">
+                  {previewUrls.map((url, idx) => {
+                    const exif = fileExifStatus[idx];
+                    const isRejected = exif?.status === 'rejected';
+                    const isWarning  = exif?.status === 'warning';
+                    const isChecking = exif?.status === 'checking';
+                    return (
+                      <div
+                        key={idx}
+                        className={`relative aspect-square rounded-lg overflow-hidden ${
+                          isRejected ? 'ring-2 ring-red-500' : isWarning ? 'ring-2 ring-yellow-400' : ''
+                        } bg-surface-container-high`}
+                        title={exif?.message}
+                      >
+                        <img
+                          src={url}
+                          alt={`Foto ${idx + 1}`}
+                          className={`w-full h-full object-cover ${isRejected ? 'opacity-40' : ''}`}
+                        />
+
+                        {/* Overlay merah untuk foto yang ditolak */}
+                        {isRejected && (
+                          <div className="absolute inset-0 bg-red-500/20 flex items-center justify-center">
+                            <div className="bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded text-center leading-tight max-w-[90%]">
+                              DITOLAK
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Badge status EXIF di pojok kiri atas */}
+                        {isChecking && (
+                          <div className="absolute top-1 left-1 w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                        )}
+                        {isWarning && !isChecking && (
+                          <div className="absolute top-1 left-1 bg-yellow-400 text-yellow-900 text-[8px] font-bold px-1 rounded">
+                            ⚠
+                          </div>
+                        )}
+                        {exif?.status === 'valid' && (
+                          <div className="absolute top-1 left-1 bg-green-500 text-white text-[8px] font-bold px-1 rounded">
+                            ✓
+                          </div>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => removeBatchFile(idx)}
+                          className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-red-500 text-white rounded-full text-xs flex items-center justify-center transition-colors"
+                          aria-label={`Hapus foto ${idx + 1}`}
+                        >
+                          <Icon name="close" className="!text-[12px]" />
+                        </button>
+                        <div className="absolute bottom-1 left-1 bg-black/50 text-white text-[9px] px-1 rounded font-mono">
+                          {idx + 1}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {/* Tombol tambah foto inline */}
+                  {selectedFiles.length < 20 && (
+                    <button
+                      type="button"
+                      onClick={() => galleryInputRef.current?.click()}
+                      className="aspect-square rounded-lg border-2 border-dashed border-border-subtle flex flex-col items-center justify-center gap-1 hover:border-primary-container hover:bg-primary-container/5 transition-colors"
+                    >
+                      <Icon name="add_photo_alternate" className="text-on-surface-variant !text-[24px]" />
+                      <span className="text-[10px] text-on-surface-variant">Tambah</span>
+                    </button>
+                  )}
+                </div>
+                {/* Ringkasan status EXIF — tampil jika ada foto bermasalah */}
+                {Object.values(fileExifStatus).some(s => s.status === 'rejected' || s.status === 'warning') && (
+                  <div className="space-y-1">
+                    {Object.entries(fileExifStatus)
+                      .filter(([, s]) => s.status === 'rejected' || s.status === 'warning')
+                      .map(([idx, s]) => (
+                        <div
+                          key={idx}
+                          className={`flex items-start gap-2 px-3 py-2 rounded-lg text-[11px] ${
+                            s.status === 'rejected'
+                              ? 'bg-red-50 border border-red-200 text-red-700'
+                              : 'bg-yellow-50 border border-yellow-200 text-yellow-800'
+                          }`}
+                        >
+                          <span className="shrink-0 font-bold">Foto {parseInt(idx) + 1}:</span>
+                          <span>{s.message}</span>
+                          {s.status === 'rejected' && (
+                            <button
+                              type="button"
+                              onClick={() => removeBatchFile(parseInt(idx))}
+                              className="ml-auto shrink-0 underline font-medium"
+                            >
+                              Hapus
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                )}
+
+                {/* Error batch */}
+                {batchError && (
+                  <div className="mx-3 mb-3 flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    <Icon name="error" className="text-red-600 !text-[14px] shrink-0 mt-0.5" />
+                    <p className="text-[11px] text-red-700">{batchError}</p>
+                  </div>
+                )}
+              </div>
+            ) : !selectedFile ? (
+              /* ── Upload Zone (kosong) ── */
               <div
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
@@ -544,12 +974,10 @@ function UploadPage() {
                   Foto Kerusakan Jalan
                 </h2>
                 <p className="font-body-md text-body-md text-on-surface-variant mb-6 px-4">
-                  Ambil foto langsung atau pilih dari galeri
+                  Ambil 1 foto atau pilih banyak sekaligus (batch)
                 </p>
 
-                {/* Dua tombol terpisah */}
                 <div className="flex gap-3 w-full justify-center">
-                  {/* Tombol Kamera — trigger live GPS */}
                   <button
                     type="button"
                     onClick={() => cameraInputRef.current?.click()}
@@ -558,8 +986,6 @@ function UploadPage() {
                     <Icon name="photo_camera" className="!text-[20px]" />
                     Kamera
                   </button>
-
-                  {/* Tombol Galeri — trigger EXIF GPS */}
                   <button
                     type="button"
                     onClick={() => galleryInputRef.current?.click()}
@@ -571,20 +997,19 @@ function UploadPage() {
                 </div>
 
                 <span className="mt-5 font-label-sm text-label-sm text-[#94A3B8]">
-                  Format JPG/PNG · Maks. 10MB · Drag & drop didukung
+                  Format JPG/PNG · Maks. 5MB/foto · Pilih banyak untuk batch
                 </span>
 
-                {/* Info untuk pengguna desktop */}
                 <div className="mt-4 w-full text-left text-[11px] text-[#64748B] bg-[#F1F5F9] border border-[#E2E8F0] rounded-lg p-3">
                   <p className="font-semibold mb-1">💡 Tips:</p>
                   <ul className="list-disc list-inside space-y-0.5">
-                    <li><strong>Kamera:</strong> Ambil foto baru langsung (mobile) atau pilih file terbaru (desktop)</li>
-                    <li><strong>Galeri:</strong> Pilih foto dari penyimpanan perangkat Anda</li>
+                    <li><strong>1 foto:</strong> Analisis AI langsung, simpan laporan tunggal</li>
+                    <li><strong>Banyak foto:</strong> Tahan Ctrl/Shift atau pilih semua — upload batch sekaligus</li>
                   </ul>
                 </div>
               </div>
             ) : (
-              /* ── Preview Foto ── */
+              /* ── Preview Single Foto ── */
               <div className="rounded-xl border border-border-subtle overflow-hidden shadow-sm bg-surface-container-lowest">
                 <div className="relative w-full aspect-video bg-surface-container-high">
                   <img
@@ -592,7 +1017,6 @@ function UploadPage() {
                     alt="Preview foto"
                     className="w-full h-full object-cover"
                   />
-                  {/* Hapus foto */}
                   <button
                     type="button"
                     onClick={removeFile}
@@ -601,14 +1025,12 @@ function UploadPage() {
                   >
                     <Icon name="close" className="!text-[18px]" />
                   </button>
-                  {/* Nama file */}
                   <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded-lg flex items-center gap-1.5">
                     <Icon name="image" className="!text-[14px]" />
                     <span className="font-label-sm text-[11px] truncate max-w-[200px]">
                       {selectedFile.name}
                     </span>
                   </div>
-                  {/* Sumber foto badge */}
                   {locationState.source && (
                     <div className="absolute top-2 left-2 bg-black/50 text-white px-2 py-1 rounded-lg flex items-center gap-1">
                       <Icon
@@ -648,25 +1070,24 @@ function UploadPage() {
               </div>
             )}
 
-            {/* Input kamera — capture="environment" untuk kamera belakang */}
-            {/* PENTING: Di desktop, capture attribute diabaikan browser. */}
-            {/* Pengguna desktop akan melihat file picker biasa. */}
+            {/* Input kamera — capture="environment" untuk kamera belakang, multiple untuk batch */}
             <input
               ref={cameraInputRef}
               type="file"
               accept="image/jpeg,image/png,image/jpg"
               capture="environment"
+              multiple
               className="hidden"
               onChange={handleCameraChange}
               aria-label="Ambil foto menggunakan kamera"
             />
 
-            {/* Input galeri — tanpa capture agar buka file picker */}
-            {/* Ini adalah input terpisah untuk memilih foto dari galeri/penyimpanan */}
+            {/* Input galeri — multiple untuk batch upload */}
             <input
               ref={galleryInputRef}
               type="file"
               accept="image/jpeg,image/png,image/jpg"
+              multiple
               className="hidden"
               onChange={handleGalleryChange}
               aria-label="Pilih foto dari galeri"
@@ -745,6 +1166,8 @@ function UploadPage() {
                       setNamaJalan(val);
                       // Reset koordinat road search jika user mengedit manual
                       setRoadCoords(null);
+                      // Tandai sebagai manual saat user mengetik (Task 4E)
+                      setRoadNameSource('manual');
                       roadSearch.onQueryChange(val);
                     }}
                     onBlur={() => {
@@ -854,6 +1277,13 @@ function UploadPage() {
                   <p className="text-[11px] text-[#059669] flex items-center gap-1">
                     <Icon name="check_circle" className="!text-[14px]" filled />
                     Koordinat didapat dari Nominatim ({roadCoords.lat.toFixed(5)}, {roadCoords.lng.toFixed(5)})
+                  </p>
+                )}
+                {/* Warning jika nama jalan diketik manual (Task 4E) */}
+                {roadNameSource === 'manual' && namaJalan.length > 3 && !isGpsActive && (
+                  <p className="text-[11px] text-red-600 flex items-center gap-1 mt-1">
+                    <Icon name="warning" className="!text-[13px]" />
+                    Pilih nama jalan dari saran di bawah, jangan ketik manual — koordinat tidak akan terverifikasi.
                   </p>
                 )}
               </div>
@@ -1024,8 +1454,54 @@ function UploadPage() {
         {/* ── Footer Actions ── */}
         <div className="sticky bottom-0 bg-surface border-t border-border-subtle shadow-[0_-4px_12px_rgba(0,0,0,0.05)] w-full">
           <div style={{ maxWidth: "42rem", marginLeft: "auto", marginRight: "auto" }} className="p-4 flex flex-col gap-3">
-            {/* Tombol submit utama — disembunyikan jika petugas memilih "Dukung Laporan" */}
-            {!isSubmitHidden && (
+
+            {/* Tombol batch — muncul saat ada banyak foto dipilih */}
+            {selectedFiles.length > 0 && !isSubmitHidden && (
+              <>
+                {/* Warning jika ada foto yang ditolak */}
+                {Object.values(fileExifStatus).some(s => s.status === 'rejected') && (
+                  <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                    <Icon name="error" className="text-red-600 !text-[18px] shrink-0 mt-0.5" />
+                    <p className="text-[12px] text-red-700">
+                      {Object.values(fileExifStatus).filter(s => s.status === 'rejected').length} foto ditolak karena metadata tidak valid.
+                      Hapus foto tersebut dari grid sebelum melanjutkan.
+                    </p>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSubmitBatch}
+                  disabled={
+                    ['uploading', 'analyzing', 'validating'].includes(uploadPhase) ||
+                    Object.values(fileExifStatus).some(s => s.status === 'rejected') ||
+                    Object.values(fileExifStatus).some(s => s.status === 'checking')
+                  }
+                  className="w-full h-[52px] bg-[#1A4F8A] text-white rounded-xl flex items-center justify-center gap-2 font-headline-sm-mobile text-[16px] font-bold active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {['uploading', 'analyzing', 'validating'].includes(uploadPhase) ? (
+                    <>
+                      <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      {uploadPhase === 'uploading'  && 'Mengupload foto...'}
+                      {uploadPhase === 'analyzing'  && `AI menganalisis ${selectedFiles.length} foto...`}
+                      {uploadPhase === 'validating' && 'Memvalidasi koordinat...'}
+                    </>
+                  ) : Object.values(fileExifStatus).some(s => s.status === 'checking') ? (
+                    <>
+                      <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Memeriksa metadata foto...
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="burst_mode" className="!text-[22px]" />
+                      Upload {selectedFiles.filter((_, i) => fileExifStatus[i]?.status !== 'rejected').length} Foto Sekaligus
+                    </>
+                  )}
+                </button>
+              </>
+            )}
+
+            {/* Tombol single analisis — muncul saat ada 1 foto dipilih */}
+            {!isSubmitHidden && selectedFiles.length === 0 && (
               <button
                 type="button"
                 onClick={handleAnalyze}
@@ -1094,6 +1570,41 @@ function UploadPage() {
         onClose={closeFraudModal}
         isWarningOnly={fraudModal.isWarningOnly}
       />
+
+      {/* ── Loading Overlay Batch Upload (Task 4F) ── */}
+      {['uploading', 'analyzing', 'validating'].includes(uploadPhase) && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-72 space-y-4 text-center shadow-2xl">
+            <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent
+                            rounded-full animate-spin mx-auto" />
+            {uploadPhase === 'uploading' && (
+              <p className="font-medium text-gray-800">Mengupload foto...</p>
+            )}
+            {uploadPhase === 'analyzing' && (
+              <div>
+                <p className="font-medium text-gray-800">AI sedang menganalisis...</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {selectedFiles.length} foto diproses sekaligus
+                </p>
+              </div>
+            )}
+            {uploadPhase === 'validating' && (
+              <p className="font-medium text-gray-800">Memvalidasi koordinat...</p>
+            )}
+            {/* Progress dots */}
+            <div className="flex justify-center gap-2">
+              {(['uploading', 'analyzing', 'validating'] as const).map(phase => (
+                <div
+                  key={phase}
+                  className={`w-2 h-2 rounded-full transition-colors ${
+                    uploadPhase === phase ? 'bg-blue-500' : 'bg-gray-200'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }
