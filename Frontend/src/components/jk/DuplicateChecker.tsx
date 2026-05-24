@@ -44,6 +44,8 @@ interface DuplicateCheckerProps {
   spatialDuplicates: DuplicateReport[];
   /** Laporan duplikat tekstual */
   textualDuplicates: DuplicateReport[];
+  /** Laporan duplikat berdasarkan hash gambar */
+  imageDuplicates: DuplicateReport[];
   /** Apakah ada duplikat */
   hasDuplicates: boolean;
   /** State pengiriman bukti */
@@ -216,6 +218,7 @@ export function DuplicateChecker({
   checkState,
   spatialDuplicates,
   textualDuplicates,
+  imageDuplicates,
   hasDuplicates,
   addEvidenceState,
   addEvidenceTargetId,
@@ -230,7 +233,7 @@ export function DuplicateChecker({
   // Hindari duplikasi jika laporan muncul di kedua list
   const allDuplicates = (() => {
     const seen = new Set<string>();
-    const combined: (DuplicateReport & { _source: "spatial" | "textual" })[] = [];
+    const combined: (DuplicateReport & { _source: "spatial" | "textual" | "image" })[] = [];
 
     spatialDuplicates.forEach((r) => {
       if (!seen.has(r.id)) {
@@ -246,6 +249,13 @@ export function DuplicateChecker({
       }
     });
 
+    imageDuplicates.forEach((r) => {
+      if (!seen.has(r.id)) {
+        seen.add(r.id);
+        combined.push({ ...r, _source: "image" });
+      }
+    });
+
     return combined;
   })();
 
@@ -254,8 +264,7 @@ export function DuplicateChecker({
     isGpsActive ||
     isGpsDetecting ||
     checkState !== "idle" ||
-    hasDuplicates ||
-    district !== "";
+    hasDuplicates;
 
   if (!hasAnyActivity) return null;
 

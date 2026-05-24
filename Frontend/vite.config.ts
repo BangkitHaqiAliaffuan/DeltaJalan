@@ -17,11 +17,16 @@ export default defineConfig({
       host: true,
       port: 5173,       // Frontend dev server di port 3000 (Laravel pakai 8080)
       strictPort: true, // Gagal jika port 3000 sudah dipakai, jangan auto-increment
-      allowedHosts: ['000c-2404-c0-b201-9b83-5fe-fd26-f5f-2fa9.ngrok-free.app'], // Mengizinkan ngrok menembus pengaman host
+      allowedHosts: ['4441-2404-c0-b204-3557-988a-fc06-b2b9-9b31.ngrok-free.app'], // Mengizinkan ngrok menembus pengaman host
       // Proxy /api/* ke Laravel backend (port 8080)
       // Ini menghindari CORS karena request diteruskan server-to-server oleh Vite
       proxy: {
         '/api': {
+          target: 'http://localhost:8080',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/storage': {
           target: 'http://localhost:8080',
           changeOrigin: true,
           secure: false,

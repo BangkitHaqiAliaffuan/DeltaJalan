@@ -54,6 +54,13 @@ function CreateReportPage() {
     try {
       const imageBlob = await fetch(formData.previewUrl).then((r) => r.blob());
 
+      // Pastikan kecamatan terisi
+      if (!formData.kecamatan) {
+        throw new Error(
+          "Kecamatan belum dipilih. Kembali ke halaman upload dan pilih kecamatan."
+        );
+      }
+
       // Pastikan koordinat GPS tersedia — tidak boleh pakai default diam-diam
       if (formData.lat === undefined || formData.lng === undefined) {
         throw new Error(

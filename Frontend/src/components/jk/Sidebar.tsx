@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { Icon } from "./Icon";
-import { getCurrentUser, clearAuth, getToken } from "@/lib/auth";
+import { getCurrentUser, clearAuth, getToken, type User } from "@/lib/auth";
+import { useEffect, useState } from "react";
 
 interface MenuItem {
   icon: string;
@@ -19,8 +20,8 @@ const PETUGAS_MENU: MenuItem[] = [
 
 const SUPERVISOR_MENU: MenuItem[] = [
   { icon: "dashboard", label: "Dashboard", to: "/supervisor" },
-  { icon: "rate_review", label: "Review Laporan", to: "/reports" },
-  { icon: "analytics", label: "Semua Laporan", to: "/reports" },
+  { icon: "rate_review", label: "Review Laporan", to: "/supervisor" },
+  { icon: "analytics", label: "Laporan Saya", to: "/my-reports" },
   { icon: "bar_chart", label: "Statistik", to: "/stats", disabled: true },
   { icon: "settings", label: "Pengaturan", to: "/settings", disabled: true },
 ];
@@ -28,15 +29,18 @@ const SUPERVISOR_MENU: MenuItem[] = [
 export function Sidebar() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const user = getCurrentUser();
+  const [user, setUser] = useState<User | null>(null);
   const menuItems = user?.role === "supervisor" ? SUPERVISOR_MENU : PETUGAS_MENU;
 
-  // Fallback jika belum login (seharusnya tidak terjadi di halaman yang dilindungi)
+  useEffect(() => {
+    setUser(getCurrentUser());
+  }, []);
+
   const displayUser = user ?? {
-    name: "Agus Setiawan",
+    name: "",
     role: "petugas" as const,
-    wilayah: "Kec. Sidoarjo",
-    initials: "AS",
+    wilayah: "",
+    initials: "",
   };
 
   async function handleLogout() {
@@ -64,10 +68,16 @@ export function Sidebar() {
           <Icon name="edit_road" className="text-white !text-[22px]" />
         </div>
         <div className="flex flex-col min-w-0">
-          <span className="font-bold text-white text-[16px] leading-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          <span
+            className="font-bold text-white text-[16px] leading-tight"
+            style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+          >
             JalanKita
           </span>
-          <span className="text-white/60 text-[11px] leading-tight truncate" style={{ fontFamily: "'Inter', sans-serif" }}>
+          <span
+            className="text-white/60 text-[11px] leading-tight truncate"
+            style={{ fontFamily: "'Inter', sans-serif" }}
+          >
             Dishub Kab. Sidoarjo
           </span>
         </div>
@@ -84,7 +94,10 @@ export function Sidebar() {
                 className="flex items-center gap-3 px-3 py-2.5 rounded-lg opacity-40 cursor-not-allowed"
               >
                 <Icon name={item.icon} className="text-white/70 !text-[22px]" />
-                <span className="text-white/70 text-[14px]" style={{ fontFamily: "'Inter', sans-serif" }}>
+                <span
+                  className="text-white/70 text-[14px]"
+                  style={{ fontFamily: "'Inter', sans-serif" }}
+                >
                   {item.label}
                 </span>
                 <span className="ml-auto text-[10px] text-white/50 bg-white/10 px-1.5 py-0.5 rounded">
@@ -116,17 +129,32 @@ export function Sidebar() {
       <div className="px-4 py-4 border-t border-white/10">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center border border-white/30 shrink-0">
-            <span className="text-white text-[13px] font-bold" style={{ fontFamily: "'Inter', sans-serif" }}>
-              {displayUser.initials}
-            </span>
+            {displayUser.initials && (
+              <span
+                className="text-white text-[13px] font-bold"
+                style={{ fontFamily: "'Inter', sans-serif" }}
+              >
+                {displayUser.initials}
+              </span>
+            )}
           </div>
           <div className="flex flex-col min-w-0">
-            <span className="text-white text-[13px] font-semibold truncate leading-tight" style={{ fontFamily: "'Inter', sans-serif" }}>
-              {displayUser.name}
-            </span>
-            <span className="text-white/60 text-[11px] truncate leading-tight capitalize" style={{ fontFamily: "'Inter', sans-serif" }}>
-              {displayUser.role === "supervisor" ? "Supervisor" : "Petugas Lapangan"}
-            </span>
+            {displayUser.name && (
+              <span
+                className="text-white text-[13px] font-semibold truncate leading-tight"
+                style={{ fontFamily: "'Inter', sans-serif" }}
+              >
+                {displayUser.name}
+              </span>
+            )}
+            {displayUser.role && (
+              <span
+                className="text-white/60 text-[11px] truncate leading-tight capitalize"
+                style={{ fontFamily: "'Inter', sans-serif" }}
+              >
+                {displayUser.role === "supervisor" ? "Supervisor" : "Petugas Lapangan"}
+              </span>
+            )}
           </div>
         </div>
         {/* Tombol Logout */}

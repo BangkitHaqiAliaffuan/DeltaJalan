@@ -35,6 +35,7 @@ export interface DuplicateReport {
 export interface DuplicateCheckResult {
   spatial_duplicates: DuplicateReport[];
   textual_duplicates: DuplicateReport[];
+  image_duplicates: DuplicateReport[];
 }
 
 export type DuplicateCheckState =
@@ -90,12 +91,15 @@ export function useDuplicateCheck(
   /** Nilai nama jalan dari form */
   roadName: string,
   /** Apakah GPS sedang aktif (status === 'success') */
-  isGpsActive: boolean
+  isGpsActive: boolean,
+  /** SHA-256 hash konten file foto (untuk cek duplikasi gambar) */
+  fileHash?: string | null
 ): UseDuplicateCheckReturn {
   const [checkState, setCheckState] = useState<DuplicateCheckState>("idle");
   const [result, setResult] = useState<DuplicateCheckResult>({
     spatial_duplicates: [],
     textual_duplicates: [],
+    image_duplicates: [],
   });
   const [addEvidenceState, setAddEvidenceState] = useState<AddEvidenceState>("idle");
   const [addEvidenceTargetId, setAddEvidenceTargetId] = useState<string | null>(null);
@@ -114,13 +118,14 @@ export function useDuplicateCheck(
       lng?: number;
       district?: string;
       roadName?: string;
+      fileHash?: string;
     }) => {
-      // Requirement 7.6: Hanya panggil API jika minimal satu kondisi terpenuhi
       const hasCoords = params.lat !== undefined && params.lng !== undefined;
       const hasDistrict = params.district && params.district.trim().length > 0;
       const hasRoadName = params.roadName && params.roadName.trim().length >= MIN_ROAD_NAME_LENGTH;
+      const hasFileHash = params.fileHash && params.fileHash.trim().length > 0;
 
-      if (!hasCoords && !hasDistrict && !hasRoadName) {
+      if (!hasCoords && !hasDistrict && !hasRoadName && !hasFileHash) {
         return;
       }
 
@@ -152,6 +157,9 @@ export function useDuplicateCheck(
         if (params.roadName && params.roadName.trim().length > 0) {
           url.searchParams.set("road_name", params.roadName.trim());
         }
+        if (hasFileHash) {
+          url.searchParams.set("file_hash", params.fileHash!);
+        }
 
         const response = await fetch(url.toString(), {
           signal: controller.signal,
@@ -160,8 +168,7 @@ export function useDuplicateCheck(
         clearTimeout(timeoutId);
 
         if (!response.ok) {
-          // Non-blocking: tampilkan state kosong, jangan error ke user
-          setResult({ spatial_duplicates: [], textual_duplicates: [] });
+          setResult({ spatial_duplicates: [], textual_duplicates: [], image_duplicates: [] });
           setCheckState("done");
           return;
         }
@@ -170,19 +177,17 @@ export function useDuplicateCheck(
         setResult({
           spatial_duplicates: data.spatial_duplicates ?? [],
           textual_duplicates: data.textual_duplicates ?? [],
+          image_duplicates: data.image_duplicates ?? [],
         });
         setCheckState("done");
       } catch (err) {
         clearTimeout(timeoutId);
 
-        // AbortError = request dibatalkan karena ada request baru atau timeout
-        // Jangan update state jika dibatalkan — request baru akan mengambil alih
         if (err instanceof Error && err.name === "AbortError") {
           return;
         }
 
-        // Error lain — non-blocking, tampilkan state kosong
-        setResult({ spatial_duplicates: [], textual_duplicates: [] });
+        setResult({ spatial_duplicates: [], textual_duplicates: [], image_duplicates: [] });
         setCheckState("done");
       }
     },
@@ -194,23 +199,39 @@ export function useDuplicateCheck(
 
   useEffect(() => {
     if (isGpsActive && lat !== null && lng !== null) {
-      callCheckDuplicate({ lat, lng, district: district || undefined, roadName: roadName || undefined });
+      callCheckDuplicate({ lat, lng, district: district || undefined, roadName: roadName || undefined, fileHash: fileHash || undefined });
     }
   }, [isGpsActive, lat, lng]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Effect: Trigger saat kecamatan berubah ────────────────────────────
   // Requirement 3.1: Saat kecamatan dipilih, panggil API
 
+  // ── Effect: Trigger saat fileHash berubah ───────────────────────────
+  // Cek duplikasi gambar berdasarkan SHA-256 hash
+
+  useEffect(() => {
+    if (fileHash) {
+      callCheckDuplicate({
+        lat: lat ?? undefined,
+        lng: lng ?? undefined,
+        district: district || undefined,
+        roadName: roadName || undefined,
+        fileHash,
+      });
+    }
+  }, [fileHash]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!district) return;
 
-    // Jika GPS aktif, koordinat sudah di-handle oleh effect GPS di atas
-    // Tapi tetap panggil untuk update textual search dengan district baru
+    if (!lat && !lng && !roadName && !fileHash) return;
+
     callCheckDuplicate({
       lat: lat ?? undefined,
       lng: lng ?? undefined,
       district,
       roadName: roadName || undefined,
+      fileHash: fileHash || undefined,
     });
   }, [district]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -235,6 +256,7 @@ export function useDuplicateCheck(
         lng: lng ?? undefined,
         district,
         roadName: roadName || undefined,
+        fileHash: fileHash || undefined,
       });
     }, DEBOUNCE_MS);
 
@@ -299,6 +321,7 @@ export function useDuplicateCheck(
           return {
             spatial_duplicates: updateCount(prev.spatial_duplicates),
             textual_duplicates: updateCount(prev.textual_duplicates),
+            image_duplicates: updateCount(prev.image_duplicates),
           };
         });
       } catch {
@@ -320,14 +343,14 @@ export function useDuplicateCheck(
       clearTimeout(debounceTimerRef.current);
     }
     setCheckState("idle");
-    setResult({ spatial_duplicates: [], textual_duplicates: [] });
+    setResult({ spatial_duplicates: [], textual_duplicates: [], image_duplicates: [] });
     setAddEvidenceState("idle");
     setAddEvidenceTargetId(null);
     setAddEvidenceMessage("");
   }, []);
 
   const hasDuplicates =
-    result.spatial_duplicates.length > 0 || result.textual_duplicates.length > 0;
+    result.spatial_duplicates.length > 0 || result.textual_duplicates.length > 0 || result.image_duplicates.length > 0;
 
   return {
     checkState,

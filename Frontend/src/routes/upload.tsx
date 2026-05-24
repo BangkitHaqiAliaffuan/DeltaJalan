@@ -29,8 +29,6 @@ export const Route = createFileRoute("/upload")({
   head: () => ({ meta: [{ title: "Upload & Analisis — JalanKita" }] }),
 });
 
-const TODAY = new Date().toISOString().split("T")[0];
-
 const KECAMATAN_LIST = [
   { group: "Pusat",   items: ["Sidoarjo"] },
   { group: "Utara",   items: ["Buduran", "Gedangan", "Sedati", "Waru"] },
@@ -129,8 +127,8 @@ function UploadPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl]     = useState<string | null>(null);
   const [namaJalan, setNamaJalan]       = useState("");
-  const [kecamatan, setKecamatan]       = useState("Sidoarjo");
-  const [tanggal, setTanggal]           = useState(TODAY);
+  const [kecamatan, setKecamatan]       = useState("");
+  const [tanggal, setTanggal]           = useState(() => new Date().toISOString().split("T")[0]);
   const [catatan, setCatatan]           = useState("");
 
   // Analysis state
@@ -388,6 +386,11 @@ function UploadPage() {
       setBatchError("Pilih minimal 1 foto untuk batch upload.");
       return;
     }
+    if (!kecamatan) {
+      setBatchError("Pilih kecamatan terlebih dahulu sebelum mengupload.");
+      return;
+    }
+
     if (roadNameSource !== 'autocomplete') {
       setBatchError("Nama jalan harus dipilih dari saran autocomplete, bukan diketik manual.");
       return;
@@ -555,6 +558,26 @@ function UploadPage() {
   const isGpsDetecting =
     locationState.status === "detecting" || locationState.status === "geocoding";
 
+  // SHA-256 hash dari selectedFile untuk cek duplikasi gambar
+  const [selectedFileHash, setSelectedFileHash] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedFile) {
+      setSelectedFileHash(null);
+      return;
+    }
+    let cancelled = false;
+    const compute = async () => {
+      const buf = await selectedFile.arrayBuffer();
+      const hashBuf = await crypto.subtle.digest("SHA-256", buf);
+      const hashArr = Array.from(new Uint8Array(hashBuf));
+      const hex = hashArr.map((b) => b.toString(16).padStart(2, "0")).join("");
+      if (!cancelled) setSelectedFileHash(hex);
+    };
+    compute();
+    return () => { cancelled = true; };
+  }, [selectedFile]);
+
   const {
     checkState,
     result: duplicateResult,
@@ -569,7 +592,8 @@ function UploadPage() {
     effectiveLng,
     kecamatan,
     namaJalan,
-    isGpsActive
+    isGpsActive,
+    selectedFileHash
   );
 
   // Handler saat tombol "Dukung Laporan" diklik
@@ -727,7 +751,7 @@ function UploadPage() {
     roadSearch.reset();
     setIsSubmitHidden(false);
     setNamaJalan("");
-    setKecamatan("Sidoarjo");
+    setKecamatan("");
     setRoadCoords(null);
     setLiveGpsError("");
     setRoadNameSource(null);
@@ -744,6 +768,18 @@ function UploadPage() {
   async function handleAnalyze() {
     if (!selectedFile) {
       setErrorMsg("Pilih foto terlebih dahulu sebelum menganalisis.");
+      return;
+    }
+
+    // ── Validasi kecamatan ──────────────────────────────────────────────
+    if (!kecamatan) {
+      setErrorMsg("Pilih kecamatan terlebih dahulu sebelum menganalisis.");
+      return;
+    }
+
+    // ── Validasi nama jalan ──────────────────────────────────────────────
+    if (!namaJalan || namaJalan.trim().length === 0) {
+      setErrorMsg("Nama jalan belum diisi. Ketik atau pilih nama jalan dari saran.");
       return;
     }
 
@@ -766,8 +802,10 @@ function UploadPage() {
       const fd = new FormData();
       fd.append("file", selectedFile);
 
+      const token = getToken() ?? '';
       const response = await fetch(`${API_BASE_URL}/analyze`, {
         method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
         body: fd,
       });
 
@@ -1298,6 +1336,7 @@ function UploadPage() {
                     disabled={isGpsWorking || isGpsActive}
                     className={`w-full appearance-none px-4 py-3 border border-border-subtle rounded-xl font-body-md text-body-md bg-surface-container-low focus:ring-2 focus:ring-primary-container outline-none disabled:opacity-60 disabled:cursor-wait ${isGpsActive ? "cursor-default" : ""}`}
                   >
+                    <option value="" disabled>Pilih Kecamatan</option>
                     {KECAMATAN_LIST.map((g) => (
                       <optgroup key={g.group} label={g.group}>
                         {g.items.map((k) => (
@@ -1436,6 +1475,7 @@ function UploadPage() {
                   checkState={checkState}
                   spatialDuplicates={duplicateResult.spatial_duplicates}
                   textualDuplicates={duplicateResult.textual_duplicates}
+                  imageDuplicates={duplicateResult.image_duplicates}
                   hasDuplicates={hasDuplicates}
                   addEvidenceState={addEvidenceState}
                   addEvidenceTargetId={addEvidenceTargetId}
@@ -1505,7 +1545,15 @@ function UploadPage() {
               <button
                 type="button"
                 onClick={handleAnalyze}
-                disabled={isLoading || !selectedFile || isGpsWorking}
+                disabled={
+                  isLoading ||
+                  !selectedFile ||
+                  !kecamatan ||
+                  !namaJalan ||
+                  effectiveLat === null ||
+                  effectiveLng === null ||
+                  isGpsWorking
+                }
                 className="w-full h-[52px] bg-primary-container text-white rounded-xl flex items-center justify-center gap-2 font-headline-sm-mobile text-[16px] font-bold active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
               >
                 {isLoading ? (

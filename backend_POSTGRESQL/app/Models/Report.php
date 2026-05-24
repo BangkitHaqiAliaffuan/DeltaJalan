@@ -75,6 +75,17 @@ class Report extends Model
         'ai_jenis_kerusakan',
         'ai_severity',
         'ai_confidence',
+        // After photo & closing
+        'after_photo_path',
+        'after_photo_hash',
+        'after_photo_notes',
+        'perbaikan_dimulai_at',
+        'perbaikan_selesai_at',
+        'pelaksana',
+        // UPR assignment
+        'assigned_upr_id',
+        'assigned_at',
+        'catatan_petugas',
     ];
 
     /**
@@ -109,6 +120,25 @@ class Report extends Model
         'support_count'    => 0,
     ];
 
+    /**
+     * Relasi ke UPR (tim satgas) yang ditugaskan.
+     */
+    public function assignedUpr()
+    {
+        return $this->belongsTo(\App\Models\Upr::class, 'assigned_upr_id');
+    }
+
+    /**
+     * Accessor: URL publik foto after.
+     */
+    public function getAfterPhotoUrlAttribute(): ?string
+    {
+        if (!$this->after_photo_path) {
+            return null;
+        }
+        return asset('storage/' . $this->after_photo_path);
+    }
+
     // ── Konstanta Enum ────────────────────────────────────────────────────
 
     /**
@@ -128,6 +158,8 @@ class Report extends Model
      */
     public const STATUS_VALUES = [
         'Menunggu Review',
+        'Disetujui',
+        'Ditolak',
         'Sedang Diperbaiki',
         'Selesai',
     ];

@@ -16,6 +16,7 @@ import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as MyReportsRouteImport } from './routes/my-reports'
 import { Route as HomeRouteImport } from './routes/home'
 import { Route as CreateReportRouteImport } from './routes/create-report'
+import { Route as CompleteReportRouteImport } from './routes/complete-report'
 import { Route as AiResultRouteImport } from './routes/ai-result'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -54,6 +55,11 @@ const CreateReportRoute = CreateReportRouteImport.update({
   path: '/create-report',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CompleteReportRoute = CompleteReportRouteImport.update({
+  id: '/complete-report',
+  path: '/complete-report',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AiResultRoute = AiResultRouteImport.update({
   id: '/ai-result',
   path: '/ai-result',
@@ -68,6 +74,7 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ai-result': typeof AiResultRoute
+  '/complete-report': typeof CompleteReportRoute
   '/create-report': typeof CreateReportRoute
   '/home': typeof HomeRoute
   '/my-reports': typeof MyReportsRoute
@@ -79,6 +86,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ai-result': typeof AiResultRoute
+  '/complete-report': typeof CompleteReportRoute
   '/create-report': typeof CreateReportRoute
   '/home': typeof HomeRoute
   '/my-reports': typeof MyReportsRoute
@@ -91,6 +99,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/ai-result': typeof AiResultRoute
+  '/complete-report': typeof CompleteReportRoute
   '/create-report': typeof CreateReportRoute
   '/home': typeof HomeRoute
   '/my-reports': typeof MyReportsRoute
@@ -104,6 +113,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/ai-result'
+    | '/complete-report'
     | '/create-report'
     | '/home'
     | '/my-reports'
@@ -115,6 +125,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/ai-result'
+    | '/complete-report'
     | '/create-report'
     | '/home'
     | '/my-reports'
@@ -126,6 +137,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/ai-result'
+    | '/complete-report'
     | '/create-report'
     | '/home'
     | '/my-reports'
@@ -138,6 +150,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AiResultRoute: typeof AiResultRoute
+  CompleteReportRoute: typeof CompleteReportRoute
   CreateReportRoute: typeof CreateReportRoute
   HomeRoute: typeof HomeRoute
   MyReportsRoute: typeof MyReportsRoute
@@ -198,6 +211,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CreateReportRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/complete-report': {
+      id: '/complete-report'
+      path: '/complete-report'
+      fullPath: '/complete-report'
+      preLoaderRoute: typeof CompleteReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/ai-result': {
       id: '/ai-result'
       path: '/ai-result'
@@ -218,6 +238,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AiResultRoute: AiResultRoute,
+  CompleteReportRoute: CompleteReportRoute,
   CreateReportRoute: CreateReportRoute,
   HomeRoute: HomeRoute,
   MyReportsRoute: MyReportsRoute,

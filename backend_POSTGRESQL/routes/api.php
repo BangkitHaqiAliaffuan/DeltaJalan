@@ -85,4 +85,58 @@ Route::middleware('auth:sanctum')->group(function () {
      * supervisor melihat semua (bisa difilter via ?status=).
      */
     Route::get('/reports', [ReportController::class, 'index']);
+
+    /**
+     * GET /api/reports/stats
+     * HARUS sebelum /reports/{id} agar "stats" tidak tertangkap sebagai UUID.
+     */
+    Route::get('/reports/stats', [ReportController::class, 'stats']);
+
+    /**
+     * GET /api/reports/{id}
+     * Detail satu laporan.
+     */
+    Route::get('/reports/{id}', [ReportController::class, 'show']);
+
+    /**
+     * POST /api/reports/{id}/approve
+     * Supervisor menyetujui laporan.
+     */
+    Route::post('/reports/{id}/approve', [ReportController::class, 'approve']);
+
+    /**
+     * POST /api/reports/{id}/tolak
+     * Supervisor menolak laporan dengan alasan.
+     */
+    Route::post('/reports/{id}/tolak', [ReportController::class, 'tolak']);
+
+    /**
+     * POST /api/reports/{id}/disposisi
+     * Supervisor mendisposisi laporan untuk pengerjaan.
+     */
+    Route::post('/reports/{id}/disposisi', [ReportController::class, 'disposisi']);
+
+    /**
+     * POST /api/reports/{id}/mulai
+     * Menandai bahwa perbaikan dimulai (status → Sedang Diperbaiki).
+     */
+    Route::post('/reports/{id}/mulai', [ReportController::class, 'mulai']);
+
+    /**
+     * POST /api/reports/{id}/complete
+     * Menyelesaikan laporan dengan foto after + catatan.
+     */
+    Route::post('/reports/{id}/complete', [ReportController::class, 'complete']);
+
+    /**
+     * GET /api/uprs
+     * Daftar UPR/tim satgas yang tersedia.
+     */
+    Route::get('/uprs', [ReportController::class, 'getUprs']);
+
+    /**
+     * POST /api/reports/{id}/assign
+     * Menetapkan UPR/tim satgas ke laporan.
+     */
+    Route::post('/reports/{id}/assign', [ReportController::class, 'assign']);
 });

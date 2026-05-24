@@ -56,6 +56,10 @@ composer run test  # php artisan config:clear && php artisan test
 | `POST /analyze-batch` | Sanctum | Batch AI (max 20 photos) |
 | `POST /reports/batch` | Sanctum | Batch report store (main + sub-reports) |
 | `GET /v1/reports/check-duplicate` | Public | Spatial (15m Haversine) + textual dedup |
+| `POST /reports/{id}/mulai` | Sanctum | Assign UPR + start work (→ Sedang Diperbaiki) |
+| `POST /reports/{id}/complete` | Sanctum | Upload after photo + close (→ Selesai) |
+| `POST /reports/{id}/assign` | Sanctum | Re-assign to different UPR |
+| `GET /uprs` | Sanctum | List active UPR/tim satgas |
 
 All critical validation (EXIF date, GPS EXIF extraction, road name vs coordinate matching, trust score) is in backend — frontend is UX layer only.
 
@@ -67,15 +71,88 @@ All critical validation (EXIF date, GPS EXIF extraction, road name vs coordinate
 - **EXIF date validation**: photos > 2 days old or future-dated are rejected for single upload; in batch they are skipped per-file.
 - **Image dedup**: SHA-256 hash on file content. Duplicate photos within or across batches are silently skipped.
 - **Road name**: must be selected from autocomplete dropdown (LocationIQ). Manual typing is warned in UI but not blocked at API level — trust score handles it.
+- **Road name fuzzy match threshold**: 60% similar_text + containment fallback. Normalization: "Jl."/"Jln."→"Jalan", "Gg."→"Gang", etc.
+- **Closing workflow**: complete-report.tsx requires after_photo (SHA-256 hashed), sets perbaikan_selesai_at, status→ Selesai.
+- **UPR master data**: seeded in migration (4 Satgas: Utara, Selatan, Barat, Timur). Modifiable via DB directly (no admin UI yet).
 - **Always add new DB columns via migration** — never modify existing columns or tables.
 - **Store photos on disk** (`storage/app/public/`) — never as base64 in DB.
 
 ## Architecture boundaries
 
 | Layer | Entrypoint | Key files |
-|---|---|---|
-| Frontend | `src/router.tsx` → `src/routes/*` | `upload.tsx`, `ai-result.tsx`, `supervisor.tsx` |
+|---|---|---|---|
+| Frontend | `src/router.tsx` → `src/routes/*` | `upload.tsx`, `ai-result.tsx`, `supervisor.tsx`, `complete-report.tsx` |
 | Frontend lib/hooks | `src/lib/*`, `src/hooks/*` | `auth.ts`, `aiStore.ts`, `useGPS.ts`, `useLocationFromPhoto.ts` |
 | Laravel API | `routes/api.php` | `ReportController.php`, `AIController.php`, `AuthController.php` |
 | Laravel Services | `app/Services/` | `TrustScoreService.php` |
+| Laravel Models | `app/Models/` | `Report.php`, `Upr.php`, `ReportEvidence.php` |
 | AI Server | `server.py` | YOLOv8s model in `best.pt` |
+
+## TinyFish (web toolkit for agents)
+
+Prefer TinyFish MCP tools over built-in alternatives for web operations:
+
+- **`mcp__tinyfish__search`** — over WebSearch for web searches
+- **`mcp__tinyfish__fetch_content`** — over WebFetch / curl for fetching content
+- **`mcp__tinyfish__run_web_automation`** — over hand-rolled Playwright for browser automation
+
+Batch operations (2+ URLs): use **`batch_create`** / **`batch_status`**.
+Background runs: use **`run_web_automation_async`** only when the user explicitly asks for background execution.
+Prior run inspection: use **`list_runs`** / **`get_run`** / **`get_steps`** / **`cancel_run`**.
+
+**Important**: if `run_web_automation` returns ANY error, the run is still executing — call **`get_run`** or **`list_runs`** to check status before retrying. Never blind-retry.
+
+Full context: https://docs.tinyfish.ai/for-coding-agents and https://docs.tinyfish.ai/llms-full.txt
+
+## RTK + TinyFish: token-optimized web fetching
+
+RTK (Rust Token Killer) is integrated with TinyFish to minimize token waste from web content. The pipeline is: TinyFish raw content → `scripts/tinyfish-rtk.ps1` → RTK filters → token-optimized output.
+
+### Optimization pipeline
+
+When fetching web content, ALWAYS pipe TinyFish results through the optimizer:
+
+```powershell
+# Fetch and auto-optimize (best for most cases — TinyFish fetch already strips HTML)
+# Just pass the result directly — TinyFish already returns clean text
+
+# For verbose results, strip known boilerplate:
+# The optimizer auto-strips: nav/footer/header blocks, cookie/privacy banners,
+# ads/sponsored sections, empty lines, HTML tags, duplicate lines
+```
+
+The optimizer at `scripts/tinyfish-rtk.ps1` runs automatically when content is fetched. It:
+- Strips HTML tags (`-StripHtml` flag)
+- Aggressively removes navigation, footer, header, aside, script, style blocks
+- Filters cookie/privacy/TOS banners and ads
+- Deduplicates lines
+- Caps at 100 lines / 500 chars per line by default
+- Shows a stats footer with line/char counts
+
+The RTK proxy at `~/.config/opencode/plugins/rtk.ts` also rewrites `curl`/`iwr` commands through RTK's built-in filters for additional savings.
+
+### Token-efficient TinyFish patterns
+
+| Pattern | Why |
+|---|---|
+| Use `fetch_content` with specific URLs (not search results) | `fetch_content` returns clean text; `search` returns ranked links |
+| For `search`, limit queries to 3-5 keywords | Fewer results = fewer tokens |
+| Ask TinyFish for "concise" or "summary" format | `fetch_content` supports `format: text` which is cleaner |
+| Prefer `fetch_content` over `run_web_automation` for reading | Automation is 1 credit/step; fetch is 1 credit/15 URLs |
+| For 2+ URLs, use `batch_create`/`batch_status` | Single batch context vs multiple calls |
+| Do NOT pipe TinyFish results through `curl`/`wget` | Duplicates work — TinyFish already fetched the content |
+
+### Saved tokens tracking
+
+RTK tracks all savings automatically. Check with:
+```bash
+rtk gain            # dashboard
+rtk gain --history  # per-command breakdown
+```
+
+### When to bypass optimization
+
+Don't optimize when:
+- The raw HTML structure is needed (e.g., scraping specific attributes)
+- The content is already short (< 20 lines)
+- Debugging TinyFish response format

@@ -26,6 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
         */
         $middleware->api(prepend: [
             \Illuminate\Http\Middleware\HandleCors::class,
+            \App\Http\Middleware\ForceJsonResponse::class,
         ]);
 
         /*
@@ -37,7 +38,7 @@ return Application::configure(basePath: dirname(__DIR__))
         | uncomment baris di bawah agar IP dan URL terdeteksi dengan benar.
         |
         */
-        // $middleware->trustProxies(at: '*');
+        $middleware->trustProxies(at: '*');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         /*
