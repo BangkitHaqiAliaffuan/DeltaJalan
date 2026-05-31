@@ -3,6 +3,7 @@
 use App\Http\Controllers\AIController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ReportExportController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -93,6 +94,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reports/stats', [ReportController::class, 'stats']);
 
     /**
+     * GET /api/reports/stats-by-upr
+     * HARUS sebelum /reports/{id}.
+     */
+    Route::get('/reports/stats-by-upr', [ReportController::class, 'statsByUpr']);
+
+    /**
      * GET /api/reports/{id}
      * Detail satu laporan.
      */
@@ -139,4 +146,59 @@ Route::middleware('auth:sanctum')->group(function () {
      * Menetapkan UPR/tim satgas ke laporan.
      */
     Route::post('/reports/{id}/assign', [ReportController::class, 'assign']);
+
+    /**
+     * POST /api/reports/bulk-approve
+     * Approve multiple laporan sekaligus.
+     */
+    Route::post('/reports/bulk-approve', [ReportController::class, 'bulkApprove']);
+
+    /**
+     * POST /api/reports/bulk-tolak
+     * Tolak multiple laporan sekaligus.
+     */
+    Route::post('/reports/bulk-tolak', [ReportController::class, 'bulkTolak']);
+
+    /**
+     * POST /api/reports/{id}/reopen
+     * Re-open laporan yang sudah selesai.
+     */
+    Route::post('/reports/{id}/reopen', [ReportController::class, 'reopen']);
+
+    /**
+     * GET /api/reports/export/monthly-pdf
+     * Export PDF rekap bulanan (supervisor only).
+     * Query params: ?month=5&year=2026
+     */
+    Route::get('/reports/export/monthly-pdf', [ReportExportController::class, 'exportMonthlyPdf']);
+
+    /**
+     * POST /api/reports/{id}/mulai-edit
+     * Petugas mulai mengedit laporan yang masih Menunggu Review.
+     */
+    Route::post('/reports/{id}/mulai-edit', [ReportController::class, 'mulaiEdit']);
+
+    /**
+     * POST /api/reports/{id}/batal-edit
+     * Petugas batal mengedit — kembali ke Menunggu Review.
+     */
+    Route::post('/reports/{id}/batal-edit', [ReportController::class, 'batalEdit']);
+
+    /**
+     * PUT /api/reports/{id}
+     * Update field laporan (hanya jika status = Diedit).
+     */
+    Route::put('/reports/{id}', [ReportController::class, 'update']);
+
+    /**
+     * POST /api/reports/{id}/mulai-review
+     * Supervisor mulai membaca laporan — set status = Ditinjau.
+     */
+    Route::post('/reports/{id}/mulai-review', [ReportController::class, 'mulaiReview']);
+
+    /**
+     * POST /api/reports/{id}/update-triage
+     * Petugas eksekusi memperbarui kategori kerusakan (severity) dan/atau prioritas.
+     */
+    Route::post('/reports/{id}/update-triage', [ReportController::class, 'updateTriage']);
 });

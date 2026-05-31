@@ -1,16 +1,18 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { BottomNav } from "@/components/jk/BottomNav";
 import { AppLayout } from "@/components/jk/AppLayout";
+import { TopBar } from "@/components/jk/TopBar";
 import { TrustBadge } from "@/components/jk/TrustBadge";
 import { API_BASE_URL } from "@/lib/aiStore";
-import { getCurrentUser, getToken, clearAuth } from "@/lib/auth";
+import { SupervisorMapView } from "@/components/jk/SupervisorMapView";
+import { getCurrentUser, getToken } from "@/lib/auth";
 import type { Laporan, TrustLabel } from "@/types/laporan";
 
 export const Route = createFileRoute("/supervisor")({
   component: SupervisorPage,
-  head: () => ({ meta: [{ title: "Beranda Supervisor — JalanKita" }] }),
+  head: () => ({ meta: [{ title: "Beranda Supervisor — DeltaJalan" }] }),
 });
 
 interface SupervisorStats {
@@ -24,65 +26,96 @@ interface SupervisorStats {
   trust_merah: number;
 }
 
+interface UprStat {
+  upr_id: number;
+  upr_name: string;
+  wilayah: string;
+  total: number;
+  sedang_diperbaiki: number;
+  selesai: number;
+  total_panjang_m: number;
+  total_luas_m2: number;
+}
+
 function SupervisorPage() {
   const user = getCurrentUser();
+  const token = getToken() ?? "";
+  const navigate = useNavigate();
 
   const [laporan, setLaporan] = useState<Laporan[]>([]);
+  const [allLaporan, setAllLaporan] = useState<Laporan[]>([]);
   const [stats, setStats] = useState<SupervisorStats | null>(null);
+  const [uprStats, setUprStats] = useState<UprStat[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"menunggu" | "semua">("menunggu");
+  const [activeTab, setActiveTab] = useState<
+    "menunggu" | "disetujui" | "ditolak" | "sedang_diperbaiki" | "semua"
+  >("menunggu");
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterUpr, setFilterUpr] = useState("");
+  const [filterSeverity, setFilterSeverity] = useState("");
+  const [uprList, setUprList] = useState<{ id: number; name: string; wilayah: string }[]>([]);
+  const [showUprStats, setShowUprStats] = useState(false);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   const [tolakTarget, setTolakTarget] = useState<string | null>(null);
   const [tolakAlasan, setTolakAlasan] = useState("");
   const [tolakCatatan, setTolakCatatan] = useState("");
 
+  const [bulkTolakOpen, setBulkTolakOpen] = useState(false);
+  const [bulkTolakAlasan, setBulkTolakAlasan] = useState("");
+
   const [mulaiTarget, setMulaiTarget] = useState<string | null>(null);
   const [mulaiUprId, setMulaiUprId] = useState("");
   const [mulaiCatatan, setMulaiCatatan] = useState("");
-  const [uprList, setUprList] = useState<{ id: number; name: string; wilayah: string }[]>([]);
 
   const [actionLoading, setActionLoading] = useState(false);
   const [actionMsg, setActionMsg] = useState("");
   const [actionMsgType, setActionMsgType] = useState<"success" | "error">("success");
 
-  const token = getToken() ?? "";
+  const [viewMode, setViewMode] = useState<"list" | "map">("list");
+
+  const now = new Date();
+  const [exportMonth, setExportMonth] = useState(now.getMonth() + 1);
+  const [exportYear, setExportYear] = useState(now.getFullYear());
 
   useEffect(() => {
-    loadData();
-    loadUprs();
-  }, []);
-
-  async function loadData() {
-    setIsLoading(true);
-    try {
-      await Promise.all([loadLaporan(), loadStats()]);
-    } catch {
-      // fallback silent
-    } finally {
-      setIsLoading(false);
+    if (user?.role !== "supervisor") {
+      navigate({ to: "/" });
+      return;
     }
-  }
+    loadUprs();
+    loadAllData();
+  }, []);
 
   async function loadUprs() {
     try {
       const res = await fetch(`${API_BASE_URL}/uprs`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        const json = await res.json();
-        setUprList(json.data ?? []);
-      }
+      if (res.ok) setUprList((await res.json()).data ?? []);
     } catch {}
   }
 
-  async function loadLaporan() {
-    const params = activeTab === "menunggu" ? "?status=menunggu_review&limit=50" : "?limit=50";
-    const res = await fetch(`${API_BASE_URL}/reports${params}`, {
+  async function loadAllData() {
+    setIsLoading(true);
+    try {
+      await Promise.all([loadStats(), loadAllLaporan(), loadUprStats()]);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function loadAllLaporan() {
+    const res = await fetch(`${API_BASE_URL}/reports?limit=100`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) {
-      const json = await res.json();
-      setLaporan(json.data ?? []);
+      const j = await res.json();
+      setAllLaporan(j.data ?? []);
     }
   }
 
@@ -91,10 +124,51 @@ function SupervisorPage() {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) {
-      const json = await res.json();
-      setStats(json.data ?? null);
+      const j = await res.json();
+      setStats(j.data ?? null);
     }
   }
+
+  async function loadUprStats() {
+    const res = await fetch(`${API_BASE_URL}/reports/stats-by-upr`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const j = await res.json();
+      setUprStats(j.data ?? []);
+    }
+  }
+
+  function loadLaporanWithParams() {
+    setIsLoading(true);
+    const p = new URLSearchParams();
+    if (activeTab === "menunggu") p.set("status", "menunggu_review");
+    else if (activeTab === "disetujui") p.set("status", "disetujui");
+    else if (activeTab === "ditolak") p.set("status", "ditolak");
+    p.set("limit", "100");
+    if (searchQuery) p.set("q", searchQuery);
+    if (filterStatus) p.set("status", filterStatus);
+    if (filterUpr) p.set("upr_id", filterUpr);
+    if (filterSeverity) p.set("severity", filterSeverity);
+
+    fetch(`${API_BASE_URL}/reports?${p}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((j) => {
+        setLaporan(j.data ?? []);
+        setIsLoading(false);
+      })
+      .catch(() => setIsLoading(false));
+  }
+
+  useEffect(() => {
+    loadLaporanWithParams();
+  }, [activeTab]);
+  useEffect(() => {
+    if (!searchQuery && !filterStatus && !filterUpr && !filterSeverity) return;
+    loadLaporanWithParams();
+  }, [searchQuery, filterStatus, filterUpr, filterSeverity]);
 
   function showMsg(msg: string, type: "success" | "error" = "success") {
     setActionMsg(msg);
@@ -111,13 +185,13 @@ function SupervisorPage() {
       });
       const json = await res.json();
       if (res.ok) {
-        showMsg(json.message ?? "Laporan berhasil disetujui.");
-        await loadData();
+        showMsg(json.message);
+        await loadAllData();
       } else {
-        showMsg(json.message ?? "Gagal menyetujui laporan.", "error");
+        showMsg(json.message ?? "Gagal.", "error");
       }
     } catch {
-      showMsg("Terjadi kesalahan jaringan.", "error");
+      showMsg("Kesalahan jaringan.", "error");
     } finally {
       setActionLoading(false);
     }
@@ -134,16 +208,16 @@ function SupervisorPage() {
       });
       const json = await res.json();
       if (res.ok) {
-        showMsg(json.message ?? "Laporan berhasil ditolak.");
+        showMsg(json.message);
         setTolakTarget(null);
         setTolakAlasan("");
         setTolakCatatan("");
-        await loadData();
+        await loadAllData();
       } else {
-        showMsg(json.message ?? "Gagal menolak laporan.", "error");
+        showMsg(json.message ?? "Gagal.", "error");
       }
     } catch {
-      showMsg("Terjadi kesalahan jaringan.", "error");
+      showMsg("Kesalahan jaringan.", "error");
     } finally {
       setActionLoading(false);
     }
@@ -162,79 +236,115 @@ function SupervisorPage() {
       });
       const json = await res.json();
       if (res.ok) {
-        showMsg(json.message ?? "Perbaikan telah dimulai.");
+        showMsg(json.message);
         setMulaiTarget(null);
         setMulaiUprId("");
         setMulaiCatatan("");
-        await loadData();
+        await loadAllData();
       } else {
-        showMsg(json.message ?? "Gagal memulai perbaikan.", "error");
+        showMsg(json.message ?? "Gagal.", "error");
       }
     } catch {
-      showMsg("Terjadi kesalahan jaringan.", "error");
+      showMsg("Kesalahan jaringan.", "error");
     } finally {
       setActionLoading(false);
     }
   }
 
-  async function handleDisposisi(id: string) {
-    setActionLoading(true);
+  async function handleBulkApprove() {
+    if (selectedIds.size === 0) return;
+    setBulkLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/reports/${id}/disposisi`, {
+      const res = await fetch(`${API_BASE_URL}/reports/bulk-approve`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
       });
       const json = await res.json();
       if (res.ok) {
-        showMsg(json.message ?? "Laporan berhasil didisposisi.");
-        await loadData();
+        showMsg(json.message);
+        setSelectedIds(new Set());
+        await loadAllData();
       } else {
-        showMsg(json.message ?? "Gagal mendisposisi laporan.", "error");
+        showMsg(json.message ?? "Gagal.", "error");
       }
     } catch {
-      showMsg("Terjadi kesalahan jaringan.", "error");
+      showMsg("Kesalahan jaringan.", "error");
     } finally {
-      setActionLoading(false);
+      setBulkLoading(false);
     }
   }
 
-  const initials = user?.name
-    ? user.name
-        .split(" ")
-        .map((n: string) => n[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase()
-    : "SV";
-
-  // Profile dropdown
-  const [profileOpen, setProfileOpen] = useState(false);
-  const profileRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!profileOpen) return;
-    function handleClick(e: MouseEvent) {
-      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
-        setProfileOpen(false);
+  async function handleBulkTolak() {
+    if (!bulkTolakAlasan) return;
+    setBulkLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/reports/bulk-tolak`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedIds), alasan: bulkTolakAlasan }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        showMsg(json.message);
+        setSelectedIds(new Set());
+        setBulkTolakOpen(false);
+        setBulkTolakAlasan("");
+        await loadAllData();
+      } else {
+        showMsg(json.message ?? "Gagal.", "error");
       }
+    } catch {
+      showMsg("Kesalahan jaringan.", "error");
+    } finally {
+      setBulkLoading(false);
     }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [profileOpen]);
+  }
 
-  async function handleLogout() {
-    const token = getToken();
-    if (token) {
-      try {
-        await fetch("/api/auth/logout", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      } catch {}
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    const filtered = laporan.filter(
+      (r) => r.status === "Menunggu Review" || r.status === "Ditinjau",
+    );
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+      return;
     }
-    clearAuth();
-    navigate({ to: "/" });
+    setSelectedIds(new Set(filtered.map((r) => r.id)));
+  }
+
+  async function handleExportPdf() {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/reports/export/monthly-pdf?month=${exportMonth}&year=${exportYear}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!res.ok) {
+        const text = await res.text();
+        showMsg(text || "Gagal mengexport PDF.", "error");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `rekap-bulanan-${exportYear}-${String(exportMonth).padStart(2, "0")}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showMsg("PDF berhasil diunduh.");
+    } catch {
+      showMsg("Kesalahan jaringan saat mengunduh PDF.", "error");
+    }
   }
 
   function getSeverityColor(severity: string | undefined | null) {
@@ -249,125 +359,222 @@ function SupervisorPage() {
     return map[severity ?? ""] ?? { bar: "bg-gray-300", chip: "text-gray-600 bg-gray-100" };
   }
 
+  function displayStatus(status: string) {
+    return status === "Ditinjau" ? "Menunggu Review" : status;
+  }
+
   function statusBadge(status: string) {
     const map: Record<string, string> = {
-      "Menunggu Review": "bg-amber-100 text-amber-800",
-      Disetujui: "bg-green-100 text-green-800",
-      Ditolak: "bg-red-100 text-red-800",
-      "Sedang Diperbaiki": "bg-blue-100 text-blue-800",
-      Selesai: "bg-gray-100 text-gray-800",
+      "Menunggu Review": "bg-amber-50 text-amber-700 border border-amber-200",
+      Ditinjau: "bg-amber-50 text-amber-700 border border-amber-200",
+      Disetujui: "bg-green-50 text-green-700 border border-green-200",
+      Ditolak: "bg-red-50 text-red-700 border border-red-200",
+      "Sedang Diperbaiki": "bg-blue-50 text-blue-700 border border-blue-200",
+      Selesai: "bg-gray-50 text-gray-700 border border-gray-200",
     };
-    return map[status] ?? "bg-gray-100 text-gray-600";
+    return map[status] ?? "bg-gray-50 text-gray-600 border border-gray-200";
   }
+
+  const filteredReports = useMemo(() => {
+    let list = allLaporan;
+    if (activeTab === "menunggu")
+      list = list.filter((r) => r.status === "Menunggu Review" || r.status === "Ditinjau");
+    else if (activeTab === "disetujui") list = list.filter((r) => r.status === "Disetujui");
+    else if (activeTab === "sedang_diperbaiki")
+      list = list.filter((r) => r.status === "Sedang Diperbaiki");
+    else if (activeTab === "ditolak") list = list.filter((r) => r.status === "Ditolak");
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(
+        (r) =>
+          r.report_code.toLowerCase().includes(q) ||
+          r.road_name.toLowerCase().includes(q) ||
+          r.reporter_name.toLowerCase().includes(q),
+      );
+    }
+    if (filterStatus) list = list.filter((r) => r.status === filterStatus);
+    if (filterUpr) list = list.filter((r) => r.assigned_upr_id === Number(filterUpr));
+    if (filterSeverity)
+      list = list.filter(
+        (r) => r.overall_severity === filterSeverity || r.ai_severity === filterSeverity,
+      );
+    list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return list.slice(0, 100);
+  }, [allLaporan, activeTab, searchQuery, filterStatus, filterUpr, filterSeverity]);
 
   return (
     <AppLayout>
-      <div className="flex flex-col min-h-screen w-full pb-24">
-        {/* Header */}
-        <header className="flex justify-between items-center h-14 px-4 sticky top-0 z-40 bg-surface border-b border-border-subtle">
-          <h1 className="text-headline-sm font-headline-sm font-bold text-primary-container">
-            JalanKita
-          </h1>
-          <div className="flex items-center gap-4">
-            <div className="relative flex items-center justify-center w-tap-target-min h-tap-target-min">
-              <Icon name="notifications" className="text-on-surface-variant" />
-              {stats && stats.menunggu_review > 0 && (
-                <span className="absolute top-2 right-2 w-4 h-4 bg-error text-[10px] text-white flex items-center justify-center rounded-full font-bold">
-                  {stats.menunggu_review > 9 ? "9+" : stats.menunggu_review}
+      <div className="flex flex-col h-screen w-full bg-[#F5F7FA]">
+        <TopBar showBrand />
+
+        <main className="flex-1 overflow-y-auto min-h-0 pb-4">
+          <section className="px-4 pt-6 pb-8 bg-[#E8F0FA] rounded-b-lg border-b border-[#D0DAE8] mb-6">
+            <div className="flex flex-col gap-1">
+              <h2 className="font-headline-lg-mobile text-headline-lg-mobile font-bold text-primary">
+                Selamat pagi, {user?.name ?? "Supervisor"}
+              </h2>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="px-2 py-0.5 bg-amber-50 text-amber-700 text-label-sm font-bold rounded border border-amber-200 uppercase tracking-wide">
+                  Supervisor
                 </span>
-              )}
+                {user?.wilayah && (
+                  <span className="text-[#476788] text-label-md">· {user.wilayah}</span>
+                )}
+              </div>
             </div>
-            <div className="relative" ref={profileRef}>
-              <button
-                type="button"
-                onClick={() => setProfileOpen(!profileOpen)}
-                className="w-8 h-8 rounded-full bg-primary-container text-white flex items-center justify-center font-bold text-xs hover:opacity-90 transition-opacity"
-              >
-                {initials}
-              </button>
-              {profileOpen && (
-                <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-lg border border-border-subtle overflow-hidden z-50">
-                  <div className="px-4 py-3 border-b border-border-subtle">
-                    <p className="font-label-md text-label-md font-semibold text-on-surface truncate">
-                      {user?.name ?? "Supervisor"}
-                    </p>
-                    <p className="text-[11px] text-on-surface-variant capitalize">
-                      {user?.role === "supervisor" ? "Supervisor" : "Petugas Lapangan"}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="w-full flex items-center gap-2 px-4 py-3 text-[13px] text-on-surface font-medium hover:bg-surface-container-low transition-colors active:bg-surface-container"
-                  >
-                    <Icon name="logout" className="!text-[18px] text-on-surface-variant" />
-                    Keluar
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </header>
-
-        {/* Greeting */}
-        <section className="bg-[#E8F0FA] px-margin-mobile py-lg">
-          <h2 className="text-headline-sm font-headline-sm font-bold text-primary">
-            Selamat pagi, {user?.name ?? "Supervisor"}
-          </h2>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="px-2 py-0.5 bg-selesai/10 text-selesai text-label-sm font-bold rounded border border-selesai/20 uppercase tracking-wide">
-              Supervisor
-            </span>
-            {user?.wilayah && (
-              <span className="text-on-surface-variant text-label-md font-label-md">
-                · {user.wilayah}
-              </span>
-            )}
-          </div>
-        </section>
-
-        {/* Stats cards */}
-        <section className="px-margin-mobile -mt-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          </section>
+        <section className="px-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             {[
-              { label: "Menunggu Review", value: stats?.menunggu_review, color: "blue" },
-              { label: "Disetujui", value: stats?.disetujui, color: "green" },
-              { label: "Ditolak", value: stats?.ditolak, color: "red" },
-              { label: "Diperbaiki", value: stats?.sedang_diperbaiki, color: "orange" },
-            ].map(({ label, value, color }) => (
+              { label: "Menunggu Review", value: stats?.menunggu_review, icon: "rate_review", color: "blue" },
+              { label: "Disetujui", value: stats?.disetujui, icon: "check_circle", color: "green" },
+              { label: "Ditolak", value: stats?.ditolak, icon: "cancel", color: "red" },
+              { label: "Diperbaiki", value: stats?.sedang_diperbaiki, icon: "construction", color: "orange" },
+            ].map(({ label, value, icon, color }) => (
               <div
                 key={label}
-                className="rounded-lg p-3 text-center bg-surface-container-lowest border border-border-subtle"
+                className="bg-white border border-[#D0DAE8] p-4 rounded-lg"
               >
-                <p className={`text-2xl font-bold text-${color}-700`}>
+                <div className="flex items-center justify-between mb-2">
+                  <Icon name={icon} className={`text-${color}-600`} />
+                </div>
+                <p className="font-headline-md text-headline-md font-bold text-primary mb-1">
                   {isLoading ? "—" : (value ?? 0)}
                 </p>
-                <p className={`text-xs text-${color}-600 mt-0.5`}>{label}</p>
+                <p className="font-label-md text-label-md text-[#476788]">{label}</p>
               </div>
             ))}
           </div>
 
-          {/* Trust score breakdown */}
-          <div className="flex gap-2 mb-6 text-xs">
+          <div className="flex gap-2 mb-4">
             {[
-              { label: "🟢 Kredibel", value: stats?.trust_hijau },
-              { label: "🟡 Perlu Review", value: stats?.trust_kuning },
-              { label: "🔴 Diragukan", value: stats?.trust_merah },
-            ].map(({ label, value }) => (
+              { label: "Kredibel", value: stats?.trust_hijau, dot: "bg-green-500" },
+              { label: "Perlu Review", value: stats?.trust_kuning, dot: "bg-yellow-500" },
+              { label: "Diragukan", value: stats?.trust_merah, dot: "bg-red-500" },
+            ].map(({ label, value, dot }) => (
               <span
                 key={label}
-                className="px-2 py-1 rounded-full bg-surface-container-low text-on-surface-variant"
+                className="flex items-center gap-1 px-2 py-1 rounded-full bg-[#EEF3FA] text-[#476788] text-label-sm"
               >
+                <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
                 {label}: {value ?? 0}
               </span>
             ))}
           </div>
+
+          {/* Export PDF */}
+          <div className="flex items-center gap-2 mb-4">
+            <span className="font-label-sm text-label-sm text-[#476788] font-semibold whitespace-nowrap">
+              Export PDF
+            </span>
+            <select
+              value={exportMonth}
+              onChange={(e) => setExportMonth(Number(e.target.value))}
+              className="text-xs px-2 py-1 rounded-lg border border-[#D0DAE8] bg-white text-[#0F1623]"
+            >
+              {[
+                { v: 1, l: "Januari" },
+                { v: 2, l: "Februari" },
+                { v: 3, l: "Maret" },
+                { v: 4, l: "April" },
+                { v: 5, l: "Mei" },
+                { v: 6, l: "Juni" },
+                { v: 7, l: "Juli" },
+                { v: 8, l: "Agustus" },
+                { v: 9, l: "September" },
+                { v: 10, l: "Oktober" },
+                { v: 11, l: "November" },
+                { v: 12, l: "Desember" },
+              ].map((m) => (
+                <option key={m.v} value={m.v}>
+                  {m.l}
+                </option>
+              ))}
+            </select>
+            <select
+              value={exportYear}
+              onChange={(e) => setExportYear(Number(e.target.value))}
+              className="text-xs px-2 py-1 rounded-lg border border-[#D0DAE8] bg-white text-[#0F1623]"
+            >
+              {Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i).map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleExportPdf}
+              className="ml-auto flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-opacity"
+            >
+              <Icon name="download" className="!text-sm" />
+              Export
+            </button>
+          </div>
+
+          {/* UPR Stats toggle */}
+          <button
+            onClick={() => setShowUprStats(!showUprStats)}
+            className="w-full flex items-center justify-between px-3 py-2 mb-3 bg-white border border-[#D0DAE8] rounded-lg font-label-sm text-label-sm font-semibold text-[#0F1623] hover:bg-gray-50 transition-colors"
+          >
+            <span>Statistik per UPR</span>
+            <Icon name={showUprStats ? "expand_less" : "expand_more"} className="!text-lg text-[#476788]" />
+          </button>
+
+          {showUprStats && (
+            <div className="flex flex-col gap-2 mb-4">
+              {uprStats.length === 0 && (
+                <p className="text-xs text-[#476788] px-1">Memuat...</p>
+              )}
+              {uprStats.map((u) => (
+                <div
+                  key={u.upr_id}
+                  className="bg-white border border-[#D0DAE8] rounded-lg p-3"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-semibold text-sm text-[#0F1623]">{u.upr_name}</span>
+                    <span className="text-xs text-[#476788]">{u.total} laporan</span>
+                  </div>
+                  <div className="text-xs text-[#476788] space-y-0.5 mb-2">
+                    <span>
+                      {u.selesai} selesai · {u.sedang_diperbaiki} dikerjakan
+                    </span>
+                    {u.total_panjang_m > 0 && (
+                      <div className="text-[11px]">
+                        Total: {u.total_panjang_m} m ({u.total_luas_m2} m²)
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-0.5">
+                    {Array.from({ length: Math.max(1, Math.min(Math.ceil(u.total / 5), 20)) }).map(
+                      (_, i) => {
+                        const selesai =
+                          u.selesai > 0 && i < Math.round((u.selesai / Math.max(1, u.total)) * 20);
+                        const dikerjakan =
+                          !selesai &&
+                          u.sedang_diperbaiki > 0 &&
+                          i <
+                            Math.round(
+                              ((u.selesai + u.sedang_diperbaiki) / Math.max(1, u.total)) * 20,
+                            );
+                        return (
+                          <div
+                            key={i}
+                            className={`h-1.5 flex-1 rounded-full ${selesai ? "bg-green-400" : dikerjakan ? "bg-blue-400" : "bg-gray-200"}`}
+                          />
+                        );
+                      },
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
-        {/* Action message */}
         {actionMsg && (
           <div
-            className={`mx-margin-mobile mb-3 px-4 py-2 rounded-lg text-sm ${
+            className={`mx-4 mb-3 px-4 py-2 rounded-lg text-sm ${
               actionMsgType === "success"
                 ? "bg-green-50 border border-green-200 text-green-800"
                 : "bg-red-50 border border-red-200 text-red-800"
@@ -377,149 +584,350 @@ function SupervisorPage() {
           </div>
         )}
 
-        {/* Tab filter */}
-        <section className="px-margin-mobile mb-3">
-          <div className="flex gap-2">
+        {/* Search + Filters */}
+        <section className="px-4 mb-3">
+          <div className="flex gap-2 mb-2">
+            <div className="relative flex-1">
+              <Icon
+                name="search"
+                className="absolute left-3 top-1/2 -translate-y-1/2 !text-lg text-[#476788]"
+              />
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari kode/jalan/pelapor..."
+                className="w-full pl-9 pr-3 py-2 border border-[#D0DAE8] rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/25 bg-white"
+              />
+            </div>
             <button
-              onClick={() => {
-                setActiveTab("menunggu");
-                loadLaporan();
-              }}
-              className={`px-4 py-1.5 rounded-full text-sm font-bold transition-colors ${
-                activeTab === "menunggu"
-                  ? "bg-primary-container text-white"
-                  : "bg-surface-container-low text-on-surface-variant"
+              onClick={() => setViewMode(viewMode === "list" ? "map" : "list")}
+              className={`px-3 py-2 rounded-lg border border-[#D0DAE8] text-sm flex items-center gap-1 ${
+                viewMode === "map"
+                  ? "bg-primary text-white"
+                  : "bg-white text-[#476788]"
               }`}
             >
-              Menunggu Review {stats?.menunggu_review ? `(${stats.menunggu_review})` : ""}
+              <Icon name={viewMode === "map" ? "list" : "map"} className="!text-lg" />{" "}
+              {viewMode === "map" ? "List" : "Map"}
             </button>
-            <button
-              onClick={() => {
-                setActiveTab("semua");
-                loadLaporan();
-              }}
-              className={`px-4 py-1.5 rounded-full text-sm font-bold transition-colors ${
-                activeTab === "semua"
-                  ? "bg-primary-container text-white"
-                  : "bg-surface-container-low text-on-surface-variant"
-              }`}
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="text-xs px-2 py-1.5 border border-[#D0DAE8] rounded-lg bg-white outline-none text-[#0F1623]"
             >
-              Semua Laporan
-            </button>
+              <option value="">Semua status</option>
+              {[
+                "Menunggu Review",
+                "Ditinjau",
+                "Disetujui",
+                "Ditolak",
+                "Sedang Diperbaiki",
+                "Selesai",
+                "Diedit",
+              ].map((s) => (
+                <option key={s} value={s}>
+                  {displayStatus(s)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={filterUpr}
+              onChange={(e) => setFilterUpr(e.target.value)}
+              className="text-xs px-2 py-1.5 border border-[#D0DAE8] rounded-lg bg-white outline-none text-[#0F1623]"
+            >
+              <option value="">Semua UPR</option>
+              {uprList.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={filterSeverity}
+              onChange={(e) => setFilterSeverity(e.target.value)}
+              className="text-xs px-2 py-1.5 border border-[#D0DAE8] rounded-lg bg-white outline-none text-[#0F1623]"
+            >
+              <option value="">Semua severity</option>
+              {["Rusak Berat", "Rusak Sedang", "Rusak Ringan", "Baik"].map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
           </div>
         </section>
 
-        {/* Report list */}
-        <section className="px-margin-mobile">
-          {isLoading ? (
+        {/* Bulk action bar */}
+        {selectedIds.size > 0 && (
+          <div className="mx-4 mb-2 px-4 py-2.5 bg-primary text-white rounded-lg flex items-center justify-between shadow-lg">
+            <span className="text-sm font-semibold">{selectedIds.size} laporan dipilih</span>
+            <div className="flex gap-2">
+              <button
+                onClick={handleBulkApprove}
+                disabled={bulkLoading}
+                className="px-3 py-1 bg-white text-green-700 rounded-lg text-xs font-bold hover:bg-green-50 disabled:opacity-40 transition-colors"
+              >
+                ✓ Approve
+              </button>
+              <button
+                onClick={() => setBulkTolakOpen(true)}
+                disabled={bulkLoading}
+                className="px-3 py-1 bg-white text-red-700 rounded-lg text-xs font-bold hover:bg-red-50 disabled:opacity-40 transition-colors"
+              >
+                ✕ Tolak
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="px-3 py-1 bg-white/20 text-white rounded-lg text-xs hover:bg-white/30 transition-colors"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Report content */}
+        <section className="px-4 flex-1">
+          <div className="flex gap-2 mb-3 overflow-x-auto no-scrollbar">
+            {[
+              { key: "menunggu", label: "Perlu Review", count: stats?.menunggu_review },
+              { key: "disetujui", label: "Disetujui", count: stats?.disetujui },
+              { key: "sedang_diperbaiki", label: "Diperbaiki", count: stats?.sedang_diperbaiki },
+              { key: "ditolak", label: "Ditolak", count: stats?.ditolak },
+              { key: "semua", label: "Semua" },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => {
+                  setActiveTab(tab.key as typeof activeTab);
+                  setSearchQuery("");
+                  setFilterStatus("");
+                  setFilterUpr("");
+                  setFilterSeverity("");
+                }}
+                className={`whitespace-nowrap px-4 py-1.5 rounded-full font-label-sm font-bold transition-colors ${
+                  activeTab === tab.key
+                    ? "bg-primary text-white"
+                    : "bg-[#EEF3FA] text-[#476788]"
+                }`}
+              >
+                {tab.label}
+                {tab.count !== undefined ? ` (${tab.count})` : ""}
+              </button>
+            ))}
+          </div>
+
+          {viewMode === "map" ? (
+            <SupervisorMapView reports={filteredReports} />
+          ) : isLoading ? (
             <div className="flex items-center justify-center py-12">
               <span className="w-8 h-8 border-4 border-primary-container/30 border-t-primary-container rounded-full animate-spin" />
             </div>
-          ) : laporan.length === 0 ? (
-            <div className="text-center py-12 text-on-surface-variant">
+          ) : filteredReports.length === 0 ? (
+            <div className="text-center py-12 text-[#476788]">
               <Icon name="inbox" className="!text-5xl mb-3 opacity-30" />
-              <p className="text-body-md">Belum ada laporan</p>
+              <p className="font-body-md text-body-md">Belum ada laporan</p>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {laporan.map((row) => {
+              {/* Select all checkbox */}
+              {activeTab === "menunggu" &&
+                filteredReports.some(
+                  (r) => r.status === "Menunggu Review" || r.status === "Ditinjau",
+                ) && (
+                  <label className="flex items-center gap-2 px-1 text-sm text-[#476788] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={
+                        selectedIds.size > 0 &&
+                        selectedIds.size ===
+                          filteredReports.filter(
+                            (r) => r.status === "Menunggu Review" || r.status === "Ditinjau",
+                          ).length
+                      }
+                      onChange={toggleSelectAll}
+                      className="accent-primary"
+                    />
+                    Pilih semua
+                  </label>
+                )}
+              {filteredReports.map((row) => {
                 const sc = getSeverityColor(row.overall_severity ?? row.ai_severity);
+                const isSelected = selectedIds.has(row.id);
                 return (
                   <div
                     key={row.id}
-                    className="bg-surface-container-lowest border border-border-subtle rounded-xl overflow-hidden shadow-sm flex"
+                    className={`bg-white rounded-lg overflow-hidden flex transition-colors ${
+                      isSelected
+                        ? "border border-primary ring-1 ring-primary/30"
+                        : "border border-[#D0DAE8]"
+                    }`}
                   >
+                    <div className="self-stretch aspect-square shrink-0 bg-gray-50 overflow-hidden max-w-48">
+                      {row.first_photo_url ? (
+                        <img
+                          src={row.first_photo_url}
+                          alt={row.road_name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : row.batch_id && (row.photos_count ?? 0) > 0 ? (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <div className="text-center">
+                            <Icon
+                              name="photo_library"
+                              className="text-primary/60 !text-2xl mx-auto"
+                            />
+                            <span className="block text-[10px] text-primary/60 mt-0.5">
+                              {row.photos_count} foto
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Icon name="photo" className="text-gray-300 !text-2xl" />
+                        </div>
+                      )}
+                    </div>
                     <div className={`w-1.5 ${sc.bar}`} />
-                    <div className="p-md flex-1">
+                    <div className="p-4 flex-1">
                       <div className="flex justify-between items-start mb-2 flex-wrap gap-2">
-                        <span className="font-id-code text-id-code text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded">
-                          {row.report_code}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          {activeTab === "menunggu" &&
+                            (row.status === "Menunggu Review" || row.status === "Ditinjau") && (
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleSelect(row.id)}
+                                className="accent-primary"
+                              />
+                            )}
+                          <span className="font-id-code text-id-code text-[#476788] bg-[#EEF3FA] px-2 py-0.5 rounded">
+                            {row.report_code}
+                          </span>
+                          {row.batch_id && (row.photos_count ?? 0) > 0 && (
+                            <span className="text-[10px] font-bold text-primary bg-primary/5 px-1.5 py-0.5 rounded border border-primary/20">
+                              Batch {row.photos_count ?? ""}
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <span
                             className={`px-2 py-0.5 rounded text-label-sm font-bold ${statusBadge(row.status)}`}
                           >
-                            {row.status}
+                            {displayStatus(row.status)}
                           </span>
-                          {(row.overall_severity || row.ai_severity) && (
-                            <span
-                              className={`${sc.chip} text-label-sm font-bold px-2 py-0.5 rounded`}
-                            >
-                              {row.overall_severity ?? row.ai_severity}
-                            </span>
-                          )}
+                          {(row.overall_severity !== "Baik" || (row.ai_severity && row.ai_severity !== "baik")) && (
+                              <span
+                                className={`${sc.chip} text-label-sm font-bold px-2 py-0.5 rounded`}
+                              >
+                                {row.overall_severity ?? row.ai_severity}
+                              </span>
+                            )}
                           <TrustBadge
                             score={row.trust_score ?? 0}
                             label={(row.trust_label as TrustLabel) ?? "merah"}
                           />
                         </div>
                       </div>
-                      <h4 className="text-body-lg font-bold text-on-surface mb-1">
+                      <h4 className="font-label-md text-label-md font-bold text-[#0F1623] mb-1">
                         {row.road_name}
                       </h4>
-                      <div className="flex items-center gap-1 text-on-surface-variant text-label-md mb-1">
-                        <Icon name="location_on" className="!text-[14px]" />
-                        <span>{row.district}</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-on-surface-variant text-label-md mb-3">
-                        <Icon name="person" className="!text-[16px]" />
-                        <span>Pelapor: {row.reporter_name}</span>
+                      <div className="text-[#476788] text-label-sm space-y-0.5 mb-2">
+                        <div className="flex items-center gap-1">
+                          <Icon name="location_on" className="!text-[14px]" />
+                          <span>{row.district}</span>
+                          {row.assigned_upr_name && (
+                            <>
+                              <span className="mx-1">·</span>
+                              <span>{row.assigned_upr_name}</span>
+                            </>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Icon name="person" className="!text-[14px]" />
+                          <span>Pelapor: {row.reporter_name}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Icon name="calendar_month" className="!text-[14px]" />
+                          <span>
+                            {row.created_at
+                              ? new Date(row.created_at).toLocaleDateString("id-ID", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                })
+                              : "-"}
+                          </span>
+                        </div>
+                        {row.kerusakan_panjang && (
+                          <div className="flex items-center gap-1">
+                            <Icon name="straighten" className="!text-[14px]" />
+                            <span>
+                              {row.kerusakan_panjang} m
+                              {row.kerusakan_lebar ? ` × ${row.kerusakan_lebar} m` : ""}
+                              {row.kerusakan_lebar
+                                ? ` (${(row.kerusakan_panjang * row.kerusakan_lebar).toFixed(1)} m²)`
+                                : ""}
+                            </span>
+                          </div>
+                        )}
+                        {(row as any).catatan_petugas && (
+                          <div className="flex items-start gap-1">
+                            <Icon name="edit_note" className="!text-[14px] mt-0.5 shrink-0" />
+                            <span className="text-xs text-[#476788] line-clamp-2">
+                              {(row as any).catatan_petugas}
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <div className="flex gap-1.5 flex-wrap">
-                        {row.status === "Menunggu Review" && (
+                        {row.status === "Menunggu Review" || row.status === "Ditinjau" ? (
                           <>
                             <button
                               onClick={() => handleApprove(row.id)}
                               disabled={actionLoading}
-                              className="px-2.5 py-1 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 disabled:opacity-40 transition-colors"
+                              className="px-4 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700 disabled:opacity-40 transition-all flex items-center gap-1"
                             >
-                              ✓ Approve
+                              ✓ Setujui
                             </button>
                             <button
                               onClick={() => setTolakTarget(row.id)}
                               disabled={actionLoading}
-                              className="px-2.5 py-1 bg-red-100 text-red-700 text-xs rounded-lg hover:bg-red-200 disabled:opacity-40 transition-colors"
+                              className="px-4 py-1.5 bg-red-50 text-red-700 text-xs font-bold rounded-lg border border-red-200 hover:bg-red-100 disabled:opacity-40 transition-all flex items-center gap-1"
                             >
                               ✕ Tolak
                             </button>
                           </>
-                        )}
+                        ) : null}
                         {row.status === "Disetujui" && (
                           <>
                             <button
                               onClick={() => setMulaiTarget(row.id)}
                               disabled={actionLoading}
-                              className="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs rounded-lg hover:bg-blue-200 disabled:opacity-40 transition-colors"
+                              className="px-4 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-all flex items-center gap-1"
                             >
                               → Mulai Pengerjaan
-                            </button>
-                            <button
-                              onClick={() => handleDisposisi(row.id)}
-                              disabled={actionLoading}
-                              className="px-2.5 py-1 bg-blue-50 text-blue-500 text-xs rounded-lg hover:bg-blue-100 disabled:opacity-40 transition-colors"
-                            >
-                              Disposisi
                             </button>
                           </>
                         )}
                         {row.status === "Sedang Diperbaiki" && (
-                          <Link
-                            to="/complete"
-                            search={{ reportId: row.id }}
-                            className="px-2.5 py-1 bg-green-100 text-green-700 text-xs rounded-lg hover:bg-green-200 transition-colors"
-                          >
-                            ✓ Selesaikan
-                          </Link>
+                          <span className="px-4 py-1.5 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-200">
+                            Sedang Diperbaiki
+                          </span>
                         )}
                         {row.status === "Selesai" && (
-                          <span className="px-2.5 py-1 bg-gray-100 text-gray-400 text-xs rounded-lg">
-                            ✓ Selesai
-                          </span>
+                          <div className="flex gap-1">
+                            <span className="px-4 py-1.5 bg-gray-100 text-gray-500 text-xs font-bold rounded-lg border border-gray-200">
+                              Selesai
+                            </span>
+                          </div>
                         )}
                         <Link
                           to="/review"
                           search={{ reportId: row.id }}
-                          className="px-2.5 py-1 bg-gray-100 text-gray-700 text-xs rounded-lg hover:bg-gray-200 transition-colors"
+                          className="px-3 py-1.5 bg-gray-50 text-gray-600 text-xs font-medium rounded-lg border border-gray-200 hover:bg-gray-100 transition-all"
                         >
                           Detail
                         </Link>
@@ -531,14 +939,15 @@ function SupervisorPage() {
             </div>
           )}
         </section>
+        </main>
+        </div>
 
         <BottomNav />
-      </div>
 
-      {/* Tolak modal */}
+      {/* Tolak detail modal */}
       {tolakTarget && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
+          <div className="bg-white rounded-lg p-6 w-full max-w-sm space-y-4 shadow-lg border border-[#D0DAE8]">
             <h3 className="font-semibold text-gray-900">Tolak Laporan</h3>
             <select
               value={tolakAlasan}
@@ -555,7 +964,7 @@ function SupervisorPage() {
             <textarea
               value={tolakCatatan}
               onChange={(e) => setTolakCatatan(e.target.value)}
-              placeholder="Catatan tambahan untuk petugas (opsional)"
+              placeholder="Catatan tambahan (opsional)"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none h-20 focus:ring-2 focus:ring-red-400 outline-none"
             />
             <div className="flex gap-2">
@@ -581,10 +990,52 @@ function SupervisorPage() {
         </div>
       )}
 
+      {/* Bulk Tolak modal */}
+      {bulkTolakOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-sm space-y-4 shadow-lg border border-[#D0DAE8]">
+            <h3 className="font-semibold text-gray-900">Tolak {selectedIds.size} Laporan</h3>
+            <p className="text-xs text-gray-500">
+              Semua laporan yang dipilih akan ditolak dengan alasan yang sama.
+            </p>
+            <select
+              value={bulkTolakAlasan}
+              onChange={(e) => setBulkTolakAlasan(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-400 outline-none"
+            >
+              <option value="">-- Pilih alasan --</option>
+              <option value="koordinat_tidak_valid">Koordinat tidak valid</option>
+              <option value="foto_tidak_jelas">Foto tidak jelas</option>
+              <option value="bukan_kerusakan_jalan">Bukan kerusakan jalan</option>
+              <option value="duplikat">Duplikat laporan lain</option>
+              <option value="lainnya">Lainnya</option>
+            </select>
+            <div className="flex gap-2">
+              <button
+                onClick={handleBulkTolak}
+                disabled={!bulkTolakAlasan || bulkLoading}
+                className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 disabled:opacity-40 transition-colors"
+              >
+                {bulkLoading ? "Memproses..." : "Tolak Semua"}
+              </button>
+              <button
+                onClick={() => {
+                  setBulkTolakOpen(false);
+                  setBulkTolakAlasan("");
+                }}
+                className="flex-1 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mulai Pengerjaan modal */}
       {mulaiTarget && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
+          <div className="bg-white rounded-lg p-6 w-full max-w-sm space-y-4 shadow-lg border border-[#D0DAE8]">
             <h3 className="font-semibold text-gray-900">Mulai Pengerjaan</h3>
             <p className="text-xs text-gray-500">
               Tetapkan tim satgas untuk mengerjakan perbaikan.
@@ -632,3 +1083,4 @@ function SupervisorPage() {
     </AppLayout>
   );
 }
+export default SupervisorPage;

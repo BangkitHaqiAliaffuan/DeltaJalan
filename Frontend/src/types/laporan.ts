@@ -1,20 +1,23 @@
 /**
  * laporan.ts
  *
- * Type definitions untuk fitur laporan JalanKita.
+ * Type definitions untuk fitur laporan DeltaJalan.
  * Mencakup status laporan, trust score, batch upload, dan AI analysis.
  */
 
 export type StatusLaporan =
   | "Menunggu Review"
+  | "Ditinjau"
   | "Disetujui"
   | "Ditolak"
   | "Sedang Diperbaiki"
-  | "Selesai";
+  | "Selesai"
+  | "Diedit";
 
 export type TrustLabel = "hijau" | "kuning" | "merah";
 export type KoordinatSumber = "exif" | "browser_gps" | "manual";
 export type SeverityLevel = "ringan" | "sedang" | "berat";
+export type PriorityLevel = "Rendah" | "Sedang" | "Tinggi";
 
 // ── Trust Score ────────────────────────────────────────────────────────────
 
@@ -61,11 +64,12 @@ export interface BatchStoreResponse {
   success: boolean;
   main_report_id: string;
   main_report_code: string;
-  sub_reports_count: number;
+  photos_count: number;
   trust_score: number;
   trust_label: TrustLabel;
   overall_severity: SeverityLevel;
   road_matched: boolean;
+  duplicate_photos?: { file_index: number; file_name: string }[];
 }
 
 // ── Laporan ────────────────────────────────────────────────────────────────
@@ -89,10 +93,7 @@ export interface Laporan {
   system_notes?: string | null;
   image_original_url?: string | null;
   image_result_url?: string | null;
-  is_batch_main?: boolean;
-  is_batch_sub?: boolean;
-  batch_id?: string | null;
-  parent_report_id?: string | null;
+  first_photo_url?: string | null;
   created_at: string;
   updated_at?: string;
 
@@ -106,6 +107,34 @@ export interface Laporan {
 
   // UPR assignment
   assigned_upr_id?: number | null;
+  assigned_upr_name?: string | null;
   assigned_at?: string | null;
   catatan_petugas?: string | null;
+
+  // Dimensi kerusakan (standar Bina Marga)
+  kerusakan_panjang?: number | null;
+  kerusakan_lebar?: number | null;
+
+  // Prioritas penanganan (dari supervisor)
+  priority?: PriorityLevel;
+
+  // Batch grouping — photos di tabel terpisah
+  batch_id?: string | null;
+  photos_count?: number;
+  photos?: ReportPhoto[];
+}
+
+export interface ReportPhoto {
+  id: string;
+  ai_jenis_kerusakan?: string | null;
+  ai_severity?: string | null;
+  ai_confidence?: number | null;
+  total_detections?: number;
+  latitude: number | null;
+  longitude: number | null;
+  image_original_url?: string | null;
+  image_result_url?: string | null;
+  system_notes?: string | null;
+  sort_order?: number;
+  created_at: string | null;
 }

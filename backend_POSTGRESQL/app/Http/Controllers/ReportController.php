@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Report;
 use App\Models\ReportEvidence;
+use App\Models\ReportPhoto;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -123,32 +124,26 @@ class ReportController extends Controller
 
                 if ($latF >= -11 && $latF <= 6 && $lngF >= 95 && $lngF <= 141) {
                     $spatialResults = DB::select("
-                        SELECT
-                            id, report_code, road_name, district,
-                            latitude, longitude, status, support_count, created_at,
-                            (
-                                6371000 * acos(
-                                    LEAST(1.0, cos(radians(:lat1)) * cos(radians(latitude::float))
-                                    * cos(radians(longitude::float) - radians(:lng1))
-                                    + sin(radians(:lat2)) * sin(radians(latitude::float)))
-                                )
-                            ) AS distance_meters
-                        FROM reports
-                        WHERE status != 'Selesai'
-                        HAVING (
-                            6371000 * acos(
-                                LEAST(1.0, cos(radians(:lat3)) * cos(radians(latitude::float))
-                                * cos(radians(longitude::float) - radians(:lng2))
-                                + sin(radians(:lat4)) * sin(radians(latitude::float)))
-                            )
-                        ) <= 15
+                        SELECT * FROM (
+                            SELECT
+                                id, report_code, road_name, district,
+                                latitude, longitude, status, support_count, created_at,
+                                (
+                                    6371000 * acos(
+                                        LEAST(1.0, cos(radians(:lat1)) * cos(radians(latitude::float))
+                                        * cos(radians(longitude::float) - radians(:lng1))
+                                        + sin(radians(:lat2)) * sin(radians(latitude::float)))
+                                    )
+                                ) AS distance_meters
+                            FROM reports
+                            WHERE status != 'Selesai'
+                        ) sub
+                        WHERE distance_meters <= 15
                         ORDER BY distance_meters ASC
                         LIMIT 20
                     ", [
                         'lat1' => $latF, 'lng1' => $lngF,
                         'lat2' => $latF,
-                        'lat3' => $latF, 'lng2' => $lngF,
-                        'lat4' => $latF,
                     ]);
 
                     $spatialDuplicates = array_map(function ($row) {
@@ -203,7 +198,9 @@ class ReportController extends Controller
 
             // ── Pencarian Berdasarkan Hash Gambar ───────────────────────────
             if ($fileHash) {
-                $imageResults = Report::where('image_hash', $fileHash)
+                $photoReportIds = ReportPhoto::where('image_hash', $fileHash)->pluck('report_id');
+                $imageResults = Report::whereIn('id', $photoReportIds)
+                    ->orWhere('image_hash', $fileHash)
                     ->select([
                         'id', 'report_code', 'road_name', 'district',
                         'latitude', 'longitude', 'status', 'support_count', 'created_at',
@@ -280,17 +277,10 @@ class ReportController extends Controller
         $imageHash = $this->calculateImageHash($imageFile->getPathname());
 
         if ($imageHash !== null) {
-            if (Report::where('image_hash', $imageHash)->exists()) {
+            if (Report::imageHashExists($imageHash) || ReportEvidence::where('image_hash', $imageHash)->exists()) {
                 return response()->json([
                     'success'    => false,
                     'message'    => 'Foto ini sudah digunakan pada laporan lain.',
-                    'error_code' => 'DUPLICATE_IMAGE',
-                ], 422);
-            }
-            if (ReportEvidence::where('image_hash', $imageHash)->exists()) {
-                return response()->json([
-                    'success'    => false,
-                    'message'    => 'Foto ini sudah pernah dikirim sebagai bukti sebelumnya.',
                     'error_code' => 'DUPLICATE_IMAGE',
                 ], 422);
             }
@@ -403,7 +393,12 @@ class ReportController extends Controller
                 'longitude'     => ['required', 'numeric', 'between:95,141'],
 
                 // File foto — wajib, hanya JPEG/PNG, maksimal 5MB
-                'image'         => ['required', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
+                'image'              => ['required', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
+                // Dimensi kerusakan — wajib
+                'kerusakan_panjang'  => ['required', 'numeric', 'min:0', 'max:999999.99'],
+                'kerusakan_lebar'    => ['required', 'numeric', 'min:0', 'max:999999.99'],
+                // Catatan petugas (opsional)
+                'catatan'            => ['nullable', 'string', 'max:1000'],
             ]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -470,6 +465,12 @@ class ReportController extends Controller
 
         if ($imageHash !== null) {
             $existingReport = Report::where('image_hash', $imageHash)->first();
+            if (!$existingReport) {
+                $existingPhoto = ReportPhoto::where('image_hash', $imageHash)->first();
+                if ($existingPhoto) {
+                    $existingReport = Report::find($existingPhoto->report_id);
+                }
+            }
             if ($existingReport) {
                 return response()->json([
                     'success'    => false,
@@ -608,6 +609,11 @@ class ReportController extends Controller
                     'trust_score'          => $trustResult['score'],
                     'trust_label'          => $trustResult['label'],
                     'trust_breakdown'      => $trustResult['breakdown'],
+                    // Dimensi kerusakan
+                    'kerusakan_panjang'    => $validated['kerusakan_panjang'] ?? null,
+                    'kerusakan_lebar'      => $validated['kerusakan_lebar'] ?? null,
+                    // Catatan petugas
+                    'catatan_petugas'      => $validated['catatan'] ?? null,
                 ]);
 
                 return $report;
@@ -673,6 +679,9 @@ class ReportController extends Controller
                 // URL gambar yang bisa langsung dipakai oleh frontend React
                 'image_original_url'  => $report->image_original_url,
                 'image_result_url'    => $report->image_result_url,
+                'catatan_petugas'     => $report->catatan_petugas,
+                'kerusakan_panjang'   => $report->kerusakan_panjang ? (float) $report->kerusakan_panjang : null,
+                'kerusakan_lebar'     => $report->kerusakan_lebar ? (float) $report->kerusakan_lebar : null,
                 'created_at'          => $report->created_at->toIso8601String(),
             ],
         ], 201);
@@ -696,10 +705,51 @@ class ReportController extends Controller
             $query->where('reporter_name', $user->name);
         }
 
+        // Petugas eksekusi hanya melihat laporan yang ditugaskan ke UPR-nya
+        if ($user->role === 'petugas_eksekusi') {
+            $query->when($user->upr_id, fn($q) => $q->where('assigned_upr_id', $user->upr_id))
+                  ->unless($user->upr_id, fn($q) => $q->whereRaw('1 = 0'));
+            $query->whereNotIn('status', ['Diedit']);
+        }
+
+        // Supervisor tidak melihat laporan yang sedang diedit petugas
+        if ($user->role === 'supervisor') {
+            $query->whereNotIn('status', ['Diedit']);
+        }
+
         // Filter status (case-insensitive, ubah underscore ke spasi)
         if ($request->filled('status')) {
             $status = str_replace('_', ' ', $request->input('status'));
-            $query->whereRaw('LOWER(status::text) = ?', [strtolower($status)]);
+            $lower = strtolower($status);
+            if ($lower === 'menunggu review') {
+                $query->whereIn('status', ['Menunggu Review', 'Ditinjau']);
+            } else {
+                $query->whereRaw('LOWER(status::text) = ?', [$lower]);
+            }
+        }
+
+        // Search — cari berdasarkan report_code, road_name, reporter_name
+        if ($request->filled('q')) {
+            $q = $request->input('q');
+            $query->where(function ($sub) use ($q) {
+                $sub->where('report_code', 'ilike', "%{$q}%")
+                     ->orWhere('road_name', 'ilike', "%{$q}%")
+                     ->orWhere('reporter_name', 'ilike', "%{$q}%");
+            });
+        }
+
+        // Filter by UPR
+        if ($request->filled('upr_id')) {
+            $query->where('assigned_upr_id', (int) $request->input('upr_id'));
+        }
+
+        // Filter by severity
+        if ($request->filled('severity')) {
+            $sev = $request->input('severity');
+            $query->where(function ($sub) use ($sev) {
+                $sub->where('overall_severity', $sev)
+                     ->orWhere('ai_severity', $sev);
+            });
         }
 
         // Filter user_reports=true — paksa filter berdasarkan user name
@@ -711,29 +761,40 @@ class ReportController extends Controller
 
         $reports = $query->orderBy('created_at', 'desc')
             ->limit($limit)
+            ->withCount('photos')
+            ->with('firstPhoto')
             ->get()
             ->map(function ($report) {
                 return [
-                    'id'                 => $report->id,
-                    'report_code'        => $report->report_code,
-                    'reporter_name'      => $report->reporter_name,
-                    'road_name'          => $report->road_name,
-                    'district'           => $report->district,
-                    'latitude'           => $report->latitude ? (float) $report->latitude : null,
-                    'longitude'          => $report->longitude ? (float) $report->longitude : null,
-                    'overall_severity'   => $report->overall_severity,
-                    'ai_severity'        => $report->ai_severity,
-                    'total_detections'   => $report->total_detections,
-                    'status'             => $report->status,
-                    'trust_score'        => $report->trust_score,
-                    'trust_label'        => $report->trust_label,
-                    'image_original_url' => $report->image_original_url,
-                    'image_result_url'   => $report->image_result_url,
-                    'after_photo_url'    => $report->after_photo_url,
+                    'id'                   => $report->id,
+                    'report_code'          => $report->report_code,
+                    'reporter_name'        => $report->reporter_name,
+                    'road_name'            => $report->road_name,
+                    'district'             => $report->district,
+                    'latitude'             => $report->latitude ? (float) $report->latitude : null,
+                    'longitude'            => $report->longitude ? (float) $report->longitude : null,
+                    'overall_severity'     => $report->overall_severity,
+                    'ai_severity'          => $report->ai_severity,
+                    'total_detections'     => $report->total_detections,
+                    'status'               => $report->status,
+                    'trust_score'          => $report->trust_score,
+                    'trust_label'          => $report->trust_label,
+                    'image_original_url'   => $report->image_original_url,
+                    'image_result_url'     => $report->image_result_url,
+                    'after_photo_url'      => $report->after_photo_url,
+                    'first_photo_url'      => $report->first_photo_url,
+                    'assigned_upr_id'      => $report->assigned_upr_id,
+                    'assigned_upr_name'    => $report->assignedUpr?->name,
                     'perbaikan_dimulai_at' => $report->perbaikan_dimulai_at?->toIso8601String(),
                     'perbaikan_selesai_at' => $report->perbaikan_selesai_at?->toIso8601String(),
-                    'pelaksana'          => $report->pelaksana,
-                    'created_at'         => $report->created_at?->toIso8601String(),
+                    'pelaksana'            => $report->pelaksana,
+                    'kerusakan_panjang'    => $report->kerusakan_panjang ? (float) $report->kerusakan_panjang : null,
+                    'kerusakan_lebar'      => $report->kerusakan_lebar ? (float) $report->kerusakan_lebar : null,
+                    'catatan_petugas'      => $report->catatan_petugas,
+                    'priority'             => $report->priority,
+                    'batch_id'             => $report->batch_id,
+                    'photos_count'         => $report->batch_id ? (int) $report->photos_count : 0,
+                    'created_at'           => $report->created_at?->toIso8601String(),
                 ];
             });
 
@@ -750,55 +811,72 @@ class ReportController extends Controller
      */
     public function show(string $id): JsonResponse
     {
-        $report = Report::with('evidences')->find($id);
+        $report = Report::with(['evidences', 'photos'])->find($id);
 
         if (!$report) {
             return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
         }
 
+        $data = [
+            'id'                 => $report->id,
+            'report_code'        => $report->report_code,
+            'reporter_name'      => $report->reporter_name,
+            'road_name'          => $report->road_name,
+            'district'           => $report->district,
+            'latitude'           => $report->latitude ? (float) $report->latitude : null,
+            'longitude'          => $report->longitude ? (float) $report->longitude : null,
+            'overall_severity'   => $report->overall_severity,
+            'ai_severity'        => $report->ai_severity,
+            'total_detections'   => $report->total_detections,
+            'status'             => $report->status,
+            'trust_score'        => $report->trust_score,
+            'trust_label'        => $report->trust_label,
+            'trust_breakdown'    => $report->trust_breakdown,
+            'system_notes'       => $report->system_notes,
+            'ai_raw_output'      => $report->ai_raw_output,
+            'image_original_url' => $report->image_original_url,
+            'image_result_url'   => $report->image_result_url,
+            'after_photo_url'    => $report->after_photo_url,
+            'after_photo_notes'  => $report->after_photo_notes,
+            'perbaikan_dimulai_at' => $report->perbaikan_dimulai_at?->toIso8601String(),
+            'perbaikan_selesai_at' => $report->perbaikan_selesai_at?->toIso8601String(),
+            'pelaksana'          => $report->pelaksana,
+            'assigned_upr_id'    => $report->assigned_upr_id,
+            'assigned_upr_name'  => $report->assignedUpr?->name,
+            'assigned_at'        => $report->assigned_at?->toIso8601String(),
+            'catatan_petugas'    => $report->catatan_petugas,
+            'priority'           => $report->priority,
+            'kerusakan_panjang'    => $report->kerusakan_panjang ? (float) $report->kerusakan_panjang : null,
+            'kerusakan_lebar'      => $report->kerusakan_lebar ? (float) $report->kerusakan_lebar : null,
+            'batch_id'             => $report->batch_id,
+            'created_at'           => $report->created_at?->toIso8601String(),
+            'updated_at'           => $report->updated_at?->toIso8601String(),
+            'evidences'            => $report->evidences->map(fn ($e) => [
+                'id'            => $e->id,
+                'image_url'     => $e->image_url,
+                'reporter_name' => $e->reporter_name,
+                'notes'         => $e->notes,
+                'created_at'    => $e->created_at?->toIso8601String(),
+            ]),
+            'photos'             => $report->photos->map(fn ($p) => [
+                'id'                 => $p->id,
+                'ai_jenis_kerusakan' => $p->ai_jenis_kerusakan,
+                'ai_severity'        => $p->ai_severity,
+                'ai_confidence'      => $p->ai_confidence ? (float) $p->ai_confidence : null,
+                'total_detections'   => $p->total_detections,
+                'latitude'           => $p->latitude ? (float) $p->latitude : null,
+                'longitude'          => $p->longitude ? (float) $p->longitude : null,
+                'image_original_url' => $p->image_original_url,
+                'image_result_url'   => $p->image_result_url,
+                'system_notes'       => $p->system_notes,
+                'sort_order'         => $p->sort_order,
+                'created_at'         => $p->created_at?->toIso8601String(),
+            ]),
+        ];
+
         return response()->json([
             'success' => true,
-            'data'    => [
-                'id'                 => $report->id,
-                'report_code'        => $report->report_code,
-                'reporter_name'      => $report->reporter_name,
-                'road_name'          => $report->road_name,
-                'district'           => $report->district,
-                'latitude'           => $report->latitude ? (float) $report->latitude : null,
-                'longitude'          => $report->longitude ? (float) $report->longitude : null,
-                'overall_severity'   => $report->overall_severity,
-                'ai_severity'        => $report->ai_severity,
-                'total_detections'   => $report->total_detections,
-                'status'             => $report->status,
-                'trust_score'        => $report->trust_score,
-                'trust_label'        => $report->trust_label,
-                'trust_breakdown'    => $report->trust_breakdown,
-                'system_notes'       => $report->system_notes,
-                'ai_raw_output'      => $report->ai_raw_output,
-                'image_original_url' => $report->image_original_url,
-                'image_result_url'   => $report->image_result_url,
-                'after_photo_url'    => $report->after_photo_url,
-                'after_photo_notes'  => $report->after_photo_notes,
-                'perbaikan_dimulai_at' => $report->perbaikan_dimulai_at?->toIso8601String(),
-                'perbaikan_selesai_at' => $report->perbaikan_selesai_at?->toIso8601String(),
-                'pelaksana'          => $report->pelaksana,
-                'assigned_upr_id'    => $report->assigned_upr_id,
-                'assigned_at'        => $report->assigned_at?->toIso8601String(),
-                'catatan_petugas'    => $report->catatan_petugas,
-                'is_batch_main'      => $report->is_batch_main,
-                'is_batch_sub'       => $report->is_batch_sub,
-                'batch_id'           => $report->batch_id,
-                'parent_report_id'   => $report->parent_report_id,
-                'created_at'         => $report->created_at?->toIso8601String(),
-                'updated_at'         => $report->updated_at?->toIso8601String(),
-                'evidences'          => $report->evidences->map(fn ($e) => [
-                    'id'            => $e->id,
-                    'image_url'     => $e->image_url,
-                    'reporter_name' => $e->reporter_name,
-                    'notes'         => $e->notes,
-                    'created_at'    => $e->created_at?->toIso8601String(),
-                ]),
-            ],
+            'data'    => $data,
         ]);
     }
 
@@ -1117,6 +1195,9 @@ class ReportController extends Controller
                 'koordinat_sumber'   => 'required|in:exif,browser_gps,manual',
                 'fake_gps_suspected' => 'boolean',
                 'analyses'           => 'required|json',
+                'kerusakan_panjang'  => ['required', 'numeric', 'min:0', 'max:999999.99'],
+                'kerusakan_lebar'    => ['required', 'numeric', 'min:0', 'max:999999.99'],
+                'catatan'            => ['nullable', 'string', 'max:1000'],
                 'files'              => 'required|array|min:1',
                 'files.*'            => 'required|file|mimes:jpeg,jpg,png|max:5120',
             ]);
@@ -1181,11 +1262,11 @@ class ReportController extends Controller
             $batchFakeGps = true; // EXIF cloning = fake GPS
         }
         $trustResult   = app(\App\Services\TrustScoreService::class)->calculate([
-            'exif_lat'           => $validated['koordinat_sumber'] === 'exif' ? $validated['latitude']  : null,
-            'exif_lng'           => $validated['koordinat_sumber'] === 'exif' ? $validated['longitude'] : null,
+            'exif_lat'           => !empty($firstAnalysis['has_exif_gps']) ? ($firstAnalysis['exif_lat'] ?? $validated['latitude'])  : null,
+            'exif_lng'           => !empty($firstAnalysis['has_exif_gps']) ? ($firstAnalysis['exif_lng'] ?? $validated['longitude']) : null,
             'road_name_matched'  => $roadValidation['matched'],
             'ai_detections'      => $firstAnalysis['detections']    ?? [],
-            'ai_context_valid'   => $firstAnalysis['context_valid'] ?? false,
+            'ai_context_valid'   => !empty($firstAnalysis['detections']),
             'fake_gps_suspected' => $batchFakeGps,
         ]);
 
@@ -1197,8 +1278,14 @@ class ReportController extends Controller
 
         try {
             $result = DB::transaction(function () use ($validated, $analyses, $request, $trustResult, $roadValidation, $batchNotes, $exifCloneSuspected) {
-                // ── Buat laporan utama ────────────────────────────────────
                 $severities  = array_column($analyses, 'severity');
+                $aggSeverity = $this->aggregateSeverity($severities);
+                $severityMap = [
+                    'berat'  => 'Rusak Berat',
+                    'sedang' => 'Rusak Sedang',
+                    'ringan' => 'Rusak Ringan',
+                    'baik'   => 'Baik',
+                ];
                 $mainReport  = Report::create([
                     'report_code'      => $this->generateReportCode(),
                     'reporter_name'    => auth()->user()->name ?? 'Petugas',
@@ -1209,20 +1296,23 @@ class ReportController extends Controller
                     'koordinat_sumber' => $validated['koordinat_sumber'],
                     'status'           => 'Menunggu Review',
                     'batch_id'         => $validated['batch_id'],
-                    'is_batch_main'    => true,
                     'trust_score'      => $trustResult['score'],
                     'trust_label'      => $trustResult['label'],
                     'trust_breakdown'  => $trustResult['breakdown'],
-                    'ai_severity'      => $this->aggregateSeverity($severities),
-                    'system_notes'     => $batchNotes,
+                    'overall_severity'   => $severityMap[$aggSeverity] ?? 'Baik',
+                    'ai_severity'        => $aggSeverity,
+                    'system_notes'       => $batchNotes,
+                    'kerusakan_panjang'  => $validated['kerusakan_panjang'] ?? null,
+                    'kerusakan_lebar'    => $validated['kerusakan_lebar'] ?? null,
+                    'catatan_petugas'    => $validated['catatan'] ?? null,
                 ]);
 
-                // ── Buat sub-laporan per foto ─────────────────────────────
-                $subReports = [];
+                $photosCreated = 0;
+                $duplicatesSkipped = 0;
+                $duplicatePhotoList = [];
                 foreach ($analyses as $idx => $analysis) {
-                    // Lewati foto yang ditolak karena EXIF tidak valid
                     if (!empty($analysis['exif_invalid'])) {
-                        Log::info('JalanKita: Sub-laporan dilewati karena foto ditolak EXIF.', [
+                        Log::info('JalanKita: Foto batch dilewati karena EXIF tidak valid.', [
                             'file_index'  => $idx,
                             'file_name'   => $analysis['file_name'] ?? '',
                             'exif_reason' => $analysis['exif_reason'] ?? '',
@@ -1230,25 +1320,29 @@ class ReportController extends Controller
                         continue;
                     }
 
-                    $file      = $request->file('files')[$idx] ?? null;
-                    $photoPath = null;
-                    $imageHash = null;
+                    $file       = $request->file('files')[$idx] ?? null;
+                    $photoPath  = null;
+                    $resultPath = null;
+                    $imageHash  = null;
 
-                    // Koordinat per foto: gunakan GPS EXIF jika ada, fallback ke koordinat form
-                    // Ini menyelesaikan celah 2.2 — setiap foto punya koordinat sendiri
                     $photoLat        = (float) ($analysis['photo_lat'] ?? $validated['latitude']);
                     $photoLng        = (float) ($analysis['photo_lng'] ?? $validated['longitude']);
                     $koordinatSumber = $analysis['koordinat_sumber'] ?? $validated['koordinat_sumber'];
 
                     if ($file) {
-                        // Cek duplikasi hash per file
                         $imageHash = $this->calculateImageHash($file->getPathname());
 
-                        if ($imageHash && Report::where('image_hash', $imageHash)->exists()) {
+                        if ($imageHash && Report::imageHashExists($imageHash)) {
                             Log::info('JalanKita: Foto duplikat dilewati dalam batch.', [
                                 'file_index' => $idx,
+                                'file_name'  => $analysis['file_name'] ?? '',
                                 'hash'       => $imageHash,
                             ]);
+                            $duplicatesSkipped++;
+                            $duplicatePhotoList[] = [
+                                'file_index' => $idx,
+                                'file_name'  => $analysis['file_name'] ?? '',
+                            ];
                             continue;
                         }
 
@@ -1256,18 +1350,22 @@ class ReportController extends Controller
                         $photoPath = $file->storeAs(self::ORIGINALS_FOLDER, $filename, 'public');
                     }
 
-                    // Hitung trust score per foto berdasarkan GPS EXIF foto itu sendiri
+                    if (!empty($analysis['image_result'])) {
+                        $resultPath = $this->saveBase64Image(
+                            $analysis['image_result'],
+                            self::RESULTS_FOLDER
+                        );
+                    }
+
                     $photoTrustResult = app(\App\Services\TrustScoreService::class)->calculate([
                         'exif_lat'           => $analysis['has_exif_gps'] ? $analysis['exif_lat'] : null,
                         'exif_lng'           => $analysis['has_exif_gps'] ? $analysis['exif_lng'] : null,
                         'road_name_matched'  => $roadValidation['matched'],
                         'ai_detections'      => $analysis['detections'] ?? [],
-                        'ai_context_valid'   => $analysis['context_valid'] ?? false,
-                        // Jika GPS EXIF jauh dari koordinat form, tandai sebagai suspicious
+                        'ai_context_valid'   => !empty($analysis['detections']),
                         'fake_gps_suspected' => $analysis['gps_mismatch'] ?? false,
                     ]);
 
-                    // Tambahkan catatan jika GPS EXIF jauh dari koordinat form
                     $subNotes = null;
                     if (!empty($analysis['gps_mismatch'])) {
                         $dist = round($analysis['gps_distance_meters'] ?? 0);
@@ -1276,34 +1374,42 @@ class ReportController extends Controller
                         $subNotes = '[INFO] Foto tidak memiliki GPS EXIF. Koordinat dari input form.';
                     }
 
-                    $subReport = Report::create([
-                        'report_code'         => $this->generateReportCode(),
-                        'reporter_name'       => auth()->user()->name ?? 'Petugas',
-                        'road_name'           => $validated['road_name'],
-                        'district'            => $validated['district'],
+                    ReportPhoto::create([
+                        'report_id'           => $mainReport->id,
+                        'image_original_path' => $photoPath,
+                        'image_result_path'   => $resultPath,
+                        'image_hash'          => $imageHash,
                         'latitude'            => $photoLat,
                         'longitude'           => $photoLng,
                         'koordinat_sumber'    => $koordinatSumber,
-                        'status'              => 'Menunggu Review',
-                        'batch_id'            => $validated['batch_id'],
-                        'is_batch_sub'        => true,
-                        'parent_report_id'    => $mainReport->id,
-                        'trust_score'         => $photoTrustResult['score'],
-                        'trust_label'         => $photoTrustResult['label'],
                         'ai_jenis_kerusakan'  => $analysis['detections'][0]['type'] ?? null,
                         'ai_severity'         => $analysis['severity'] ?? 'ringan',
                         'ai_confidence'       => $analysis['confidence'] ?? null,
-                        'image_original_path' => $photoPath,
-                        'image_hash'          => $imageHash,
+                        'total_detections'    => count($analysis['detections'] ?? []),
                         'system_notes'        => $subNotes,
+                        'sort_order'          => $idx,
+                        'original_filename'   => $analysis['file_name'] ?? null,
                     ]);
 
-                    $subReports[] = $subReport->id;
+                    $photosCreated++;
+                }
+
+                if ($photosCreated === 0) {
+                    throw new \RuntimeException(
+                        $duplicatesSkipped > 0
+                            ? 'Semua foto sudah pernah digunakan pada laporan lain.'
+                            : 'Tidak ada foto yang berhasil diproses.'
+                    );
+                }
+
+                if ($duplicatesSkipped > 0) {
+                    $mainReport->update(['system_notes' => ($mainReport->system_notes ? $mainReport->system_notes . ' | ' : '') . '[INFO] ' . $duplicatesSkipped . ' foto dilewati karena sudah digunakan pada laporan lain.']);
                 }
 
                 return [
-                    'main_report'       => $mainReport,
-                    'sub_reports_count' => count($subReports),
+                    'main_report'      => $mainReport,
+                    'photos_count'     => $photosCreated,
+                    'duplicate_photos' => $duplicatePhotoList,
                 ];
             });
 
@@ -1313,16 +1419,20 @@ class ReportController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
+            $userMessage = match (true) {
+                str_contains($e->getMessage(), 'Semua foto sudah pernah digunakan') => $e->getMessage(),
+                default => 'Terjadi kesalahan saat menyimpan laporan batch. Silakan coba lagi.',
+            };
+
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan saat menyimpan laporan batch. Silakan coba lagi.',
+                'message' => $userMessage,
                 'debug'   => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
 
         $mainReport = $result['main_report'];
 
-        // Log aktivitas untuk anomaly detection
         $reporterName = $mainReport->reporter_name;
         $dailyCount = Report::where('reporter_name', $reporterName)
             ->whereDate('created_at', today())
@@ -1330,7 +1440,7 @@ class ReportController extends Controller
         Log::info('JalanKita: Laporan batch berhasil disimpan.', [
             'batch_id'           => $validated['batch_id'],
             'main_report_code'   => $mainReport->report_code,
-            'sub_reports_count'  => $result['sub_reports_count'],
+            'photos_count'       => $result['photos_count'],
             'trust_score'        => $trustResult['score'],
             'trust_label'        => $trustResult['label'],
             'reporter_name'      => $reporterName,
@@ -1339,14 +1449,15 @@ class ReportController extends Controller
         ]);
 
         return response()->json([
-            'success'           => true,
-            'main_report_id'    => $mainReport->id,
-            'main_report_code'  => $mainReport->report_code,
-            'sub_reports_count' => $result['sub_reports_count'],
-            'trust_score'       => $trustResult['score'],
-            'trust_label'       => $trustResult['label'],
-            'overall_severity'  => $mainReport->ai_severity,
-            'road_matched'      => $roadValidation['matched'],
+            'success'          => true,
+            'main_report_id'   => $mainReport->id,
+            'main_report_code' => $mainReport->report_code,
+            'photos_count'     => $result['photos_count'],
+            'trust_score'      => $trustResult['score'],
+            'trust_label'      => $trustResult['label'],
+            'overall_severity' => $mainReport->ai_severity,
+            'road_matched'     => $roadValidation['matched'],
+            'duplicate_photos' => $result['duplicate_photos'] ?? [],
         ], 201);
     }
 
@@ -1360,13 +1471,19 @@ class ReportController extends Controller
     {
         $query = Report::query();
 
-        // Supervisor bisa melihat semua; petugas hanya miliknya
-        if (auth()->user()->role === 'petugas') {
-            $query->where('reporter_name', auth()->user()->name);
+        $user = auth()->user();
+
+        if ($user->role === 'petugas') {
+            $query->where('reporter_name', $user->name);
+        }
+
+        if ($user->role === 'petugas_eksekusi') {
+            $query->when($user->upr_id, fn($q) => $q->where('assigned_upr_id', $user->upr_id))
+                  ->unless($user->upr_id, fn($q) => $q->whereRaw('1 = 0'));
         }
 
         $total = (clone $query)->count();
-        $menungguReview = (clone $query)->where('status', 'Menunggu Review')->count();
+        $menungguReview = (clone $query)->whereIn('status', ['Menunggu Review', 'Ditinjau'])->count();
         $disetujui      = (clone $query)->where('status', 'Disetujui')->count();
         $ditolak        = (clone $query)->where('status', 'Ditolak')->count();
         $diperbaiki     = (clone $query)->where('status', 'Sedang Diperbaiki')->count();
@@ -1403,15 +1520,21 @@ class ReportController extends Controller
             return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
         }
 
-        if ($report->status !== 'Menunggu Review') {
+        if (!in_array($report->status, ['Menunggu Review', 'Ditinjau'])) {
             return response()->json([
                 'success' => false,
                 'message' => "Laporan dengan status \"{$report->status}\" tidak dapat disetujui.",
             ], 422);
         }
 
+        $priority = $request->input('priority');
+        if ($priority && !in_array($priority, \App\Models\Report::PRIORITY_VALUES, true)) {
+            $priority = null;
+        }
+
         $report->update([
             'status'       => 'Disetujui',
+            'priority'     => $priority ?? $report->priority,
             'system_notes' => $report->system_notes
                 ? $report->system_notes . ' | [APPROVED] Disetujui oleh ' . auth()->user()->name
                 : '[APPROVED] Disetujui oleh ' . auth()->user()->name,
@@ -1441,7 +1564,7 @@ class ReportController extends Controller
             return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
         }
 
-        if ($report->status !== 'Menunggu Review') {
+        if (!in_array($report->status, ['Menunggu Review', 'Ditinjau'])) {
             return response()->json([
                 'success' => false,
                 'message' => "Laporan dengan status \"{$report->status}\" tidak dapat ditolak.",
@@ -1546,6 +1669,16 @@ class ReportController extends Controller
             ], 422);
         }
 
+        $user = auth()->user();
+        if ($user->role === 'petugas_eksekusi') {
+            if (!$user->upr_id || $report->assigned_upr_id !== $user->upr_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Anda tidak memiliki akses untuk memulai laporan ini.',
+                ], 403);
+            }
+        }
+
         $validated = $request->validate([
             'assigned_upr_id' => 'nullable|integer|exists:uprs,id',
             'pelaksana'       => 'nullable|string|max:100',
@@ -1594,6 +1727,16 @@ class ReportController extends Controller
                 'success' => false,
                 'message' => "Hanya laporan Sedang Diperbaiki yang bisa diselesaikan. Status saat ini: \"{$report->status}\".",
             ], 422);
+        }
+
+        $user = auth()->user();
+        if ($user->role === 'petugas_eksekusi') {
+            if (!$user->upr_id || $report->assigned_upr_id !== $user->upr_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Anda tidak memiliki akses untuk menyelesaikan laporan ini.',
+                ], 403);
+            }
         }
 
         $validated = $request->validate([
@@ -1665,6 +1808,14 @@ class ReportController extends Controller
             return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
         }
 
+        $user = auth()->user();
+        if ($user->role !== 'supervisor') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hanya supervisor yang dapat menugaskan UPR.',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'assigned_upr_id' => 'required|integer|exists:uprs,id',
         ]);
@@ -1692,6 +1843,345 @@ class ReportController extends Controller
             'success' => true,
             'message' => "Laporan ditugaskan ke {$upr->name}.",
             'data'    => ['assigned_upr_id' => $upr->id, 'assigned_upr_name' => $upr->name],
+        ]);
+    }
+
+    /**
+     * POST /api/reports/bulk-approve
+     * Approve multiple reports sekaligus.
+     */
+    public function bulkApprove(Request $request): JsonResponse
+    {
+        $ids = $request->validate(['ids' => 'required|array', 'ids.*' => 'string|uuid']);
+        $user = auth()->user();
+
+        $count = 0;
+        foreach ($ids['ids'] as $id) {
+            $report = Report::find($id);
+            if (!$report || !in_array($report->status, ['Menunggu Review', 'Ditinjau'])) continue;
+            $report->update([
+                'status'       => 'Disetujui',
+                'system_notes' => $report->system_notes
+                    ? $report->system_notes . " | [BULK APPROVE] oleh {$user->name}"
+                    : "[BULK APPROVE] oleh {$user->name}",
+            ]);
+            $count++;
+        }
+
+        Log::info('JalanKita: Bulk approve.', ['count' => $count, 'by' => $user->name]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "{$count} laporan berhasil disetujui.",
+            'data'    => ['approved_count' => $count],
+        ]);
+    }
+
+    /**
+     * POST /api/reports/bulk-tolak
+     * Tolak multiple reports sekaligus.
+     */
+    public function bulkTolak(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'ids'    => 'required|array',
+            'ids.*'  => 'string|uuid',
+            'alasan' => 'required|string|max:500',
+        ]);
+        $user = auth()->user();
+
+        $count = 0;
+        foreach ($validated['ids'] as $id) {
+            $report = Report::find($id);
+            if (!$report || !in_array($report->status, ['Menunggu Review', 'Ditinjau'])) continue;
+            $report->update([
+                'status'       => 'Ditolak',
+                'system_notes' => $report->system_notes
+                    ? $report->system_notes . " | [BULK TOLAK] oleh {$user->name}: {$validated['alasan']}"
+                    : "[BULK TOLAK] oleh {$user->name}: {$validated['alasan']}",
+            ]);
+            $count++;
+        }
+
+        Log::info('JalanKita: Bulk tolak.', ['count' => $count, 'by' => $user->name]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "{$count} laporan berhasil ditolak.",
+            'data'    => ['rejected_count' => $count],
+        ]);
+    }
+
+    /**
+     * GET /api/reports/stats-by-upr
+     * Statistik per UPR (total, sedang diperbaiki, selesai, total panjang).
+     */
+    public function statsByUpr(Request $request): JsonResponse
+    {
+        $uprs = \App\Models\Upr::where('is_active', true)->get();
+        $stats = [];
+
+        foreach ($uprs as $upr) {
+            $query = Report::where('assigned_upr_id', $upr->id);
+            $total      = (clone $query)->count();
+            $diperbaiki = (clone $query)->where('status', 'Sedang Diperbaiki')->count();
+            $selesai    = (clone $query)->where('status', 'Selesai')->count();
+            $totalPanjang = (clone $query)->whereNotNull('kerusakan_panjang')->sum('kerusakan_panjang');
+            $totalLuas    = (clone $query)
+                ->whereNotNull('kerusakan_panjang')
+                ->whereNotNull('kerusakan_lebar')
+                ->selectRaw('COALESCE(SUM(kerusakan_panjang * kerusakan_lebar), 0) as total_luas')
+                ->value('total_luas');
+
+            $stats[] = [
+                'upr_id'          => $upr->id,
+                'upr_name'        => $upr->name,
+                'wilayah'         => $upr->wilayah,
+                'total'           => $total,
+                'sedang_diperbaiki' => $diperbaiki,
+                'selesai'         => $selesai,
+                'total_panjang_m' => round((float) $totalPanjang, 1),
+                'total_luas_m2'   => round((float) $totalLuas, 1),
+            ];
+        }
+
+        return response()->json(['success' => true, 'data' => $stats]);
+    }
+
+    /**
+     * POST /api/reports/{id}/reopen
+     * Re-open laporan yang sudah selesai — balik ke "Sedang Diperbaiki".
+     */
+    public function reopen(Request $request, string $id): JsonResponse
+    {
+        $report = Report::find($id);
+        if (!$report) {
+            return response()->json(['message' => 'Laporan tidak ditemukan.'], 404);
+        }
+
+        if ($report->status !== 'Selesai') {
+            return response()->json([
+                'message' => "Hanya laporan Selesai yang bisa di-reopen. Status: \"{$report->status}\".",
+            ], 422);
+        }
+
+        $user = auth()->user();
+        $report->update([
+            'status'              => 'Sedang Diperbaiki',
+            'perbaikan_selesai_at' => null,
+            'system_notes'        => $report->system_notes
+                ? $report->system_notes . " | [REOPEN] oleh {$user->name}"
+                : "[REOPEN] oleh {$user->name}",
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Laporan dibuka kembali untuk perbaikan.',
+            'data'    => ['status' => $report->status],
+        ]);
+    }
+
+    // ── Edit Laporan ─────────────────────────────────────────────────────────
+
+    /**
+     * POST /api/reports/{id}/mulai-edit
+     * Petugas mulai mengedit — status → "Diedit", disembunyikan dari supervisor.
+     */
+    public function mulaiEdit(string $id): JsonResponse
+    {
+        $report = Report::find($id);
+        if (!$report) {
+            return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
+        }
+
+        $user = auth()->user();
+        if ($user->role !== 'petugas') {
+            return response()->json(['success' => false, 'message' => 'Hanya petugas yang dapat mengedit laporan.'], 403);
+        }
+        if ($report->reporter_name !== $user->name) {
+            return response()->json(['success' => false, 'message' => 'Anda hanya dapat mengedit laporan Anda sendiri.'], 403);
+        }
+        if ($report->status !== 'Menunggu Review') {
+            return response()->json(['success' => false, 'message' => "Laporan status \"{$report->status}\" tidak dapat diedit."], 422);
+        }
+
+        $report->update(['status' => 'Diedit']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Laporan siap diedit.',
+            'data'    => ['status' => $report->status],
+        ]);
+    }
+
+    /**
+     * POST /api/reports/{id}/batal-edit
+     * Petugas batal mengedit — status → "Menunggu Review".
+     */
+    public function batalEdit(string $id): JsonResponse
+    {
+        $report = Report::find($id);
+        if (!$report) {
+            return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
+        }
+
+        $user = auth()->user();
+        if ($user->role !== 'petugas') {
+            return response()->json(['success' => false, 'message' => 'Hanya petugas yang dapat membatalkan edit.'], 403);
+        }
+        if ($report->status !== 'Diedit') {
+            return response()->json(['success' => false, 'message' => "Laporan tidak dalam status edit."], 422);
+        }
+
+        $report->update(['status' => 'Menunggu Review']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Edit dibatalkan.',
+            'data'    => ['status' => $report->status],
+        ]);
+    }
+
+    /**
+     * PUT /api/reports/{id}
+     * Simpan perubahan dari petugas — status → "Menunggu Review".
+     */
+    public function update(Request $request, string $id): JsonResponse
+    {
+        $report = Report::find($id);
+        if (!$report) {
+            return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
+        }
+
+        $user = auth()->user();
+        if ($user->role !== 'petugas') {
+            return response()->json(['success' => false, 'message' => 'Hanya petugas yang dapat mengubah laporan.'], 403);
+        }
+        if ($report->reporter_name !== $user->name) {
+            return response()->json(['success' => false, 'message' => 'Anda hanya dapat mengubah laporan Anda sendiri.'], 403);
+        }
+        if ($report->status !== 'Diedit') {
+            return response()->json(['success' => false, 'message' => "Laporan tidak dalam status edit."], 422);
+        }
+
+        $validated = $request->validate([
+            'catatan'             => ['nullable', 'string', 'max:1000'],
+            'kerusakan_panjang'   => ['required', 'numeric', 'min:0', 'max:999999.99'],
+            'kerusakan_lebar'     => ['required', 'numeric', 'min:0', 'max:999999.99'],
+            'road_name'           => ['nullable', 'string', 'max:255'],
+            'district'            => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $updateData = array_filter([
+            'catatan_petugas'    => $validated['catatan'] ?? $report->catatan_petugas,
+            'kerusakan_panjang'  => $validated['kerusakan_panjang'],
+            'kerusakan_lebar'    => $validated['kerusakan_lebar'],
+            'road_name'          => $validated['road_name'] ?? $report->road_name,
+            'district'           => $validated['district'] ?? $report->district,
+            'status'             => 'Menunggu Review',
+        ], fn ($v) => $v !== null);
+
+        $report->update($updateData);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Laporan berhasil diperbarui.',
+            'data'    => [
+                'id'                => $report->id,
+                'status'            => $report->status,
+                'kerusakan_panjang' => $report->kerusakan_panjang,
+                'kerusakan_lebar'   => $report->kerusakan_lebar,
+                'catatan_petugas'   => $report->catatan_petugas,
+                'road_name'         => $report->road_name,
+                'district'          => $report->district,
+            ],
+        ]);
+    }
+
+    /**
+     * POST /api/reports/{id}/mulai-review
+     * Supervisor mulai membaca — status → "Ditinjau".
+     */
+    public function mulaiReview(string $id): JsonResponse
+    {
+        $report = Report::find($id);
+        if (!$report) {
+            return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
+        }
+
+        $user = auth()->user();
+        if ($user->role !== 'supervisor') {
+            return response()->json(['success' => false, 'message' => 'Hanya supervisor.'], 403);
+        }
+        if ($report->status !== 'Menunggu Review') {
+            // Tidak error — cukup skip karena status sudah bukan Menunggu Review
+            return response()->json(['success' => true, 'message' => 'OK.', 'data' => ['status' => $report->status]]);
+        }
+
+        $report->update(['status' => 'Ditinjau']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Laporan sedang ditinjau.',
+            'data'    => ['status' => $report->status],
+        ]);
+    }
+
+    /**
+     * POST /api/reports/{id}/update-triage
+     * Petugas eksekusi memperbarui kategori kerusakan (overall_severity) dan/atau prioritas.
+     */
+    public function updateTriage(Request $request, string $id): JsonResponse
+    {
+        $report = Report::find($id);
+        if (!$report) {
+            return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
+        }
+
+        $user = auth()->user();
+        if ($user->role !== 'petugas_eksekusi') {
+            return response()->json(['success' => false, 'message' => 'Hanya petugas eksekusi.'], 403);
+        }
+        if (!$user->upr_id || $report->assigned_upr_id !== $user->upr_id) {
+            return response()->json(['success' => false, 'message' => 'Anda tidak memiliki akses ke laporan ini.'], 403);
+        }
+        if (!in_array($report->status, ['Disetujui', 'Sedang Diperbaiki'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Laporan tidak dalam status yang dapat diubah. Hanya laporan Disetujui atau Sedang Diperbaiki.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'priority' => ['nullable', 'string', 'in:' . implode(',', Report::PRIORITY_VALUES)],
+            'severity' => ['nullable', 'string', 'in:' . implode(',', Report::SEVERITY_VALUES)],
+        ]);
+
+        if (empty($validated['priority']) && empty($validated['severity'])) {
+            return response()->json(['success' => false, 'message' => 'Tidak ada data yang diubah.'], 422);
+        }
+
+        $updateData = [];
+        if (!empty($validated['priority'])) {
+            $updateData['priority'] = $validated['priority'];
+        }
+        if (!empty($validated['severity'])) {
+            $updateData['overall_severity'] = $validated['severity'];
+        }
+        $updateData['system_notes'] = $report->system_notes
+            ? $report->system_notes . ' | [TRIAGE] Diperbarui oleh ' . $user->name
+            : '[TRIAGE] Diperbarui oleh ' . $user->name;
+
+        $report->update($updateData);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Kategori berhasil diperbarui.',
+            'data'    => [
+                'id'               => $report->id,
+                'priority'         => $report->priority,
+                'overall_severity' => $report->overall_severity,
+            ],
         ]);
     }
 

@@ -39,16 +39,12 @@ export interface DuplicateCheckResult {
 }
 
 export type DuplicateCheckState =
-  | "idle"       // belum ada trigger
-  | "loading"    // sedang memanggil API
-  | "done"       // selesai, ada atau tidak ada hasil
-  | "error";     // error (tidak ditampilkan ke user, non-blocking)
+  | "idle" // belum ada trigger
+  | "loading" // sedang memanggil API
+  | "done" // selesai, ada atau tidak ada hasil
+  | "error"; // error (tidak ditampilkan ke user, non-blocking)
 
-export type AddEvidenceState =
-  | "idle"
-  | "loading"
-  | "success"
-  | "error";
+export type AddEvidenceState = "idle" | "loading" | "success" | "error";
 
 export interface UseDuplicateCheckReturn {
   /** State pengecekan duplikasi */
@@ -93,7 +89,7 @@ export function useDuplicateCheck(
   /** Apakah GPS sedang aktif (status === 'success') */
   isGpsActive: boolean,
   /** SHA-256 hash konten file foto (untuk cek duplikasi gambar) */
-  fileHash?: string | null
+  fileHash?: string | null,
 ): UseDuplicateCheckReturn {
   const [checkState, setCheckState] = useState<DuplicateCheckState>("idle");
   const [result, setResult] = useState<DuplicateCheckResult>({
@@ -191,7 +187,7 @@ export function useDuplicateCheck(
         setCheckState("done");
       }
     },
-    [] // eslint-disable-line react-hooks/exhaustive-deps
+    [], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // ── Effect: Trigger saat GPS berhasil ─────────────────────────────────
@@ -199,7 +195,13 @@ export function useDuplicateCheck(
 
   useEffect(() => {
     if (isGpsActive && lat !== null && lng !== null) {
-      callCheckDuplicate({ lat, lng, district: district || undefined, roadName: roadName || undefined, fileHash: fileHash || undefined });
+      callCheckDuplicate({
+        lat,
+        lng,
+        district: district || undefined,
+        roadName: roadName || undefined,
+        fileHash: fileHash || undefined,
+      });
     }
   }, [isGpsActive, lat, lng]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -270,67 +272,61 @@ export function useDuplicateCheck(
   // ── Add Evidence ──────────────────────────────────────────────────────
   // Requirement 4.6: Kirim foto bukti ke laporan yang sudah ada
 
-  const submitEvidence = useCallback(
-    async (reportId: string, file: File, reporterName: string) => {
-      setAddEvidenceState("loading");
-      setAddEvidenceTargetId(reportId);
-      setAddEvidenceMessage("");
+  const submitEvidence = useCallback(async (reportId: string, file: File, reporterName: string) => {
+    setAddEvidenceState("loading");
+    setAddEvidenceTargetId(reportId);
+    setAddEvidenceMessage("");
 
-      try {
-        const fd = new FormData();
-        fd.append("image", file);
-        fd.append("reporter_name", reporterName);
+    try {
+      const fd = new FormData();
+      fd.append("image", file);
+      fd.append("reporter_name", reporterName);
 
-        // Ambil token dari localStorage (Sanctum)
-        const token = localStorage.getItem("auth_token") ?? localStorage.getItem("jalankita_token");
+      // Ambil token dari localStorage (Sanctum)
+      const token = localStorage.getItem("auth_token") ?? localStorage.getItem("jalankita_token");
 
-        const response = await fetch(
-          `${API_BASE_URL}/v1/reports/${reportId}/add-evidence`,
-          {
-            method: "POST",
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-            body: fd,
-          }
-        );
+      const response = await fetch(`${API_BASE_URL}/v1/reports/${reportId}/add-evidence`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
 
-        const data = await response.json();
+      const data = await response.json();
 
-        if (!response.ok) {
-          const msg =
-            data.error_code === "DUPLICATE_IMAGE"
-              ? "Foto ini sudah pernah dikirim sebelumnya."
-              : data.message ?? "Gagal mengirim bukti foto.";
-          setAddEvidenceState("error");
-          setAddEvidenceMessage(msg);
-          return;
-        }
-
-        setAddEvidenceState("success");
-        setAddEvidenceMessage(
-          `Foto bukti berhasil ditambahkan ke laporan ${data.data?.report?.report_code ?? ""}. Terima kasih!`
-        );
-
-        // Update support_count di result lokal
-        setResult((prev) => {
-          const updateCount = (list: DuplicateReport[]) =>
-            list.map((r) =>
-              r.id === reportId
-                ? { ...r, support_count: (data.data?.report?.support_count ?? r.support_count + 1) }
-                : r
-            );
-          return {
-            spatial_duplicates: updateCount(prev.spatial_duplicates),
-            textual_duplicates: updateCount(prev.textual_duplicates),
-            image_duplicates: updateCount(prev.image_duplicates),
-          };
-        });
-      } catch {
+      if (!response.ok) {
+        const msg =
+          data.error_code === "DUPLICATE_IMAGE"
+            ? "Foto ini sudah pernah dikirim sebelumnya."
+            : (data.message ?? "Gagal mengirim bukti foto.");
         setAddEvidenceState("error");
-        setAddEvidenceMessage("Tidak dapat terhubung ke server. Silakan coba lagi.");
+        setAddEvidenceMessage(msg);
+        return;
       }
-    },
-    []
-  );
+
+      setAddEvidenceState("success");
+      setAddEvidenceMessage(
+        `Foto bukti berhasil ditambahkan ke laporan ${data.data?.report?.report_code ?? ""}. Terima kasih!`,
+      );
+
+      // Update support_count di result lokal
+      setResult((prev) => {
+        const updateCount = (list: DuplicateReport[]) =>
+          list.map((r) =>
+            r.id === reportId
+              ? { ...r, support_count: data.data?.report?.support_count ?? r.support_count + 1 }
+              : r,
+          );
+        return {
+          spatial_duplicates: updateCount(prev.spatial_duplicates),
+          textual_duplicates: updateCount(prev.textual_duplicates),
+          image_duplicates: updateCount(prev.image_duplicates),
+        };
+      });
+    } catch {
+      setAddEvidenceState("error");
+      setAddEvidenceMessage("Tidak dapat terhubung ke server. Silakan coba lagi.");
+    }
+  }, []);
 
   // ── Reset ─────────────────────────────────────────────────────────────
   // Requirement 6.5: Reset saat foto dihapus
@@ -350,7 +346,9 @@ export function useDuplicateCheck(
   }, []);
 
   const hasDuplicates =
-    result.spatial_duplicates.length > 0 || result.textual_duplicates.length > 0 || result.image_duplicates.length > 0;
+    result.spatial_duplicates.length > 0 ||
+    result.textual_duplicates.length > 0 ||
+    result.image_duplicates.length > 0;
 
   return {
     checkState,

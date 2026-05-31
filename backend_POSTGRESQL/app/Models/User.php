@@ -8,17 +8,6 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-/**
- * Model User untuk autentikasi JalanKita.
- *
- * @property int         $id
- * @property string      $name
- * @property string      $email
- * @property string      $role        'petugas' | 'supervisor'
- * @property string|null $wilayah     Wilayah tugas
- * @property string|null $nip         Nomor Induk Pegawai
- * @property string      $password    Bcrypt hashed
- */
 class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
@@ -30,6 +19,7 @@ class User extends Authenticatable
         'role',
         'wilayah',
         'nip',
+        'upr_id',
     ];
 
     protected $hidden = [
@@ -45,12 +35,11 @@ class User extends Authenticatable
         ];
     }
 
-    // ── Helper ────────────────────────────────────────────────────────────
+    public function upr()
+    {
+        return $this->belongsTo(Upr::class);
+    }
 
-    /**
-     * Inisial nama untuk avatar (maks 2 huruf).
-     * Contoh: "Agus Setiawan" → "AS"
-     */
     public function getInitialsAttribute(): string
     {
         $words = explode(' ', trim($this->name));
@@ -60,14 +49,12 @@ class User extends Authenticatable
         return strtoupper(substr($this->name, 0, 2));
     }
 
-    /**
-     * Label role yang ramah untuk ditampilkan di UI.
-     */
     public function getRoleLabelAttribute(): string
     {
         return match ($this->role) {
-            'supervisor' => 'Supervisor',
-            default      => 'Petugas Lapangan',
+            'supervisor'         => 'Supervisor',
+            'petugas_eksekusi'   => 'Petugas Eksekusi',
+            default              => 'Petugas Lapangan',
         };
     }
 }

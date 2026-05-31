@@ -319,6 +319,11 @@
 <script>
   let selectedFile = null;
 
+  // Auto-detect: if served from localhost, gunakan origin sebagai default API URL
+  if (location.protocol !== 'file:') {
+    document.getElementById('api-url').value = location.origin;
+  }
+
   const dropZone = document.getElementById('drop-zone');
   dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
   dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));

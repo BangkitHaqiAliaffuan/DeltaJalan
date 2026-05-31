@@ -11,7 +11,7 @@
  * Requirement 5: Tampilan Peta Interaktif (MapView)
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DuplicateReport } from "@/hooks/useDuplicateCheck";
 
 // ── Leaflet CSS ────────────────────────────────────────────────────────────
@@ -50,6 +50,7 @@ export function DuplicateMapView({
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const userMarkerRef = useRef<import("leaflet").Marker | null>(null);
   const duplicateMarkersRef = useRef<import("leaflet").Marker[]>([]);
+  const [mapReady, setMapReady] = useState(false);
 
   // ── Inisialisasi Peta ──────────────────────────────────────────────────
 
@@ -71,9 +72,7 @@ export function DuplicateMapView({
       });
 
       const center: [number, number] =
-        userLat !== null && userLng !== null
-          ? [userLat, userLng]
-          : DEFAULT_CENTER;
+        userLat !== null && userLng !== null ? [userLat, userLng] : DEFAULT_CENTER;
 
       const zoom = userLat !== null ? GPS_ZOOM : DEFAULT_ZOOM;
 
@@ -92,15 +91,7 @@ export function DuplicateMapView({
       }).addTo(map);
 
       mapRef.current = map;
-
-      // Render marker awal jika koordinat sudah tersedia
-      if (userLat !== null && userLng !== null) {
-        addUserMarker(L, map, userLat, userLng);
-      }
-
-      if (spatialDuplicates.length > 0) {
-        addDuplicateMarkers(L, map, spatialDuplicates);
-      }
+      setMapReady(true);
     });
 
     return () => {
@@ -115,7 +106,7 @@ export function DuplicateMapView({
   // ── Update Marker Petugas ──────────────────────────────────────────────
 
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapRef.current || !mapReady) return;
 
     import("leaflet").then((L) => {
       const map = mapRef.current;
@@ -145,12 +136,12 @@ export function DuplicateMapView({
         }
       }
     });
-  }, [userLat, userLng]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [userLat, userLng, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Update Marker Duplikat ─────────────────────────────────────────────
 
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapRef.current || !mapReady) return;
 
     import("leaflet").then((L) => {
       const map = mapRef.current;
@@ -164,7 +155,7 @@ export function DuplicateMapView({
         addDuplicateMarkers(L, map, spatialDuplicates);
       }
     });
-  }, [spatialDuplicates]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [spatialDuplicates, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Helper: Tambah Marker Petugas (Biru) ──────────────────────────────
 
@@ -172,7 +163,7 @@ export function DuplicateMapView({
     L: typeof import("leaflet"),
     map: import("leaflet").Map,
     lat: number,
-    lng: number
+    lng: number,
   ) {
     // Marker biru custom menggunakan SVG inline
     const blueIcon = L.divIcon({
@@ -213,7 +204,7 @@ export function DuplicateMapView({
   function addDuplicateMarkers(
     L: typeof import("leaflet"),
     map: import("leaflet").Map,
-    duplicates: DuplicateReport[]
+    duplicates: DuplicateReport[],
   ) {
     const redIcon = L.divIcon({
       className: "",
@@ -240,9 +231,7 @@ export function DuplicateMapView({
       if (report.latitude === null || report.longitude === null) return;
 
       const distanceText =
-        report.distance_meters !== undefined
-          ? ` (${report.distance_meters}m)`
-          : "";
+        report.distance_meters !== undefined ? ` (${report.distance_meters}m)` : "";
 
       const marker = L.marker([report.latitude, report.longitude], { icon: redIcon })
         .addTo(map)
@@ -265,7 +254,7 @@ export function DuplicateMapView({
               font-size: 11px; font-weight: 500;
             ">${report.status}</span>
           </div>`,
-          { maxWidth: 240 }
+          { maxWidth: 240 },
         );
 
       duplicateMarkersRef.current.push(marker);
@@ -275,7 +264,10 @@ export function DuplicateMapView({
   // ── Render ─────────────────────────────────────────────────────────────
 
   return (
-    <div className="relative w-full rounded-xl overflow-hidden border border-[#E2E8F0]" style={{ minHeight: 200 }}>
+    <div
+      className="relative w-full rounded-xl overflow-hidden border border-[#E2E8F0]"
+      style={{ minHeight: 200 }}
+    >
       {/* Loading overlay */}
       {isLoading && (
         <div className="absolute inset-0 z-[1000] bg-white/70 flex items-center justify-center rounded-xl">

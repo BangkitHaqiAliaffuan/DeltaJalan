@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 
 export const Route = createFileRoute("/reports")({
   component: ReportsPage,
-  head: () => ({ meta: [{ title: "Laporan — JalanKita" }] }),
+  head: () => ({ meta: [{ title: "Laporan — DeltaJalan" }] }),
 });
 
 function ReportsPage() {

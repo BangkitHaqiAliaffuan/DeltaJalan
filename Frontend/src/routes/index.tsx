@@ -7,8 +7,12 @@ export const Route = createFileRoute("/")({
   component: LoginPage,
   head: () => ({
     meta: [
-      { title: "Masuk — JalanKita" },
-      { name: "description", content: "Masuk ke JalanKita — sistem pelaporan kerusakan jalan Dinas Perhubungan Sidoarjo." },
+      { title: "Masuk — DeltaJalan" },
+      {
+        name: "description",
+        content:
+          "Masuk ke DeltaJalan — sistem pelaporan kerusakan jalan Dinas PU Bina Marga Sidoarjo.",
+      },
     ],
   }),
 });
@@ -16,17 +20,24 @@ export const Route = createFileRoute("/")({
 function LoginPage() {
   const navigate = useNavigate();
 
-  const [email, setEmail]       = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPw, setShowPw]     = useState(false);
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   // Jika sudah login, redirect langsung
   useEffect(() => {
     if (isLoggedIn()) {
       const user = getCurrentUser();
-      navigate({ to: user?.role === "supervisor" ? "/supervisor" : "/home" });
+      navigate({
+        to:
+          user?.role === "supervisor"
+            ? "/supervisor"
+            : user?.role === "petugas_eksekusi"
+              ? "/petugas-eksekusi"
+              : "/home",
+      });
     }
   }, [navigate]);
 
@@ -53,6 +64,8 @@ function LoginPage() {
 
       if (data.user.role === "supervisor") {
         navigate({ to: "/supervisor" });
+      } else if (data.user.role === "petugas_eksekusi") {
+        navigate({ to: "/petugas-eksekusi" });
       } else {
         navigate({ to: "/home" });
       }
@@ -64,9 +77,6 @@ function LoginPage() {
   }
 
   return (
-    // ── Fullscreen background ──────────────────────────────────────────────
-    // overflow-y-auto + py-8 memastikan card tidak mentok atas/bawah
-    // dan bisa di-scroll jika layar terlalu pendek
     <div
       className="fixed inset-0 w-full h-full overflow-y-auto"
       style={{
@@ -76,74 +86,53 @@ function LoginPage() {
         backgroundRepeat: "no-repeat",
       }}
     >
-      {/* Overlay gelap */}
       <div className="absolute inset-0 bg-black/50 pointer-events-none" />
-
-      {/* Wrapper — min-h-full + py-8 agar card selalu punya jarak dari tepi atas/bawah */}
       <div className="relative z-10 min-h-full flex items-center justify-center py-8 px-4">
-
-        {/* ── Login Card ─────────────────────────────────────────────── */}
-        <div className="w-full max-w-[420px] bg-white rounded-2xl shadow-2xl overflow-hidden">
-
-          {/* Header card — logo + nama app */}
-          <div className="flex flex-col items-center pt-6 pb-4 px-8 border-b border-slate-100">
-            <div className="w-12 h-12 bg-primary-container rounded-xl flex items-center justify-center mb-3 shadow-md shadow-primary-container/30">
-              <Icon name="edit_road" className="text-white !text-[28px]" />
-            </div>
-            <h1
-              className="text-[20px] font-extrabold text-[#0F172A] leading-tight"
-              style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-            >
-              JalanKita
-            </h1>
-            <p className="text-[12px] text-[#64748B] mt-0.5">
-              Deteksi Cepat, Penanganan Tepat
+        <div className="w-full max-w-[400px] bg-white rounded-xl border border-[#D0DAE8] overflow-hidden shadow-lg">
+          <div className="flex flex-col items-center pt-6 pb-4 px-8 border-b border-[#D0DAE8]">
+            <img src="/logo.png" alt="DeltaJalan" className="w-20 h-20 object-contain mb-3" />
+            <h1 className="text-[20px] font-bold text-on-surface leading-tight">DeltaJalan</h1>
+            <p className="text-[13px] text-on-surface-variant mt-0.5">
+              Sistem Pelaporan Kerusakan Jalan
             </p>
           </div>
 
-          {/* Form body */}
           <div className="px-8 pt-5 pb-6">
             <div className="mb-4">
-              <h2
-                className="text-[18px] font-bold text-[#0F172A]"
-                style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-              >
-                Selamat Datang
-              </h2>
-              <p className="text-[12px] text-[#64748B] mt-0.5">
-                Masuk dengan akun Dishub Sidoarjo Anda
+              <h2 className="text-[18px] font-bold text-on-surface">Selamat Datang</h2>
+              <p className="text-[13px] text-on-surface-variant mt-0.5">
+                Masuk dengan akun Dinas PU Bina Marga Anda
               </p>
             </div>
 
-            {/* Error Banner */}
             {error && (
-              <div className="mb-4 flex items-start gap-2 bg-[#FEE2E2] border border-[#FCA5A5] rounded-xl px-3 py-2.5">
+              <div className="mb-4 flex items-start gap-2.5 bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-4 py-3">
                 <Icon name="error" className="text-[#991B1B] !text-[18px] shrink-0 mt-0.5" />
-                <p className="text-[12px] text-[#991B1B] leading-relaxed">{error}</p>
+                <p className="text-[13px] text-[#991B1B] leading-relaxed">{error}</p>
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-              {/* Email */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-[13px] font-medium text-[#374151]">Email</label>
+                <label className="block text-[13px] font-semibold text-on-surface">Email</label>
                 <div className="relative flex items-center">
-                  <Icon name="mail" className="absolute left-3 text-[#9CA3AF] !text-[18px]" />
+                  <Icon name="mail" className="absolute left-3 text-[#8FA3B8] !text-[18px]" />
                   <input
                     required
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="nama@dishub.sidoarjo.go.id"
+                    placeholder="nama@pu.sidoarjokab.go.id"
                     autoComplete="email"
-                    className="w-full py-3 pl-10 pr-4 border border-[#E5E7EB] rounded-xl text-[14px] text-[#111827] placeholder:text-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-primary-container/25 focus:border-primary-container transition-colors"
+                    className="w-full py-2.5 pl-10 pr-4 border border-[#C0CEDF] rounded-lg text-[14px] text-on-surface placeholder:text-[#8FA3B8] bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
                   />
                 </div>
               </div>
 
-              {/* Password */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-[13px] font-medium text-[#374151]">Kata Sandi</label>
+                <label className="block text-[13px] font-semibold text-on-surface">
+                  Kata Sandi
+                </label>
                 <div className="relative flex items-center">
                   <input
                     required
@@ -152,25 +141,26 @@ function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Masukkan kata sandi"
                     autoComplete="current-password"
-                    className="w-full py-3 pl-4 pr-11 border border-[#E5E7EB] rounded-xl text-[14px] text-[#111827] placeholder:text-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-primary-container/25 focus:border-primary-container transition-colors"
+                    className="w-full py-2.5 pl-4 pr-11 border border-[#C0CEDF] rounded-lg text-[14px] text-on-surface placeholder:text-[#8FA3B8] bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPw((v) => !v)}
-                    className="absolute right-3 text-[#9CA3AF] hover:text-[#6B7280] transition-colors"
+                    className="absolute right-3 text-[#8FA3B8] hover:text-[#5A6A7E] transition-colors"
                     aria-label={showPw ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
                   >
-                    <Icon name={showPw ? "visibility_off" : "visibility"} className="!text-[20px]" />
+                    <Icon
+                      name={showPw ? "visibility_off" : "visibility"}
+                      className="!text-[20px]"
+                    />
                   </button>
                 </div>
               </div>
 
-              {/* Submit */}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full h-[48px] bg-primary-container text-white rounded-xl text-[15px] font-semibold flex items-center justify-center gap-2 mt-1 shadow-md shadow-primary-container/25 hover:bg-primary-container/90 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
-                style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                className="w-full h-11 bg-primary text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 mt-1 hover:bg-[#163F6E] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
               >
                 {loading ? (
                   <>
@@ -187,10 +177,9 @@ function LoginPage() {
             </form>
           </div>
 
-          {/* Footer card */}
-          <div className="px-8 py-3 bg-[#F8FAFC] border-t border-slate-100">
-            <p className="text-[10px] text-[#9CA3AF] text-center uppercase tracking-widest">
-              Dinas Perhubungan Kabupaten Sidoarjo
+          <div className="px-8 py-3 bg-white border-t border-[#D0DAE8]">
+            <p className="text-[11px] text-[#5A6A7E] text-center">
+              &copy; Dinas PU Bina Marga Kabupaten Sidoarjo
             </p>
           </div>
         </div>

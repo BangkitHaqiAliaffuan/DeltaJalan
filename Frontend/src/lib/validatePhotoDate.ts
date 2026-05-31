@@ -26,10 +26,10 @@ export const MAX_AGE_DAYS = 2;
 
 export type PhotoDateValidationStatus =
   | "valid"
-  | "no_exif_date"      // tidak ada metadata tanggal EXIF → DITOLAK
-  | "too_old"           // foto terlalu lama (> MAX_AGE_DAYS hari) → DITOLAK
-  | "future_date"       // tanggal foto di masa depan (manipulasi metadata) → DITOLAK
-  | "exif_read_error";  // gagal membaca EXIF → DITOLAK
+  | "no_exif_date" // tidak ada metadata tanggal EXIF → DITOLAK
+  | "too_old" // foto terlalu lama (> MAX_AGE_DAYS hari) → DITOLAK
+  | "future_date" // tanggal foto di masa depan (manipulasi metadata) → DITOLAK
+  | "exif_read_error"; // gagal membaca EXIF → DITOLAK
 
 /**
  * Status yang hanya membutuhkan peringatan (upload tetap lanjut).

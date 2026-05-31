@@ -72,10 +72,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "JalanKita — Deteksi Cepat, Penanganan Tepat" },
-      { name: "description", content: "Aplikasi pelaporan kerusakan jalan dengan deteksi AI untuk Dinas Perhubungan Kabupaten Sidoarjo." },
+      { title: "DeltaJalan — Deteksi Cepat, Penanganan Tepat" },
+      {
+        name: "description",
+        content:
+          "Aplikasi pelaporan kerusakan jalan dengan deteksi AI untuk Dinas Perhubungan Kabupaten Sidoarjo.",
+      },
       { name: "author", content: "Dishub Sidoarjo" },
-      { property: "og:title", content: "JalanKita" },
+      { property: "og:title", content: "DeltaJalan" },
       { property: "og:description", content: "Deteksi Cepat, Penanganan Tepat." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -93,7 +97,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&family=JetBrains+Mono&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap",
       },
       {
         rel: "stylesheet",
@@ -113,7 +117,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="id">
       <head>
         <HeadContent />
       </head>

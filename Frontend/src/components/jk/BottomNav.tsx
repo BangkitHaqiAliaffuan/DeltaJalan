@@ -1,17 +1,35 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { Icon } from "./Icon";
+import { getCurrentUser } from "@/lib/auth";
 
-const items = [
+const PETUGAS_ITEMS = [
   { to: "/home", icon: "home", label: "Beranda" },
   { to: "/upload", icon: "cloud_upload", label: "Upload" },
   { to: "/my-reports", icon: "description", label: "Laporan Saya" },
-  { to: "/reports", icon: "analytics", label: "Semua" },
+] as const;
+
+const SUPERVISOR_ITEMS = [
+  { to: "/supervisor", icon: "dashboard", label: "Dashboard" },
+  { to: "/stats", icon: "bar_chart", label: "Statistik" },
+] as const;
+
+const EKSEKUSI_ITEMS = [
+  { to: "/petugas-eksekusi", icon: "assignment", label: "Tugas Saya" },
 ] as const;
 
 export function BottomNav() {
   const { pathname } = useLocation();
+  const user = getCurrentUser();
+
+  const items =
+    user?.role === "supervisor"
+      ? SUPERVISOR_ITEMS
+      : user?.role === "petugas_eksekusi"
+        ? EKSEKUSI_ITEMS
+        : PETUGAS_ITEMS;
+
   return (
-    <nav className="md:hidden fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 flex justify-around items-center px-2 bg-surface-container-lowest h-16 border-t border-border-subtle pb-safe">
+    <nav className="shrink-0 md:hidden w-full max-w-[430px] flex justify-around items-center px-2 bg-white h-16 border-t border-[#D0DAE8]">
       {items.map((it) => {
         const active = pathname === it.to;
         return (

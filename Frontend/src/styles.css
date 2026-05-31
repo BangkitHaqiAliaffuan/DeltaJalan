@@ -14,75 +14,206 @@
  * untuk sizing yang tidak boleh terpengaruh spacing scale.
  */
 @layer utilities {
-  .max-w-sm  { max-width: 24rem;   } /* 384px */
-  .max-w-md  { max-width: 28rem;   } /* 448px */
-  .max-w-lg  { max-width: 32rem;   } /* 512px */
-  .max-w-xl  { max-width: 36rem;   } /* 576px */
-  .max-w-2xl { max-width: 42rem;   } /* 672px */
-  .max-w-3xl { max-width: 48rem;   } /* 768px */
-  .max-w-4xl { max-width: 56rem;   } /* 896px */
-  .max-w-5xl { max-width: 64rem;   } /* 1024px */
-  .max-w-6xl { max-width: 72rem;   } /* 1152px */
-  .max-w-7xl { max-width: 80rem;   } /* 1280px */
+  .max-w-sm {
+    max-width: 24rem;
+  } /* 384px */
+  .max-w-md {
+    max-width: 28rem;
+  } /* 448px */
+  .max-w-lg {
+    max-width: 32rem;
+  } /* 512px */
+  .max-w-xl {
+    max-width: 36rem;
+  } /* 576px */
+  .max-w-2xl {
+    max-width: 42rem;
+  } /* 672px */
+  .max-w-3xl {
+    max-width: 48rem;
+  } /* 768px */
+  .max-w-4xl {
+    max-width: 56rem;
+  } /* 896px */
+  .max-w-5xl {
+    max-width: 64rem;
+  } /* 1024px */
+  .max-w-6xl {
+    max-width: 72rem;
+  } /* 1152px */
+  .max-w-7xl {
+    max-width: 80rem;
+  } /* 1280px */
+
+  /* ── Konvensi Kelas DeltaJalan §11 ────────────────────────────────────────
+   * Card standar — Civic Precision (DeltaJalan Redesign) */
+  .jk-card {
+    @apply bg-white border border-[#E2E8F0] rounded-lg p-6;
+  }
+
+  /* Badge tingkat kerusakan — sesuai §6.4 */
+  .badge-baik {
+    border-radius: 9999px;
+    padding: 2px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    background-color: var(--badge-baik-bg);
+    color: var(--badge-baik-text);
+    border: 1px solid var(--badge-baik-border);
+    display: inline-flex;
+    align-items: center;
+  }
+  .badge-ringan {
+    border-radius: 9999px;
+    padding: 2px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    background-color: var(--badge-ringan-bg);
+    color: var(--badge-ringan-text);
+    border: 1px solid var(--badge-ringan-border);
+    display: inline-flex;
+    align-items: center;
+  }
+  .badge-sedang {
+    border-radius: 9999px;
+    padding: 2px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    background-color: var(--badge-sedang-bg);
+    color: var(--badge-sedang-text);
+    border: 1px solid var(--badge-sedang-border);
+    display: inline-flex;
+    align-items: center;
+  }
+  .badge-berat {
+    border-radius: 9999px;
+    padding: 2px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    background-color: var(--badge-berat-bg);
+    color: var(--badge-berat-text);
+    border: 1px solid var(--badge-berat-border);
+    display: inline-flex;
+    align-items: center;
+  }
+  .badge-diproses {
+    border-radius: 9999px;
+    padding: 2px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    background-color: var(--badge-diproses-bg);
+    color: var(--badge-diproses-text);
+    border: 1px solid var(--badge-diproses-border);
+    display: inline-flex;
+    align-items: center;
+  }
+  .badge-selesai {
+    border-radius: 9999px;
+    padding: 2px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    background-color: var(--badge-selesai-bg);
+    color: var(--badge-selesai-text);
+    border: 1px solid var(--badge-selesai-border);
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* Tombol §6.5 — Civic Precision */
+  .btn-primary {
+    @apply bg-[#1e40af] hover:bg-[#173bab] text-white font-medium px-5 py-2.5 rounded-lg transition-colors;
+    font-family: "Inter", sans-serif;
+    font-size: 14px;
+    border: none;
+    cursor: pointer;
+  }
+  .btn-secondary {
+    @apply bg-transparent border border-[#1e40af] text-[#1e40af] font-medium px-5 py-2.5 rounded-lg transition-colors hover:bg-[#F1F5F9];
+    font-family: "Inter", sans-serif;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .btn-danger {
+    @apply bg-[#E11D48] hover:bg-[#BE123C] text-white font-medium px-5 py-2.5 rounded-lg transition-colors;
+    font-family: "Inter", sans-serif;
+    font-size: 14px;
+    border: none;
+    cursor: pointer;
+  }
+  .btn-ghost {
+    @apply bg-transparent text-[#475569] hover:bg-[#F1F5F9] font-medium px-5 py-2.5 rounded-lg transition-colors;
+    font-family: "Inter", sans-serif;
+    font-size: 14px;
+    border: none;
+    cursor: pointer;
+  }
+
+  /* ID laporan §11 */
+  .report-id {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    color: #475569;
+    font-weight: 400;
+  }
 }
 
-
 @theme {
-  /* Brand & semantic colors from JalanKita */
-  --color-primary: #1A4F8A;
+  --color-primary: #1e40af;
   --color-on-primary: #ffffff;
-  --color-primary-container: #1a4f8a;
+  --color-primary-container: #1e40af;
   --color-on-primary-container: #ffffff;
-  --color-primary-fixed: #d4e3ff;
-  --color-primary-fixed-dim: #a5c8ff;
+  --color-primary-fixed: #dde1ff;
+  --color-primary-fixed-dim: #b8c4ff;
 
-  --color-secondary: #415f8f;
+  --color-secondary: #735c00;
   --color-on-secondary: #ffffff;
-  --color-secondary-container: #d4e3ff;
-  --color-on-secondary-container: #001b3e;
+  --color-secondary-container: #fed01b;
+  --color-on-secondary-container: #6f5900;
 
-  --color-tertiary: #303840;
+  --color-tertiary: #611e00;
   --color-on-tertiary: #ffffff;
-  --color-tertiary-container: #474f57;
-  --color-on-tertiary-container: #b8c1ca;
-  --color-tertiary-fixed: #dbe3ed;
-  --color-on-tertiary-fixed: #141c23;
+  --color-tertiary-container: #872d00;
+  --color-on-tertiary-container: #ffa583;
+  --color-tertiary-fixed: #ffdbce;
+  --color-on-tertiary-fixed: #380d00;
 
-  --color-surface: #faf8ff;
-  --color-on-surface: #131b2e;
-  --color-on-surface-variant: #424750;
-  --color-surface-variant: #dae2fd;
-  --color-surface-bright: #faf8ff;
-  --color-surface-dim: #d2d9f4;
+  --color-surface: #f7f9fb;
+  --color-on-surface: #0F172A;
+  --color-on-surface-variant: #475569;
+  --color-surface-variant: #e0e3e5;
+  --color-surface-bright: #ffffff;
+  --color-surface-dim: #d8dadc;
   --color-surface-container-lowest: #ffffff;
-  --color-surface-container-low: #f2f3ff;
-  --color-surface-container: #ecedf6;
-  --color-surface-container-high: #e6e8f2;
-  --color-surface-container-highest: #dae2fd;
+  --color-surface-container-low: #F1F5F9;
+  --color-surface-container: #eceef0;
+  --color-surface-container-high: #e6e8ea;
+  --color-surface-container-highest: #e0e3e5;
 
-  --color-bg-surface: #F8FAFC;
-  --color-background: #faf8ff;
-  --color-on-background: #131b2e;
+  --color-bg-surface: #f7f9fb;
+  --color-background: #f7f9fb;
+  --color-on-background: #191c1e;
 
-  --color-outline: #737781;
-  --color-outline-variant: #c2c6d1;
+  --color-outline: #757684;
+  --color-outline-variant: #c4c5d5;
   --color-border-subtle: #E2E8F0;
 
-  --color-error: #ba1a1a;
+  --color-error: #E11D48;
   --color-on-error: #ffffff;
   --color-error-container: #ffdad6;
-  --color-on-error-container: #410002;
+  --color-on-error-container: #93000a;
 
-  --color-inverse-surface: #283044;
-  --color-inverse-primary: #a5c8ff;
+  --color-inverse-surface: #2d3133;
+  --color-inverse-primary: #b8c4ff;
 
-  /* Damage severity */
-  --color-rusak-berat: #EF4444;
+  --color-rusak-berat: #E11D48;
   --color-rusak-sedang: #F97316;
   --color-rusak-ringan: #F59E0B;
   --color-selesai: #10B981;
 
-  /* Spacing */
+  --color-status-critical: #E11D48;
+  --color-status-success: #10B981;
+  --color-status-warning: #F59E0B;
+
   --spacing-margin-mobile: 16px;
   --spacing-xs: 4px;
   --spacing-sm: 8px;
@@ -91,50 +222,83 @@
   --spacing-xl: 32px;
   --spacing-2xl: 48px;
   --spacing-tap-target-min: 44px;
+  --spacing-stack-sm: 0.5rem;
+  --spacing-stack-md: 1rem;
+  --spacing-stack-lg: 2rem;
+  --spacing-section-gap: 3rem;
+  --spacing-gutter: 1.5rem;
+  --spacing-container-padding-desktop: 2.5rem;
 
-  /* Typography */
-  --text-headline-lg: 28px;
+  --text-headline-lg: 32px;
   --text-headline-md: 24px;
   --text-headline-sm: 18px;
   --text-headline-sm-mobile: 17px;
-  --text-headline-lg-mobile: 22px;
+  --text-headline-lg-mobile: 24px;
   --text-headline-md-mobile: 20px;
-  --text-body-lg: 16px;
-  --text-body-md: 14px;
-  --text-label-md: 12px;
-  --text-label-sm: 11px;
-  --text-id-code: 11px;
+  --text-display-lg: 48px;
+  --text-body-lg: 18px;
+  --text-body-md: 16px;
+  --text-body-sm: 14px;
+  --text-label-md: 14px;
+  --text-label-sm: 12px;
+  --text-id-code: 12px;
 
-  --font-headline-lg: 'Plus Jakarta Sans', sans-serif;
-  --font-headline-md: 'Plus Jakarta Sans', sans-serif;
-  --font-headline-sm: 'Plus Jakarta Sans', sans-serif;
-  --font-headline-sm-mobile: 'Plus Jakarta Sans', sans-serif;
-  --font-headline-lg-mobile: 'Plus Jakarta Sans', sans-serif;
-  --font-headline-md-mobile: 'Plus Jakarta Sans', sans-serif;
-  --font-display: 'Plus Jakarta Sans', sans-serif;
-  --font-body-lg: 'Inter', sans-serif;
-  --font-body-md: 'Inter', sans-serif;
-  --font-label-md: 'Inter', sans-serif;
-  --font-label-sm: 'Inter', sans-serif;
-  --font-id-code: 'JetBrains Mono', monospace;
+  --font-headline-lg: "Manrope", sans-serif;
+  --font-headline-md: "Manrope", sans-serif;
+  --font-headline-sm: "Manrope", sans-serif;
+  --font-headline-sm-mobile: "Manrope", sans-serif;
+  --font-headline-lg-mobile: "Manrope", sans-serif;
+  --font-headline-md-mobile: "Manrope", sans-serif;
+  --font-display: "Manrope", sans-serif;
+  --font-body-lg: "Inter", sans-serif;
+  --font-body-md: "Inter", sans-serif;
+  --font-label-md: "Inter", sans-serif;
+  --font-label-sm: "Inter", sans-serif;
+  --font-id-code: "JetBrains Mono", monospace;
 
-  --radius: 0.625rem;
+  --radius: 0.5rem;
 }
 
 :root {
   --background: var(--color-bg-surface);
   --foreground: var(--color-on-surface);
+
+  /* Badge colors §6.4 */
+  --badge-baik-bg: #d1fae5;
+  --badge-baik-text: #065f46;
+  --badge-baik-border: #6ee7b7;
+
+  --badge-ringan-bg: #fef3c7;
+  --badge-ringan-text: #92400e;
+  --badge-ringan-border: #fcd34d;
+
+  --badge-sedang-bg: #ffedd5;
+  --badge-sedang-text: #9a3412;
+  --badge-sedang-border: #fdba74;
+
+  --badge-berat-bg: #fee2e2;
+  --badge-berat-text: #E11D48;
+  --badge-berat-border: #fca5a5;
+
+  --badge-diproses-bg: #eff6ff;
+  --badge-diproses-text: #1e40af;
+  --badge-diproses-border: #93c5fd;
+
+  --badge-selesai-bg: #d1fae5;
+  --badge-selesai-text: #10B981;
+  --badge-selesai-border: #6ee7b7;
 }
 
-html, body {
-  font-family: 'Inter', sans-serif;
+html,
+body {
+  font-family: "Inter", sans-serif;
   background-color: var(--color-bg-surface);
   color: var(--color-on-surface);
   -webkit-font-smoothing: antialiased;
 }
 
 .material-symbols-outlined {
-  font-family: 'Material Symbols Outlined';
+  font-family: "Material Symbols Outlined";
   font-weight: normal;
   font-style: normal;
   font-size: 24px;
@@ -145,16 +309,28 @@ html, body {
   white-space: nowrap;
   word-wrap: normal;
   direction: ltr;
-  font-feature-settings: 'liga';
+  font-feature-settings: "liga";
   -webkit-font-smoothing: antialiased;
-  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 400,
+    "GRAD" 0,
+    "opsz" 24;
 }
 
 .hide-scrollbar::-webkit-scrollbar,
-.no-scrollbar::-webkit-scrollbar { display: none; }
-.hide-scrollbar, .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar,
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
 
-.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
 
 /* App mobile shell — center the 390px-style canvas on desktop */
 .app-shell {

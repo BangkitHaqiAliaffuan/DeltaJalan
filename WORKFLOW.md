@@ -1,43 +1,53 @@
 # Workflow Operasional JalanKita — Dinas PU Bina Marga & Sumber Daya Air Kabupaten Sidoarjo
 
-## 1. Alur Kerja Lengkap
+## 1. Alur Kerja Lengkap — Dua Jalur Eksekusi
 
 ```
-Petugas Lapangan                 Supervisor                       Tim Satgas/UPR
-     │                               │                                │
-     │ (1) Ambil foto kerusakan       │                                │
-     │ (2) Upload + AI analisis       │                                │
-     │ (3) Isi form + kirim           │                                │
-     │                                │                                │
-     ├──────────── Laporan baru ──────►                                │
-     │           (Menunggu Review)     │                                │
-     │                                │                                │
-     │                                │ (4) Review detail laporan      │
-     │                                │     - Lihat foto               │
-     │                                │     - Lihat hasil AI           │
-     │                                │     - Cek trust score          │
-     │                                │     - (5) Approve / Tolak      │
-     │                                │                                │
-     │          ┌─ Ditolak ◄──────────┤                                │
-     │          │  (dengan alasan)    │                                │
-     │          │                     │                                │
-     │          │                     │ (6a) Approve → Disetujui       │
-     │          │                     │                                │
-     │          │                     │ (6b) Assign ke UPR/tim         │
-     │          │                     │       + Mulai Pengerjaan       │
-     │          │                     │                                │
-     │          │                     ├─────────── Tugaskan ───────────► │
-     │          │                     │  (Sedang Diperbaiki)            │
-     │          │                     │                                │
-     │          │                     │       (7) Eksekusi perbaikan   │
-     │          │                     │           di lapangan           │
-     │          │                     │                                │
-     │          │                     │ (8) Foto after + selesaikan    │
-     │          │                     ◄─────── Laporan selesai ────────┤
-     │          │                     │           (Selesai)            │
-     │          │                     │                                │
-     │◄─────────┴──── Notifikasi ─────┤                                │
-     │   (status terbaru)             │                                │
+Petugas Lapangan          Supervisor              Petugas Eksekusi (Tim Satgas/UPR)
+     │                         │                              │
+     │ (1) Ambil foto          │                              │
+     │ (2) Upload + AI         │                              │
+     │ (3) Isi form + kirim    │                              │
+     │                         │                              │
+     ├──── Laporan baru ───────►                              │
+     │    (Menunggu Review)    │                              │
+     │                         │                              │
+     │                         │ (4) Buka review              │
+     │                         │     → Ditinjau               │
+     │                         │                              │
+     │                         │ (5) Approve / Tolak          │
+     │                         │                              │
+     │          ┌─ Ditolak ◄───┤                              │
+     │          │              │                              │
+     │          │              │ (6) Disetujui                │
+     │          │              │     ┌───────────────────┐    │
+     │          │              │     │ Dua jalur:        │    │
+     │          │              │     │ A) Supervisor     │    │
+     │          │              │     │    mulai langsung │    │
+     │          │              │     │ B) Petugas mulai  │    │
+     │          │              │     │    sendiri        │    │
+     │          │              │     └───────────────────┘    │
+     │          │              │                              │
+     │          │   ┌──────────┴──────────┐                   │
+     │          │   │                     │                   │
+     │          │   │ Jalur A:            │ Jalur B:          │
+     │          │   │ Supervisor assign   │ Supervisor assign │
+     │          │   │ UPR + Mulai         │ UPR (tanpa mulai) │
+     │          │   │ → Sedang Diperbaiki │ → Disetujui       │
+     │          │   │                     │                   │
+     │          │   │                     │ Petugas klik Mulai│
+     │          │   │                     │ → Sedang Diperb.  │
+     │          │   │                     │                   │
+     │          │   ├──── Tugas ──────────┼──────────────────►│
+     │          │   │   (Sedang Diperb.)  │                   │
+     │          │   │                     │                   │
+     │          │   │        (7) Eksekusi di lapangan         │
+     │          │   │        (8) Foto after                  │
+     │          │   │        (9) Selesaikan Laporan           │
+     │          │   │◄────── Selesai ────────────────────────┤
+     │          │   │        (Selesai)                       │
+     │          │   │                     │                   │
+     │◄─────────┴─── Notifikasi ──────────┘                   │
 ```
 
 ## 2. Peran Pengguna (Roles)
@@ -45,35 +55,44 @@ Petugas Lapangan                 Supervisor                       Tim Satgas/UPR
 | Role | Tugas | Kemampuan |
 |---|---|---|
 | **Petugas Lapangan** | Melaporkan kerusakan jalan yang ditemukan saat patroli | Upload foto single/batch, lihat riwayat laporan sendiri |
+| **Petugas Eksekusi** | Tim Satgas di lapangan yang melakukan perbaikan | Lihat tugas UPR, mulai pengerjaan, upload foto after + selesaikan |
 | **Supervisor** | Verifikasi, disposisi, monitoring | Approve/tolak laporan, assign ke UPR, mulai & tutup pengerjaan, lihat semua laporan & statistik |
 | **Admin** (akan datang) | Kelola pengguna, master data | CRUD user, atur kecamatan, atur UPR |
 
 ## 3. Status Laporan Flow
 
 ```
-                 ┌─────────────┐
-                 │ Menunggu    │
-                 │ Review      │
-                 └──────┬──────┘
-                        │
-              ┌─────────┴──────────┐
-              ▼                    ▼
-       ┌──────────────┐   ┌──────────────┐
-       │ Disetujui    │   │ Ditolak      │
-       │              │   │ (final)      │
-       └──────┬───────┘   └──────────────┘
-              │
-              ▼ (Assign UPR + Mulai)
-       ┌──────────────┐
-       │ Sedang       │
-       │ Diperbaiki   │
-       └──────┬───────┘
-              │ (Foto after)
-              ▼
-       ┌──────────────┐
-       │ Selesai      │
-       │ (final)      │
-       └──────────────┘
+                  ┌────────────────────┐
+                  │    Menunggu        │◄────────┐
+                  │    Review          │         │ Petugas batal edit
+                  └────────┬───────────┘         │
+                           │                     │
+                  ┌────────┴────────┐            │
+                  ▼                 ▼            │
+           ┌─────────────┐  ┌──────────────┐     │
+           │  Ditinjau   │  │   Diedit     ├─────┘
+           │ (supervisor │  │ (petugas     │ Petugas mulai edit
+           │  baca)      │  │  mengedit)   │
+           └──────┬──────┘  └──────────────┘
+                  │
+         ┌────────┴────────┐
+         ▼                 ▼
+  ┌──────────────┐  ┌──────────────┐
+  │ Disetujui    │  │ Ditolak      │
+  │              │  │ (final)      │
+  └──────┬───────┘  └──────────────┘
+         │
+         ▼ (Mulai: supervisor atau petugas)
+  ┌──────────────┐
+  │ Sedang       │◄──────────────┐
+  │ Diperbaiki   │               │ Supervisor reopen
+  └──────┬───────┘               │
+         │ (Foto after)          │
+         ▼                       │
+  ┌──────────────┐               │
+  │ Selesai      ├───────────────┘
+  │              │
+  └──────────────┘
 ```
 
 ## 4. Komponen Sistem
@@ -88,29 +107,44 @@ Petugas Lapangan                 Supervisor                       Tim Satgas/UPR
 | Hasil AI | `/ai-result` | Preview hasil deteksi AI per foto |
 | Buat Laporan | `/create-report` | Konfirmasi & kirim data dari hasil analisis |
 | Dashboard Petugas | `/home` | Daftar laporan milik sendiri + notifikasi |
+| Dashboard Petugas Eksekusi | `/petugas-eksekusi` | Tugas UPR: mulai & selesaikan pengerjaan |
 | Dashboard Supervisor | `/supervisor` | Stats, daftar semua laporan, approve/tolak/assign |
 | Review Detail | `/review` | Detail laporan + foto + hasil AI + trust breakdown |
 | Selesaikan | `/complete-report` | Upload foto after + tutup laporan |
+| Detail Laporan | `/detail-report` | Detail laporan (standalone) |
+| Edit Laporan | `/edit-report` | Edit laporan milik sendiri (status → Diedit) |
+| Laporan Saya | `/my-reports` | Filter laporan milik petugas yang login |
+| Semua Laporan | `/reports` | Daftar laporan umum (filter & search) |
+| Statistik | `/stats` | Dashboard statistik per UPR & periode |
 
 ### B. Backend API (Laravel 13 + Sanctum)
 
 | Endpoint | Method | Auth | Fungsi |
-|---|---|---|---|
+|---|---|---|---|---|
 | `/auth/login` | POST | - | Login (throttle: 10/mnt) |
 | `/auth/logout` | POST | Sanctum | Logout |
 | `/auth/me` | GET | Sanctum | Data user saat ini |
 | `/analyze` | POST | Sanctum | Analisis AI single foto |
 | `/analyze-batch` | POST | Sanctum | Analisis AI batch (max 20 foto) |
 | `/reports` | POST | Sanctum | Simpan laporan baru |
+| `/reports/{id}` | PUT | Sanctum | Update laporan (setelah edit) |
 | `/reports/batch` | POST | Sanctum | Simpan batch laporan |
-| `/reports` | GET | Sanctum | Daftar laporan (filter status) |
+| `/reports` | GET | Sanctum | Daftar laporan (filter status & user) |
 | `/reports/stats` | GET | Sanctum | Statistik laporan |
+| `/reports/stats-by-upr` | GET | Sanctum | Statistik per UPR |
 | `/reports/{id}` | GET | Sanctum | Detail laporan |
+| `/reports/{id}/mulai-review` | POST | Sanctum | Supervisor mulai baca → Ditinjau |
 | `/reports/{id}/approve` | POST | Sanctum | Approve laporan |
 | `/reports/{id}/tolak` | POST | Sanctum | Tolak laporan (wajib alasan) |
+| `/reports/{id}/disposisi` | POST | Sanctum | Disposisi → Sedang Diperbaiki |
 | `/reports/{id}/mulai` | POST | Sanctum | Mulai pengerjaan + assign UPR |
 | `/reports/{id}/complete` | POST | Sanctum | Selesaikan + upload foto after |
 | `/reports/{id}/assign` | POST | Sanctum | Assign/tukar UPR |
+| `/reports/{id}/reopen` | POST | Sanctum | Supervisor reopen → Sedang Diperbaiki |
+| `/reports/{id}/mulai-edit` | POST | Sanctum | Petugas mulai edit → Diedit |
+| `/reports/{id}/batal-edit` | POST | Sanctum | Petugas batal edit → Menunggu Review |
+| `/reports/bulk-approve` | POST | Sanctum | Approve massal |
+| `/reports/bulk-tolak` | POST | Sanctum | Tolak massal |
 | `/reports/{id}/add-evidence` | POST | Sanctum | Tambah bukti foto |
 | `/reports/check-duplicate` | GET/POST | Public | Cek duplikasi (spasial+tekstual+hash) |
 | `/uprs` | GET | Sanctum | Daftar tim satgas |
@@ -153,16 +187,22 @@ Data master UPR ada di tabel `uprs` — dapat dimodifikasi oleh admin.
 
 ## 7. Skenario Penggunaan Nyata
 
-### Contoh 1: Petugas menemukan jalan berlubang
+### Contoh 1: Petugas menemukan jalan berlubang (Jalur B — petugas mulai sendiri)
 
 1. Petugas buka aplikasi → Login → Upload foto → AI deteksi "Rusak Berat"
 2. Sistem auto-fill koordinat GPS dari browser, ambil EXIF date untuk validasi
 3. Petugas pilih kecamatan, pilih nama jalan dari autocomplete, submit
 4. Sistem: check duplikasi → hitung trust score → simpan → notif supervisor
 5. Supervisor lihat dashboard → review foto + trust score → **Approve**
-6. Supervisor pilih **Mulai Pengerjaan** → assign ke **Satgas Wilayah Utara**
-7. Tim satgas eksekusi perbaikan di lapangan
-8. Tim ambil foto after → upload via **Selesaikan Laporan** → status **Selesai**
+6. Supervisor pilih **Assign** → laporan ditugaskan ke **Satgas Wilayah Utara** (status tetap Disetujui)
+7. **Petugas Eksekusi** login ke akun tim → lihat tugas di `/petugas-eksekusi`
+8. Tim satgas tiba di lokasi, klik **Mulai Pengerjaan** → status **Sedang Diperbaiki**
+9. Tim eksekusi perbaikan di lapangan
+10. Tim ambil foto after → upload via **Selesaikan Laporan** → status **Selesai**
+
+### Contoh 1b: Supervisor langsung mulai pengerjaan (Jalur A)
+
+Setelah approve (step 5), supervisor bisa langsung klik **Mulai Pengerjaan** → pilih UPR → status **Sedang Diperbaiki**. Petugas Eksekusi tinggal datang, eksekusi, foto after, dan selesaikan.
 
 ### Contoh 2: Batch report (2+ titik kerusakan dalam 1 patroli)
 

@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Fitur **Anti-Duplikasi Laporan** (*report-duplicate-check*) adalah mekanisme pencegahan laporan ganda pada aplikasi JalanKita. Fitur ini membantu petugas lapangan Dinas Perhubungan Kabupaten Sidoarjo untuk mengetahui apakah kerusakan jalan yang hendak mereka laporkan sudah pernah dilaporkan sebelumnya oleh petugas lain.
+Fitur **Anti-Duplikasi Laporan** (_report-duplicate-check_) adalah mekanisme pencegahan laporan ganda pada aplikasi JalanKita. Fitur ini membantu petugas lapangan Dinas Perhubungan Kabupaten Sidoarjo untuk mengetahui apakah kerusakan jalan yang hendak mereka laporkan sudah pernah dilaporkan sebelumnya oleh petugas lain.
 
 Fitur ini bekerja melalui empat pendekatan yang saling melengkapi:
 

@@ -1,6 +1,6 @@
 # JalanKita — AGENTS.md
 
-Internal road damage reporting app for **Dinas PU Bina Marga Kabupaten Sidoarjo**. Three roles: `petugas`, `supervisor`, `admin` (not yet implemented). No public/warga role.
+Internal road damage reporting app for **Dinas PU Bina Marga Kabupaten Sidoarjo**. Four roles: `petugas`, `petugas_eksekusi`, `supervisor`, `admin` (not yet implemented). No public/warga role.
 
 ## Stack & layout
 
@@ -46,20 +46,34 @@ composer run test  # php artisan config:clear && php artisan test
 - **`solution.md`** is the original implementation spec (trust score, batch upload, autocomplete guarding) — preserved as reference. Do not delete.
 - **`SECURITY_ANALYSIS.md`** documents known security issues vs fixed items.
 
+## Roles
+
+| Role | Login | Dashboard | Capabilities |
+|---|---|---|---|
+| `petugas` | petugas@example.com / password | `/home` | Upload single/batch, lihat laporan sendiri |
+| `petugas_eksekusi` | eksekusi.satgaswilayahutara@jalankita.test / password123 | `/petugas-eksekusi` | Lihat tugas UPR, mulai & selesaikan pengerjaan |
+| `supervisor` | supervisor@example.com / password | `/supervisor` | Approve/tolak, assign UPR, mulai & tutup, lihat semua |
+
+Setiap role `petugas_eksekusi` terikat ke 1 UPR via `users.upr_id` FK → `uprs.id`. 4 seed users (satu per Satgas).
+
 ## API routes (`backend_POSTGRESQL/routes/api.php`)
 
-| Endpoint | Auth | Notes |
-|---|---|---|
-| `POST /auth/login` | Public | Throttled 10/min |
-| `POST /analyze` | Sanctum | Single photo AI analysis (forward to FastAPI) |
-| `POST /reports` | Sanctum | Single report store |
-| `POST /analyze-batch` | Sanctum | Batch AI (max 20 photos) |
-| `POST /reports/batch` | Sanctum | Batch report store (main + sub-reports) |
-| `GET /v1/reports/check-duplicate` | Public | Spatial (15m Haversine) + textual dedup |
-| `POST /reports/{id}/mulai` | Sanctum | Assign UPR + start work (→ Sedang Diperbaiki) |
-| `POST /reports/{id}/complete` | Sanctum | Upload after photo + close (→ Selesai) |
-| `POST /reports/{id}/assign` | Sanctum | Re-assign to different UPR |
-| `GET /uprs` | Sanctum | List active UPR/tim satgas |
+| Endpoint | Auth | Access | Notes |
+|---|---|---|---|
+| `POST /auth/login` | Public | All | Throttled 10/min, returns `upr_id` + `upr_name` for petugas_eksekusi |
+| `POST /analyze` | Sanctum | All | Single photo AI analysis (forward to FastAPI) |
+| `POST /reports` | Sanctum | All | Single report store |
+| `POST /analyze-batch` | Sanctum | All | Batch AI (max 20 photos) |
+| `POST /reports/batch` | Sanctum | All | Batch report store (main + sub-reports) |
+| `GET /v1/reports/check-duplicate` | Public | All | Spatial (15m Haversine) + textual dedup |
+| `POST /reports/{id}/mulai` | Sanctum | Supervisor, Petugas Eksekusi (own UPR) | Assign UPR + start work (→ Sedang Diperbaiki) |
+| `POST /reports/{id}/complete` | Sanctum | Supervisor, Petugas Eksekusi (own UPR) | Upload after photo + close (→ Selesai) |
+| `POST /reports/{id}/assign` | Sanctum | Supervisor only | Re-assign to different UPR |
+| `POST /reports/{id}/reopen` | Sanctum | Supervisor | Re-open Selesai → Sedang Diperbaiki |
+| `POST /reports/bulk-approve` | Sanctum | Supervisor | Approve multiple reports at once |
+| `POST /reports/bulk-tolak` | Sanctum | Supervisor | Reject multiple reports at once |
+| `GET /reports/stats-by-upr` | Sanctum | All | Statistics breakdown per UPR |
+| `GET /uprs` | Sanctum | All | List active UPR/tim satgas |
 
 All critical validation (EXIF date, GPS EXIF extraction, road name vs coordinate matching, trust score) is in backend — frontend is UX layer only.
 
@@ -81,7 +95,7 @@ All critical validation (EXIF date, GPS EXIF extraction, road name vs coordinate
 
 | Layer | Entrypoint | Key files |
 |---|---|---|---|
-| Frontend | `src/router.tsx` → `src/routes/*` | `upload.tsx`, `ai-result.tsx`, `supervisor.tsx`, `complete-report.tsx` |
+| Frontend | `src/router.tsx` → `src/routes/*` | `upload.tsx`, `ai-result.tsx`, `supervisor.tsx`, `petugas-eksekusi.tsx`, `complete-report.tsx` |
 | Frontend lib/hooks | `src/lib/*`, `src/hooks/*` | `auth.ts`, `aiStore.ts`, `useGPS.ts`, `useLocationFromPhoto.ts` |
 | Laravel API | `routes/api.php` | `ReportController.php`, `AIController.php`, `AuthController.php` |
 | Laravel Services | `app/Services/` | `TrustScoreService.php` |

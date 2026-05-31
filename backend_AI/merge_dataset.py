@@ -28,20 +28,12 @@ from pathlib import Path
 DATASETS = [
     {
         "name": "merged_lama",        # nama bebas, untuk log saja
-        "path": r"D:\jalankita\backend\dataset_merged",   # <-- ganti ini
+        "path": r"C:\jalankita\dataset_mergedV4",   # <-- ganti ini
     },
-    {
-        "name": "deteksi jalan rusak",        # nama bebas, untuk log saja
-        "path": r"C:\Users\Haqii\Downloads\Deteksi Kerusakan Jalan",   # <-- ganti ini
-    },
-    {
-        "name": "road damage workspace",        # nama bebas, untuk log saja
-        "path": r"C:\Users\Haqii\Downloads\Road Damage New Workspace",   # <-- ganti ini
-    },
-    {
-        "name": "lubang_besar",        # nama bebas, untuk log saja
-        "path": r"C:\Users\Haqii\Downloads\Big Pothole",   # <-- ganti ini
-    },
+    {"name": "lubang_kecil",
+    "path": r"C:\Users\Haqii\Downloads\road damage v2i"},
+    {"name": "retak_buaya",
+    "path": r"C:\Users\Haqii\Downloads\road danage dataset v2i"},
 ]
 
 # Folder hasil merge (akan dibuat otomatis)
@@ -79,6 +71,7 @@ CLASS_MAPPING = {
     # === lubang_kecil (1) ===
     "lubang_kecil":         1,
     "lubang kecil":         1,
+    "Minimum_Damage":1,
     "small_pothole":        1,
     "small pothole":        1,
     "Small Pothole":        1,
@@ -101,7 +94,7 @@ CLASS_MAPPING = {
     "alligator cracking":   2,
     "alligator_cracking":   2,
     "Retak_kulit_buaya":    2,
-    "retak kulit buaya":    2,
+    "retak_kulit_buaya":    2,
     "D20":                  2,
     "crocodile_crack":      2,
     "crocodile crack":      2,
@@ -280,6 +273,13 @@ def main():
     unknown_classes = set()
     stats = {s: {"ok": 0, "skip": 0} for s in splits}
 
+    # Penghitung per-kelas: {split: {class_id: {"images": int, "instances": int}}}
+    from collections import defaultdict
+    class_counts = {
+        split: {i: {"images": 0, "instances": 0} for i in range(len(TARGET_CLASSES))}
+        for split in splits
+    }
+
     for split, pairs in splits.items():
         img_out = output_dir / split / "images"
         lbl_out = output_dir / split / "labels"
@@ -295,8 +295,23 @@ def main():
             ok = convert_label_file(lbl_path, dst_lbl, src_classes,
                                     CLASS_MAPPING, unknown_classes)
             if ok:
-                shutil.copy2(img_path, dst_img)
+                # Skip copy jika src == dst (terjadi jika OUTPUT_DIR sama dengan salah satu DATASETS path)
+                if img_path.resolve() != dst_img.resolve():
+                    shutil.copy2(img_path, dst_img)
                 stats[split]["ok"] += 1
+
+                # Hitung class per image dari label yang sudah ditulis
+                with open(dst_lbl, "r") as lf:
+                    class_ids_in_image = set()
+                    for lbl_line in lf:
+                        lbl_line = lbl_line.strip()
+                        if not lbl_line:
+                            continue
+                        cid = int(lbl_line.split()[0])
+                        class_counts[split][cid]["instances"] += 1
+                        class_ids_in_image.add(cid)
+                    for cid in class_ids_in_image:
+                        class_counts[split][cid]["images"] += 1
             else:
                 stats[split]["skip"] += 1
 
@@ -332,6 +347,50 @@ def main():
     print(f"  Total dilewati        : {total_skip}")
     print(f"  Output folder         : {output_dir}")
     print(f"  data.yaml             : {yaml_path}")
+
+    # ── Tabel distribusi per kelas ────────────────────────────────
+    print("\n" + "=" * 60)
+    print("  DISTRIBUSI IMAGE PER KELAS (setelah merge & split)")
+    print("=" * 60)
+    col_w = 22
+    header = f"  {'Kelas':{col_w}s}" + "".join(
+        f"{'train':>12s}" if s == "train" else
+        f"{'valid':>12s}" if s == "valid" else
+        f"{'test':>12s}"
+        for s in ["train", "valid", "test"]
+    ) + f"{'TOTAL':>12s}"
+    print(header)
+    print("  " + "─" * (col_w + 12 * 4))
+
+    grand_img   = 0
+    grand_inst  = 0
+    for cid, cname in enumerate(TARGET_CLASSES):
+        row = f"  {cname:{col_w}s}"
+        total_img_class  = 0
+        total_inst_class = 0
+        for split in ["train", "valid", "test"]:
+            imgs  = class_counts[split][cid]["images"]
+            insts = class_counts[split][cid]["instances"]
+            row += f"{imgs:>6d} img{insts:>6d} ins"
+            # Hanya hitung train untuk grand total (agar tidak bias)
+            total_img_class  += imgs
+            total_inst_class += insts
+        row += f"{total_img_class:>6d} img"
+        print(row)
+        grand_img  += class_counts["train"][cid]["images"]
+        grand_inst += class_counts["train"][cid]["instances"]
+
+    print("  " + "─" * (col_w + 12 * 4))
+    # Baris total per split
+    row_total = f"  {'TOTAL (train)':{col_w}s}"
+    for split in ["train", "valid", "test"]:
+        total_imgs  = sum(class_counts[split][c]["images"]  for c in range(len(TARGET_CLASSES)))
+        total_insts = sum(class_counts[split][c]["instances"] for c in range(len(TARGET_CLASSES)))
+        row_total += f"{total_imgs:>6d} img{total_insts:>6d} ins"
+    print(row_total)
+    print("  " + "─" * (col_w + 12 * 4))
+    print("  Catatan: 1 image bisa mengandung >1 kelas (multi-label).")
+    print("           'img' = jumlah gambar unik; 'ins' = total bounding box.")
 
     if unknown_classes:
         print(f"\n  ⚠️  KELAS TIDAK DIKENAL (belum ada di CLASS_MAPPING):")

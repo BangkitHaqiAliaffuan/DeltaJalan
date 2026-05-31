@@ -13,13 +13,15 @@ export const Route = createFileRoute("/complete-report")({
     const reportId = search.reportId as string | undefined;
     return { ...(reportId ? { reportId } : {}) };
   },
-  head: () => ({ meta: [{ title: "Selesaikan Laporan — JalanKita" }] }),
+  head: () => ({ meta: [{ title: "Selesaikan Laporan — DeltaJalan" }] }),
 });
 
 function CompleteReportPage() {
   const { reportId } = Route.useSearch();
   const navigate = useNavigate();
   const token = getToken() ?? "";
+  const backUrl =
+    getCurrentUser()?.role === "petugas_eksekusi" ? "/petugas-eksekusi" : "/supervisor";
 
   const [report, setReport] = useState<Laporan | null>(null);
   const [loading, setLoading] = useState(true);
@@ -92,7 +94,9 @@ function CompleteReportPage() {
       const json = await res.json();
       if (res.ok) {
         setSuccessMsg(json.message ?? "Laporan berhasil diselesaikan!");
-        setTimeout(() => navigate({ to: "/supervisor" }), 2000);
+        const backTo =
+          getCurrentUser()?.role === "petugas_eksekusi" ? "/petugas-eksekusi" : "/supervisor";
+        setTimeout(() => navigate({ to: backTo }), 2000);
       } else {
         setErrorMsg(json.message ?? "Gagal menyelesaikan laporan.");
       }
@@ -106,7 +110,7 @@ function CompleteReportPage() {
   if (loading) {
     return (
       <AppLayout>
-        <TopBar showBrand showBack />
+        <TopBar showBrand back={backUrl} />
         <div className="flex items-center justify-center py-20">
           <span className="w-8 h-8 border-4 border-primary-container/30 border-t-primary-container rounded-full animate-spin" />
         </div>
@@ -117,11 +121,11 @@ function CompleteReportPage() {
   if (error || !report) {
     return (
       <AppLayout>
-        <TopBar showBrand showBack />
+        <TopBar showBrand back={backUrl} />
         <div className="flex flex-col items-center justify-center py-20 text-on-surface-variant px-4">
           <Icon name="error_outline" className="!text-5xl mb-3 opacity-30" />
           <p className="text-body-md">{error || "Laporan tidak ditemukan."}</p>
-          <Link to="/supervisor" className="mt-4 text-primary text-sm font-semibold">
+          <Link to={backUrl} className="mt-4 text-primary text-sm font-semibold">
             Kembali ke Dashboard
           </Link>
         </div>
@@ -132,7 +136,7 @@ function CompleteReportPage() {
   if (successMsg) {
     return (
       <AppLayout>
-        <TopBar showBrand showBack />
+        <TopBar showBrand back={backUrl} />
         <div className="flex flex-col items-center justify-center py-20 px-4">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
             <Icon name="check_circle" className="!text-4xl text-green-600" />
@@ -148,7 +152,8 @@ function CompleteReportPage() {
 
   return (
     <AppLayout>
-      <TopBar showBrand showBack />
+      <TopBar showBrand back={backUrl} />
+      <div className="flex-1 overflow-y-auto min-h-0">
       <div className="px-margin-mobile py-lg max-w-lg mx-auto">
         <h2 className="text-headline-sm font-headline-sm font-bold text-on-surface mb-1">
           Selesaikan Laporan
@@ -165,17 +170,14 @@ function CompleteReportPage() {
             <p className="text-xs text-amber-700 mt-1">
               Hanya laporan dengan status "Sedang Diperbaiki" yang bisa diselesaikan.
             </p>
-            <Link
-              to="/supervisor"
-              className="text-sm text-blue-600 font-semibold mt-2 inline-block"
-            >
+            <Link to={backUrl} className="text-sm text-blue-600 font-semibold mt-2 inline-block">
               Kembali ke Dashboard
             </Link>
           </div>
         )}
 
         {/* Ringkasan laporan */}
-        <div className="bg-surface-container-lowest border border-border-subtle rounded-xl p-4 mb-6">
+        <div className="bg-white border border-[#D0DAE8] rounded-lg p-4 mb-6">
           <div className="flex items-center justify-between mb-2">
             <span className="font-id-code text-id-code text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded">
               {report.report_code}
@@ -210,7 +212,7 @@ function CompleteReportPage() {
             className="hidden"
           />
           {afterPreview ? (
-            <div className="relative rounded-xl overflow-hidden border border-border-subtle">
+            <div className="relative rounded-lg overflow-hidden border border-[#D0DAE8]">
               <img
                 src={afterPreview}
                 alt="Preview foto after"
@@ -229,7 +231,7 @@ function CompleteReportPage() {
               type="button"
               onClick={() => fileRef.current?.click()}
               disabled={!isSedangDiperbaiki}
-              className="w-full h-48 border-2 border-dashed border-border-subtle rounded-xl flex flex-col items-center justify-center gap-2 text-on-surface-variant hover:bg-surface-container-low transition-colors disabled:opacity-40"
+              className="w-full h-48 border-2 border-dashed border-[#D0DAE8] rounded-lg flex flex-col items-center justify-center gap-2 text-on-surface-variant hover:bg-surface-container-low transition-colors disabled:opacity-40"
             >
               <Icon name="camera_alt" className="!text-4xl" />
               <span className="text-label-md">Ambil atau pilih foto</span>
@@ -246,7 +248,7 @@ function CompleteReportPage() {
             value={catatan}
             onChange={(e) => setCatatan(e.target.value)}
             placeholder="Deskripsi perbaikan yang dilakukan..."
-            className="w-full border border-border-subtle rounded-xl px-4 py-3 text-sm resize-none h-24 focus:ring-2 focus:ring-primary-container outline-none"
+            className="w-full border border-[#C0CEDF] rounded-lg px-4 py-3 text-sm resize-none h-24 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
           />
         </div>
 
@@ -255,7 +257,7 @@ function CompleteReportPage() {
           type="button"
           onClick={handleSubmit}
           disabled={!afterFile || submitting || !isSedangDiperbaiki}
-          className="w-full py-3 bg-primary-container text-white rounded-xl font-semibold text-sm hover:opacity-90 disabled:opacity-40 transition-all flex items-center justify-center gap-2"
+          className="w-full py-3 bg-primary text-white rounded-lg font-semibold text-sm hover:bg-[#163F6E] disabled:opacity-40 transition-all flex items-center justify-center gap-2"
         >
           {submitting ? (
             <>
@@ -266,6 +268,7 @@ function CompleteReportPage() {
             "✓ Selesaikan Laporan"
           )}
         </button>
+      </div>
       </div>
     </AppLayout>
   );

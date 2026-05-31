@@ -14,15 +14,17 @@ const PETUGAS_MENU: MenuItem[] = [
   { icon: "home", label: "Beranda", to: "/home" },
   { icon: "cloud_upload", label: "Upload & Analisis", to: "/upload" },
   { icon: "description", label: "Laporan Saya", to: "/my-reports" },
-  { icon: "analytics", label: "Semua Laporan", to: "/reports" },
   { icon: "settings", label: "Pengaturan", to: "/settings", disabled: true },
 ];
 
 const SUPERVISOR_MENU: MenuItem[] = [
   { icon: "dashboard", label: "Dashboard", to: "/supervisor" },
-  { icon: "rate_review", label: "Review Laporan", to: "/supervisor" },
-  { icon: "analytics", label: "Laporan Saya", to: "/my-reports" },
-  { icon: "bar_chart", label: "Statistik", to: "/stats", disabled: true },
+  { icon: "bar_chart", label: "Statistik", to: "/stats" },
+  { icon: "settings", label: "Pengaturan", to: "/settings", disabled: true },
+];
+
+const EKSEKUSI_MENU: MenuItem[] = [
+  { icon: "assignment", label: "Tugas Saya", to: "/petugas-eksekusi" },
   { icon: "settings", label: "Pengaturan", to: "/settings", disabled: true },
 ];
 
@@ -30,7 +32,12 @@ export function Sidebar() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
-  const menuItems = user?.role === "supervisor" ? SUPERVISOR_MENU : PETUGAS_MENU;
+  const menuItems =
+    user?.role === "supervisor"
+      ? SUPERVISOR_MENU
+      : user?.role === "petugas_eksekusi"
+        ? EKSEKUSI_MENU
+        : PETUGAS_MENU;
 
   useEffect(() => {
     setUser(getCurrentUser());
@@ -61,24 +68,16 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="hidden md:flex flex-col w-60 shrink-0 min-h-screen bg-[#1A4F8A] sticky top-0 h-screen overflow-y-auto">
+    <aside className="hidden md:flex flex-col w-64 shrink-0 min-h-screen bg-[#1A4F8A] sticky top-0 h-screen overflow-y-auto">
       {/* Header */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-white/10">
-        <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center border border-white/30 shrink-0">
-          <Icon name="edit_road" className="text-white !text-[22px]" />
+      <div className="flex items-center gap-3 px-5 py-5 border-b border-white/15">
+        <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
+          <img src="/logo.png" alt="DeltaJalan" className="w-10 h-10 object-contain" />
         </div>
         <div className="flex flex-col min-w-0">
-          <span
-            className="font-bold text-white text-[16px] leading-tight"
-            style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-          >
-            JalanKita
-          </span>
-          <span
-            className="text-white/60 text-[11px] leading-tight truncate"
-            style={{ fontFamily: "'Inter', sans-serif" }}
-          >
-            Dishub Kab. Sidoarjo
+          <span className="font-bold text-white text-[16px] leading-tight">DeltaJalan</span>
+          <span className="text-white/60 text-[11px] leading-tight truncate">
+            Dinas PU Bina Marga
           </span>
         </div>
       </div>
@@ -112,7 +111,7 @@ export function Sidebar() {
               to={item.to}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
                 active
-                  ? "bg-white/20 text-white"
+                  ? "bg-white/15 text-white font-semibold"
                   : "text-white/70 hover:bg-white/10 hover:text-white"
               }`}
             >
@@ -126,7 +125,7 @@ export function Sidebar() {
       </nav>
 
       {/* Footer — user info + logout */}
-      <div className="px-4 py-4 border-t border-white/10">
+      <div className="px-4 py-4 border-t border-white/15">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center border border-white/30 shrink-0">
             {displayUser.initials && (
@@ -152,7 +151,11 @@ export function Sidebar() {
                 className="text-white/60 text-[11px] truncate leading-tight capitalize"
                 style={{ fontFamily: "'Inter', sans-serif" }}
               >
-                {displayUser.role === "supervisor" ? "Supervisor" : "Petugas Lapangan"}
+                {displayUser.role === "supervisor"
+                  ? "Supervisor"
+                  : displayUser.role === "petugas_eksekusi"
+                    ? "Petugas Eksekusi"
+                    : "Petugas Lapangan"}
               </span>
             )}
           </div>

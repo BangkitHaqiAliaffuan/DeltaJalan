@@ -11,10 +11,14 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UploadRouteImport } from './routes/upload'
 import { Route as SupervisorRouteImport } from './routes/supervisor'
+import { Route as StatsRouteImport } from './routes/stats'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as PetugasEksekusiRouteImport } from './routes/petugas-eksekusi'
 import { Route as MyReportsRouteImport } from './routes/my-reports'
 import { Route as HomeRouteImport } from './routes/home'
+import { Route as EditReportRouteImport } from './routes/edit-report'
+import { Route as DetailReportRouteImport } from './routes/detail-report'
 import { Route as CreateReportRouteImport } from './routes/create-report'
 import { Route as CompleteReportRouteImport } from './routes/complete-report'
 import { Route as AiResultRouteImport } from './routes/ai-result'
@@ -30,6 +34,11 @@ const SupervisorRoute = SupervisorRouteImport.update({
   path: '/supervisor',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StatsRoute = StatsRouteImport.update({
+  id: '/stats',
+  path: '/stats',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReviewRoute = ReviewRouteImport.update({
   id: '/review',
   path: '/review',
@@ -40,6 +49,11 @@ const ReportsRoute = ReportsRouteImport.update({
   path: '/reports',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PetugasEksekusiRoute = PetugasEksekusiRouteImport.update({
+  id: '/petugas-eksekusi',
+  path: '/petugas-eksekusi',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MyReportsRoute = MyReportsRouteImport.update({
   id: '/my-reports',
   path: '/my-reports',
@@ -48,6 +62,16 @@ const MyReportsRoute = MyReportsRouteImport.update({
 const HomeRoute = HomeRouteImport.update({
   id: '/home',
   path: '/home',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EditReportRoute = EditReportRouteImport.update({
+  id: '/edit-report',
+  path: '/edit-report',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DetailReportRoute = DetailReportRouteImport.update({
+  id: '/detail-report',
+  path: '/detail-report',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CreateReportRoute = CreateReportRouteImport.update({
@@ -76,10 +100,14 @@ export interface FileRoutesByFullPath {
   '/ai-result': typeof AiResultRoute
   '/complete-report': typeof CompleteReportRoute
   '/create-report': typeof CreateReportRoute
+  '/detail-report': typeof DetailReportRoute
+  '/edit-report': typeof EditReportRoute
   '/home': typeof HomeRoute
   '/my-reports': typeof MyReportsRoute
+  '/petugas-eksekusi': typeof PetugasEksekusiRoute
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
+  '/stats': typeof StatsRoute
   '/supervisor': typeof SupervisorRoute
   '/upload': typeof UploadRoute
 }
@@ -88,10 +116,14 @@ export interface FileRoutesByTo {
   '/ai-result': typeof AiResultRoute
   '/complete-report': typeof CompleteReportRoute
   '/create-report': typeof CreateReportRoute
+  '/detail-report': typeof DetailReportRoute
+  '/edit-report': typeof EditReportRoute
   '/home': typeof HomeRoute
   '/my-reports': typeof MyReportsRoute
+  '/petugas-eksekusi': typeof PetugasEksekusiRoute
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
+  '/stats': typeof StatsRoute
   '/supervisor': typeof SupervisorRoute
   '/upload': typeof UploadRoute
 }
@@ -101,10 +133,14 @@ export interface FileRoutesById {
   '/ai-result': typeof AiResultRoute
   '/complete-report': typeof CompleteReportRoute
   '/create-report': typeof CreateReportRoute
+  '/detail-report': typeof DetailReportRoute
+  '/edit-report': typeof EditReportRoute
   '/home': typeof HomeRoute
   '/my-reports': typeof MyReportsRoute
+  '/petugas-eksekusi': typeof PetugasEksekusiRoute
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
+  '/stats': typeof StatsRoute
   '/supervisor': typeof SupervisorRoute
   '/upload': typeof UploadRoute
 }
@@ -115,10 +151,14 @@ export interface FileRouteTypes {
     | '/ai-result'
     | '/complete-report'
     | '/create-report'
+    | '/detail-report'
+    | '/edit-report'
     | '/home'
     | '/my-reports'
+    | '/petugas-eksekusi'
     | '/reports'
     | '/review'
+    | '/stats'
     | '/supervisor'
     | '/upload'
   fileRoutesByTo: FileRoutesByTo
@@ -127,10 +167,14 @@ export interface FileRouteTypes {
     | '/ai-result'
     | '/complete-report'
     | '/create-report'
+    | '/detail-report'
+    | '/edit-report'
     | '/home'
     | '/my-reports'
+    | '/petugas-eksekusi'
     | '/reports'
     | '/review'
+    | '/stats'
     | '/supervisor'
     | '/upload'
   id:
@@ -139,10 +183,14 @@ export interface FileRouteTypes {
     | '/ai-result'
     | '/complete-report'
     | '/create-report'
+    | '/detail-report'
+    | '/edit-report'
     | '/home'
     | '/my-reports'
+    | '/petugas-eksekusi'
     | '/reports'
     | '/review'
+    | '/stats'
     | '/supervisor'
     | '/upload'
   fileRoutesById: FileRoutesById
@@ -152,10 +200,14 @@ export interface RootRouteChildren {
   AiResultRoute: typeof AiResultRoute
   CompleteReportRoute: typeof CompleteReportRoute
   CreateReportRoute: typeof CreateReportRoute
+  DetailReportRoute: typeof DetailReportRoute
+  EditReportRoute: typeof EditReportRoute
   HomeRoute: typeof HomeRoute
   MyReportsRoute: typeof MyReportsRoute
+  PetugasEksekusiRoute: typeof PetugasEksekusiRoute
   ReportsRoute: typeof ReportsRoute
   ReviewRoute: typeof ReviewRoute
+  StatsRoute: typeof StatsRoute
   SupervisorRoute: typeof SupervisorRoute
   UploadRoute: typeof UploadRoute
 }
@@ -176,6 +228,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SupervisorRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/stats': {
+      id: '/stats'
+      path: '/stats'
+      fullPath: '/stats'
+      preLoaderRoute: typeof StatsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/review': {
       id: '/review'
       path: '/review'
@@ -190,6 +249,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/petugas-eksekusi': {
+      id: '/petugas-eksekusi'
+      path: '/petugas-eksekusi'
+      fullPath: '/petugas-eksekusi'
+      preLoaderRoute: typeof PetugasEksekusiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/my-reports': {
       id: '/my-reports'
       path: '/my-reports'
@@ -202,6 +268,20 @@ declare module '@tanstack/react-router' {
       path: '/home'
       fullPath: '/home'
       preLoaderRoute: typeof HomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/edit-report': {
+      id: '/edit-report'
+      path: '/edit-report'
+      fullPath: '/edit-report'
+      preLoaderRoute: typeof EditReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/detail-report': {
+      id: '/detail-report'
+      path: '/detail-report'
+      fullPath: '/detail-report'
+      preLoaderRoute: typeof DetailReportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/create-report': {
@@ -240,10 +320,14 @@ const rootRouteChildren: RootRouteChildren = {
   AiResultRoute: AiResultRoute,
   CompleteReportRoute: CompleteReportRoute,
   CreateReportRoute: CreateReportRoute,
+  DetailReportRoute: DetailReportRoute,
+  EditReportRoute: EditReportRoute,
   HomeRoute: HomeRoute,
   MyReportsRoute: MyReportsRoute,
+  PetugasEksekusiRoute: PetugasEksekusiRoute,
   ReportsRoute: ReportsRoute,
   ReviewRoute: ReviewRoute,
+  StatsRoute: StatsRoute,
   SupervisorRoute: SupervisorRoute,
   UploadRoute: UploadRoute,
 }

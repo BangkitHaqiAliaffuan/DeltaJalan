@@ -4,12 +4,19 @@ import { TopBar } from "@/components/jk/TopBar";
 import { AppLayout } from "@/components/jk/AppLayout";
 import { Portal } from "@/components/jk/Portal";
 import { getCurrentUser, getToken } from "@/lib/auth";
-import { getAiResult, getFormData, SEVERITY_CONFIG, clearAiStore, API_BASE_URL } from "@/lib/aiStore";
+import {
+  getAiResult,
+  getFormData,
+  SEVERITY_CONFIG,
+  clearAiStore,
+  API_BASE_URL,
+} from "@/lib/aiStore";
 import { useState, useEffect } from "react";
+import { snapToRoad } from "@/lib/geo";
 
 export const Route = createFileRoute("/create-report")({
   component: CreateReportPage,
-  head: () => ({ meta: [{ title: "Buat Laporan — JalanKita" }] }),
+  head: () => ({ meta: [{ title: "Buat Laporan — DeltaJalan" }] }),
 });
 
 // Status pengiriman laporan ke backend Laravel
@@ -56,25 +63,38 @@ function CreateReportPage() {
 
       // Pastikan kecamatan terisi
       if (!formData.kecamatan) {
+        throw new Error("Kecamatan belum dipilih. Kembali ke halaman upload dan pilih kecamatan.");
+      }
+
+      // Pastikan dimensi kerusakan terisi
+      if (!formData.kerusakanPanjang || !formData.kerusakanLebar) {
         throw new Error(
-          "Kecamatan belum dipilih. Kembali ke halaman upload dan pilih kecamatan."
+          "Dimensi kerusakan (panjang × lebar) wajib diisi. Kembali ke halaman upload dan isi dimensi.",
         );
       }
 
       // Pastikan koordinat GPS tersedia — tidak boleh pakai default diam-diam
       if (formData.lat === undefined || formData.lng === undefined) {
         throw new Error(
-          "Koordinat GPS tidak tersedia. Kembali ke halaman upload dan isi koordinat lokasi."
+          "Koordinat GPS tidak tersedia. Kembali ke halaman upload dan isi koordinat lokasi.",
         );
       }
+
+      // Snap ke jalan terdekat via OSRM agar koordinat nempel di aspal
+      const snapped = await snapToRoad(formData.lat, formData.lng);
+      const snapLat = snapped.lat;
+      const snapLng = snapped.lng;
 
       // Buat FormData untuk dikirim ke Laravel API
       const fd = new FormData();
       fd.append("reporter_name", user?.name ?? formData.namaJalan);
       fd.append("road_name", formData.namaJalan);
       fd.append("district", formData.kecamatan);
-      fd.append("latitude", String(formData.lat));
-      fd.append("longitude", String(formData.lng));
+      fd.append("latitude", String(snapLat));
+      fd.append("longitude", String(snapLng));
+      if (formData.kerusakanPanjang) fd.append("kerusakan_panjang", formData.kerusakanPanjang);
+      if (formData.kerusakanLebar) fd.append("kerusakan_lebar", formData.kerusakanLebar);
+      if (formData.catatan) fd.append("catatan", formData.catatan);
       // Kirim file foto asli dengan nama file yang benar
       fd.append("image", imageBlob, formData.fileName);
 
@@ -87,7 +107,7 @@ function CreateReportPage() {
       const response = await fetch(`${API_BASE_URL}/reports`, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
         body: fd,
         // Jangan set Content-Type manual — browser akan otomatis set
@@ -97,7 +117,13 @@ function CreateReportPage() {
       const result = await response.json();
 
       if (!response.ok) {
-        // Tangani error validasi (422) atau error server (500)
+        const errData = result;
+        if (errData.error_code === "DUPLICATE_IMAGE") {
+          const existing = errData.existing_report;
+          setSubmitState("error");
+          setErrorMsg(`Foto sudah pernah digunakan untuk laporan ${existing?.report_code ?? ""}.`);
+          return;
+        }
         const message =
           result.message ??
           (result.errors
@@ -124,11 +150,11 @@ function CreateReportPage() {
       setSubmitState("error");
       if (err instanceof TypeError && err.message.includes("fetch")) {
         setErrorMsg(
-          "Tidak dapat terhubung ke server. Pastikan server Laravel berjalan di localhost:8080."
+          "Tidak dapat terhubung ke server. Pastikan server Laravel berjalan di localhost:8080.",
         );
       } else {
         setErrorMsg(
-          err instanceof Error ? err.message : "Terjadi kesalahan saat mengirim laporan."
+          err instanceof Error ? err.message : "Terjadi kesalahan saat mengirim laporan.",
         );
       }
     }
@@ -136,22 +162,38 @@ function CreateReportPage() {
 
   return (
     <AppLayout>
-      <div className="flex flex-col min-h-screen w-full">
+      <div className="flex flex-col h-screen w-full">
         <TopBar title="Buat Laporan Resmi" back="/ai-result" />
 
-        <main className="flex-1 overflow-y-auto px-4 pt-md pb-[140px] w-full">
+        <main className="flex-1 overflow-y-auto min-h-0 px-4 pt-md pb-[140px] w-full">
           <div
             style={{ maxWidth: "42rem", marginLeft: "auto", marginRight: "auto" }}
             className="flex flex-col gap-4"
           >
             {/* ── Error Banner ── */}
             {submitState === "error" && (
-              <div className="flex items-start gap-2 bg-[#FEE2E2] border border-[#FCA5A5] rounded-xl px-4 py-3">
-                <Icon name="error" className="text-[#991B1B] !text-[20px] shrink-0 mt-0.5" />
-                <p className="font-label-md text-[12px] text-[#991B1B] leading-relaxed">
-                  {errorMsg}
-                </p>
-              </div>
+              <>
+                {errorMsg.includes("sudah pernah digunakan") ? (
+                  <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2.5">
+                    <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                      <Icon name="content_copy" className="text-amber-700 !text-[14px]" />
+                    </div>
+                    <div>
+                      <p className="text-[12px] font-semibold text-amber-800">
+                        Foto sudah pernah digunakan
+                      </p>
+                      <p className="text-[11px] text-amber-700 mt-0.5">{errorMsg}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-2 bg-[#FEE2E2] border border-[#FCA5A5] rounded-xl px-4 py-3">
+                    <Icon name="error" className="text-[#991B1B] !text-[20px] shrink-0 mt-0.5" />
+                    <p className="font-label-md text-[12px] text-[#991B1B] leading-relaxed">
+                      {errorMsg}
+                    </p>
+                  </div>
+                )}
+              </>
             )}
 
             {/* ── Summary Hasil AI (readonly) ── */}
@@ -318,6 +360,38 @@ function CreateReportPage() {
                   </div>
                 </div>
 
+                {/* Dimensi Kerusakan (readonly — dari halaman upload) */}
+                {(formData.kerusakanPanjang || formData.kerusakanLebar) && (
+                  <div className="flex flex-col gap-xs">
+                    <label className="font-label-md text-label-md text-[#0F172A]">
+                      Dimensi Kerusakan
+                    </label>
+                    <div className="flex items-center gap-4 px-4 py-3 border border-border-subtle rounded-xl bg-surface-container text-on-surface-variant">
+                      {formData.kerusakanPanjang && (
+                        <span className="text-[13px]">
+                          <span className="font-semibold">Panjang:</span>{" "}
+                          {formData.kerusakanPanjang} m
+                        </span>
+                      )}
+                      {formData.kerusakanLebar && (
+                        <span className="text-[13px]">
+                          <span className="font-semibold">Lebar:</span> {formData.kerusakanLebar} m
+                        </span>
+                      )}
+                      {formData.kerusakanPanjang && formData.kerusakanLebar && (
+                        <span className="text-[13px] text-on-surface-variant">
+                          (
+                          {(
+                            parseFloat(formData.kerusakanPanjang) *
+                            parseFloat(formData.kerusakanLebar)
+                          ).toFixed(1)}{" "}
+                          m²)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Catatan Petugas (readonly — dari halaman upload) */}
                 {formData.catatan && (
                   <div className="flex flex-col gap-xs">
@@ -332,9 +406,7 @@ function CreateReportPage() {
 
                 {/* Nama Petugas (pre-filled dari auth) */}
                 <div className="flex flex-col gap-xs">
-                  <label className="font-label-md text-label-md text-[#0F172A]">
-                    Nama Petugas
-                  </label>
+                  <label className="font-label-md text-label-md text-[#0F172A]">Nama Petugas</label>
                   <div className="relative">
                     <Icon
                       name="person"
@@ -353,7 +425,7 @@ function CreateReportPage() {
         </main>
 
         {/* ── Footer Actions ── */}
-        <div className="sticky bottom-0 bg-surface border-t border-border-subtle shadow-[0_-4px_12px_rgba(0,0,0,0.05)] w-full">
+        <div className="bg-white border-t border-[#D0DAE8] w-full">
           <div
             style={{ maxWidth: "42rem", marginLeft: "auto", marginRight: "auto" }}
             className="p-4 flex flex-col gap-3"

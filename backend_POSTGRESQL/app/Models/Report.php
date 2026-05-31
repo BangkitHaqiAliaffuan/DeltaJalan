@@ -5,7 +5,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use App\Models\ReportPhoto;
 
 /**
  * Model Eloquent untuk tabel 'reports'.
@@ -60,11 +63,8 @@ class Report extends Model
         'ai_raw_output',
         'status',
         'system_notes',
-        // Batch upload
+        // Batch grouping
         'batch_id',
-        'is_batch_main',
-        'is_batch_sub',
-        'parent_report_id',
         // Trust score
         'trust_score',
         'trust_label',
@@ -86,6 +86,11 @@ class Report extends Model
         'assigned_upr_id',
         'assigned_at',
         'catatan_petugas',
+        // Dimensi kerusakan
+        'kerusakan_panjang',
+        'kerusakan_lebar',
+        // Prioritas penanganan
+        'priority',
     ];
 
     /**
@@ -104,9 +109,11 @@ class Report extends Model
         'total_detections' => 'integer',
         'support_count'    => 'integer',
         'trust_score'      => 'integer',
-        'is_batch_main'    => 'boolean',
-        'is_batch_sub'     => 'boolean',
-        'ai_confidence'    => 'decimal:3',
+
+        'ai_confidence'       => 'decimal:3',
+        'perbaikan_dimulai_at' => 'datetime',
+        'perbaikan_selesai_at' => 'datetime',
+        'assigned_at'          => 'datetime',
     ];
 
     /**
@@ -118,6 +125,7 @@ class Report extends Model
         'overall_severity' => 'Baik',
         'status'           => 'Menunggu Review',
         'support_count'    => 0,
+        'priority'         => 'Sedang',
     ];
 
     /**
@@ -142,6 +150,16 @@ class Report extends Model
     // ── Konstanta Enum ────────────────────────────────────────────────────
 
     /**
+     * Daftar nilai valid untuk kolom 'priority'.
+     * Harus sinkron dengan tipe ENUM di migration.
+     */
+    public const PRIORITY_VALUES = [
+        'Rendah',
+        'Sedang',
+        'Tinggi',
+    ];
+
+    /**
      * Daftar nilai valid untuk kolom 'overall_severity'.
      * Harus sinkron dengan tipe ENUM di migration.
      */
@@ -156,13 +174,15 @@ class Report extends Model
      * Daftar nilai valid untuk kolom 'status'.
      * Harus sinkron dengan tipe ENUM di migration.
      */
-    public const STATUS_VALUES = [
-        'Menunggu Review',
-        'Disetujui',
-        'Ditolak',
-        'Sedang Diperbaiki',
-        'Selesai',
-    ];
+public const STATUS_VALUES = [
+    'Menunggu Review',
+    'Disetujui',
+    'Ditolak',
+    'Sedang Diperbaiki',
+    'Selesai',
+    'Ditinjau',
+    'Diedit',
+];
 
     // ── Accessor (Getter Tambahan) ────────────────────────────────────────
 
@@ -214,5 +234,44 @@ class Report extends Model
     public function evidences(): HasMany
     {
         return $this->hasMany(ReportEvidence::class, 'report_id');
+    }
+
+    /**
+     * Foto-foto batch yang terkait dengan laporan ini.
+     */
+    public function photos(): HasMany
+    {
+        return $this->hasMany(ReportPhoto::class, 'report_id')->orderBy('sort_order');
+    }
+
+    /**
+     * Foto pertama (untuk thumbnail preview di dashboard).
+     */
+    public function firstPhoto(): HasOne
+    {
+        return $this->hasOne(ReportPhoto::class, 'report_id')->orderBy('sort_order');
+    }
+
+    /**
+     * URL gambar pertama — foto utama jika ada, fallback ke sub-photo pertama batch.
+     */
+    public function getFirstPhotoUrlAttribute(): ?string
+    {
+        if ($this->image_original_path) {
+            return $this->image_original_url;
+        }
+        if ($this->relationLoaded('firstPhoto') && $this->firstPhoto) {
+            return $this->firstPhoto->image_original_url;
+        }
+        return null;
+    }
+
+    /**
+     * Statis: cek apakah image_hash sudah ada di reports atau report_photos.
+     */
+    public static function imageHashExists(string $hash): bool
+    {
+        return static::where('image_hash', $hash)->exists()
+            || ReportPhoto::where('image_hash', $hash)->exists();
     }
 }

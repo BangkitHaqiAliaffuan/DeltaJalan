@@ -14,13 +14,9 @@ import { Sidebar } from "./Sidebar";
  */
 export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex">
-      {/* Sidebar — hidden on mobile, visible on md+ */}
+    <div className="h-screen bg-[#F5F7FA] flex overflow-hidden">
       <Sidebar />
-      {/* Main content — flex-1 mengisi sisa lebar setelah sidebar */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {children}
-      </div>
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">{children}</div>
     </div>
   );
 }

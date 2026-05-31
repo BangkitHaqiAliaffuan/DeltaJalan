@@ -77,26 +77,19 @@ class AuthController extends Controller
                 'id'         => $user->id,
                 'name'       => $user->name,
                 'email'      => $user->email,
-                'role'       => $user->role,          // 'petugas' | 'supervisor'
-                'role_label' => $user->role_label,    // 'Petugas Lapangan' | 'Supervisor'
+                'role'       => $user->role,
+                'role_label' => $user->role_label,
                 'wilayah'    => $user->wilayah,
                 'nip'        => $user->nip,
-                'initials'   => $user->initials,      // Untuk avatar
+                'upr_id'     => $user->upr_id,
+                'upr_name'   => $user->upr?->name,
+                'initials'   => $user->initials,
             ],
         ], 200);
     }
 
-    /**
-     * Logout pengguna.
-     *
-     * Menghapus token Sanctum yang sedang aktif.
-     *
-     * @param  Request  $request
-     * @return JsonResponse
-     */
     public function logout(Request $request): JsonResponse
     {
-        // Hapus token yang digunakan untuk request ini
         $request->user()->currentAccessToken()->delete();
 
         return response()->json([
@@ -105,16 +98,9 @@ class AuthController extends Controller
         ], 200);
     }
 
-    /**
-     * Mendapatkan data user yang sedang login.
-     * Digunakan frontend untuk restore session setelah refresh halaman.
-     *
-     * @param  Request  $request
-     * @return JsonResponse
-     */
     public function me(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $user = $request->user()->load('upr');
 
         return response()->json([
             'success' => true,
@@ -126,6 +112,8 @@ class AuthController extends Controller
                 'role_label' => $user->role_label,
                 'wilayah'    => $user->wilayah,
                 'nip'        => $user->nip,
+                'upr_id'     => $user->upr_id,
+                'upr_name'   => $user->upr?->name,
                 'initials'   => $user->initials,
             ],
         ], 200);

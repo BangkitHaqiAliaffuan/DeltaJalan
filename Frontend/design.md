@@ -1,4 +1,5 @@
 # Design System — JalanKita
+
 **Website Image Processing & Klasifikasi Kerusakan Jalan**
 Dinas Perhubungan Kabupaten Sidoarjo
 
@@ -9,16 +10,16 @@ Dinas Perhubungan Kabupaten Sidoarjo
 
 ## 1. Identitas & Tone
 
-| Atribut | Nilai |
-|---|---|
-| Nama Produk | JalanKita |
-| Tagline | Deteksi Cepat, Penanganan Tepat |
-| Instansi | Dinas Perhubungan Kabupaten Sidoarjo |
-| Alamat Instansi | Jl. Sultan Agung No. 12, Sidoarjo, Jawa Timur 61211 |
-| Tone | Profesional · Tepercaya · Efisien |
+| Atribut         | Nilai                                                              |
+| --------------- | ------------------------------------------------------------------ |
+| Nama Produk     | JalanKita                                                          |
+| Tagline         | Deteksi Cepat, Penanganan Tepat                                    |
+| Instansi        | Dinas Perhubungan Kabupaten Sidoarjo                               |
+| Alamat Instansi | Jl. Sultan Agung No. 12, Sidoarjo, Jawa Timur 61211                |
+| Tone            | Profesional · Tepercaya · Efisien                                  |
 | Target pengguna | Petugas Lapangan, Supervisor, Kepala Bidang, Admin Dishub Sidoarjo |
-| Platform | Web responsif — desktop utama, mobile untuk petugas lapangan |
-| Scope wilayah | 18 Kecamatan di Kabupaten Sidoarjo |
+| Platform        | Web responsif — desktop utama, mobile untuk petugas lapangan       |
+| Scope wilayah   | 18 Kecamatan di Kabupaten Sidoarjo                                 |
 
 ---
 
@@ -26,28 +27,29 @@ Dinas Perhubungan Kabupaten Sidoarjo
 
 Digunakan di semua dropdown "Kecamatan", filter tabel, dan layer peta.
 
-| No | Kecamatan | Zona Wilayah |
-|---|---|---|
-| 1 | Sidoarjo | Pusat |
-| 2 | Buduran | Utara |
-| 3 | Gedangan | Utara |
-| 4 | Sedati | Utara |
-| 5 | Waru | Utara |
-| 6 | Taman | Barat |
-| 7 | Krian | Barat |
-| 8 | Balongbendo | Barat |
-| 9 | Wonoayu | Barat |
-| 10 | Sukodono | Barat |
-| 11 | Candi | Timur |
-| 12 | Porong | Selatan |
-| 13 | Krembung | Selatan |
-| 14 | Tulangan | Selatan |
-| 15 | Tanggulangin | Selatan |
-| 16 | Jabon | Selatan |
-| 17 | Tarik | Timur |
-| 18 | Prambon | Timur |
+| No  | Kecamatan    | Zona Wilayah |
+| --- | ------------ | ------------ |
+| 1   | Sidoarjo     | Pusat        |
+| 2   | Buduran      | Utara        |
+| 3   | Gedangan     | Utara        |
+| 4   | Sedati       | Utara        |
+| 5   | Waru         | Utara        |
+| 6   | Taman        | Barat        |
+| 7   | Krian        | Barat        |
+| 8   | Balongbendo  | Barat        |
+| 9   | Wonoayu      | Barat        |
+| 10  | Sukodono     | Barat        |
+| 11  | Candi        | Timur        |
+| 12  | Porong       | Selatan      |
+| 13  | Krembung     | Selatan      |
+| 14  | Tulangan     | Selatan      |
+| 15  | Tanggulangin | Selatan      |
+| 16  | Jabon        | Selatan      |
+| 17  | Tarik        | Timur        |
+| 18  | Prambon      | Timur        |
 
 **Koordinat pusat peta default (Kabupaten Sidoarjo):**
+
 ```
 Latitude  : -7.4478
 Longitude : 112.7183
@@ -61,35 +63,35 @@ Bounds    : SW -7.6200, 112.5700 — NE -7.2800, 112.9200
 
 Digunakan di tabel laporan, form contoh, dan mockup hasil analisis.
 
-| ID Laporan | Nama Jalan | Kecamatan | Jenis Kerusakan | Tingkat |
-|---|---|---|---|---|
-| LP-2024-001 | Jl. Jenggolo No. 5 | Sidoarjo | Lubang Besar | Rusak Berat |
-| LP-2024-002 | Jl. Pahlawan No. 23 | Sidoarjo | Retak Memanjang | Rusak Sedang |
-| LP-2024-003 | Jl. Ahmad Yani No. 88 | Waru | Lubang Kecil | Rusak Ringan |
-| LP-2024-004 | Jl. Raya Taman No. 14 | Taman | Amblas | Rusak Berat |
-| LP-2024-005 | Jl. Raya Gedangan | Gedangan | Retak Kulit Buaya | Rusak Sedang |
-| LP-2024-006 | Jl. Raya Porong No. 7 | Porong | Lubang Besar | Rusak Berat |
-| LP-2024-007 | Jl. Raya Krian No. 31 | Krian | Bergelombang | Rusak Sedang |
-| LP-2024-008 | Jl. Lingkar Barat | Sukodono | Retak Kotak-Kotak | Rusak Ringan |
-| LP-2024-009 | Jl. Raya Candi No. 9 | Candi | Lubang Sedang | Rusak Sedang |
-| LP-2024-010 | Jl. Raya Sedati | Sedati | Pelepasan Butir | Rusak Ringan |
-| LP-2024-011 | Jl. Raya Tanggulangin | Tanggulangin | Lubang Besar | Rusak Berat |
-| LP-2024-012 | Jl. Raya Tulangan | Tulangan | Retak Sambungan | Rusak Ringan |
+| ID Laporan  | Nama Jalan            | Kecamatan    | Jenis Kerusakan   | Tingkat      |
+| ----------- | --------------------- | ------------ | ----------------- | ------------ |
+| LP-2024-001 | Jl. Jenggolo No. 5    | Sidoarjo     | Lubang Besar      | Rusak Berat  |
+| LP-2024-002 | Jl. Pahlawan No. 23   | Sidoarjo     | Retak Memanjang   | Rusak Sedang |
+| LP-2024-003 | Jl. Ahmad Yani No. 88 | Waru         | Lubang Kecil      | Rusak Ringan |
+| LP-2024-004 | Jl. Raya Taman No. 14 | Taman        | Amblas            | Rusak Berat  |
+| LP-2024-005 | Jl. Raya Gedangan     | Gedangan     | Retak Kulit Buaya | Rusak Sedang |
+| LP-2024-006 | Jl. Raya Porong No. 7 | Porong       | Lubang Besar      | Rusak Berat  |
+| LP-2024-007 | Jl. Raya Krian No. 31 | Krian        | Bergelombang      | Rusak Sedang |
+| LP-2024-008 | Jl. Lingkar Barat     | Sukodono     | Retak Kotak-Kotak | Rusak Ringan |
+| LP-2024-009 | Jl. Raya Candi No. 9  | Candi        | Lubang Sedang     | Rusak Sedang |
+| LP-2024-010 | Jl. Raya Sedati       | Sedati       | Pelepasan Butir   | Rusak Ringan |
+| LP-2024-011 | Jl. Raya Tanggulangin | Tanggulangin | Lubang Besar      | Rusak Berat  |
+| LP-2024-012 | Jl. Raya Tulangan     | Tulangan     | Retak Sambungan   | Rusak Ringan |
 
 **Akun pengguna sampel:**
 
-| Nama | Role | Wilayah Tugas |
-|---|---|---|
-| Agus Setiawan | Petugas Lapangan | Kec. Sidoarjo |
-| Rizky Firmansyah | Petugas Lapangan | Kec. Waru & Gedangan |
-| Dewi Rahayu | Petugas Lapangan | Kec. Taman & Krian |
-| Bambang Eko | Petugas Lapangan | Kec. Porong & Tanggulangin |
-| Budi Santoso | Supervisor | Wilayah Utara (Waru, Gedangan, Sedati, Buduran) |
-| Siti Marlina | Supervisor | Wilayah Selatan (Porong, Tulangan, Tanggulangin, Jabon) |
-| Hendra Kusuma | Supervisor | Wilayah Barat (Taman, Krian, Sukodono, Wonoayu) |
-| Fajar Nugroho | Supervisor | Wilayah Pusat & Timur (Sidoarjo, Candi, Tarik, Prambon) |
-| Ir. Darmawan, M.T. | Kepala Bidang | Seluruh Kab. Sidoarjo |
-| Ratna Dewi, S.Kom | Admin Sistem | Seluruh Kab. Sidoarjo |
+| Nama               | Role             | Wilayah Tugas                                           |
+| ------------------ | ---------------- | ------------------------------------------------------- |
+| Agus Setiawan      | Petugas Lapangan | Kec. Sidoarjo                                           |
+| Rizky Firmansyah   | Petugas Lapangan | Kec. Waru & Gedangan                                    |
+| Dewi Rahayu        | Petugas Lapangan | Kec. Taman & Krian                                      |
+| Bambang Eko        | Petugas Lapangan | Kec. Porong & Tanggulangin                              |
+| Budi Santoso       | Supervisor       | Wilayah Utara (Waru, Gedangan, Sedati, Buduran)         |
+| Siti Marlina       | Supervisor       | Wilayah Selatan (Porong, Tulangan, Tanggulangin, Jabon) |
+| Hendra Kusuma      | Supervisor       | Wilayah Barat (Taman, Krian, Sukodono, Wonoayu)         |
+| Fajar Nugroho      | Supervisor       | Wilayah Pusat & Timur (Sidoarjo, Candi, Tarik, Prambon) |
+| Ir. Darmawan, M.T. | Kepala Bidang    | Seluruh Kab. Sidoarjo                                   |
+| Ratna Dewi, S.Kom  | Admin Sistem     | Seluruh Kab. Sidoarjo                                   |
 
 ---
 
@@ -97,51 +99,51 @@ Digunakan di tabel laporan, form contoh, dan mockup hasil analisis.
 
 ### Palet Utama
 
-| Token | Hex | Penggunaan |
-|---|---|---|
-| `--primary` | `#1A4F8A` | Tombol utama, sidebar, header brand |
-| `--primary-dark` | `#0F3260` | Hover state, active state |
-| `--primary-light` | `#E8F0FA` | Background section, badge info |
-| `--accent` | `#F59E0B` | Highlight, badge peringatan |
-| `--success` | `#10B981` | Status selesai, indikator aman |
-| `--warning` | `#F97316` | Kerusakan sedang, perlu perhatian |
-| `--danger` | `#EF4444` | Kerusakan berat, butuh segera |
-| `--neutral-50` | `#F8FAFC` | Background halaman |
-| `--neutral-100` | `#F1F5F9` | Background card, table row alt |
-| `--neutral-200` | `#E2E8F0` | Border, divider |
-| `--neutral-600` | `#475569` | Body text sekunder |
-| `--neutral-900` | `#0F172A` | Heading, body text utama |
+| Token             | Hex       | Penggunaan                          |
+| ----------------- | --------- | ----------------------------------- |
+| `--primary`       | `#1A4F8A` | Tombol utama, sidebar, header brand |
+| `--primary-dark`  | `#0F3260` | Hover state, active state           |
+| `--primary-light` | `#E8F0FA` | Background section, badge info      |
+| `--accent`        | `#F59E0B` | Highlight, badge peringatan         |
+| `--success`       | `#10B981` | Status selesai, indikator aman      |
+| `--warning`       | `#F97316` | Kerusakan sedang, perlu perhatian   |
+| `--danger`        | `#EF4444` | Kerusakan berat, butuh segera       |
+| `--neutral-50`    | `#F8FAFC` | Background halaman                  |
+| `--neutral-100`   | `#F1F5F9` | Background card, table row alt      |
+| `--neutral-200`   | `#E2E8F0` | Border, divider                     |
+| `--neutral-600`   | `#475569` | Body text sekunder                  |
+| `--neutral-900`   | `#0F172A` | Heading, body text utama            |
 
 ### Skema Warna Tingkat Kerusakan Jalan
 
-| Level | Warna | Hex | Keterangan |
-|---|---|---|---|
-| Baik | Hijau | `#10B981` | Tidak ada kerusakan berarti |
-| Rusak Ringan | Kuning | `#F59E0B` | Retak halus, tidak berbahaya |
-| Rusak Sedang | Oranye | `#F97316` | Lubang kecil, perlu penjadwalan perbaikan |
-| Rusak Berat | Merah | `#EF4444` | Lubang besar atau dalam, bahaya, prioritas utama |
+| Level        | Warna  | Hex       | Keterangan                                       |
+| ------------ | ------ | --------- | ------------------------------------------------ |
+| Baik         | Hijau  | `#10B981` | Tidak ada kerusakan berarti                      |
+| Rusak Ringan | Kuning | `#F59E0B` | Retak halus, tidak berbahaya                     |
+| Rusak Sedang | Oranye | `#F97316` | Lubang kecil, perlu penjadwalan perbaikan        |
+| Rusak Berat  | Merah  | `#EF4444` | Lubang besar atau dalam, bahaya, prioritas utama |
 
 ### Skema Warna Marker Peta
 
-| Level | Warna Marker | Hex |
-|---|---|---|
-| Rusak Berat | Merah solid | `#EF4444` |
+| Level        | Warna Marker | Hex       |
+| ------------ | ------------ | --------- |
+| Rusak Berat  | Merah solid  | `#EF4444` |
 | Rusak Sedang | Oranye solid | `#F97316` |
 | Rusak Ringan | Kuning solid | `#F59E0B` |
-| Selesai | Hijau solid | `#10B981` |
+| Selesai      | Hijau solid  | `#10B981` |
 
 ---
 
 ## 5. Tipografi
 
-| Peran | Font | Weight | Size |
-|---|---|---|---|
-| Heading utama (H1) | Plus Jakarta Sans | 700 | 28–32px |
-| Heading section (H2) | Plus Jakarta Sans | 600 | 20–24px |
-| Heading card (H3) | Plus Jakarta Sans | 600 | 16–18px |
-| Body text | Inter | 400 | 14–16px |
-| Label, badge | Inter | 500 | 11–13px |
-| Kode / ID laporan | JetBrains Mono | 400 | 12–13px |
+| Peran                | Font              | Weight | Size    |
+| -------------------- | ----------------- | ------ | ------- |
+| Heading utama (H1)   | Plus Jakarta Sans | 700    | 28–32px |
+| Heading section (H2) | Plus Jakarta Sans | 600    | 20–24px |
+| Heading card (H3)    | Plus Jakarta Sans | 600    | 16–18px |
+| Body text            | Inter             | 400    | 14–16px |
+| Label, badge         | Inter             | 500    | 11–13px |
+| Kode / ID laporan    | JetBrains Mono    | 400    | 12–13px |
 
 > Import via Google Fonts:
 > `Plus Jakarta Sans` (400, 600, 700) + `Inter` (400, 500) + `JetBrains Mono` (400)
@@ -159,6 +161,7 @@ Digunakan di tabel laporan, form contoh, dan mockup hasil analisis.
 - Menu item dengan Heroicons outline
 
 **Item menu (urutan prioritas):**
+
 1. Dashboard
 2. Upload & Analisis
 3. Peta Kerusakan Sidoarjo
@@ -166,7 +169,7 @@ Digunakan di tabel laporan, form contoh, dan mockup hasil analisis.
 5. Manajemen Tugas
 6. Statistik & Laporan
 7. Pengaturan
-8. *(Admin only)* Manajemen Pengguna
+8. _(Admin only)_ Manajemen Pengguna
 
 ---
 
@@ -185,6 +188,7 @@ Digunakan di tabel laporan, form contoh, dan mockup hasil analisis.
 - Isi: icon + label + angka besar + perubahan vs bulan lalu
 
 **4 card yang ditampilkan:**
+
 1. Total Laporan Bulan Ini — seluruh Kab. Sidoarjo
 2. Kerusakan Berat — butuh tindakan segera
 3. Sedang Diproses — sudah didisposisi ke unit
@@ -209,12 +213,12 @@ Semua badge: border-radius 9999px · padding 2px 10px · font 12px weight 500
 
 ### 6.5 Tombol
 
-| Tipe | Style |
-|---|---|
-| Primary | bg `--primary`, putih, hover `--primary-dark` |
-| Secondary | transparan, border+text `--primary` |
-| Danger | bg `#EF4444`, putih |
-| Ghost | transparan, text `--neutral-600`, hover bg `--neutral-100` |
+| Tipe      | Style                                                      |
+| --------- | ---------------------------------------------------------- |
+| Primary   | bg `--primary`, putih, hover `--primary-dark`              |
+| Secondary | transparan, border+text `--primary`                        |
+| Danger    | bg `#EF4444`, putih                                        |
+| Ghost     | transparan, text `--neutral-600`, hover bg `--neutral-100` |
 
 Radius 8px · Padding 10px 20px default, 8px 14px small · Inter 500 14px
 
@@ -324,14 +328,14 @@ Filter: Kecamatan (18) · Tingkat · Status · Periode tanggal
 
 ## 8. Sistem Grid & Spacing
 
-| Token | Nilai |
-|---|---|
-| `--spacing-xs` | 4px |
-| `--spacing-sm` | 8px |
-| `--spacing-md` | 16px |
-| `--spacing-lg` | 24px |
-| `--spacing-xl` | 32px |
-| `--spacing-2xl` | 48px |
+| Token           | Nilai |
+| --------------- | ----- |
+| `--spacing-xs`  | 4px   |
+| `--spacing-sm`  | 8px   |
+| `--spacing-md`  | 16px  |
+| `--spacing-lg`  | 24px  |
+| `--spacing-xl`  | 32px  |
+| `--spacing-2xl` | 48px  |
 
 Grid: 12 kolom, gutter 24px
 Breakpoint: mobile <768px · tablet 768–1024px · desktop >1024px
@@ -340,21 +344,21 @@ Breakpoint: mobile <768px · tablet 768–1024px · desktop >1024px
 
 ## 9. Ikon (Heroicons Outline)
 
-| Fitur | Nama Icon |
-|---|---|
-| Dashboard | `home` |
-| Upload | `cloud-arrow-up` |
-| Peta | `map` |
-| Laporan | `document-text` |
-| Tugas | `clipboard-document-list` |
-| Statistik | `chart-bar` |
-| Pengaturan | `cog-6-tooth` |
-| Notifikasi | `bell` |
-| Filter | `funnel` |
-| Kerusakan berat | `exclamation-triangle` |
-| Selesai | `check-circle` |
-| Lokasi GPS | `map-pin` |
-| Export | `arrow-down-tray` |
+| Fitur           | Nama Icon                 |
+| --------------- | ------------------------- |
+| Dashboard       | `home`                    |
+| Upload          | `cloud-arrow-up`          |
+| Peta            | `map`                     |
+| Laporan         | `document-text`           |
+| Tugas           | `clipboard-document-list` |
+| Statistik       | `chart-bar`               |
+| Pengaturan      | `cog-6-tooth`             |
+| Notifikasi      | `bell`                    |
+| Filter          | `funnel`                  |
+| Kerusakan berat | `exclamation-triangle`    |
+| Selesai         | `check-circle`            |
+| Lokasi GPS      | `map-pin`                 |
+| Export          | `arrow-down-tray`         |
 
 ---
 
@@ -376,18 +380,30 @@ Breakpoint: mobile <768px · tablet 768–1024px · desktop >1024px
 
 ```css
 /* Card standar */
-.card { @apply bg-white border border-slate-200 rounded-xl p-6 shadow-sm; }
+.card {
+  @apply bg-white border border-slate-200 rounded-xl p-6 shadow-sm;
+}
 
 /* Badge keparahan */
-.badge-ringan { @apply bg-amber-50 text-amber-800 border border-amber-200 rounded-full px-3 py-0.5 text-xs font-medium; }
-.badge-sedang { @apply bg-orange-50 text-orange-800 border border-orange-200 rounded-full px-3 py-0.5 text-xs font-medium; }
-.badge-berat  { @apply bg-red-50 text-red-800 border border-red-200 rounded-full px-3 py-0.5 text-xs font-medium; }
+.badge-ringan {
+  @apply bg-amber-50 text-amber-800 border border-amber-200 rounded-full px-3 py-0.5 text-xs font-medium;
+}
+.badge-sedang {
+  @apply bg-orange-50 text-orange-800 border border-orange-200 rounded-full px-3 py-0.5 text-xs font-medium;
+}
+.badge-berat {
+  @apply bg-red-50 text-red-800 border border-red-200 rounded-full px-3 py-0.5 text-xs font-medium;
+}
 
 /* Tombol primary */
-.btn-primary { @apply bg-blue-800 hover:bg-blue-900 text-white font-medium px-5 py-2.5 rounded-lg transition-colors; }
+.btn-primary {
+  @apply bg-blue-800 hover:bg-blue-900 text-white font-medium px-5 py-2.5 rounded-lg transition-colors;
+}
 
 /* ID laporan */
-.report-id { @apply font-mono text-xs text-slate-500; }
+.report-id {
+  @apply font-mono text-xs text-slate-500;
+}
 ```
 
 ---
@@ -395,11 +411,13 @@ Breakpoint: mobile <768px · tablet 768–1024px · desktop >1024px
 ## 12. Referensi Desain
 
 Inspirasi visual:
+
 - GOV.UK Design System — aksesibilitas & kesederhanaan pemerintah
 - Linear, Retool — data-dense dashboard
 - Portal Pemkab Sidoarjo (sidoarjokab.go.id) — warna institusional biru
 
 Anti-pattern yang dihindari:
+
 - Dark mode sebagai default (tidak familiar pengguna pemerintah)
 - Terlalu banyak warna berbeda per halaman
 - Animasi berlebihan yang memperlambat kerja petugas
@@ -408,6 +426,6 @@ Anti-pattern yang dihindari:
 
 ---
 
-*Versi: 1.1 — Proyek Magang JalanKita*
-*Instansi: Dinas Perhubungan Kabupaten Sidoarjo*
-*Update: Scope wilayah Kabupaten Sidoarjo (18 Kecamatan) + data dummy realistis Sidoarjo*
+_Versi: 1.1 — Proyek Magang JalanKita_
+_Instansi: Dinas Perhubungan Kabupaten Sidoarjo_
+_Update: Scope wilayah Kabupaten Sidoarjo (18 Kecamatan) + data dummy realistis Sidoarjo_

@@ -23,7 +23,7 @@ import type { DuplicateCheckState, AddEvidenceState } from "@/hooks/useDuplicate
 const DuplicateMapView = lazy(() =>
   import("@/components/jk/DuplicateMapView").then((m) => ({
     default: m.DuplicateMapView,
-  }))
+  })),
 );
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -88,6 +88,11 @@ function StatusBadge({ status }: { status: string }) {
       text: "text-[#1E40AF]",
       border: "border-[#93C5FD]",
     },
+    Ditinjau: {
+      bg: "bg-[#EFF6FF]",
+      text: "text-[#1E40AF]",
+      border: "border-[#93C5FD]",
+    },
     "Sedang Diperbaiki": {
       bg: "bg-[#FFEDD5]",
       text: "text-[#9A3412]",
@@ -100,13 +105,14 @@ function StatusBadge({ status }: { status: string }) {
     },
   };
 
+  const display = status === "Ditinjau" ? "Menunggu Review" : status;
   const c = config[status] ?? config["Menunggu Review"];
 
   return (
     <span
       className={`inline-flex items-center ${c.bg} ${c.text} border ${c.border} rounded-full px-2.5 py-0.5 text-[11px] font-medium`}
     >
-      {status}
+      {display}
     </span>
   );
 }
@@ -142,9 +148,7 @@ function DuplicateCard({
           <p className="text-[13px] font-semibold text-[#0F172A] leading-snug truncate">
             {report.road_name}
           </p>
-          <p className="text-[12px] text-[#64748B] mt-0.5">
-            Kec. {report.district}
-          </p>
+          <p className="text-[12px] text-[#64748B] mt-0.5">Kec. {report.district}</p>
         </div>
         <StatusBadge status={report.status} />
       </div>
@@ -170,7 +174,11 @@ function DuplicateCard({
       {/* Feedback add-evidence */}
       {isSuccess && (
         <div className="flex items-start gap-2 bg-[#D1FAE5] border border-[#6EE7B7] rounded-lg px-3 py-2">
-          <Icon name="check_circle" className="text-[#065F46] !text-[16px] shrink-0 mt-0.5" filled />
+          <Icon
+            name="check_circle"
+            className="text-[#065F46] !text-[16px] shrink-0 mt-0.5"
+            filled
+          />
           <p className="text-[12px] text-[#065F46] leading-snug">{addEvidenceMessage}</p>
         </div>
       )}
@@ -260,11 +268,7 @@ export function DuplicateChecker({
   })();
 
   // Jangan tampilkan apa-apa jika tidak ada foto dan GPS idle
-  const hasAnyActivity =
-    isGpsActive ||
-    isGpsDetecting ||
-    checkState !== "idle" ||
-    hasDuplicates;
+  const hasAnyActivity = isGpsActive || isGpsDetecting || checkState !== "idle" || hasDuplicates;
 
   if (!hasAnyActivity) return null;
 
@@ -354,7 +358,9 @@ export function DuplicateChecker({
           {/* Label jumlah laporan */}
           {district && (
             <p className="text-[12px] text-[#475569]">
-              <span className="font-semibold text-[#0F172A]">{allDuplicates.length} laporan aktif</span>{" "}
+              <span className="font-semibold text-[#0F172A]">
+                {allDuplicates.length} laporan aktif
+              </span>{" "}
               ditemukan di Kecamatan {district}
             </p>
           )}

@@ -1,7 +1,6 @@
 from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from ultralytics import YOLO
 from PIL import Image
 import io, base64, cv2, numpy as np, os
@@ -16,6 +15,7 @@ app.add_middleware(
     # Tambahkan FRONTEND_URL dan NGROK_URL dari environment variable.
     allow_origins=[
         origin for origin in [
+            "null",  # untuk file:// protocol (buka HTML langsung)
             "http://localhost:8080",
             "http://localhost:5173",
             "http://localhost:3000",
@@ -142,14 +142,13 @@ async def analyze(file: UploadFile = File(...)):
     })
 
 
-# Serve file HTML statis (opsional, untuk test langsung)
-html_dir = Path(__file__).parent
-test_html = html_dir / "test_jalankita (1).html"
-if test_html.exists():
-    try:
-        app.mount("/static", StaticFiles(directory=str(html_dir)), name="static")
-    except Exception:
-        pass
+# Serve HTML test di root — buka http://localhost:8000 langsung
+@app.get("/")
+def serve_test_html():
+    html_path = Path(__file__).parent / "test_jalankita (1).html"
+    if html_path.exists():
+        return HTMLResponse(content=html_path.read_text("utf-8"))
+    return HTMLResponse("<h1>JalanKita API</h1><p>test_jalankita.html tidak ditemukan</p>")
 
 
 if __name__ == "__main__":
