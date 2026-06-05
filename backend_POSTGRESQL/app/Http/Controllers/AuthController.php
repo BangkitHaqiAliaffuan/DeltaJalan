@@ -12,7 +12,7 @@ use Illuminate\Validation\ValidationException;
 /**
  * AuthController
  *
- * Menangani autentikasi pengguna JalanKita.
+ * Menangani autentikasi pengguna DeltaJalan.
  * Mendukung 2 role: petugas dan supervisor.
  * Role ditentukan otomatis dari data user di database — tidak perlu dipilih saat login.
  *

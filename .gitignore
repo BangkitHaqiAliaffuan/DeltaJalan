@@ -4,3 +4,19 @@ backend_AI\dataset_merged
 .env
 .env.local
 .env.*.local
+
+# opencode config — contains API keys
+opencode.json
+
+# Python cache
+__pycache__/
+*.pyc
+
+# AI training artifacts (can be regenerated)
+backend_AI/result/
+backend_AI/runs/
+backend_AI/dataset_merged/
+
+# Model backup not needed in repo (primary best.pt in LFS)
+backend_AI/best-corrupt.pt
+backend_AI/best-stable.pt

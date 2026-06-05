@@ -325,7 +325,7 @@
   </div>
 
   <div class="footer-cetak">
-    Dicetak pada: {{ $tanggalCetak }} | Sistem Informasi JalanKita - Dinas PU Bina Marga Kabupaten Sidoarjo
+    Dicetak pada: {{ $tanggalCetak }} | Sistem Informasi DeltaJalan - Dinas PU Bina Marga Kabupaten Sidoarjo
   </div>
 
 </body>

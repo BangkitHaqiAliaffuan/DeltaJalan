@@ -2,33 +2,16 @@
 
 use App\Http\Controllers\AIController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReportExportController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-/*
-|--------------------------------------------------------------------------
-| API Routes — JalanKita Backend
-|--------------------------------------------------------------------------
-*/
+// ── API Routes — DeltaJalan Backend ─────────────────────────────────────────
 
-// ── Auth Routes (publik, tidak perlu token) ───────────────────────────────
-
-/**
- * POST /api/auth/login
- * Throttle: maks 10 percobaan per menit per IP.
- * Cukup longgar untuk penggunaan normal, tapi mencegah brute force.
- */
-Route::middleware('throttle:10,1')->post('/auth/login', [AuthController::class, 'login']);
-
-// ── Auth Routes (butuh token Sanctum) ────────────────────────────────────
-Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/auth/logout', [AuthController::class, 'logout']);
-    Route::get('/auth/me',     [AuthController::class, 'me']);
-});
-
-// ── Routes JalanKita ──────────────────────────────────────────────────────
+// ── Routes DeltaJalan ──────────────────────────────────────────────────────
 
 // ── Proxy endpoint ──────────────────────────────────────────────────────────
 Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
@@ -51,6 +34,11 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
  * Query params: latitude, longitude, district, road_name
  */
 Route::get('/v1/reports/check-duplicate', [ReportController::class, 'checkDuplicate']);
+
+// ── Auth routes (public) ──────────────────────────────────────────────────
+Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/auth/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
+Route::get('/auth/me', [AuthController::class, 'me'])->middleware('auth:sanctum');
 
 // ── Routes yang memerlukan autentikasi Sanctum ────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
@@ -92,6 +80,13 @@ Route::middleware('auth:sanctum')->group(function () {
      * HARUS sebelum /reports/{id} agar "stats" tidak tertangkap sebagai UUID.
      */
     Route::get('/reports/stats', [ReportController::class, 'stats']);
+
+    /**
+     * GET /api/reports/map-data
+     * HARUS sebelum /reports/{id}.
+     * Data agregat per kecamatan + laporan + statistik untuk Peta Interaktif GIS.
+     */
+    Route::get('/reports/map-data', [ReportController::class, 'mapData']);
 
     /**
      * GET /api/reports/stats-by-upr
@@ -201,4 +196,16 @@ Route::middleware('auth:sanctum')->group(function () {
      * Petugas eksekusi memperbarui kategori kerusakan (severity) dan/atau prioritas.
      */
     Route::post('/reports/{id}/update-triage', [ReportController::class, 'updateTriage']);
+
+    // ── Notifikasi ────────────────────────────────────────────────────────
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+    Route::delete('/notifications', [NotificationController::class, 'destroyAll']);
+
+    // ── Push Notification (WebPush) ────────────────────────────────────────
+    Route::get('/push/vapid-key', [PushSubscriptionController::class, 'vapidKey']);
+    Route::post('/push/subscribe', [PushSubscriptionController::class, 'subscribe']);
+    Route::post('/push/unsubscribe', [PushSubscriptionController::class, 'unsubscribe']);
 });

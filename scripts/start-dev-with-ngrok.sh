@@ -27,7 +27,7 @@ echo ""
 # Start FastAPI server
 echo "🔧 Menjalankan FastAPI AI Server..."
 cd ../backend_AI
-python -m uvicorn server:app --host 0.0.0.0 --port 8000 &
+python -m uvicorn server:app  &
 FASTAPI_PID=$!
 echo "   PID: $FASTAPI_PID"
 sleep 2
@@ -44,13 +44,13 @@ echo ""
 
 # Start Frontend dev server
 echo "🔧 Menjalankan Frontend (Vite)..."
-cd ../Frontend
+cd ../Frontend-stable
 bun run dev &
 FRONTEND_PID=$!
 sleep 3
 echo ""
 
-# Start ngrok tunnel
+# # Start ngrok tunnel
 echo "🌐 Membuat ngrok tunnel ke http://localhost:5173..."
 echo ""
 ngrok http 5173 --log=stdout

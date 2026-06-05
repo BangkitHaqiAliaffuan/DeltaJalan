@@ -1,172 +1,256 @@
-# JalanKita — AGENTS.md
+# AGENTS.md
 
-Internal road damage reporting app for **Dinas PU Bina Marga Kabupaten Sidoarjo**. Four roles: `petugas`, `petugas_eksekusi`, `supervisor`, `admin` (not yet implemented). No public/warga role.
+This file provides guidance to AI coding agents (Claude Code, Cursor, Copilot, Antigravity, etc.) when working with code in this repository.
 
-## Stack & layout
+## MANDATORY RULE: Skill-First Execution
+
+Before implementing ANY task, feature, bug fix, refactor, or UI change, the agent MUST:
+
+1. Determine which skill(s) from `./skills/<skill-name>/SKILL.md` apply (e.g., `incremental-implementation`, `frontend-ui-engineering`, `debugging-and-error-recovery`, `planning-and-task-breakdown`, etc.)
+2. Read the full SKILL.md file(s) using the file reader
+3. Follow the skill instructions strictly — never implement directly without reading the skill first
+
+This rule applies to every single prompt. The agent may NOT skip this step for any reason, including "this is too small" or "I'll just do it quickly."
+
+## Repository Overview
+
+A collection of skills for Claude.ai and Claude Code for senior software engineers. Skills are packaged instructions and scripts that extend Claude and your coding agents capabilities.
+
+## OpenCode Integration
+
+OpenCode uses a **skill-driven execution model** powered by the `skill` tool and this repository's `/skills` directory.
+
+## SKILL DISCOVERY & INVOCATION (CRITICAL)
+DO NOT attempt to use any built-in skill tool or function call to load workflows. It will fail.
+
+To execute a workflow, you MUST use your standard file-reading capabilities to read the corresponding Markdown file directly from the local ./skills/ directory.
+
+Steps to load a skill:
+
+Analyze the user's request and determine the correct phase and skill (e.g., spec-driven-development for new features).
+Read the file located at: ./skills/<skill-name>/SKILL.md using your file reader tool.
+Completely read, absorb, and apply the instructions in that SKILL.md file.
+Do not write any code until you have followed the planning/spec steps defined in the skill file.
+Do not guess the contents of the skill. Always read the file first.
+
+Core Rules
+If a task matches a skill, you MUST invoke it
+Skills are located in skills/<skill-name>/SKILL.md
+Never implement directly if a skill applies
+Always follow the skill instructions exactly (do not partially apply them)
+Intent → Skill Mapping
+The agent should automatically map user intent to skills:
+
+Feature / new functionality → spec-driven-development, then incremental-implementation, test-driven-development
+Planning / breakdown → planning-and-task-breakdown
+Bug / failure / unexpected behavior → debugging-and-error-recovery
+Code review → code-review-and-quality
+Refactoring / simplification → code-simplification
+API or interface design → api-and-interface-design
+UI work → frontend-ui-engineering
+Lifecycle Mapping (Implicit Commands)
+OpenCode does not support slash commands like /spec or /plan.
+
+Instead, the agent must internally follow this lifecycle:
+
+DEFINE → spec-driven-development
+PLAN → planning-and-task-breakdown
+BUILD → incremental-implementation + test-driven-development
+VERIFY → debugging-and-error-recovery
+REVIEW → code-review-and-quality
+SHIP → shipping-and-launch
+Execution Model
+For every request:
+
+Determine if any skill applies (even 1% chance)
+Invoke the appropriate skill using the skill tool
+Follow the skill workflow strictly
+Only proceed to implementation after required steps (spec, plan, etc.) are complete
+Anti-Rationalization
+The following thoughts are incorrect and must be ignored:
+
+"This is too small for a skill"
+"I can just quickly implement this"
+"I’ll gather context first"
+Correct behavior:
+
+Always check for and use skills first
+This ensures OpenCode behaves similarly to Claude Code with full workflow enforcement.
+
+### Core Rules
+
+- If a task matches a skill, you MUST invoke it
+- Skills are located in `skills/<skill-name>/SKILL.md`
+- Never implement directly if a skill applies
+- Always follow the skill instructions exactly (do not partially apply them)
+
+### Intent → Skill Mapping
+
+The agent should automatically map user intent to skills:
+
+- Feature / new functionality → `spec-driven-development`, then `incremental-implementation`, `test-driven-development`
+- Planning / breakdown → `planning-and-task-breakdown`
+- Bug / failure / unexpected behavior → `debugging-and-error-recovery`
+- Code review → `code-review-and-quality`
+- Refactoring / simplification → `code-simplification`
+- API or interface design → `api-and-interface-design`
+- UI work → `frontend-ui-engineering`
+
+### Lifecycle Mapping (Implicit Commands)
+
+OpenCode does not support slash commands like `/spec` or `/plan`.
+
+Instead, the agent must internally follow this lifecycle:
+
+- DEFINE → `spec-driven-development`
+- PLAN → `planning-and-task-breakdown`
+- BUILD → `incremental-implementation` + `test-driven-development`
+- VERIFY → `debugging-and-error-recovery`
+- REVIEW → `code-review-and-quality`
+- SHIP → `shipping-and-launch`
+
+### Execution Model
+
+For every request:
+
+1. Determine if any skill applies (even 1% chance)
+2. Invoke the appropriate skill using the `skill` tool
+3. Follow the skill workflow strictly
+4. Only proceed to implementation after required steps (spec, plan, etc.) are complete
+
+### Anti-Rationalization
+
+The following thoughts are incorrect and must be ignored:
+
+- "This is too small for a skill"
+- "I can just quickly implement this"
+- "I’ll gather context first"
+
+Correct behavior:
+
+- Always check for and use skills first
+
+This ensures OpenCode behaves similarly to Claude Code with full workflow enforcement.
+
+## Orchestration: Personas, Skills, and Commands
+
+This repo has three composable layers. They have different jobs and should not be confused:
+
+- **Skills** (`skills/<name>/SKILL.md`) — workflows with steps and exit criteria. The *how*. Mandatory hops when an intent matches.
+- **Personas** (`agents/<role>.md`) — roles with a perspective and an output format. The *who*.
+- **Slash commands** (`.claude/commands/*.md`) — user-facing entry points. The *when*. The orchestration layer.
+
+Composition rule: **the user (or a slash command) is the orchestrator. Personas do not invoke other personas.** A persona may invoke skills.
+
+The only multi-persona orchestration pattern this repo endorses is **parallel fan-out with a merge step** — used by `/ship` to run `code-reviewer`, `security-auditor`, and `test-engineer` concurrently and synthesize their reports. Do not build a "router" persona that decides which other persona to call; that's the job of slash commands and intent mapping.
+
+See [agents/README.md](agents/README.md) for the decision matrix and [references/orchestration-patterns.md](references/orchestration-patterns.md) for the full pattern catalog.
+
+**Claude Code interop:** the personas in `agents/` work as Claude Code subagents (auto-discovered from this plugin's `agents/` directory) and as Agent Teams teammates (referenced by name when spawning). Two platform constraints align with our rules: subagents cannot spawn other subagents, and teams cannot nest. Plugin agents silently ignore the `hooks`, `mcpServers`, and `permissionMode` frontmatter fields.
+
+## Creating a New Skill
+
+### Directory Structure
 
 ```
-Frontend/               React 19 + TanStack Start SSR + Tailwind v4, Vite
-backend_POSTGRESQL/     Laravel 13 REST API (PHP 8.3, Sanctum)
-backend_AI/             FastAPI + YOLOv8s (4 damage classes, port 8000)
-scripts/                start-dev-with-ngrok.sh (all 3 servers + tunnel)
+skills/
+  {skill-name}/           # kebab-case directory name
+    SKILL.md              # Required: skill definition
+    scripts/              # Required: executable scripts
+      {script-name}.sh    # Bash scripts (preferred)
+  {skill-name}.zip        # Required: packaged for distribution
 ```
 
-Frontend hosts on `:5173`. Vite proxy forwards `/api/*` → `http://localhost:8080` (Laravel). Laravel forwards AI requests to FastAPI at `:8000`.
+### Naming Conventions
 
-## Dev commands
+- **Skill directory**: `kebab-case` (e.g. `web-quality`)
+- **SKILL.md**: Always uppercase, always this exact filename
+- **Scripts**: `kebab-case.sh` (e.g., `deploy.sh`, `fetch-logs.sh`)
+- **Zip file**: Must match directory name exactly: `{skill-name}.zip`
+
+### SKILL.md Format
+
+```markdown
+---
+name: {skill-name}
+description: {One sentence describing what the skill does, followed by one or more "Use when" trigger conditions. Include trigger phrases like "Deploy my app" or "Check logs" when helpful.}
+---
+
+# {Skill Title}
+
+{Brief overview of what the skill does and why it matters.}
+
+## How It Works
+
+{Numbered list explaining the skill's workflow}
+
+Equivalent headings like `Workflow`, `Core Process`, or `When to Use` are fine when they communicate the same structure clearly.
+
+## Usage (Optional)
+
+Include this section only if the skill ships runnable helpers under `scripts/`. Markdown-only skills can omit both the section and the directory entirely.
 
 ```bash
-# Frontend
-npm install && npm run dev          # Vite on :5173
-
-# Laravel
-composer install && php artisan serve --port=8080
-# Or: composer run dev  # starts artisan :8080 + queue + logs + Vite concurrently
-
-# AI Server
-cd backend_AI && pip install -r requirements.txt && python server.py   # :8000
-
-# All stacked
-bash scripts/start-dev-with-ngrok.sh   # needs bun + ngrok installed
-
-# Frontend checks
-npm run lint      # eslint
-npm run format    # prettier --write .
-
-# Laravel checks
-composer run test  # php artisan config:clear && php artisan test
+bash /mnt/skills/user/{skill-name}/scripts/{script}.sh [args]
 ```
 
-## Key structural facts
+**Arguments:**
+- `arg1` - Description (defaults to X)
 
-- **`vite.config.ts`** uses `@lovable.dev/vite-tanstack-config` — do NOT add Vite plugins manually (TanStack Start plugin, React plugin, Tailwind, etc. are already bundled).
-- **`routeTree.gen.ts`** is auto-generated — do not edit. Regenerated by TanStack Router codegen.
-- **`src/server.ts`** is the SSR entrypoint (referenced by `wrangler.jsonc` and vite config).
-- **`src/lib/auth.ts`** stores token + user in `localStorage` (known XSS risk, not fixed).
-- **`solution.md`** is the original implementation spec (trust score, batch upload, autocomplete guarding) — preserved as reference. Do not delete.
-- **`SECURITY_ANALYSIS.md`** documents known security issues vs fixed items.
+**Examples:**
+{Show 2-3 common usage patterns}
 
-## Roles
+## Output
 
-| Role | Login | Dashboard | Capabilities |
-|---|---|---|---|
-| `petugas` | petugas@example.com / password | `/home` | Upload single/batch, lihat laporan sendiri |
-| `petugas_eksekusi` | eksekusi.satgaswilayahutara@jalankita.test / password123 | `/petugas-eksekusi` | Lihat tugas UPR, mulai & selesaikan pengerjaan |
-| `supervisor` | supervisor@example.com / password | `/supervisor` | Approve/tolak, assign UPR, mulai & tutup, lihat semua |
+{Show example output users will see}
 
-Setiap role `petugas_eksekusi` terikat ke 1 UPR via `users.upr_id` FK → `uprs.id`. 4 seed users (satu per Satgas).
+## Present Results to User
 
-## API routes (`backend_POSTGRESQL/routes/api.php`)
+{Template for how Claude should format results when presenting to users}
 
-| Endpoint | Auth | Access | Notes |
-|---|---|---|---|
-| `POST /auth/login` | Public | All | Throttled 10/min, returns `upr_id` + `upr_name` for petugas_eksekusi |
-| `POST /analyze` | Sanctum | All | Single photo AI analysis (forward to FastAPI) |
-| `POST /reports` | Sanctum | All | Single report store |
-| `POST /analyze-batch` | Sanctum | All | Batch AI (max 20 photos) |
-| `POST /reports/batch` | Sanctum | All | Batch report store (main + sub-reports) |
-| `GET /v1/reports/check-duplicate` | Public | All | Spatial (15m Haversine) + textual dedup |
-| `POST /reports/{id}/mulai` | Sanctum | Supervisor, Petugas Eksekusi (own UPR) | Assign UPR + start work (→ Sedang Diperbaiki) |
-| `POST /reports/{id}/complete` | Sanctum | Supervisor, Petugas Eksekusi (own UPR) | Upload after photo + close (→ Selesai) |
-| `POST /reports/{id}/assign` | Sanctum | Supervisor only | Re-assign to different UPR |
-| `POST /reports/{id}/reopen` | Sanctum | Supervisor | Re-open Selesai → Sedang Diperbaiki |
-| `POST /reports/bulk-approve` | Sanctum | Supervisor | Approve multiple reports at once |
-| `POST /reports/bulk-tolak` | Sanctum | Supervisor | Reject multiple reports at once |
-| `GET /reports/stats-by-upr` | Sanctum | All | Statistics breakdown per UPR |
-| `GET /uprs` | Sanctum | All | List active UPR/tim satgas |
+## Troubleshooting
 
-All critical validation (EXIF date, GPS EXIF extraction, road name vs coordinate matching, trust score) is in backend — frontend is UX layer only.
-
-## Non-obvious conventions
-
-- **Trust score is triage, not gatekeeper** — never hard-reject a report because score is low. Supervisor is final decision maker.
-- **Batch upload**: each sub-report gets its own coordinate from GPS EXIF if available, falls back to form coordinate. Photos without EXIF date/warning are skipped but don't fail the batch.
-- **Coordinate boundary**: all coordinates validated to be within Sidoarjo / Indonesia bounds.
-- **EXIF date validation**: photos > 2 days old or future-dated are rejected for single upload; in batch they are skipped per-file.
-- **Image dedup**: SHA-256 hash on file content. Duplicate photos within or across batches are silently skipped.
-- **Road name**: must be selected from autocomplete dropdown (LocationIQ). Manual typing is warned in UI but not blocked at API level — trust score handles it.
-- **Road name fuzzy match threshold**: 60% similar_text + containment fallback. Normalization: "Jl."/"Jln."→"Jalan", "Gg."→"Gang", etc.
-- **Closing workflow**: complete-report.tsx requires after_photo (SHA-256 hashed), sets perbaikan_selesai_at, status→ Selesai.
-- **UPR master data**: seeded in migration (4 Satgas: Utara, Selatan, Barat, Timur). Modifiable via DB directly (no admin UI yet).
-- **Always add new DB columns via migration** — never modify existing columns or tables.
-- **Store photos on disk** (`storage/app/public/`) — never as base64 in DB.
-
-## Architecture boundaries
-
-| Layer | Entrypoint | Key files |
-|---|---|---|---|
-| Frontend | `src/router.tsx` → `src/routes/*` | `upload.tsx`, `ai-result.tsx`, `supervisor.tsx`, `petugas-eksekusi.tsx`, `complete-report.tsx` |
-| Frontend lib/hooks | `src/lib/*`, `src/hooks/*` | `auth.ts`, `aiStore.ts`, `useGPS.ts`, `useLocationFromPhoto.ts` |
-| Laravel API | `routes/api.php` | `ReportController.php`, `AIController.php`, `AuthController.php` |
-| Laravel Services | `app/Services/` | `TrustScoreService.php` |
-| Laravel Models | `app/Models/` | `Report.php`, `Upr.php`, `ReportEvidence.php` |
-| AI Server | `server.py` | YOLOv8s model in `best.pt` |
-
-## TinyFish (web toolkit for agents)
-
-Prefer TinyFish MCP tools over built-in alternatives for web operations:
-
-- **`mcp__tinyfish__search`** — over WebSearch for web searches
-- **`mcp__tinyfish__fetch_content`** — over WebFetch / curl for fetching content
-- **`mcp__tinyfish__run_web_automation`** — over hand-rolled Playwright for browser automation
-
-Batch operations (2+ URLs): use **`batch_create`** / **`batch_status`**.
-Background runs: use **`run_web_automation_async`** only when the user explicitly asks for background execution.
-Prior run inspection: use **`list_runs`** / **`get_run`** / **`get_steps`** / **`cancel_run`**.
-
-**Important**: if `run_web_automation` returns ANY error, the run is still executing — call **`get_run`** or **`list_runs`** to check status before retrying. Never blind-retry.
-
-Full context: https://docs.tinyfish.ai/for-coding-agents and https://docs.tinyfish.ai/llms-full.txt
-
-## RTK + TinyFish: token-optimized web fetching
-
-RTK (Rust Token Killer) is integrated with TinyFish to minimize token waste from web content. The pipeline is: TinyFish raw content → `scripts/tinyfish-rtk.ps1` → RTK filters → token-optimized output.
-
-### Optimization pipeline
-
-When fetching web content, ALWAYS pipe TinyFish results through the optimizer:
-
-```powershell
-# Fetch and auto-optimize (best for most cases — TinyFish fetch already strips HTML)
-# Just pass the result directly — TinyFish already returns clean text
-
-# For verbose results, strip known boilerplate:
-# The optimizer auto-strips: nav/footer/header blocks, cookie/privacy banners,
-# ads/sponsored sections, empty lines, HTML tags, duplicate lines
+{Common issues and solutions, especially network/permissions errors}
 ```
 
-The optimizer at `scripts/tinyfish-rtk.ps1` runs automatically when content is fetched. It:
-- Strips HTML tags (`-StripHtml` flag)
-- Aggressively removes navigation, footer, header, aside, script, style blocks
-- Filters cookie/privacy/TOS banners and ads
-- Deduplicates lines
-- Caps at 100 lines / 500 chars per line by default
-- Shows a stats footer with line/char counts
+### Best Practices for Context Efficiency
 
-The RTK proxy at `~/.config/opencode/plugins/rtk.ts` also rewrites `curl`/`iwr` commands through RTK's built-in filters for additional savings.
+Skills are loaded on-demand — only the skill name and description are loaded at startup. The full `SKILL.md` loads into context only when the agent decides the skill is relevant. To minimize context usage:
 
-### Token-efficient TinyFish patterns
+- **Keep SKILL.md under 500 lines** — put detailed reference material in separate files
+- **Write specific descriptions** — helps the agent know exactly when to activate the skill
+- **Use progressive disclosure** — reference supporting files that get read only when needed
+- **Prefer scripts over inline code** — script execution doesn't consume context (only output does)
+- **File references work one level deep** — link directly from SKILL.md to supporting files
 
-| Pattern | Why |
-|---|---|
-| Use `fetch_content` with specific URLs (not search results) | `fetch_content` returns clean text; `search` returns ranked links |
-| For `search`, limit queries to 3-5 keywords | Fewer results = fewer tokens |
-| Ask TinyFish for "concise" or "summary" format | `fetch_content` supports `format: text` which is cleaner |
-| Prefer `fetch_content` over `run_web_automation` for reading | Automation is 1 credit/step; fetch is 1 credit/15 URLs |
-| For 2+ URLs, use `batch_create`/`batch_status` | Single batch context vs multiple calls |
-| Do NOT pipe TinyFish results through `curl`/`wget` | Duplicates work — TinyFish already fetched the content |
+### Script Requirements
 
-### Saved tokens tracking
+- Use `#!/bin/bash` shebang
+- Use `set -e` for fail-fast behavior
+- Write status messages to stderr: `echo "Message" >&2`
+- Write machine-readable output (JSON) to stdout
+- Include a cleanup trap for temp files
+- Reference the script path as `/mnt/skills/user/{skill-name}/scripts/{script}.sh`
 
-RTK tracks all savings automatically. Check with:
+### Creating the Zip Package
+
+After creating or updating a skill:
+
 ```bash
-rtk gain            # dashboard
-rtk gain --history  # per-command breakdown
+cd skills
+zip -r {skill-name}.zip {skill-name}/
 ```
 
-### When to bypass optimization
+### End-User Installation
 
-Don't optimize when:
-- The raw HTML structure is needed (e.g., scraping specific attributes)
-- The content is already short (< 20 lines)
-- Debugging TinyFish response format
+Document these two installation methods for users:
+
+**Claude Code:**
+```bash
+cp -r skills/{skill-name} ~/.claude/skills/
+```
+
+**claude.ai:**
+Add the skill to project knowledge or paste SKILL.md contents into the conversation.
+
+If the skill requires network access, instruct users to add required domains at `claude.ai/settings/capabilities`.

@@ -1,0 +1,13 @@
+{
+  "name": "DeltaJalan - Sistem Pelaporan Kerusakan Jalan",
+  "short_name": "DeltaJalan",
+  "description": "Sistem pelaporan dan penanganan kerusakan jalan",
+  "theme_color": "#2563EB",
+  "background_color": "#FFFFFF",
+  "display": "standalone",
+  "scope": "/",
+  "start_url": "/",
+  "icons": [
+    { "src": "/logo.png", "sizes": "248x247", "type": "image/png" }
+  ]
+}

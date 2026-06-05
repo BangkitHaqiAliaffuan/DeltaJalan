@@ -26,18 +26,22 @@ class ReportPhoto extends Model
         'ai_confidence',
         'ai_raw_output',
         'total_detections',
+        'kerusakan_panjang',
+        'kerusakan_lebar',
         'system_notes',
         'sort_order',
         'original_filename',
     ];
 
     protected $casts = [
-        'ai_raw_output' => 'array',
-        'latitude'      => 'decimal:8',
-        'longitude'     => 'decimal:8',
-        'ai_confidence' => 'decimal:3',
-        'total_detections' => 'integer',
-        'sort_order'    => 'integer',
+        'ai_raw_output'      => 'array',
+        'latitude'           => 'decimal:8',
+        'longitude'          => 'decimal:8',
+        'ai_confidence'      => 'decimal:3',
+        'total_detections'   => 'integer',
+        'kerusakan_panjang'  => 'decimal:2',
+        'kerusakan_lebar'    => 'decimal:2',
+        'sort_order'         => 'integer',
     ];
 
     public function report(): BelongsTo

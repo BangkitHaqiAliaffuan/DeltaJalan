@@ -2,7 +2,7 @@
 
 /*
 |--------------------------------------------------------------------------
-| CORS Configuration — JalanKita
+| CORS Configuration — DeltaJalan
 |--------------------------------------------------------------------------
 |
 | Konfigurasi Cross-Origin Resource Sharing untuk mengizinkan frontend

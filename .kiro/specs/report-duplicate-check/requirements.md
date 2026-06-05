@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Fitur **Anti-Duplikasi Laporan** (*report-duplicate-check*) adalah mekanisme pencegahan laporan ganda pada aplikasi JalanKita. Fitur ini membantu petugas lapangan Dinas Perhubungan Kabupaten Sidoarjo untuk mengetahui apakah kerusakan jalan yang hendak mereka laporkan sudah pernah dilaporkan sebelumnya oleh petugas lain.
+Fitur **Anti-Duplikasi Laporan** (*report-duplicate-check*) adalah mekanisme pencegahan laporan ganda pada aplikasi DeltaJalan. Fitur ini membantu petugas lapangan Dinas Perhubungan Kabupaten Sidoarjo untuk mengetahui apakah kerusakan jalan yang hendak mereka laporkan sudah pernah dilaporkan sebelumnya oleh petugas lain.
 
 Fitur ini bekerja melalui empat pendekatan yang saling melengkapi:
 
@@ -34,7 +34,7 @@ Fitur ini diintegrasikan ke halaman `upload.tsx` yang sudah ada, dan memanfaatka
 - **NominatimAPI**: Layanan reverse geocoding publik dari OpenStreetMap yang mengonversi koordinat GPS menjadi alamat jalan terstruktur, dapat diakses di `https://nominatim.openstreetmap.org/reverse`.
 - **ReverseGeocoding**: Proses mengonversi koordinat GPS (latitude, longitude) menjadi nama jalan dan wilayah administratif yang dapat dibaca manusia.
 - **ImageHash**: Nilai hash kriptografis (MD5, 32 karakter heksadesimal) yang dihitung dari konten biner file gambar, digunakan untuk mendeteksi foto yang identik secara konten.
-- **Petugas**: Pengguna aplikasi JalanKita dengan role petugas lapangan.
+- **Petugas**: Pengguna aplikasi DeltaJalan dengan role petugas lapangan.
 - **Debounce**: Teknik menunda eksekusi fungsi hingga pengguna berhenti mengetik selama interval tertentu (300ms).
 - **HaversineFormula**: Rumus matematika untuk menghitung jarak antara dua titik koordinat di permukaan bumi.
 

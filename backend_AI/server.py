@@ -2,7 +2,7 @@ from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
-from PIL import Image
+from PIL import Image, ImageOps
 import io, base64, cv2, numpy as np, os
 from pathlib import Path
 
@@ -81,6 +81,9 @@ async def analyze(file: UploadFile = File(...)):
     contents = await file.read()
     try:
         img = Image.open(io.BytesIO(contents)).convert("RGB")
+        img = ImageOps.exif_transpose(img)
+        if img is None:
+            return JSONResponse({"status": "error", "message": "Gagal memproses orientasi gambar"}, status_code=400)
     except Exception:
         return JSONResponse({"status": "error", "message": "File bukan gambar yang valid"}, status_code=400)
 
@@ -89,6 +92,10 @@ async def analyze(file: UploadFile = File(...)):
 
     # Gambar dengan bounding box
     img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+    h_img, w_img = img_cv.shape[:2]
+    line_w = max(4, int(min(w_img, h_img) * 0.003))
+    label_scale = max(0.55, round(min(w_img, h_img) * 0.0004, 2))
+    label_th = max(1, int(min(w_img, h_img) * 0.0008))
     detections = []
 
     for r in results:
@@ -101,14 +108,14 @@ async def analyze(file: UploadFile = File(...)):
             color = BOX_COLORS.get(cid, (100, 100, 100))
 
             # Gambar bounding box
-            cv2.rectangle(img_cv, (x1, y1), (x2, y2), color, 2)
+            cv2.rectangle(img_cv, (x1, y1), (x2, y2), color, line_w)
 
             # Label background + teks
             label = f"{name} {conf:.0%}"
-            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.55, 1)
+            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, label_scale, label_th)
             cv2.rectangle(img_cv, (x1, y1 - th - 10), (x1 + tw + 8, y1), color, -1)
             cv2.putText(img_cv, label, (x1 + 4, y1 - 5),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
+                        cv2.FONT_HERSHEY_SIMPLEX, label_scale, (255, 255, 255), label_th, cv2.LINE_AA)
 
             # Hitung area piksel
             area_px = (x2 - x1) * (y2 - y1)

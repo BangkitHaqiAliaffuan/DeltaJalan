@@ -37,7 +37,7 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | FastAPI AI Server — JalanKita
+    | FastAPI AI Server — DeltaJalan
     |--------------------------------------------------------------------------
     |
     | Konfigurasi untuk server FastAPI yang menjalankan model YOLOv8s.

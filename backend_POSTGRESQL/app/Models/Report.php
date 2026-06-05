@@ -245,6 +245,14 @@ public const STATUS_VALUES = [
     }
 
     /**
+     * Riwayat perubahan status laporan ini.
+     */
+    public function statusLogs(): HasMany
+    {
+        return $this->hasMany(StatusLog::class, 'report_id')->orderBy('created_at');
+    }
+
+    /**
      * Foto pertama (untuk thumbnail preview di dashboard).
      */
     public function firstPhoto(): HasOne

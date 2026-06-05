@@ -1,4 +1,4 @@
-# JalanKita — Design System
+# DeltaJalan — Design System (Civic Precision)
 
 ## 1. Stack & Tools
 
@@ -8,14 +8,14 @@
 | Styling | Tailwind CSS v4 + `tw-animate-css` |
 | Design tokens | Inline `@theme` block in `src/styles.css` |
 | Icons | **Material Symbols Outlined** (variable fonts, Google Fonts) |
-| Fonts | **Inter** (semua teks — headlines, body, labels), **JetBrains Mono** (codes) |
+| Fonts | **Manrope** (headlines — display, heading levels), **Inter** (body, labels, buttons), **JetBrains Mono** (codes) |
 | Maps | Leaflet 1.9.4 (`react-leaflet` 5.0, dynamic import) |
 | Route | TanStack Router (file-based, `routeTree.gen.ts` auto-generated) |
 | Build | Vite 7 + `@lovable.dev/vite-tanstack-config` (bundles TanStack Start + React + Tailwind plugins — do NOT add Vite plugins manually) |
 
 Tailwind v4 is configured exclusively via CSS (`@import "tailwindcss"` in `styles.css`) — no `tailwind.config.*` or `postcss.config.*` file exists.
 
-> **Font change:** Plus Jakarta Sans dihapus. Inter dipakai untuk semua teks termasuk heading — lebih netral, sangat terbaca untuk data-dense UI instansi. Update `__root.tsx` font link accordingly.
+> **Font pairing:** Manrope untuk headlines (geometric, modern, premium) + Inter untuk body/labels (legibility di data-dense UI). Berasal dari Stitch design system "Civic Precision" (proyek DeltaJalan Redesign).
 
 ---
 
@@ -37,65 +37,55 @@ Warna dipakai **hanya untuk fungsi**, bukan dekorasi:
 
 | Token | Hex | Usage |
 |---|---|---|
-| `--color-primary` | `#1A4F8A` | Primary buttons, links, active nav, sidebar bg |
+| `--color-primary` | `#1e40af` | Primary buttons, links, active nav |
 | `--color-on-primary` | `#ffffff` | Text on primary bg |
-| `--color-primary-container` | `#1A4F8A` | Same as primary (container alias) |
+| `--color-primary-container` | `#1e40af` | Same as primary (container alias) |
 | `--color-on-primary-container` | `#ffffff` | Text on primary container |
-| `--color-primary-fixed` | `#C8DEFF` | Light variant, subtle primaries — lebih biru, tidak ungu |
-| `--color-primary-fixed-dim` | `#93BBF7` | Dimmer variant |
-| `--color-secondary` | `#2C5F9E` | Secondary actions — biru satu ramp lebih terang dari primary |
-| `--color-secondary-container` | `#C8DEFF` | Container variant |
-| `--color-surface` | `#F5F7FA` | Page background — abu sangat terang, bukan ungu |
-| `--color-on-surface` | `#0F1623` | Primary text — hampir hitam, kontras tinggi |
-| `--color-on-surface-variant` | `#3D4A5C` | Secondary text, muted — abu biru gelap |
-| `--color-surface-variant` | `#D6E4F7` | Variant surface — biru muda |
-| `--color-surface-bright` | `#FFFFFF` | Brightest surface |
-| `--color-surface-dim` | `#C9D8EC` | Dimmed surface |
-| `--color-surface-container-lowest` | `#FFFFFF` | Card backgrounds, white |
-| `--color-surface-container-low` | `#EEF3FA` | Hover, subtle containers |
-| `--color-surface-container` | `#E4EBF5` | General container |
-| `--color-surface-container-high` | `#D6E0EF` | Elevated containers |
-| `--color-surface-container-highest` | `#C8D6EB` | Highest container |
-| `--color-bg-surface` | `#F5F7FA` | Global app bg (used in AppLayout) |
-| `--color-background` | `#F5F7FA` | Root background |
-| `--color-on-background` | `#0F1623` | Text on background |
+| `--color-primary-fixed` | `#dde1ff` | Light variant |
+| `--color-primary-fixed-dim` | `#b8c4ff` | Dimmer variant |
+| `--color-secondary` | `#735c00` | Gold-toned secondary (dari PU logo) |
+| `--color-on-secondary` | `#ffffff` | Text on secondary bg |
+| `--color-secondary-container` | `#fed01b` | Gold/yellow container |
+| `--color-surface` | `#f7f9fb` | Page background — slate sangat terang |
+| `--color-on-surface` | `#0F172A` | Primary text — hampir hitam, kontras tinggi |
+| `--color-on-surface-variant` | `#475569` | Secondary text, muted — slate |
+| `--color-surface-bright` | `#ffffff` | Brightest surface |
+| `--color-surface-dim` | `#d8dadc` | Dimmed surface |
+| `--color-surface-container-lowest` | `#ffffff` | Card backgrounds, white |
+| `--color-surface-container-low` | `#F1F5F9` | Hover, subtle containers, greeting bg |
+| `--color-surface-container` | `#eceef0` | General container |
+| `--color-bg-surface` | `#f7f9fb` | Global app bg (used in AppLayout) |
+| `--color-background` | `#f7f9fb` | Root background |
+| `--color-on-background` | `#191c1e` | Text on background |
 
 ### Outline & Border
 
 | Token | Hex | Usage |
 |---|---|---|
-| `--color-outline` | `#5A6A7E` | Active outlines — abu biru, bukan abu netral |
-| `--color-outline-variant` | `#C0CEDF` | Subtle outlines |
-| `--color-border-subtle` | `#D0DAE8` | Card borders, dividers — lebih biru dari sebelumnya (`#E2E8F0`) |
-
-> **Catatan border:** Border kini `#D0DAE8` (bukan `#E2E8F0`). Lebih terlihat pada background putih tanpa terasa berat. Konsisten dengan Primer GitHub.
+| `--color-outline` | `#757684` | Active outlines |
+| `--color-outline-variant` | `#c4c5d5` | Subtle outlines |
+| `--color-border-subtle` | `#E2E8F0` | Card borders, dividers, table borders |
 
 ### Error / Alert
 
 | Token | Hex | Usage |
 |---|---|---|
-| `--color-error` | `#C0392B` | Error text, icons — merah lebih tua, lebih serius |
+| `--color-error` | `#E11D48` | Error text, icons — rose red |
 | `--color-on-error` | `#ffffff` | Text on error bg |
-| `--color-error-container` | `#FDECEA` | Light error bg |
-| `--color-on-error-container` | `#7B1111` | Text on error container |
+| `--color-error-container` | `#ffdad6` | Light error bg |
+| `--color-on-error-container` | `#93000a` | Text on error container |
 
-### Inverse
-
-| Token | Hex |
-|---|---|
-| `--color-inverse-surface` | `#1A2A3D` |
-| `--color-inverse-primary` | `#93BBF7` |
-
-### Damage Severity (Custom)
-
-Tidak ada perubahan — warna status harus tetap intuitif dan universal.
+### Status Semantic Colors
 
 | Token | Hex | Semantic |
 |---|---|---|
-| `--color-rusak-berat` | `#EF4444` | Severe damage (red) |
-| `--color-rusak-sedang` | `#F97316` | Moderate damage (orange) |
-| `--color-rusak-ringan` | `#F59E0B` | Minor damage (amber) |
-| `--color-selesai` | `#10B981` | Completed status (green) |
+| `--color-status-critical` | `#E11D48` | Severe damage / critical |
+| `--color-status-success` | `#10B981` | Completed / success |
+| `--color-status-warning` | `#F59E0B` | Warning / pending |
+| `--color-rusak-berat` | `#E11D48` | Severe damage |
+| `--color-rusak-sedang` | `#F97316` | Moderate damage |
+| `--color-rusak-ringan` | `#F59E0B` | Minor damage |
+| `--color-selesai` | `#10B981` | Completed |
 
 ### Trust Score Colors (Inline)
 
@@ -115,37 +105,36 @@ Used in `TrustBadge.tsx` — not in `@theme`:
 
 | Role | Font | Usage |
 |---|---|---|
-| Semua teks | **Inter** (400–700 weight) | Headlines, body, labels, buttons, navigation |
+| Headlines (display, heading) | **Manrope** (600–700 weight) | Dashboard greeting, section titles, page headings |
+| Body (semua teks fungsional) | **Inter** (400–500 weight) | Labels, buttons, navigation, descriptions |
 | Code / IDs | **JetBrains Mono** | Report codes (`LP-2026-00042`), technical labels |
 
-> **Mengapa Inter untuk semua?** Inter dirancang khusus untuk layar dan data-dense interfaces (Linear, Vercel, GitHub semuanya pakai Inter). Plus Jakarta Sans terlalu dekoratif untuk konteks instansi pemerintah — terasa seperti startup app, bukan internal tool yang serius.
+> **Mengapa Manrope + Inter?** Manrope memberikan geometric modern character untuk elemen headline — membuat UI terasa "designed" tanpa menjadi dekoratif. Inter digunakan untuk functional text karena legibility tinggi di data-dense views. Ini adalah font pairing dari Stitch design system "Civic Precision".
 
 ### Type Scale (dari `@theme`)
 
-Ukuran sama, hanya font family yang berubah ke Inter semua.
-
-| Token | Size | Weight Convention |
-|---|---|---|
-| `--text-headline-lg` | 28px | `font-bold` (700) |
-| `--text-headline-md` | 24px | `font-bold` (700) |
-| `--text-headline-sm` | 20px | `font-semibold` (600) — naik dari 18px |
-| `--text-headline-lg-mobile` | 22px | `font-bold` (700) |
-| `--text-headline-md-mobile` | 20px | `font-bold` (700) |
-| `--text-headline-sm-mobile` | 17px | `font-semibold` (600) |
-| `--text-body-lg` | 16px | `font-medium` (500) |
-| `--text-body-md` | 14px | `font-normal` (400) |
-| `--text-label-md` | 13px | `font-semibold` (600) — naik dari 12px |
-| `--text-label-sm` | 12px | `font-medium` (500) — naik dari 11px |
-| `--text-id-code` | 12px | `font-normal` (JetBrains Mono) — naik dari 11px |
-
-> **Mengapa label naik ukuran?** 11–12px terlalu kecil untuk pengguna yang tidak terbiasa UI digital (petugas lapangan, staf dinas). Minimum teks actionable = 13px. Lihat referensi GOV.UK yang menetapkan minimum 16px body.
+| Token | Size | Font | Weight Convention |
+|---|---|---|---|
+| `--text-display-lg` | 48px | Manrope | `font-bold` (700), tracking -0.02em |
+| `--text-headline-lg` | 32px | Manrope | `font-bold` (700) |
+| `--text-headline-md` | 24px | Manrope | `font-semibold` (600) |
+| `--text-headline-sm` | 18px | Manrope | `font-semibold` (600) |
+| `--text-headline-lg-mobile` | 24px | Manrope | `font-bold` (700) |
+| `--text-headline-md-mobile` | 20px | Manrope | `font-bold` (700) |
+| `--text-headline-sm-mobile` | 17px | Manrope | `font-semibold` (600) |
+| `--text-body-lg` | 18px | Inter | `font-normal` (400) |
+| `--text-body-md` | 16px | Inter | `font-normal` (400) |
+| `--text-body-sm` | 14px | Inter | `font-normal` (400) |
+| `--text-label-md` | 14px | Inter | `font-semibold` (600), letter-spacing 0.05em |
+| `--text-label-sm` | 12px | Inter | `font-medium` (500) |
+| `--text-id-code` | 12px | JetBrains Mono | `font-normal` (400) |
 
 ### Usage Pattern in Components
 
 ```tsx
 // Page title / brand
 <h1 className="text-headline-lg font-bold text-on-surface tracking-tight">
-  JalanKita
+  DeltaJalan
 </h1>
 
 // Section heading
@@ -212,20 +201,18 @@ Standard Tailwind v4 spacing (`--spacing-*`) is also available: 0.25rem (1), 0.5
 
 | Token | Value |
 |---|---|
-| `--radius` | 0.5rem (8px) — turun dari 10px |
-
-Radius lebih kecil = lebih serius, kurang "playful". Referensi: GOV.UK (0), Primer (6px), Linear (6–8px). Kita pilih 8px sebagai kompromi — tetap modern tapi tidak terlalu bulet.
+| `--radius` | 0.5rem (8px) |
 
 | Komponen | Radius | Kelas |
 |---|---|---|
-| Cards & containers | 8px | `rounded-lg` |
-| Buttons | 8px | `rounded-lg` |
+| Primary buttons, inputs, form fields | 8px | `rounded-lg` |
+| Dashboard cards, stat cards | 16px (1rem) | `rounded-xl` atau `rounded-2xl` |
 | Badges / chips | pill | `rounded-full` |
-| Inputs | 8px | `rounded-lg` |
-| Avatars / icons | circle | `rounded-full` |
 | Modals | 12px | `rounded-xl` |
+| Login card | 12px | `rounded-xl` |
+| Sidebar items | 8px | `rounded-lg` |
 
-> Sebelumnya semua `rounded-xl` (12px). Sekarang turun ke `rounded-lg` (8px) untuk sebagian besar elemen. Modal tetap `rounded-xl`.
+> Berdasarkan Stitch "Civic Precision": cards menggunakan `rounded-xl` (1rem/16px) untuk modern enterprise look. Elemen fungsional (buttons, inputs) tetap 8px.
 
 ---
 
@@ -249,49 +236,86 @@ No global layout wrapper — each route renders its own shell.
 
 ### Login Page (`/` — index.tsx)
 
-Standalone page, no `AppLayout`. Full-screen dengan pendekatan lebih institutional:
+Standalone page, no `AppLayout`. Full-screen dengan pendekatan institutional (Stitch "Login - Unified Sidoarjo Identity"):
 
 ```
 fixed inset-0 w-full h-full overflow-y-auto
-  background: bg-[#F5F7FA]  ← bukan background.jpg — terlalu consumer app
-  centered card: max-w-[400px] bg-white rounded-xl border border-[#D0DAE8] shadow-sm
-    header: logo + "JalanKita" + "Sistem Pelaporan Kerusakan Jalan"
-    divider tipis
-    form: email + password + submit
-    footer: "© Dinas PU Bina Marga Kabupaten Sidoarjo"
+  background: bg-[#f7f9fb]
+  centered card: max-w-[420px] bg-white rounded-xl border border-[#E2E8F0]
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03)
+    header: icon container (14x14 rounded-xl bg-[#F1F5F9] + add_road icon)
+            "DeltaJalan" (font-headline-lg-mobile)
+            "Road Management"
+            "Dinas PU Bina Marga & SDA — Kab. Sidoarjo"
+    body:
+      "Selamat Datang" heading
+      "Silakan masuk dengan kredensial petugas Anda."
+      error banner (bg-red-50, border-red-200, text-[#E11D48])
+      form: email (icon mail prefix) + password (toggle visibility)
+      submit button: bg-[#1e40af], hover:bg-[#173bab]
+    footer: security icon + "Sistem Keamanan Internal Terenkripsi"
 ```
 
-> **Perubahan besar:** Background foto dihilangkan. Halaman login kini solid `#F5F7FA` dengan card putih dan border tipis. Lebih terasa seperti sistem internal pemerintah (SIMDA, SIPKD, dll.) yang familiar bagi pengguna target.
+> **Perubahan dari versi sebelumnya:** Background foto dihilangkan. Footer keamanan ditambahkan. Form input height 44px (h-11) untuk tap target lebih besar.
 
 ### Authenticated Pages (all other routes)
 
 ```
 <AppLayout>
-  <div className="flex flex-col min-h-screen w-full">
-    <TopBar />        ← sticky top-0, 56px, z-40
-    <main>             ← flex-1 content, pb-24 md:pb-8
+  <div className="flex flex-col h-screen w-full">    ← h-screen, bukan min-h-screen
+    <TopBar />        ← shrink-0, sticky top-0, 56px (h-14), z-40
+    <main>             ← flex-1 overflow-y-auto min-h-0 pb-4
       ...
     </main>
-    <BottomNav />     ← mobile only (md:hidden)
+    <BottomNav />     ← mobile only (md:hidden), shrink-0
   </div>
 </AppLayout>
 ```
 
-> TopBar turun dari 60px ke 56px — sedikit lebih compact, lebih proporsional dengan konten.
+> Layout sticky: TopBar + BottomNav `shrink-0`, konten tengah `flex-1 overflow-y-auto min-h-0`. Tidak menggunakan `position: fixed` untuk menghindari overlay/fixed-position bugs dengan modal dan toast.
 
 **`AppLayout.tsx`:**
 ```tsx
-<div className="min-h-screen bg-[#F5F7FA] flex">
-  <Sidebar />        ← hidden md:flex, w-64 (naik dari w-60)
+<div className="h-screen bg-[#F5F7FA] flex overflow-hidden">
+  <Sidebar />        
   <div className="flex-1 flex flex-col min-w-0">
     {children}
   </div>
 </div>
 ```
 
-> Sidebar naik dari `w-60` (240px) ke `w-64` (256px) — sedikit lebih lega untuk label navigasi.
+> Menggunakan `h-screen overflow-hidden` untuk sticky layout. Sidebar width 256px (w-64).
 
 **WARNING:** Do NOT add `overflow-hidden`, `transform`, `filter`, or `will-change` to AppLayout or Sidebar — these break `position: fixed` on child modals. Always use `<Portal>` for fixed overlays.
+
+### Dashboard Greeting Section
+
+Setiap halaman dashboard memulai dengan greeting section:
+
+```
+<section className="px-4 pt-6 pb-6 bg-[#F1F5F9] rounded-b-lg border-b border-[#E2E8F0] mb-6">
+  <h2 className="font-headline-lg-mobile text-headline-lg-mobile font-bold text-[#0F172A]">
+    Selamat Pagi, Nama Petugas
+  </h2>
+  <div className="flex items-center gap-1.5 text-[#475569]">
+    <Icon name="location_on" className="!text-[16px]" />
+    <p className="font-body-md text-body-md">
+      Role · Kec. Wilayah
+    </p>
+  </div>
+</section>
+```
+
+Untuk petugas eksekusi, tambahan status badge:
+
+```
+<div className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-full bg-[#D1FAE5] border border-[#6EE7B7] self-start">
+  <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
+  <span className="font-label-sm text-label-sm font-semibold text-[#10B981]">
+    Status: Aktif Bertugas
+  </span>
+</div>
+```
 
 ---
 
@@ -299,11 +323,11 @@ fixed inset-0 w-full h-full overflow-y-auto
 
 ### Sidebar (Desktop: `md:` and above)
 
-- Dark blue bg: `bg-[#1A4F8A]`
+- Dark blue bg: `bg-primary` (`#1e40af`)
 - Lebar: `w-64` (256px)
 - Sticky top, full viewport height
 - Hidden on mobile (`hidden md:flex`)
-- Brand header: logo bulat putih + "JalanKita" (Inter 600) + "Dinas PU Bina Marga" (Inter 400, opacity-75)
+- Brand header: logo bulat putih + "DeltaJalan" (Inter 600) + "Dinas PU Bina Marga" (Inter 400, opacity-75)
 - **Separator line** antara brand header dan menu: `border-b border-white/15`
 - Menu items: padding `px-3 py-2`, rounded-lg, gap antar grup pakai section label kecil
 - Active item: `bg-white/15 text-white font-semibold` (bukan warna lain — tetap dalam ramp biru)
@@ -360,7 +384,7 @@ Every authenticated page follows this structure:
 ```tsx
 export const Route = createFileRoute("/page-name")({
   component: PageComponent,
-  head: () => ({ meta: [{ title: "Page Title — JalanKita" }] }),
+  head: () => ({ meta: [{ title: "Page Title — DeltaJalan" }] }),
 });
 
 function PageComponent() {
@@ -396,15 +420,15 @@ function PageComponent() {
 
 | Route | Role | Features |
 |---|---|---|
-| `/` (index) | Public | Login form, background solid, centered card |
-| `/home` | petugas | Dashboard with stats cards, task list, recent reports |
+| `/` (index) | Public | Login form, background solid `#f7f9fb`, centered card, brand DeltaJalan |
+| `/home` | petugas | Dashboard — greeting, 4 stat cards (Prioritas/Selesai/Diproses/Total), quick actions, recent reports table |
 | `/upload` | petugas | Photo capture/upload, GPS, road search, duplicate checker, batch upload |
 | `/ai-result` | petugas | AI analysis result display, severity, trust score |
 | `/my-reports` | all | List of own reports with filters |
 | `/reports` | all | All reports list |
 | `/review` | all | Detail view of a single report (role-aware actions) |
 | `/supervisor` | supervisor | Dashboard with tabs, stats, UPR management |
-| `/petugas-eksekusi` | petugas_eksekusi | Task list for assigned UPR |
+| `/petugas-eksekusi` | petugas_eksekusi | Dashboard — greeting + status badge, 4 stat cards (Prioritas/Diproses/Selesai/Total), sort dropdown, task cards with photo + badges + detail info |
 | `/complete-report` | petugas_eksekusi | Complete repair (after photo upload) |
 | `/edit-report` | petugas | Edit report before supervisor review |
 | `/create-report` | supervisor? | Create report manually |
@@ -496,15 +520,16 @@ Static image URLs used as placeholder/example images (AIDA hosted). Not used in 
 ### Standard Card
 
 ```tsx
-<div className="bg-white rounded-lg border border-[#D0DAE8] p-4">
-  <h3 className="text-[15px] font-semibold text-on-surface mb-3">
+<div className="bg-white rounded-xl border border-[#E2E8F0] p-4"
+  style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+  <h3 className="font-label-md text-label-md font-semibold text-[#0F172A] mb-3">
     Title
   </h3>
   {/* content */}
 </div>
 ```
 
-> `shadow-sm` dihapus — border saja sudah cukup. Shadow membuat UI terasa "berlapis-lapis" dan kurang flat. Referensi: Linear, Primer.
+> Cards menggunakan `rounded-xl` (1rem/16px) dengan subtle shadow (`0 1px 3px rgba(0,0,0,0.04)`). Shadow ringan ini membuat card terasa "mengambang" di atas background tanpa terasa berat. Berdasarkan Stitch "Civic Precision" yang menggunakan level 1 elevation.
 
 ### Info Banner (Success)
 
@@ -544,48 +569,59 @@ Static image URLs used as placeholder/example images (AIDA hosted). Not used in 
 
 ### Stats Card (Dashboard)
 
-```tsx
-<div className="bg-white border border-[#D0DAE8] p-4 rounded-lg">
-  <p className="text-[12px] font-medium text-on-surface-variant uppercase tracking-wide mb-3">
-    Total Laporan
-  </p>
-  <p className="text-[28px] font-bold text-on-surface leading-none mb-1">47</p>
-  <p className="text-[12px] text-on-surface-variant">
-    <span className="text-[#059669] font-medium">+3</span> dari minggu lalu
-  </p>
-</div>
-```
-
-> **Perubahan besar pada Stats Card:**
-> - Label di atas, angka di bawah (bukan icon + angka bersisian) — lebih mudah scan
-> - Label uppercase tracking-wide untuk keterbacaan — pola umum di Primer/Linear
-> - Delta/perubahan angka di bawah angka utama
-> - Tidak ada ikon besar di kanan — kurangi visual noise
-> - Tidak ada `shadow-sm`
-
-### List Item (Recent Reports)
+Setiap dashboard memiliki 4 stat cards dalam `grid grid-cols-2 gap-4 md:grid-cols-4`. Menggunakan pola label atas + nilai besar + subtitle (Stitch "Civic Precision"):
 
 ```tsx
-<div className="px-4 py-3.5 flex items-center justify-between hover:bg-[#EEF3FA] transition-colors border-b border-[#D0DAE8] last:border-b-0">
-  <div className="flex items-start gap-3">
-    <div className="w-9 h-9 rounded-lg bg-[#EEF3FA] border border-[#D0DAE8] flex items-center justify-center shrink-0 mt-0.5">
-      <Icon name="description" className="text-primary !text-[16px]" />
-    </div>
-    <div>
-      <p className="font-id-code text-[12px] text-on-surface-variant mb-0.5">LP-2026-00042</p>
-      <h4 className="text-[14px] font-semibold text-on-surface mb-1">Nama Jalan</h4>
-      <div className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-50 text-red-700 border border-red-200">
-        Rusak Berat
-      </div>
-    </div>
+<div className="bg-white border border-[#E2E8F0] rounded-xl p-4"
+  style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+  <div className="flex items-center justify-between mb-3">
+    <span className="font-label-sm text-label-sm font-semibold text-[#E11D48] uppercase tracking-wider">
+      Prioritas
+    </span>
+    <Icon name="warning" className="!text-[18px] text-[#E11D48]" />
   </div>
-  <Icon name="chevron_right" className="text-[#C0CEDF] !text-[18px] shrink-0" />
+  <p className="font-headline-lg text-headline-lg font-bold text-[#0F172A] leading-none mb-1">
+    12
+  </p>
+  <p className="font-label-sm text-label-sm text-[#475569]">Tugas Tertunda</p>
 </div>
 ```
 
-> - Icon container lebih kecil (36px vs 48px) dengan border
-> - Padding vertikal `py-3.5` — sedikit lebih compact
-> - Border antar item via `border-b` pada item, bukan container
+> **Pola:** Label semantic color + icon di baris atas, big number di tengah (`font-headline-lg text-[#0F172A]`), subtitle di bawah. Icon kecil di pojok kanan atas sebagai indikator visual. Tidak ada delta/percent change pada default — hanya muncul untuk card tertentu (Rusak Berat).
+
+### Recent Reports Table (Petugas Lapangan Dashboard)
+
+Berdasarkan Stitch "DeltaJalan - Dashboard Petugas Sidoarjo", recent reports menggunakan layout table dengan grid:
+
+```tsx
+<div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
+  {/* Desktop: header row */}
+  <div className="hidden md:grid grid-cols-[1fr_140px_140px_110px_40px] gap-3 px-5 py-3 bg-[#F1F5F9] border-b border-[#E2E8F0]">
+    <span className="font-label-sm text-label-sm font-semibold text-[#475569] uppercase tracking-wider">Lokasi / Jalan</span>
+    <span className="font-label-sm text-label-sm font-semibold text-[#475569] uppercase tracking-wider">Kecamatan</span>
+    <span className="font-label-sm text-label-sm font-semibold text-[#475569] uppercase tracking-wider">Tanggal</span>
+    <span className="font-label-sm text-label-sm font-semibold text-[#475569] uppercase tracking-wider">Status</span>
+    <span />
+  </div>
+  {/* Rows */}
+  <Link to="/detail-report" search={{ reportId: r.id }}
+    className="grid grid-cols-1 md:grid-cols-[1fr_140px_140px_110px_40px] gap-2 md:gap-3 px-5 py-4 items-center hover:bg-[#F1F5F9] transition-colors border-b border-[#E2E8F0] last:border-b-0">
+    <div>
+      <p className="font-id-code text-id-code text-[#475569] mb-0.5">{r.report_code}</p>
+      <h4 className="font-body-md text-body-md font-semibold text-[#0F172A] truncate">{r.road_name}</h4>
+    </div>
+    <span className="font-body-sm text-body-sm text-[#475569]">Kec. Porong</span>
+    <span className="font-label-sm text-label-sm text-[#475569]">Hari ini, 08:45</span>
+    <div className="flex flex-wrap gap-1.5">
+      <span className="badge-berat">Rusak Berat</span>
+      <span className="badge-diproses">Disetujui</span>
+    </div>
+    <Icon name="chevron_right" className="text-[#757684] !text-[18px] hidden md:block" />
+  </Link>
+</div>
+```
+
+> **Mobile:** Single column layout (road name, kecamatan inline, date + badges stacked). **Desktop:** Grid table with 5 columns. Header visible only on desktop (`hidden md:grid`). Each row is a Link ke detail page.
 
 ---
 
@@ -670,47 +706,42 @@ All Leaflet maps share these patterns:
 ### Primary Button
 
 ```tsx
-<button className="w-full h-11 bg-primary text-white rounded-lg text-[14px] font-semibold
-  flex items-center justify-center gap-2 hover:bg-[#163F6E] active:scale-[0.98]
+<button className="w-full h-11 bg-[#1e40af] text-white rounded-lg font-label-md text-label-md font-semibold
+  flex items-center justify-center gap-2 hover:bg-[#173bab] active:scale-[0.98]
   transition-all disabled:opacity-50 disabled:cursor-not-allowed">
   <Icon name="check" className="!text-[18px]" />
   Label
 </button>
 ```
 
-> `hover:bg-[#163F6E]` = primary satu ramp lebih gelap. Lebih baik dari `hover:bg-primary/90` yang terasa blur.
+> `hover:bg-[#173bab]` = primary satu ramp lebih gelap. Lebih baik dari `hover:bg-primary/90` yang terasa blur.
 
 ### Secondary / Outlined Button
 
 ```tsx
-<button className="w-full h-11 bg-white text-primary border border-[#D0DAE8]
-  rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2
-  hover:bg-[#EEF3FA] hover:border-primary active:scale-[0.98] transition-all">
+<button className="w-full h-11 bg-white text-[#1e40af] border border-[#E2E8F0]
+  rounded-lg font-label-md text-label-md font-semibold flex items-center justify-center gap-2
+  hover:bg-[#F1F5F9] hover:border-[#1e40af] active:scale-[0.98] transition-all">
   Label
 </button>
 ```
 
-> Border netral (`#D0DAE8`) saat idle, border primary saat hover — lebih subtle dari border primary selalu.
-
 ### Destructive Button
 
 ```tsx
-<button className="w-full h-11 bg-white text-red-700 border border-red-200
-  rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2
-  hover:bg-red-50 active:scale-[0.98] transition-all">
+<button className="w-full h-11 bg-[#E11D48] text-white rounded-lg font-label-md text-label-md font-semibold flex items-center justify-center gap-2
+  hover:bg-[#BE123C] active:scale-[0.98] transition-all">
   <Icon name="delete" className="!text-[18px]" />
   Tolak Laporan
 </button>
 ```
 
-### Support Button (Duplicate Checker)
+### Ghost / Tertiary Button
 
 ```tsx
-<button className="w-full bg-amber-50 hover:bg-amber-100 border border-amber-200
-  text-amber-800 rounded-lg px-4 py-2.5 text-[13px] font-semibold transition-colors
-  disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]">
-  <Icon name="thumb_up" className="!text-[16px]" />
-  Ini Lubang yang Sama (Dukung Laporan)
+<button className="h-11 bg-transparent text-[#475569] hover:bg-[#F1F5F9] rounded-lg
+  font-label-md text-label-md font-medium px-4 transition-colors">
+  Label
 </button>
 ```
 
@@ -718,12 +749,10 @@ All Leaflet maps share these patterns:
 
 ```tsx
 <button className="w-9 h-9 flex items-center justify-center rounded-lg
-  hover:bg-[#EEF3FA] transition-colors">
-  <Icon name="arrow_back" className="text-on-surface-variant !text-[20px]" />
+  hover:bg-[#F1F5F9] transition-colors">
+  <Icon name="arrow_back" className="text-[#475569] !text-[20px]" />
 </button>
 ```
-
-> Turun dari `rounded-full` ke `rounded-lg` — konsisten dengan elemen lain.
 
 ---
 
@@ -731,16 +760,18 @@ All Leaflet maps share these patterns:
 
 ```tsx
 <input
-  className="w-full py-2.5 px-3.5 border border-[#C0CEDF] rounded-lg text-[14px]
-    text-on-surface placeholder:text-[#8FA3B8] bg-white
-    focus:outline-none focus:ring-2 focus:ring-primary/20
-    focus:border-primary transition-colors"
+  className="w-full h-11 pl-10 pr-4 border border-[#c4c5d5] rounded-lg font-body-md text-body-md
+    text-[#0F172A] placeholder:text-[#757684] bg-white
+    focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20
+    focus:border-[#1e40af] transition-colors"
 />
 ```
 
-> - Border lebih gelap saat idle: `#C0CEDF` (bukan `#E5E7EB`) — lebih visible, konsisten dengan Primer
-> - Placeholder lebih terang: `#8FA3B8` (bukan `#9CA3AF`)
-> - `py-2.5 px-3.5` — sedikit lebih compact dari `py-3 px-4`
+> - Tinggi input `h-11` (44px) untuk tap target minimum
+> - Border idle `#c4c5d5` (outline-variant) — lebih visible
+> - Placeholder `#757684` (outline) — lebih terang dari teks
+> - Focus ring 2px primary/20 + border primary
+> - Font body-md (16px) untuk legibility
 
 With icon prefix:
 ```tsx
@@ -769,21 +800,21 @@ All fixed overlays MUST use `<Portal>`:
 ```tsx
 <Portal>
   <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
-    style={{ backgroundColor: "rgba(15, 22, 35, 0.6)" }}
+    style={{ backgroundColor: "rgba(0, 40, 142, 0.5)" }}
     onClick={onClose}>
-    <div className="w-full max-w-[400px] bg-white rounded-xl border border-[#D0DAE8]"
+    <div className="w-full max-w-[400px] bg-white rounded-xl border border-[#E2E8F0]"
       style={{ maxHeight: "90vh", overflowY: "auto" }}
       onClick={(e) => e.stopPropagation()}>
       {/* Modal header */}
-      <div className="px-5 py-4 border-b border-[#D0DAE8]">
-        <h2 className="text-[16px] font-semibold text-on-surface">Judul Modal</h2>
+      <div className="px-5 py-4 border-b border-[#E2E8F0]">
+        <h2 className="font-label-md text-label-md font-semibold text-[#0F172A]">Judul Modal</h2>
       </div>
       {/* Modal body */}
       <div className="px-5 py-4">
         {/* content */}
       </div>
       {/* Modal footer */}
-      <div className="px-5 py-4 border-t border-[#D0DAE8] flex gap-2 justify-end">
+      <div className="px-5 py-4 border-t border-[#E2E8F0] flex gap-2 justify-end">
         {/* buttons */}
       </div>
     </div>
@@ -792,11 +823,8 @@ All fixed overlays MUST use `<Portal>`:
 ```
 
 > **Perubahan:**
-> - Backdrop lebih gelap: `rgba(15, 22, 35, 0.6)` — kontras lebih baik
-> - Modal punya header + body + footer sections dengan border antar section
-> - Border pada modal card: `border border-[#D0DAE8]` — modal terasa lebih "grounded"
-> - Tidak ada `shadow-2xl` — border sudah cukup
-> - `max-w-[400px]` (bukan `max-w-sm` yang ambigu di Tailwind v4)
+> - Backdrop: `rgba(0, 40, 142, 0.5)` (primary container dengan opacity) — thematic dengan brand biru
+> - Border: `#E2E8F0` (border-subtle) — konsisten dengan warna border sistem
 
 Patterns:
 - Escape key to close
@@ -852,20 +880,18 @@ Default icon size is 24px. Override dengan `!text-[18px]` dll. Gunakan `weight={
 ### Loading Spinner
 
 ```tsx
-<span className="w-5 h-5 border-2 border-[#D0DAE8] border-t-primary rounded-full animate-spin" />
+<span className="w-5 h-5 border-2 border-[#E2E8F0] border-t-primary rounded-full animate-spin" />
 ```
-
-> Border track lebih jelas: `#D0DAE8` (bukan `primary/30` yang kadang terlalu samar).
 
 ### Empty State
 
 ```tsx
-<div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-  <div className="w-12 h-12 rounded-lg bg-[#EEF3FA] border border-[#D0DAE8] flex items-center justify-center mb-4">
-    <Icon name="inbox" className="text-[#5A6A7E] !text-[22px]" />
+<div className="flex flex-col items-center justify-center py-16 px-4 text-center bg-white border border-[#E2E8F0] rounded-xl">
+  <div className="w-12 h-12 rounded-xl bg-[#F1F5F9] border border-[#E2E8F0] flex items-center justify-center mb-4">
+    <Icon name="inbox" className="text-[#475569] !text-[22px]" />
   </div>
-  <p className="text-[15px] font-semibold text-on-surface mb-1">Belum ada laporan</p>
-  <p className="text-[13px] text-on-surface-variant">Laporan yang masuk akan tampil di sini.</p>
+  <p className="font-body-md font-semibold text-[#0F172A] mb-1">Belum ada laporan</p>
+  <p className="font-body-sm text-body-sm text-[#475569]">Laporan yang masuk akan tampil di sini.</p>
 </div>
 ```
 
@@ -899,18 +925,19 @@ Each route exports `head: () => ({ meta: [{ title: "..." }] })` for SSR SEO / pa
 
 | Aspek | Sebelum | Sesudah | Alasan |
 |---|---|---|---|
-| Font heading | Plus Jakarta Sans | Inter | Inter lebih netral, cocok internal tool |
+| Font heading | Inter | Manrope | Stitch "Civic Precision" — Manrope lebih premium untuk headline |
 | Font body | Inter | Inter | Tidak berubah |
-| Label min size | 11px | 12–13px | Aksesibilitas, pengguna non-tech |
-| Border radius | 10–12px (`rounded-xl`) | 8px (`rounded-lg`) | Lebih serius, kurang playful |
-| Border warna | `#E2E8F0` | `#D0DAE8` | Lebih visible, lebih biru |
-| Background app | `#faf8ff` (ungu tipis) | `#F5F7FA` (abu netral) | Lebih netral, cocok instansi |
-| Surface colors | Ramp ungu-biru | Ramp abu-biru murni | Konsisten dengan primary biru |
-| Card shadow | `shadow-sm` ada | Tidak ada shadow | Flat design, border cukup |
-| Login background | Foto background.jpg | Solid `#F5F7FA` | Lebih institutional |
-| Stats card | Icon kanan + angka besar | Label atas + angka besar + delta | Lebih scannable |
-| Modal | `shadow-2xl`, no border | Border `#D0DAE8`, no shadow | Lebih grounded |
-| Button hover | `opacity/90` | Hex eksplisit lebih gelap | Lebih predictable |
-| Sidebar width | 240px (`w-60`) | 256px (`w-64`) | Lebih lega |
-| TopBar height | 60px | 56px (`h-14`) | Lebih compact |
-| Emoji di TrustBadge | Ada (🟢🟡🔴) | Tidak ada | Lebih clean, professional |
+| Brand | DeltaJalan | DeltaJalan | Konsisten dengan nama domain |
+| Primary color | `#1A4F8A` | `#1e40af` | Dinas Blue dari Stitch design system |
+| Surface color | `#F5F7FA` | `#f7f9fb` | Slate-50, konsisten dengan Stitch |
+| Border warna | `#D0DAE8` | `#E2E8F0` | Kembali ke slate-200, lebih netral |
+| Card radius | 8px (`rounded-lg`) | 16px (`rounded-xl`) | Modern enterprise look (Stitch) |
+| Card elevation | Border only | Subtle shadow (`0 1px 3px rgba(0,0,0,0.04)`) | Floating card effect |
+| Login background | Foto background.jpg → Solid `#F5F7FA` | Solid `#f7f9fb` + card shadow | Lebih institutional |
+| Login footer | Copyright only | Security icon + "Sistem Keamanan Internal Terenkripsi" | Trust building |
+| Input height | `py-2.5` (~40px) | `h-11` (44px) | Tap target lebih besar |
+| Recent reports | List cards with icon | Table with header columns | Lebih scannable (Stitch) |
+| Stats card | Icon + value side by side | Label atas + big number + subtitle + icon corner | Lebih scannable |
+| Petugas eksekusi | Basic task list | Full dashboard: greeting + status badge + 4 stats + sort + task cards | Feature parity dengan Stitch |
+| Status badge | None | "Aktif Bertugas" green pill di petugas eksekusi | Role identity |
+| Empty state | Plain text | Card dengan icon container + rounded-xl | Konsisten dengan komponen lain |

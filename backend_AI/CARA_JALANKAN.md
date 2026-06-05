@@ -1,4 +1,4 @@
-# Cara Menjalankan JalanKita AI Server
+# Cara Menjalankan DeltaJalan AI Server
 
 ## Prasyarat
 ```

@@ -5,6 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\Report;
 use App\Models\ReportEvidence;
 use App\Models\ReportPhoto;
+use App\Models\User;
+use App\Notifications\ReportApprovedNotification;
+use App\Notifications\ReportRejectedNotification;
+use App\Notifications\UprAssignedNotification;
+use App\Notifications\RepairCompletedNotification;
+use App\Notifications\ReportEditedNotification;
+use App\Notifications\TriageUpdatedNotification;
+use App\Notifications\ReportReopenedNotification;
+use App\Notifications\BulkActionNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +27,7 @@ use Illuminate\Validation\ValidationException;
  * ReportController
  *
  * Menangani seluruh operasi CRUD untuk laporan kerusakan jalan.
- * Komponen utama dalam arsitektur Hybrid Stack JalanKita:
+ * Komponen utama dalam arsitektur Hybrid Stack DeltaJalan:
  *
  *   Frontend React → POST /api/reports → ReportController@store
  *                                              ↓
@@ -231,7 +240,7 @@ class ReportController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
-            Log::error('JalanKita: checkDuplicate error.', ['error' => $e->getMessage()]);
+            Log::error('DeltaJalan: checkDuplicate error.', ['error' => $e->getMessage()]);
             return response()->json([
                 'spatial_duplicates' => [],
                 'textual_duplicates' => [],
@@ -307,7 +316,7 @@ class ReportController extends Controller
                 return $evidence;
             });
 
-            Log::info('JalanKita: Evidence ditambahkan.', [
+            Log::info('DeltaJalan: Evidence ditambahkan.', [
                 'report_id'     => $report->id,
                 'report_code'   => $report->report_code,
                 'reporter_name' => $validated['reporter_name'],
@@ -346,7 +355,7 @@ class ReportController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
-            Log::error('JalanKita: Gagal menyimpan evidence.', [
+            Log::error('DeltaJalan: Gagal menyimpan evidence.', [
                 'error'     => $e->getMessage(),
                 'report_id' => $id,
             ]);
@@ -538,7 +547,7 @@ class ReportController extends Controller
                     $payload = $aiData['data'];
 
                     $totalDetections = $payload['total'] ?? 0;
-                    $overallSeverity = $payload['overall_severity'] ?? 'Baik';
+                    $overallSeverity = $this->normalizeSeverityEnum($payload['overall_severity'] ?? 'Baik');
                     $aiRawOutput     = $payload['detections'] ?? null;
 
                     // ── 4e: Decode base64 → simpan foto hasil AI ─────────
@@ -550,7 +559,7 @@ class ReportController extends Controller
                     }
                 } else {
                     $localSystemNotes = '[FALLBACK] FastAPI tidak merespons: ' . $aiData['error'];
-                    Log::warning('JalanKita: FastAPI tidak merespons saat menyimpan laporan.', [
+                    Log::warning('DeltaJalan: FastAPI tidak merespons saat menyimpan laporan.', [
                         'error' => $aiData['error'],
                     ]);
                 }
@@ -628,7 +637,7 @@ class ReportController extends Controller
             }
 
         } catch (\Exception $e) {
-            Log::error('JalanKita: Gagal menyimpan laporan.', [
+            Log::error('DeltaJalan: Gagal menyimpan laporan.', [
                 'error'   => $e->getMessage(),
                 'trace'   => $e->getTraceAsString(),
             ]);
@@ -645,7 +654,7 @@ class ReportController extends Controller
         $dailyCount = Report::where('reporter_name', $reporterName)
             ->whereDate('created_at', today())
             ->count();
-        Log::info('JalanKita: Laporan tunggal disimpan.', [
+        Log::info('DeltaJalan: Laporan tunggal disimpan.', [
             'reporter_name' => $reporterName,
             'report_code'   => $report->report_code,
             'trust_score'   => $report->trust_score,
@@ -747,7 +756,7 @@ class ReportController extends Controller
         if ($request->filled('severity')) {
             $sev = $request->input('severity');
             $query->where(function ($sub) use ($sev) {
-                $sub->where('overall_severity', $sev)
+                $sub->whereRaw('overall_severity::text = ?', [$sev])
                      ->orWhere('ai_severity', $sev);
             });
         }
@@ -811,10 +820,18 @@ class ReportController extends Controller
      */
     public function show(string $id): JsonResponse
     {
-        $report = Report::with(['evidences', 'photos'])->find($id);
+        $report = Report::with(['evidences', 'photos', 'statusLogs'])->find($id);
 
         if (!$report) {
             return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
+        }
+
+        $user = auth()->user();
+        if ($user && $user->role === 'petugas' && $report->reporter_name !== $user->name) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda hanya dapat melihat detail laporan Anda sendiri.',
+            ], 403);
         }
 
         $data = [
@@ -872,11 +889,150 @@ class ReportController extends Controller
                 'sort_order'         => $p->sort_order,
                 'created_at'         => $p->created_at?->toIso8601String(),
             ]),
+            // Timeline — urut dari paling lama ke paling baru
+            'status_history'     => $report->statusLogs->map(fn ($log) => [
+                'event'      => $this->mapStatusToEvent($log->new_status, $log->notes),
+                'label'      => $this->mapStatusToLabel($log->new_status, $log->notes),
+                'status'     => $log->new_status,
+                'old_status' => $log->old_status,
+                'timestamp'  => $log->created_at?->toIso8601String(),
+                'actor_name' => $log->actor_name,
+                'actor_role' => $log->actor_role,
+                'notes'      => $log->notes,
+            ])->values()->toArray(),
         ];
 
         return response()->json([
             'success' => true,
             'data'    => $data,
+        ]);
+    }
+
+    // ── Peta Interaktif GIS ──────────────────────────────────────────────
+
+    /**
+     * GET /api/reports/map-data
+     *
+     * Data agregat untuk Peta Interaktif:
+     *  - districts: statistik per kecamatan (GROUP BY district)
+     *  - reports:   laporan dengan koordinat (ringan, untuk marker)
+     *  - stats:     statistik global (by severity, by status, SLA breach)
+     */
+    public function mapData(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        // 1. Statistik per kecamatan
+        $districts = Report::selectRaw("
+            district,
+            COUNT(*) as total,
+            SUM(CASE WHEN overall_severity::text = 'Rusak Berat' OR LOWER(ai_severity) = 'berat' THEN 1 ELSE 0 END) as rusak_berat,
+            SUM(CASE WHEN overall_severity::text = 'Rusak Sedang' OR LOWER(ai_severity) = 'sedang' THEN 1 ELSE 0 END) as rusak_sedang,
+            SUM(CASE WHEN overall_severity::text = 'Rusak Ringan' OR LOWER(ai_severity) = 'ringan' THEN 1 ELSE 0 END) as rusak_ringan,
+            AVG(CASE
+                WHEN overall_severity::text = 'Rusak Berat' OR LOWER(ai_severity) = 'berat' THEN 3
+                WHEN overall_severity::text = 'Rusak Sedang' OR LOWER(ai_severity) = 'sedang' THEN 2
+                WHEN overall_severity::text = 'Rusak Ringan' OR LOWER(ai_severity) = 'ringan' THEN 1
+                ELSE 0
+            END) as avg_severity_score
+        ")
+            ->whereNotNull('district')
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->groupBy('district')
+            ->get()
+            ->keyBy('district');
+
+        // 2. Laporan ringan untuk marker
+        $query = Report::select([
+            'id', 'latitude', 'longitude', 'status',
+            'overall_severity', 'ai_severity', 'road_name', 'district',
+            'image_original_path', 'kerusakan_panjang', 'kerusakan_lebar',
+            'trust_score', 'created_at', 'assigned_upr_id',
+        ])->with(['firstPhoto', 'assignedUpr'])->whereNotNull('latitude')->whereNotNull('longitude');
+
+        // Filter query params
+        if ($request->filled('status')) {
+            $statuses = is_array($request->input('status'))
+                ? $request->input('status')
+                : explode(',', $request->input('status'));
+            $query->whereIn('status', $statuses);
+        }
+
+        if ($request->filled('severity')) {
+            $severities = is_array($request->input('severity'))
+                ? $request->input('severity')
+                : explode(',', $request->input('severity'));
+            $query->where(function ($q) use ($severities) {
+                foreach ($severities as $s) {
+                    $q->orWhere(function ($q2) use ($s) {
+                        $sev = strtolower($s);
+                        $enumMap = ['berat' => 'Rusak Berat', 'sedang' => 'Rusak Sedang', 'ringan' => 'Rusak Ringan'];
+                        $enumVal = $enumMap[$sev] ?? null;
+                        if ($enumVal) {
+                            $q2->whereRaw('(overall_severity::text = ? OR LOWER(ai_severity) = ?)', [$enumVal, $sev]);
+                        } else {
+                            $q2->whereRaw('LOWER(ai_severity) = ?', [$sev]);
+                        }
+                    });
+                }
+            });
+        }
+
+        if ($request->filled('district')) {
+            $query->where('district', $request->input('district'));
+        }
+
+        if ($request->filled('upr_id')) {
+            $query->where('assigned_upr_id', (int) $request->input('upr_id'));
+        }
+
+        // SLA filter: tampilkan laporan yang sudah > N hari tanpa selesai/ditolak
+        if ($request->filled('sla_days')) {
+            $days = max(1, (int) $request->input('sla_days'));
+            $query->where('created_at', '<', now()->subDays($days))
+                  ->whereNotIn('status', ['Selesai', 'Ditolak']);
+        }
+
+        $reports = $query->orderBy('created_at', 'desc')->limit(1000)->get()
+            ->each(fn ($r) => $r->append('first_photo_url')->setAttribute('assigned_upr_name', $r->assignedUpr?->name));
+
+        // 3. Statistik global
+        $baseStats = Report::whereNotNull('latitude')->whereNotNull('longitude');
+
+        $total = (clone $baseStats)->count();
+
+        $bySeverity = [
+            'berat'  => (clone $baseStats)->where(function ($q) { $q->whereRaw("overall_severity::text = 'Rusak Berat'")->orWhereRaw("LOWER(ai_severity) = 'berat'"); })->count(),
+            'sedang' => (clone $baseStats)->where(function ($q) { $q->whereRaw("overall_severity::text = 'Rusak Sedang'")->orWhereRaw("LOWER(ai_severity) = 'sedang'"); })->count(),
+            'ringan' => (clone $baseStats)->where(function ($q) { $q->whereRaw("overall_severity::text = 'Rusak Ringan'")->orWhereRaw("LOWER(ai_severity) = 'ringan'"); })->count(),
+        ];
+
+        $byStatus = [
+            'Menunggu Review'   => (clone $baseStats)->whereIn('status', ['Menunggu Review', 'Ditinjau'])->count(),
+            'Disetujui'         => (clone $baseStats)->where('status', 'Disetujui')->count(),
+            'Sedang Diperbaiki' => (clone $baseStats)->where('status', 'Sedang Diperbaiki')->count(),
+            'Selesai'           => (clone $baseStats)->where('status', 'Selesai')->count(),
+            'Ditolak'           => (clone $baseStats)->where('status', 'Ditolak')->count(),
+        ];
+
+        $slaBreachCount = (clone $baseStats)
+            ->where('created_at', '<', now()->subDays(7))
+            ->whereNotIn('status', ['Selesai', 'Ditolak'])
+            ->count();
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'districts' => $districts,
+                'reports'   => $reports,
+                'stats'     => [
+                    'total'             => $total,
+                    'by_severity'       => $bySeverity,
+                    'by_status'         => $byStatus,
+                    'sla_breach_count'  => $slaBreachCount,
+                ],
+            ],
         ]);
     }
 
@@ -896,12 +1052,12 @@ class ReportController extends Controller
         try {
             $hash = hash_file('sha256', $filePath);
             if ($hash === false) {
-                Log::warning('JalanKita: hash_file() mengembalikan false.', ['path' => $filePath]);
+                Log::warning('DeltaJalan: hash_file() mengembalikan false.', ['path' => $filePath]);
                 return null;
             }
             return $hash;
         } catch (\Exception $e) {
-            Log::warning('JalanKita: Gagal menghitung image hash.', [
+            Log::warning('DeltaJalan: Gagal menghitung image hash.', [
                 'error' => $e->getMessage(),
                 'path'  => $filePath,
             ]);
@@ -1036,7 +1192,7 @@ class ReportController extends Controller
             $imageData = base64_decode($base64String, strict: true);
 
             if ($imageData === false) {
-                Log::warning('JalanKita: Gagal decode base64 image dari FastAPI.');
+                Log::warning('DeltaJalan: Gagal decode base64 image dari FastAPI.');
                 return null;
             }
 
@@ -1050,7 +1206,7 @@ class ReportController extends Controller
             return $path;
 
         } catch (\Exception $e) {
-            Log::warning('JalanKita: Gagal menyimpan foto hasil AI.', [
+            Log::warning('DeltaJalan: Gagal menyimpan foto hasil AI.', [
                 'error' => $e->getMessage(),
             ]);
             return null;
@@ -1160,7 +1316,7 @@ class ReportController extends Controller
 
         } catch (\Exception $e) {
             // Jika ada error tak terduga, jangan blokir laporan — beri warning saja
-            Log::warning('JalanKita: Error saat membaca EXIF foto.', [
+            Log::warning('DeltaJalan: Error saat membaca EXIF foto.', [
                 'error' => $e->getMessage(),
             ]);
 
@@ -1195,8 +1351,10 @@ class ReportController extends Controller
                 'koordinat_sumber'   => 'required|in:exif,browser_gps,manual',
                 'fake_gps_suspected' => 'boolean',
                 'analyses'           => 'required|json',
-                'kerusakan_panjang'  => ['required', 'numeric', 'min:0', 'max:999999.99'],
-                'kerusakan_lebar'    => ['required', 'numeric', 'min:0', 'max:999999.99'],
+                'kerusakan_panjang'  => ['required', 'array', 'min:1'],
+                'kerusakan_panjang.*' => ['required', 'numeric', 'min:0', 'max:999999.99'],
+                'kerusakan_lebar'    => ['required', 'array', 'min:1'],
+                'kerusakan_lebar.*'  => ['required', 'numeric', 'min:0', 'max:999999.99'],
                 'catatan'            => ['nullable', 'string', 'max:1000'],
                 'files'              => 'required|array|min:1',
                 'files.*'            => 'required|file|mimes:jpeg,jpg,png|max:5120',
@@ -1302,8 +1460,8 @@ class ReportController extends Controller
                     'overall_severity'   => $severityMap[$aggSeverity] ?? 'Baik',
                     'ai_severity'        => $aggSeverity,
                     'system_notes'       => $batchNotes,
-                    'kerusakan_panjang'  => $validated['kerusakan_panjang'] ?? null,
-                    'kerusakan_lebar'    => $validated['kerusakan_lebar'] ?? null,
+                    'kerusakan_panjang'  => array_sum($validated['kerusakan_panjang']),
+                    'kerusakan_lebar'    => array_sum($validated['kerusakan_lebar']),
                     'catatan_petugas'    => $validated['catatan'] ?? null,
                 ]);
 
@@ -1312,7 +1470,7 @@ class ReportController extends Controller
                 $duplicatePhotoList = [];
                 foreach ($analyses as $idx => $analysis) {
                     if (!empty($analysis['exif_invalid'])) {
-                        Log::info('JalanKita: Foto batch dilewati karena EXIF tidak valid.', [
+                        Log::info('DeltaJalan: Foto batch dilewati karena EXIF tidak valid.', [
                             'file_index'  => $idx,
                             'file_name'   => $analysis['file_name'] ?? '',
                             'exif_reason' => $analysis['exif_reason'] ?? '',
@@ -1333,7 +1491,7 @@ class ReportController extends Controller
                         $imageHash = $this->calculateImageHash($file->getPathname());
 
                         if ($imageHash && Report::imageHashExists($imageHash)) {
-                            Log::info('JalanKita: Foto duplikat dilewati dalam batch.', [
+                            Log::info('DeltaJalan: Foto duplikat dilewati dalam batch.', [
                                 'file_index' => $idx,
                                 'file_name'  => $analysis['file_name'] ?? '',
                                 'hash'       => $imageHash,
@@ -1386,6 +1544,8 @@ class ReportController extends Controller
                         'ai_severity'         => $analysis['severity'] ?? 'ringan',
                         'ai_confidence'       => $analysis['confidence'] ?? null,
                         'total_detections'    => count($analysis['detections'] ?? []),
+                        'kerusakan_panjang'   => $validated['kerusakan_panjang'][$idx] ?? null,
+                        'kerusakan_lebar'     => $validated['kerusakan_lebar'][$idx] ?? null,
                         'system_notes'        => $subNotes,
                         'sort_order'          => $idx,
                         'original_filename'   => $analysis['file_name'] ?? null,
@@ -1414,7 +1574,7 @@ class ReportController extends Controller
             });
 
         } catch (\Exception $e) {
-            Log::error('JalanKita: Gagal menyimpan laporan batch.', [
+            Log::error('DeltaJalan: Gagal menyimpan laporan batch.', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -1437,7 +1597,7 @@ class ReportController extends Controller
         $dailyCount = Report::where('reporter_name', $reporterName)
             ->whereDate('created_at', today())
             ->count();
-        Log::info('JalanKita: Laporan batch berhasil disimpan.', [
+        Log::info('DeltaJalan: Laporan batch berhasil disimpan.', [
             'batch_id'           => $validated['batch_id'],
             'main_report_code'   => $mainReport->report_code,
             'photos_count'       => $result['photos_count'],
@@ -1493,18 +1653,73 @@ class ReportController extends Controller
         $kuning = (clone $query)->where('trust_label', 'kuning')->count();
         $merah  = (clone $query)->where('trust_label', 'merah')->count();
 
+        // Severity distribution
+        $rusakBerat  = (clone $query)->where(function ($q) {
+            $q->whereRaw("overall_severity::text = 'Rusak Berat'")->orWhereRaw("LOWER(ai_severity) = 'berat'");
+        })->count();
+        $rusakSedang = (clone $query)->where(function ($q) {
+            $q->whereRaw("overall_severity::text = 'Rusak Sedang'")->orWhereRaw("LOWER(ai_severity) = 'sedang'");
+        })->count();
+        $rusakRingan = (clone $query)->where(function ($q) {
+            $q->whereRaw("overall_severity::text = 'Rusak Ringan'")->orWhereRaw("LOWER(ai_severity) = 'ringan'");
+        })->count();
+
+        // Monthly trend — last 6 months
+        $sixMonthsAgo = now()->subMonths(6)->startOfMonth();
+        $monthlyQuery = Report::selectRaw("
+            TO_CHAR(created_at, 'YYYY-MM') as bulan,
+            COUNT(*) as total,
+            SUM(CASE WHEN status = 'Selesai' THEN 1 ELSE 0 END) as selesai,
+            SUM(CASE
+                WHEN overall_severity::text = 'Rusak Berat' OR LOWER(ai_severity) = 'berat' THEN 1
+                ELSE 0
+            END) as rusak_berat
+        ")
+            ->where('created_at', '>=', $sixMonthsAgo);
+
+        if ($user->role === 'petugas') {
+            $monthlyQuery->where('reporter_name', $user->name);
+        }
+        if ($user->role === 'petugas_eksekusi') {
+            $monthlyQuery->when($user->upr_id, fn($q) => $q->where('assigned_upr_id', $user->upr_id))
+                         ->unless($user->upr_id, fn($q) => $q->whereRaw('1 = 0'));
+        }
+
+        $monthlyTrend = $monthlyQuery
+            ->groupBy('bulan')
+            ->orderBy('bulan')
+            ->get()
+            ->keyBy('bulan');
+
+        // Fill missing months with zeroes
+        $trend = [];
+        for ($i = 5; $i >= 0; $i--) {
+            $bulan = now()->subMonths($i)->format('Y-m');
+            $row = $monthlyTrend->get($bulan);
+            $trend[] = [
+                'bulan'       => $bulan,
+                'total'       => (int) ($row->total ?? 0),
+                'selesai'     => (int) ($row->selesai ?? 0),
+                'rusak_berat' => (int) ($row->rusak_berat ?? 0),
+            ];
+        }
+
         return response()->json([
             'success' => true,
             'data'    => [
-                'total'           => $total,
-                'menunggu_review' => $menungguReview,
-                'disetujui'       => $disetujui,
-                'ditolak'         => $ditolak,
+                'total'             => $total,
+                'menunggu_review'   => $menungguReview,
+                'disetujui'         => $disetujui,
+                'ditolak'           => $ditolak,
                 'sedang_diperbaiki' => $diperbaiki,
-                'selesai'         => $selesai,
-                'trust_hijau'     => $hijau,
-                'trust_kuning'    => $kuning,
-                'trust_merah'     => $merah,
+                'selesai'           => $selesai,
+                'trust_hijau'       => $hijau,
+                'trust_kuning'      => $kuning,
+                'trust_merah'       => $merah,
+                'rusak_berat'       => $rusakBerat,
+                'rusak_sedang'      => $rusakSedang,
+                'rusak_ringan'      => $rusakRingan,
+                'monthly_trend'     => $trend,
             ],
         ]);
     }
@@ -1540,11 +1755,17 @@ class ReportController extends Controller
                 : '[APPROVED] Disetujui oleh ' . auth()->user()->name,
         ]);
 
-        Log::info('JalanKita: Laporan disetujui.', [
+        Log::info('DeltaJalan: Laporan disetujui.', [
             'report_id'   => $report->id,
             'report_code' => $report->report_code,
             'approved_by' => auth()->user()->name,
         ]);
+
+        // Notifikasi ke pelapor
+        $petugas = User::where('name', $report->reporter_name)->first();
+        if ($petugas) {
+            $petugas->notify(new ReportApprovedNotification($report, auth()->user()->name));
+        }
 
         return response()->json([
             'success' => true,
@@ -1586,13 +1807,19 @@ class ReportController extends Controller
                 : "[REJECTED] Ditolak oleh " . auth()->user()->name . " (alasan: {$alasan}, catatan: {$catatan})",
         ]);
 
-        Log::info('JalanKita: Laporan ditolak.', [
+        Log::info('DeltaJalan: Laporan ditolak.', [
             'report_id'   => $report->id,
             'report_code' => $report->report_code,
             'alasan'      => $alasan,
             'catatan'     => $catatan,
             'rejected_by' => auth()->user()->name,
         ]);
+
+        // Notifikasi ke pelapor
+        $petugas = User::where('name', $report->reporter_name)->first();
+        if ($petugas) {
+            $petugas->notify(new ReportRejectedNotification($report, auth()->user()->name, $alasan));
+        }
 
         return response()->json([
             'success' => true,
@@ -1626,7 +1853,7 @@ class ReportController extends Controller
                 : '[DISPOSISI] Didisposisi oleh ' . auth()->user()->name,
         ]);
 
-        Log::info('JalanKita: Laporan didisposisi.', [
+        Log::info('DeltaJalan: Laporan didisposisi.', [
             'report_id'     => $report->id,
             'report_code'   => $report->report_code,
             'disposisi_by'  => auth()->user()->name,
@@ -1697,12 +1924,27 @@ class ReportController extends Controller
                 : '[MULAI] Perbaikan dimulai oleh ' . auth()->user()->name,
         ]);
 
-        Log::info('JalanKita: Perbaikan dimulai.', [
+        Log::info('DeltaJalan: Perbaikan dimulai.', [
             'report_id'   => $report->id,
             'report_code' => $report->report_code,
             'mulai_by'    => auth()->user()->name,
             'pelaksana'   => $report->pelaksana,
         ]);
+
+        // Notifikasi ke petugas eksekusi jika ada assigned_upr_id
+        if ($report->assigned_upr_id) {
+            try {
+                $upr = \App\Models\Upr::find($report->assigned_upr_id);
+                $eksekusiUsers = User::where('role', 'petugas_eksekusi')
+                    ->where('upr_id', $report->assigned_upr_id)
+                    ->get();
+                foreach ($eksekusiUsers as $eksekusi) {
+                    $eksekusi->notify(new UprAssignedNotification($report, auth()->user()->name, $upr?->name));
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Gagal mengirim notifikasi mulai: ' . $e->getMessage());
+            }
+        }
 
         return response()->json([
             'success' => true,
@@ -1751,7 +1993,7 @@ class ReportController extends Controller
             // Cek duplikasi foto after (bandingkan dengan after_photo_hash di laporan lain)
             $existingAfter = Report::where('after_photo_hash', $hash)->whereNotNull('after_photo_path')->first();
             if ($existingAfter) {
-                Log::warning('JalanKita: Foto after duplikat.', [
+                Log::warning('DeltaJalan: Foto after duplikat.', [
                     'report_id'    => $report->id,
                     'existing_id'  => $existingAfter->id,
                     'hash'         => $hash,
@@ -1774,11 +2016,17 @@ class ReportController extends Controller
                     : '[SELESAI] Perbaikan selesai oleh ' . auth()->user()->name,
             ]);
 
-            Log::info('JalanKita: Laporan selesai.', [
+            Log::info('DeltaJalan: Laporan selesai.', [
                 'report_id'   => $report->id,
                 'report_code' => $report->report_code,
                 'selesai_by'  => auth()->user()->name,
             ]);
+
+            // Notifikasi ke semua supervisor
+            $supervisors = User::where('role', 'supervisor')->get();
+            foreach ($supervisors as $supervisor) {
+                $supervisor->notify(new RepairCompletedNotification($report, auth()->user()->name));
+            }
 
             return response()->json([
                 'success' => true,
@@ -1786,7 +2034,7 @@ class ReportController extends Controller
                 'data'    => ['status' => $report->status],
             ]);
         } catch (\Exception $e) {
-            Log::error('JalanKita: Gagal menyelesaikan laporan.', [
+            Log::error('DeltaJalan: Gagal menyelesaikan laporan.', [
                 'report_id' => $report->id,
                 'error'     => $e->getMessage(),
             ]);
@@ -1831,13 +2079,21 @@ class ReportController extends Controller
                 : "[ASSIGN] Ditugaskan ke {$upr->name} oleh " . auth()->user()->name,
         ]);
 
-        Log::info('JalanKita: UPR ditugaskan.', [
+        Log::info('DeltaJalan: UPR ditugaskan.', [
             'report_id'   => $report->id,
             'report_code' => $report->report_code,
             'upr_id'      => $upr->id,
             'upr_name'    => $upr->name,
             'assigned_by' => auth()->user()->name,
         ]);
+
+        // Notifikasi ke petugas eksekusi di UPR tersebut
+        $eksekusiUsers = User::where('role', 'petugas_eksekusi')
+            ->where('upr_id', $upr->id)
+            ->get();
+        foreach ($eksekusiUsers as $eksekusi) {
+            $eksekusi->notify(new UprAssignedNotification($report, auth()->user()->name, $upr->name));
+        }
 
         return response()->json([
             'success' => true,
@@ -1865,10 +2121,20 @@ class ReportController extends Controller
                     ? $report->system_notes . " | [BULK APPROVE] oleh {$user->name}"
                     : "[BULK APPROVE] oleh {$user->name}",
             ]);
+            try {
+                if ($report->reporter_name) {
+                    $petugasUser = User::where('name', $report->reporter_name)->first();
+                    if ($petugasUser) {
+                        $petugasUser->notify(new BulkActionNotification($report, 'approve', $user->name));
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Gagal mengirim notifikasi bulk approve: ' . $e->getMessage());
+            }
             $count++;
         }
 
-        Log::info('JalanKita: Bulk approve.', ['count' => $count, 'by' => $user->name]);
+        Log::info('DeltaJalan: Bulk approve.', ['count' => $count, 'by' => $user->name]);
 
         return response()->json([
             'success' => true,
@@ -1900,10 +2166,20 @@ class ReportController extends Controller
                     ? $report->system_notes . " | [BULK TOLAK] oleh {$user->name}: {$validated['alasan']}"
                     : "[BULK TOLAK] oleh {$user->name}: {$validated['alasan']}",
             ]);
+            try {
+                if ($report->reporter_name) {
+                    $petugasUser = User::where('name', $report->reporter_name)->first();
+                    if ($petugasUser) {
+                        $petugasUser->notify(new BulkActionNotification($report, 'tolak', $user->name));
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Gagal mengirim notifikasi bulk tolak: ' . $e->getMessage());
+            }
             $count++;
         }
 
-        Log::info('JalanKita: Bulk tolak.', ['count' => $count, 'by' => $user->name]);
+        Log::info('DeltaJalan: Bulk tolak.', ['count' => $count, 'by' => $user->name]);
 
         return response()->json([
             'success' => true,
@@ -1974,6 +2250,15 @@ class ReportController extends Controller
                 : "[REOPEN] oleh {$user->name}",
         ]);
 
+        try {
+            $eksekusiUsers = User::whereIn('role', ['petugas_eksekusi', 'eksekusi'])->get();
+            foreach ($eksekusiUsers as $eksekusi) {
+                $eksekusi->notify(new ReportReopenedNotification($report, $user->name));
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Gagal mengirim notifikasi reopen: ' . $e->getMessage());
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Laporan dibuka kembali untuk perbaikan.',
@@ -2035,6 +2320,15 @@ class ReportController extends Controller
 
         $report->update(['status' => 'Menunggu Review']);
 
+        try {
+            $supervisors = User::where('role', 'supervisor')->get();
+            foreach ($supervisors as $supervisor) {
+                $supervisor->notify(new ReportEditedNotification($report, $user->name, 'batal'));
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Gagal mengirim notifikasi batal edit: ' . $e->getMessage());
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Edit dibatalkan.',
@@ -2082,6 +2376,15 @@ class ReportController extends Controller
         ], fn ($v) => $v !== null);
 
         $report->update($updateData);
+
+        try {
+            $supervisors = User::where('role', 'supervisor')->get();
+            foreach ($supervisors as $supervisor) {
+                $supervisor->notify(new ReportEditedNotification($report, $user->name, 'edit'));
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Gagal mengirim notifikasi edit laporan: ' . $e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
@@ -2173,6 +2476,15 @@ class ReportController extends Controller
             : '[TRIAGE] Diperbarui oleh ' . $user->name;
 
         $report->update($updateData);
+
+        try {
+            $supervisors = User::where('role', 'supervisor')->get();
+            foreach ($supervisors as $supervisor) {
+                $supervisor->notify(new TriageUpdatedNotification($report, $user->name));
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Gagal mengirim notifikasi triage: ' . $e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
@@ -2294,6 +2606,26 @@ class ReportController extends Controller
         }
 
         return $result;
+    }
+
+    /**
+     * Normalisasi nilai severity agar cocok dengan PostgreSQL severity_enum.
+     *
+     * severity_enum hanya menerima: 'Baik', 'Rusak Ringan', 'Rusak Sedang', 'Rusak Berat'.
+     * FastAPI bisa mengembalikan short form ('berat') atau long form ('Rusak Berat').
+     */
+    private function normalizeSeverityEnum(string $value): string
+    {
+        $map = [
+            'berat'       => 'Rusak Berat',
+            'rusak berat' => 'Rusak Berat',
+            'sedang'      => 'Rusak Sedang',
+            'rusak sedang' => 'Rusak Sedang',
+            'ringan'      => 'Rusak Ringan',
+            'rusak ringan' => 'Rusak Ringan',
+            'baik'        => 'Baik',
+        ];
+        return $map[strtolower(trim($value))] ?? 'Baik';
     }
 
     /**
@@ -2419,6 +2751,66 @@ class ReportController extends Controller
            + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
 
         return $earthRadius * 2 * asin(sqrt($a));
+    }
+
+    // ── Timeline / Status History Helpers ───────────────────────────────
+
+    /**
+     * Map status value to a machine-readable event key.
+     */
+    private function mapStatusToEvent(string $status, ?string $notes): string
+    {
+        if ($notes === 'Laporan dibuat') return 'laporan_dibuat';
+        if ($notes && str_contains($notes, '[APPROVED]')) return 'disetujui';
+        if ($notes && str_contains($notes, '[REJECTED]')) return 'ditolak';
+        if ($notes && str_contains($notes, '[DISPOSISI]')) return 'disposisi';
+        if ($notes && str_contains($notes, '[MULAI]')) return 'perbaikan_dimulai';
+        if ($notes && str_contains($notes, '[SELESAI]')) return 'perbaikan_selesai';
+        if ($notes && str_contains($notes, '[REOPEN]')) return 'dibuka_kembali';
+        if ($notes && str_contains($notes, '[ASSIGN]')) return 'ditugaskan';
+        if ($notes && str_contains($notes, '[TRIAGE]')) return 'triage';
+        if ($notes && str_contains($notes, 'Perbaikan dimulai')) return 'perbaikan_dimulai';
+        if ($notes && str_contains($notes, 'Perbaikan selesai')) return 'perbaikan_selesai';
+
+        return match ($status) {
+            'Ditinjau'          => 'ditinjau',
+            'Disetujui'         => 'disetujui',
+            'Ditolak'           => 'ditolak',
+            'Sedang Diperbaiki' => 'perbaikan_dimulai',
+            'Selesai'           => 'perbaikan_selesai',
+            'Diedit'            => 'diedit',
+            'Menunggu Review'   => 'menunggu_review',
+            default             => 'status_changed',
+        };
+    }
+
+    /**
+     * Map status value to a human-readable label.
+     */
+    private function mapStatusToLabel(string $status, ?string $notes): string
+    {
+        if ($notes === 'Laporan dibuat') return 'Laporan Dibuat';
+        if ($notes && str_contains($notes, '[APPROVED]')) return 'Disetujui Supervisor';
+        if ($notes && str_contains($notes, '[REJECTED]')) return 'Ditolak Supervisor';
+        if ($notes && str_contains($notes, '[DISPOSISI]')) return 'Disposisi UPR';
+        if ($notes && str_contains($notes, '[MULAI]')) return 'Perbaikan Dimulai';
+        if ($notes && str_contains($notes, '[SELESAI]')) return 'Perbaikan Selesai';
+        if ($notes && str_contains($notes, '[REOPEN]')) return 'Laporan Dibuka Kembali';
+        if ($notes && str_contains($notes, '[ASSIGN]')) return 'Penugasan UPR';
+        if ($notes && str_contains($notes, '[TRIAGE]')) return 'Diperbarui';
+        if ($notes && str_contains($notes, 'Perbaikan dimulai')) return 'Perbaikan Dimulai';
+        if ($notes && str_contains($notes, 'Perbaikan selesai')) return 'Perbaikan Selesai';
+
+        return match ($status) {
+            'Ditinjau'          => 'Sedang Ditinjau',
+            'Disetujui'         => 'Disetujui',
+            'Ditolak'           => 'Ditolak',
+            'Sedang Diperbaiki' => 'Perbaikan Dimulai',
+            'Selesai'           => 'Perbaikan Selesai',
+            'Diedit'            => 'Laporan Diedit',
+            'Menunggu Review'   => 'Menunggu Review',
+            default             => "Status: {$status}",
+        };
     }
 }
 

@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Migration: Membuat tabel 'reports' untuk sistem JalanKita.
+ * Migration: Membuat tabel 'reports' untuk sistem DeltaJalan.
  *
  * Tabel ini menyimpan seluruh data laporan kerusakan jalan,
  * mulai dari informasi petugas, lokasi GPS, foto, hingga

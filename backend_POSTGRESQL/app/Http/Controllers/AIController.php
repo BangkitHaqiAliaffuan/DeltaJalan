@@ -72,7 +72,7 @@ class AIController extends Controller
 
             if (in_array($exifCheck['status'], ['too_old', 'future_date', 'no_exif_date', 'exif_read_error'])) {
                 // Foto terlalu lama, masa depan, atau tanpa EXIF tanggal — skip, jangan gagalkan batch
-                Log::warning('JalanKita: Foto batch ditolak karena EXIF tanggal tidak valid atau tidak ada.', [
+                Log::warning('DeltaJalan: Foto batch ditolak karena EXIF tanggal tidak valid atau tidak ada.', [
                     'file_index' => $idx,
                     'file_name'  => $fileName,
                     'exif_status' => $exifCheck['status'],
@@ -162,7 +162,7 @@ class AIController extends Controller
                         'gps_mismatch'     => $gpsDistanceMeters !== null && $gpsDistanceMeters > 500,
                     ];
                 } else {
-                    Log::warning('JalanKita: FastAPI gagal untuk satu foto dalam batch.', [
+                    Log::warning('DeltaJalan: FastAPI gagal untuk satu foto dalam batch.', [
                         'file_index' => $idx,
                         'file_name'  => $fileName,
                         'error'      => $aiResult['error'],
@@ -189,7 +189,7 @@ class AIController extends Controller
                     ];
                 }
             } catch (\Exception $e) {
-                Log::error('JalanKita: Exception saat analisis foto dalam batch.', [
+                Log::error('DeltaJalan: Exception saat analisis foto dalam batch.', [
                     'file_index' => $idx,
                     'error'      => $e->getMessage(),
                 ]);
@@ -373,7 +373,7 @@ class AIController extends Controller
 
             // Validasi range koordinat Indonesia
             if ($lat < -11 || $lat > 6 || $lng < 95 || $lng > 141) {
-                Log::warning('JalanKita: GPS EXIF di luar range Indonesia.', [
+                Log::warning('DeltaJalan: GPS EXIF di luar range Indonesia.', [
                     'lat' => $lat, 'lng' => $lng, 'file' => basename($filePath),
                 ]);
                 return null;
@@ -382,7 +382,7 @@ class AIController extends Controller
             return ['lat' => $lat, 'lng' => $lng];
 
         } catch (\Exception $e) {
-            Log::warning('JalanKita: Gagal membaca GPS EXIF.', ['error' => $e->getMessage()]);
+            Log::warning('DeltaJalan: Gagal membaca GPS EXIF.', ['error' => $e->getMessage()]);
             return null;
         }
     }
