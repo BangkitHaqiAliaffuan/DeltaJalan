@@ -15,6 +15,16 @@ class UserSeeder extends Seeder
         $password = Hash::make('password123');
 
         $users = [
+            // ── Administrator ──────────────────────────────────────────────
+            [
+                'name'    => 'Admin Utama',
+                'email'   => 'admin@dispu.binamarga.go.id',
+                'role'    => 'admin',
+                'wilayah' => null,
+                'nip'     => '197501012005011001',
+                'upr_id'  => null,
+            ],
+
             // ── Petugas Lapangan ──────────────────────────────────────────
             [
                 'name'    => 'Agus Setiawan',
@@ -122,7 +132,7 @@ class UserSeeder extends Seeder
             User::create([...$data, 'password' => $password]);
         }
 
-        $this->command->info('✅ UserSeeder: 12 user berhasil dibuat (4 petugas + 4 supervisor + 4 petugas eksekusi).');
+        $this->command->info('✅ UserSeeder: 13 user berhasil dibuat (1 admin + 4 petugas + 4 supervisor + 4 petugas eksekusi).');
         $this->command->info('   Email: @dispu.binamarga.go.id');
         $this->command->info('   Password semua akun: password123');
     }

@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { Icon } from "@/components/jk/Icon";
 import { useState, useEffect } from "react";
 import { saveAuth, isLoggedIn, getCurrentUser } from "@/lib/auth";
@@ -31,11 +31,13 @@ function LoginPage() {
       const user = getCurrentUser();
       navigate({
         to:
-          user?.role === "supervisor"
-            ? "/supervisor"
-            : user?.role === "petugas_eksekusi"
-              ? "/petugas-eksekusi"
-              : "/home",
+          user?.role === "admin"
+            ? "/admin/dashboard"
+            : user?.role === "supervisor"
+              ? "/supervisor"
+              : user?.role === "petugas_eksekusi"
+                ? "/petugas-eksekusi"
+                : "/home",
       });
     }
   }, [navigate]);
@@ -61,7 +63,9 @@ function LoginPage() {
 
       saveAuth(data.user, data.token);
 
-      if (data.user.role === "supervisor") {
+      if (data.user.role === "admin") {
+        navigate({ to: "/admin/dashboard" });
+      } else if (data.user.role === "supervisor") {
         navigate({ to: "/supervisor" });
       } else if (data.user.role === "petugas_eksekusi") {
         navigate({ to: "/petugas-eksekusi" });

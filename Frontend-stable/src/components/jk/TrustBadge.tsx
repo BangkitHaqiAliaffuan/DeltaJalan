@@ -1,10 +1,12 @@
 import { TrustLabel, TrustBreakdown } from "../../types/laporan";
+import { Icon } from "@/components/jk/Icon";
 
 interface TrustBadgeProps {
   score: number;
   label: TrustLabel;
   breakdown?: TrustBreakdown;
   showDetail?: boolean;
+  compact?: boolean;
 }
 
 const CONFIG: Record<
@@ -14,25 +16,29 @@ const CONFIG: Record<
     text: string;
     border: string;
     desc: string;
+    icon: string;
   }
 > = {
   hijau: {
-    bg: "bg-green-50",
-    text: "text-green-700",
-    border: "border-green-200",
+    bg: "bg-emerald-50",
+    text: "text-[#059669]",
+    border: "border-emerald-200",
     desc: "Kredibel",
+    icon: "verified",
   },
   kuning: {
     bg: "bg-amber-50",
-    text: "text-amber-700",
+    text: "text-[#D97706]",
     border: "border-amber-200",
     desc: "Perlu review",
+    icon: "running_with_errors",
   },
   merah: {
     bg: "bg-red-50",
-    text: "text-red-700",
+    text: "text-[#DC2626]",
     border: "border-red-200",
     desc: "Diragukan",
+    icon: "error",
   },
 };
 
@@ -44,8 +50,20 @@ const BREAKDOWN_LABELS: Record<string, string> = {
   fake_gps: "Keaslian GPS",
 };
 
-export function TrustBadge({ score, label, breakdown, showDetail = false }: TrustBadgeProps) {
+export function TrustBadge({ score, label, breakdown, showDetail = false, compact = false }: TrustBadgeProps) {
   const c = CONFIG[label] ?? CONFIG.merah;
+
+  if (compact) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${c.bg} ${c.text} ${c.border}`}
+        title={`Trust Score: ${score}/100 — ${c.desc}`}
+      >
+        <Icon name={c.icon} className="!text-[14px]" />
+        {c.desc} {score}
+      </span>
+    );
+  }
 
   return (
     <div className="inline-flex flex-col gap-1">

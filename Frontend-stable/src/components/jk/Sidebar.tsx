@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { Icon } from "./Icon";
 import { getCurrentUser, clearAuth, getToken, type User } from "@/lib/auth";
 import { useEffect, useState } from "react";
+import { usePwaInstall } from "@/hooks/usePwaInstall";
 
 interface MenuItem {
   icon: string;
@@ -67,6 +68,8 @@ export function Sidebar() {
     navigate({ to: "/" });
   }
 
+  const { canInstall, install } = usePwaInstall();
+
   return (
     <aside className="hidden md:flex flex-col w-64 shrink-0 min-h-screen bg-[#1A4F8A] sticky top-0 h-screen overflow-y-auto">
       {/* Header */}
@@ -109,13 +112,17 @@ export function Sidebar() {
             <Link
               key={item.label}
               to={item.to}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+              className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ease-out ${
                 active
-                  ? "bg-white/15 text-white font-semibold"
-                  : "text-white/70 hover:bg-white/10 hover:text-white"
+                  ? "bg-white text-[#1A4F8A] font-semibold shadow-sm translate-x-0.5"
+                  : "text-white/70 hover:bg-white/10 hover:text-white hover:translate-x-0.5"
               }`}
             >
-              <Icon name={item.icon} className="!text-[22px]" filled={active} />
+              <Icon
+                name={item.icon}
+                className={`!text-[22px] sidebar-icon ${active ? "shadow-active" : ""}`}
+                filled={active}
+              />
               <span className="text-[14px]" style={{ fontFamily: "'Inter', sans-serif" }}>
                 {item.label}
               </span>
@@ -160,7 +167,16 @@ export function Sidebar() {
             )}
           </div>
         </div>
-        {/* Tombol Logout */}
+        {canInstall && (
+          <button
+            type="button"
+            onClick={install}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-colors text-[13px] mb-1"
+          >
+            <Icon name="download" className="!text-[18px]" />
+            Install Aplikasi
+          </button>
+        )}
         <button
           type="button"
           onClick={handleLogout}

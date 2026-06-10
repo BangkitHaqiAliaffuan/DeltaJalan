@@ -1,6 +1,5 @@
 @import "tailwindcss" source(none);
 @source "../src";
-@import "tw-animate-css";
 
 /*
  * ── FIX TAILWIND V4 SIZING UTILITIES ──────────────────────────────────────
@@ -276,17 +275,17 @@
   --badge-sedang-text: #9a3412;
   --badge-sedang-border: #fdba74;
 
-  --badge-berat-bg: #fee2e2;
-  --badge-berat-text: #E11D48;
-  --badge-berat-border: #fca5a5;
+  --badge-berat-bg: #E11D48;
+  --badge-berat-text: #ffffff;
+  --badge-berat-border: #E11D48;
 
   --badge-diproses-bg: #eff6ff;
   --badge-diproses-text: #1e40af;
   --badge-diproses-border: #93c5fd;
 
-  --badge-selesai-bg: #d1fae5;
-  --badge-selesai-text: #10B981;
-  --badge-selesai-border: #6ee7b7;
+  --badge-selesai-bg: #10B981;
+  --badge-selesai-text: #ffffff;
+  --badge-selesai-border: #10B981;
 }
 
 html,
@@ -295,27 +294,6 @@ body {
   background-color: var(--color-bg-surface);
   color: var(--color-on-surface);
   -webkit-font-smoothing: antialiased;
-}
-
-.material-symbols-outlined {
-  font-family: "Material Symbols Outlined";
-  font-weight: normal;
-  font-style: normal;
-  font-size: 24px;
-  line-height: 1;
-  letter-spacing: normal;
-  text-transform: none;
-  display: inline-block;
-  white-space: nowrap;
-  word-wrap: normal;
-  direction: ltr;
-  font-feature-settings: "liga";
-  -webkit-font-smoothing: antialiased;
-  font-variation-settings:
-    "FILL" 0,
-    "wght" 400,
-    "GRAD" 0,
-    "opsz" 24;
 }
 
 .hide-scrollbar::-webkit-scrollbar,
@@ -381,3 +359,18 @@ body {
  * pada AppLayout atau Sidebar karena akan membuat fixed positioning relatif
  * terhadap elemen tersebut, bukan viewport.
  */
+
+/* ── Sidebar Icon Shadow ─────────────────────────────────────────── */
+.sidebar-icon {
+  filter: drop-shadow(2px 3px 0 transparent);
+  transition: filter 0.2s ease-out;
+}
+.group:hover .sidebar-icon:not(.shadow-active) {
+  filter: drop-shadow(2px 3px 0 rgba(255, 255, 255, 0.3));
+}
+.group:active .sidebar-icon:not(.shadow-active) {
+  filter: drop-shadow(2px 3px 0 rgba(255, 255, 255, 0.3));
+}
+.sidebar-icon.shadow-active {
+  filter: drop-shadow(2px 3px 0 rgba(26, 79, 138, 0.3));
+}

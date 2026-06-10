@@ -16,8 +16,9 @@ export type StatusLaporan =
 
 export type TrustLabel = "hijau" | "kuning" | "merah";
 export type KoordinatSumber = "exif" | "browser_gps" | "manual";
-export type SeverityLevel = "ringan" | "sedang" | "berat";
+export type SeverityLevel = "ringan" | "sedang" | "berat" | "baik";
 export type PriorityLevel = "Rendah" | "Sedang" | "Tinggi";
+export type StatusDeadline = "tepat_waktu" | "mendekati" | "terlambat";
 
 // ── Trust Score ────────────────────────────────────────────────────────────
 
@@ -118,6 +119,12 @@ export interface Laporan {
   // Prioritas penanganan (dari supervisor)
   priority?: PriorityLevel;
 
+  // Deadline & terlambat flags
+  deadline_review?: string | null;
+  deadline_resolusi?: string | null;
+  terlambat_review?: boolean;
+  terlambat_resolusi?: boolean;
+
   // Batch grouping — photos di tabel terpisah
   batch_id?: string | null;
   photos_count?: number;
@@ -129,6 +136,7 @@ export interface Laporan {
 
 export interface ReportPhoto {
   id: string;
+  reporter_name?: string | null;
   ai_jenis_kerusakan?: string | null;
   ai_severity?: string | null;
   ai_confidence?: number | null;
@@ -197,7 +205,9 @@ export interface MapStats {
     Selesai: number;
     Ditolak: number;
   };
-  sla_breach_count: number;
+  terlambat_count: number;
+  terlambat_review?: number;
+  terlambat_resolusi?: number;
 }
 
 export interface LaporanMarker {
@@ -225,6 +235,18 @@ export interface MapDataResponse {
 }
 
 // ── Notifikasi ────────────────────────────────────────────────────────────
+
+export interface RingkasanDeadlinePerPrioritas {
+  total: number;
+  tepat_waktu: number;
+  mendekati: number;
+  terlambat: number;
+}
+
+export interface RingkasanDeadlineResponse {
+  per_priority: Record<string, RingkasanDeadlinePerPrioritas>;
+  total: RingkasanDeadlinePerPrioritas;
+}
 
 export interface NotificationItem {
   id: string;

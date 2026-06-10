@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -9,8 +10,9 @@ import {
 } from "@tanstack/react-router";
 
 import { Toaster } from "sonner";
-import { PWARegistrator } from "@/components/jk/PWARegistrator";
 import appCss from "../styles.css?url";
+import { SubmissionQueue } from "@/components/jk/SubmissionQueue";
+import { ErudaToggle } from "@/components/jk/ErudaToggle";
 
 function NotFoundComponent() {
   return (
@@ -95,7 +97,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     links: [
       {
         rel: "apple-touch-icon",
-        href: "/logo.png",
+        href: "/icons/icon-192x192.png",
       },
       {
         rel: "icon",
@@ -121,10 +123,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200",
-      },
-      {
-        rel: "stylesheet",
         href: appCss,
       },
     ],
@@ -137,7 +135,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="id">
+    <html lang="id" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
@@ -158,10 +156,15 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  useEffect(() => {
+    document.documentElement.classList.add("app-ready");
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
-      <PWARegistrator />
+      <SubmissionQueue />
+      <ErudaToggle />
     </QueryClientProvider>
   );
 }

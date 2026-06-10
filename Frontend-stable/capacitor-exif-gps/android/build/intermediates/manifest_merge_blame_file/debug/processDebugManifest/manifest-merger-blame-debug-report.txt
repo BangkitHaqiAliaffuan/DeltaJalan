@@ -1,0 +1,11 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.jalankita.capacitor.exifgps" >
+4
+5    <uses-sdk android:minSdkVersion="24" />
+6
+7    <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
+7-->D:\JalanKita\Frontend-stable\capacitor-exif-gps\android\src\main\AndroidManifest.xml:2:5-80
+7-->D:\JalanKita\Frontend-stable\capacitor-exif-gps\android\src\main\AndroidManifest.xml:2:22-77
+8
+9</manifest>

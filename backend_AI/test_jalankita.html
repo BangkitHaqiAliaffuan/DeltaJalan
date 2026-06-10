@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JalanKita — Test Model</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #f4f5f7;
+    color: #1a1a2e;
+    min-height: 100vh;
+    padding: 2rem 1rem;
+  }
+
+  .container { max-width: 780px; margin: 0 auto; }
+
+  header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+  header h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #1a1a2e;
+  }
+  header p {
+    font-size: 0.9rem;
+    color: #666;
+    margin-top: 4px;
+  }
+
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
+    border: 1px solid #e2e4e9;
+  }
+
+  .card label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #555;
+    display: block;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  /* URL input */
+  .url-row {
+    display: flex;
+    gap: 8px;
+  }
+  .url-row input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    background: #f9f9f9;
+    color: #1a1a2e;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .url-row input:focus { border-color: #3b82f6; background: #fff; }
+  .url-row button {
+    padding: 10px 18px;
+    background: #3b82f6;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .2s;
+    white-space: nowrap;
+  }
+  .url-row button:hover { background: #2563eb; }
+
+  /* Upload area */
+  .drop-zone {
+    border: 2px dashed #c7d2e0;
+    border-radius: 10px;
+    padding: 2.5rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    position: relative;
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: #3b82f6;
+    background: #eff6ff;
+  }
+  .drop-zone input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .drop-zone .icon { font-size: 2.2rem; margin-bottom: 8px; }
+  .drop-zone p { font-size: 0.9rem; color: #666; }
+  .drop-zone p span { color: #3b82f6; font-weight: 600; }
+
+  /* Analyze button */
+  #btn-analyze {
+    width: 100%;
+    padding: 14px;
+    background: #1a1a2e;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .2s, transform .1s;
+    letter-spacing: 0.02em;
+  }
+  #btn-analyze:hover:not(:disabled) { background: #2d2d4e; }
+  #btn-analyze:active:not(:disabled) { transform: scale(0.99); }
+  #btn-analyze:disabled { background: #aaa; cursor: not-allowed; }
+
+  /* Loading */
+  #loading {
+    display: none;
+    text-align: center;
+    padding: 1rem;
+    color: #555;
+    font-size: 0.9rem;
+  }
+  .spinner {
+    display: inline-block;
+    width: 22px; height: 22px;
+    border: 3px solid #e2e4e9;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Result */
+  #result { display: none; }
+
+  .severity-badge {
+    display: inline-block;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+  }
+  .sev-baik     { background: #dcfce7; color: #166534; }
+  .sev-ringan   { background: #fef9c3; color: #854d0e; }
+  .sev-sedang   { background: #fff7ed; color: #9a3412; }
+  .sev-berat    { background: #fee2e2; color: #991b1b; }
+
+  .images-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 1.25rem;
+  }
+  .images-row div { text-align: center; }
+  .images-row p {
+    font-size: 0.78rem;
+    color: #888;
+    margin-bottom: 6px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .images-row img {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid #e2e4e9;
+    display: block;
+  }
+
+  .detection-list { list-style: none; }
+  .detection-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 0.9rem;
+  }
+  .detection-list li:last-child { border-bottom: none; }
+  .det-name { font-weight: 600; }
+  .det-right { display: flex; gap: 8px; align-items: center; }
+  .conf-bar-wrap { width: 80px; height: 6px; background: #e2e4e9; border-radius: 3px; overflow: hidden; }
+  .conf-bar { height: 100%; background: #3b82f6; border-radius: 3px; }
+  .conf-pct { font-size: 0.8rem; color: #555; min-width: 36px; text-align: right; }
+
+  .no-detection {
+    text-align: center;
+    padding: 1.5rem;
+    color: #22c55e;
+    font-weight: 600;
+    font-size: 1rem;
+  }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 1.25rem;
+  }
+  .stat-box {
+    background: #f9fafb;
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+    border: 1px solid #e2e4e9;
+  }
+  .stat-box .val { font-size: 1.4rem; font-weight: 700; }
+  .stat-box .lbl { font-size: 0.75rem; color: #888; margin-top: 2px; }
+
+  #error-msg {
+    display: none;
+    background: #fee2e2;
+    color: #991b1b;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    margin-top: 12px;
+  }
+
+  @media (max-width: 500px) {
+    .images-row { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>JalanKita — Test Model</h1>
+    <p>Uji deteksi kerusakan jalan · YOLOv8s · 4 kelas</p>
+  </header>
+
+  <!-- API URL -->
+  <div class="card">
+    <label>URL API Server</label>
+    <div class="url-row">
+      <input type="text" id="api-url" value="http://localhost:8000" placeholder="http://localhost:8000" />
+      <button onclick="testConnection()">Test Koneksi</button>
+    </div>
+    <div id="conn-status" style="margin-top:8px;font-size:0.83rem;"></div>
+  </div>
+
+  <!-- Upload -->
+  <div class="card">
+    <label>Foto Jalan</label>
+    <div class="drop-zone" id="drop-zone">
+      <input type="file" id="file-input" accept="image/jpeg,image/png" onchange="onFileSelect(event)">
+      <div class="icon">📷</div>
+      <p>Klik atau <span>drag & drop</span> foto jalan di sini</p>
+      <p style="font-size:0.78rem;margin-top:4px;">JPG / PNG</p>
+    </div>
+    <div id="preview-wrap" style="display:none;margin-top:12px;text-align:center;">
+      <img id="preview-img" style="max-width:100%;border-radius:8px;border:1px solid #e2e4e9;" />
+      <p style="font-size:0.8rem;color:#888;margin-top:6px;" id="preview-name"></p>
+    </div>
+  </div>
+
+  <!-- Tombol -->
+  <button id="btn-analyze" onclick="analyze()" disabled>Analisis Kerusakan</button>
+
+  <!-- Loading -->
+  <div id="loading">
+    <span class="spinner"></span> Menganalisis gambar...
+  </div>
+
+  <!-- Error -->
+  <div id="error-msg"></div>
+
+  <!-- Hasil -->
+  <div id="result" class="card" style="margin-top:1.25rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+      <strong style="font-size:1rem;">Hasil Analisis</strong>
+      <span id="severity-badge" class="severity-badge"></span>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-box">
+        <div class="val" id="stat-total">0</div>
+        <div class="lbl">Total deteksi</div>
+      </div>
+      <div class="stat-box">
+        <div class="val" id="stat-severity">—</div>
+        <div class="lbl">Kondisi jalan</div>
+      </div>
+      <div class="stat-box">
+        <div class="val" id="stat-conf">—</div>
+        <div class="lbl">Rata-rata conf.</div>
+      </div>
+    </div>
+
+    <div class="images-row">
+      <div>
+        <p>Asli</p>
+        <img id="img-original" />
+      </div>
+      <div>
+        <p>Hasil deteksi</p>
+        <img id="img-result" />
+      </div>
+    </div>
+
+    <div id="detection-container"></div>
+  </div>
+
+</div>
+
+<script>
+  let selectedFile = null;
+
+  // Auto-detect: if served from localhost, gunakan origin sebagai default API URL
+  if (location.protocol !== 'file:') {
+    document.getElementById('api-url').value = location.origin;
+  }
+
+  const dropZone = document.getElementById('drop-zone');
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f) setFile(f);
+  });
+
+  function onFileSelect(e) {
+    const f = e.target.files[0];
+    if (f) setFile(f);
+  }
+
+  function setFile(f) {
+    selectedFile = f;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      document.getElementById('preview-img').src = ev.target.result;
+      document.getElementById('img-original').src = ev.target.result;
+    };
+    reader.readAsDataURL(f);
+    document.getElementById('preview-name').textContent = f.name + ' (' + (f.size/1024).toFixed(0) + ' KB)';
+    document.getElementById('preview-wrap').style.display = 'block';
+    document.getElementById('btn-analyze').disabled = false;
+    document.getElementById('result').style.display = 'none';
+    document.getElementById('error-msg').style.display = 'none';
+  }
+
+  function getApiUrl() {
+    return document.getElementById('api-url').value.trim().replace(/\/$/, '');
+  }
+
+  async function testConnection() {
+    const url = getApiUrl();
+    if (!url) { showConnStatus('Masukkan URL API dulu', false); return; }
+    showConnStatus('Mengecek...', null);
+    try {
+      const r = await fetch(url + '/health');
+      const d = await r.json();
+      if (d.status === 'ok') showConnStatus('✓ Terhubung! Server aktif. Model: ' + d.model, true);
+      else showConnStatus('Server merespons tapi status tidak ok', false);
+    } catch (err) {
+      showConnStatus('Gagal terhubung: ' + err.message, false);
+    }
+  }
+
+  function showConnStatus(msg, ok) {
+    const el = document.getElementById('conn-status');
+    el.textContent = (ok === true ? '✓ ' : ok === false ? '✗ ' : '') + msg;
+    el.style.color = ok === true ? '#16a34a' : ok === false ? '#dc2626' : '#888';
+  }
+
+  async function analyze() {
+    const url = getApiUrl();
+    if (!url) { showError('Masukkan URL API terlebih dahulu.'); return; }
+    if (!selectedFile) { showError('Pilih foto terlebih dahulu.'); return; }
+
+    document.getElementById('btn-analyze').disabled = true;
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('result').style.display = 'none';
+    document.getElementById('error-msg').style.display = 'none';
+
+    try {
+      const form = new FormData();
+      form.append('file', selectedFile);
+      const resp = await fetch(url + '/analyze', {
+        method: 'POST',
+        body: form
+      });
+      if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error('Server error ' + resp.status + ': ' + errText);
+      }
+      const data = await resp.json();
+      if (data.status === 'error') {
+        throw new Error(data.message || 'Analisis gagal');
+      }
+      showResult(data);
+    } catch (e) {
+      showError('Gagal menganalisis: ' + e.message);
+    } finally {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('btn-analyze').disabled = false;
+    }
+  }
+
+  function showResult(data) {
+    document.getElementById('result').style.display = 'block';
+
+    const sev = data.overall_severity || 'Baik';
+    const badge = document.getElementById('severity-badge');
+    badge.textContent = sev;
+    badge.className = 'severity-badge ' + {
+      'Baik':'sev-baik','Rusak Ringan':'sev-ringan',
+      'Rusak Sedang':'sev-sedang','Rusak Berat':'sev-berat'
+    }[sev] || 'sev-baik';
+
+    document.getElementById('stat-total').textContent = data.total;
+    document.getElementById('stat-severity').textContent = sev;
+
+    const avgConf = data.total > 0
+      ? (data.detections.reduce((s,d) => s + d.confidence, 0) / data.total * 100).toFixed(0) + '%'
+      : '—';
+    document.getElementById('stat-conf').textContent = avgConf;
+
+    if (data.image_result) {
+      document.getElementById('img-result').src = 'data:image/jpeg;base64,' + data.image_result;
+    }
+
+    const container = document.getElementById('detection-container');
+    if (!data.total) {
+      container.innerHTML = '<div class="no-detection">✓ Tidak ada kerusakan terdeteksi</div>';
+      return;
+    }
+
+    const sevColor = { 'Rusak Berat':'#ef4444','Rusak Sedang':'#f97316','Rusak Ringan':'#eab308','Baik':'#22c55e' };
+
+    let html = '<ul class="detection-list">';
+    data.detections.forEach(d => {
+      const pct = Math.round(d.confidence * 100);
+      html += `
+        <li>
+          <span class="det-name">${d.class}</span>
+          <span class="det-right">
+            <span style="font-size:0.78rem;color:${sevColor[d.severity]||'#888'};font-weight:600;">${d.severity}</span>
+            <div class="conf-bar-wrap"><div class="conf-bar" style="width:${pct}%"></div></div>
+            <span class="conf-pct">${pct}%</span>
+          </span>
+        </li>`;
+    });
+    html += '</ul>';
+    container.innerHTML = html;
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-msg');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+</script>
+</body>
+</html>

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { Icon } from "@/components/jk/Icon";
 import type { LaporanMarker, DistrictSummary, MapStats } from "@/types/laporan";
-import L from "leaflet";
-import "leaflet.markercluster";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
@@ -96,7 +95,8 @@ export interface MapFilters {
   severity: string[];
   district: string;
   upr_id: string;
-  sla_days: string;
+  deadline_hari: string;
+  status_deadline: string;
 }
 
 interface PetaInteraktifProps {
@@ -121,10 +121,12 @@ export function PetaInteraktif({
   userRole,
 }: PetaInteraktifProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const polygonLayerRef = useRef<L.GeoJSON | null>(null);
+  const LRef = useRef<any>(null);
+  const [leafletReady, setLeafletReady] = useState(false);
+  const mapRef = useRef<any>(null);
+  const polygonLayerRef = useRef<any>(null);
   const markerClusterRef = useRef<any>(null);
-  const markersRef = useRef<L.Marker[]>([]);
+  const markersRef = useRef<any[]>([]);
   const currentZoomRef = useRef(DEFAULT_ZOOM);
   const [mapReady, setMapReady] = useState(false);
   const [geoJsonData, setGeoJsonData] = useState<any>(null);
@@ -136,6 +138,17 @@ export function PetaInteraktif({
   const [filterMinimized, setFilterMinimized] = useState(false);
   const [showStats, setShowStats] = useState(true);
   const [showLegend, setShowLegend] = useState(true);
+
+  // ── Dynamic Leaflet import (single chunk — leaflet + markercluster in one module) ──
+  useEffect(() => {
+    let cancelled = false;
+    import("@/lib/leaflet-bundle").then((mod) => {
+      if (cancelled) return;
+      LRef.current = mod.default;
+      setLeafletReady(true);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Active-only district severity (for polygon coloring) ──
   const activeDistrictStats = useMemo(() => {
@@ -237,6 +250,8 @@ export function PetaInteraktif({
   // ── Init Map ──
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
+    const L = LRef.current;
+    if (!L) return;
 
     delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
     L.Icon.Default.mergeOptions({
@@ -279,19 +294,27 @@ export function PetaInteraktif({
 
     return () => {
       if (mapRef.current) {
-        mapRef.current.remove();
+        const m = mapRef.current;
+        // Force-complete any in-progress CSS zoom transition so
+        // Leaflet's internal _onZoomTransitionEnd doesn't fire
+        // after the map container is removed from the DOM.
+        const pane = (m as any)._panes?.mapPane;
+        if (pane) { pane.style.transition = "none"; }
+        m.remove();
         mapRef.current = null;
         polygonLayerRef.current = null;
         markerClusterRef.current = null;
         markersRef.current = [];
       }
     };
-  }, []);
+  }, [leafletReady]);
 
   // ── Polygon Layer (created once, style updated via setStyle) ──
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady || !geoJsonData) return;
+    const L = LRef.current;
+    if (!L) return;
 
     if (polygonLayerRef.current) {
       map.removeLayer(polygonLayerRef.current);
@@ -342,6 +365,8 @@ export function PetaInteraktif({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
+    const L = LRef.current;
+    if (!L) return;
 
     // Create cluster group once
     if (!markerClusterRef.current) {
@@ -423,7 +448,7 @@ export function PetaInteraktif({
         });
 
         const photoHtml = r.first_photo_url
-          ? `<img src="${r.first_photo_url}" style="width:100%;height:100px;object-fit:cover;border-radius:8px 8px 0 0;" alt="" />`
+          ? `<img src="${r.first_photo_url}" loading="lazy" style="width:100%;height:100px;object-fit:cover;border-radius:8px 8px 0 0;" alt="" />`
           : `<div style="width:100%;height:100px;background:#F1F5F9;border-radius:8px 8px 0 0;display:flex;align-items:center;justify-content:center;color:#CBD5E1;font-size:24px;">📷</div>`;
 
         const dimensiHtml =
@@ -439,7 +464,7 @@ export function PetaInteraktif({
           .bindPopup(
             `<div style="font-family:'Inter',sans-serif;min-width:220px;border-radius:8px;overflow:hidden;">
               <button onclick="window.__minimizePopup()" style="position:absolute;top:8px;right:8px;z-index:10;width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);color:white;border:none;border-radius:8px;cursor:pointer;font-size:18px;transition:all .2s ease;" onmouseover="this.style.background='rgba(0,0,0,0.7)'" onmouseout="this.style.background='rgba(0,0,0,0.45)'">
-                <span class="material-icons" style="font-size:18px;line-height:1;">close_fullscreen</span>
+                <span style="font-size:18px;line-height:1;">&#x2715;</span>
               </button>
               ${photoHtml}
               <div style="padding:10px;">
@@ -509,7 +534,7 @@ export function PetaInteraktif({
   }
 
   function resetFilters() {
-    onFilterChange({ status: [], severity: [], district: "", upr_id: "", sla_days: "" });
+    onFilterChange({ status: [], severity: [], district: "", upr_id: "", deadline_hari: "", status_deadline: "" });
   }
 
   const districts = useMemo(() => {
@@ -522,7 +547,7 @@ export function PetaInteraktif({
 
   const filterPanelVisible = (isDesktop || mobileFilterOpen) && !filterMinimized;
   const activeFilterCount =
-    filters.status.length + filters.severity.length + (filters.district ? 1 : 0) + (filters.upr_id ? 1 : 0) + (filters.sla_days ? 1 : 0);
+    filters.status.length + filters.severity.length + (filters.district ? 1 : 0) + (filters.upr_id ? 1 : 0) + (filters.deadline_hari ? 1 : 0) + (filters.status_deadline ? 1 : 0);
 
   const validReportsCount = mapReports.filter((r) => r.latitude && r.longitude).length;
   const polygonsShown = zoomLevel >= POLYGON_MIN_ZOOM && zoomLevel < UNCLUSTER_ZOOM;
@@ -555,7 +580,7 @@ export function PetaInteraktif({
         }`}
         aria-label="Buka filter"
       >
-        <span className="material-symbols-outlined !text-[20px] text-[#475569]">filter_list</span>
+        <Icon name="filter_list" className="!text-[20px] text-[#475569]" />
         {activeFilterCount > 0 && (
           <span className="absolute -top-1 -right-1 w-5 h-5 bg-[#E11D48] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
             {activeFilterCount}
@@ -592,7 +617,7 @@ export function PetaInteraktif({
                 className="w-6 h-6 flex items-center justify-center rounded hover:bg-[#F1F5F9] transition-colors"
                 aria-label="Minimalkan filter"
               >
-                <span className="material-symbols-outlined !text-[16px] text-[#475569]">close</span>
+                <Icon name="close" className="!text-[16px] text-[#475569]" />
               </button>
             </div>
           </div>
@@ -677,20 +702,19 @@ export function PetaInteraktif({
               </div>
             )}
 
-            {/* SLA Aging */}
+            {/* Deadline Status */}
             <div className="mb-3">
               <p className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">
-                SLA
+                Deadline
               </p>
               <select
-                value={filters.sla_days}
-                onChange={(e) => updateFilter({ sla_days: e.target.value })}
+                value={filters.status_deadline}
+                onChange={(e) => updateFilter({ status_deadline: e.target.value, deadline_hari: "" })}
                 className="w-full text-[12px] px-2 py-1.5 rounded-lg border border-[#CBD5E1] bg-white text-[#0F172A] focus:outline-none focus:ring-1 focus:ring-[#1A4F8A]"
               >
                 <option value="">Semua</option>
-                <option value="7">{'Belum ditindak > 7 hari'}</option>
-                <option value="14">{'Belum ditindak > 14 hari'}</option>
-                <option value="30">{'Belum ditindak > 30 hari'}</option>
+                <option value="terlambat">Terlewat Deadline</option>
+                <option value="tepat_waktu">Tepat Waktu</option>
               </select>
             </div>
 
@@ -715,7 +739,7 @@ export function PetaInteraktif({
         }`}
         aria-label="Buka ringkasan"
       >
-        <span className="material-symbols-outlined !text-[20px] text-[#475569]">bar_chart</span>
+        <Icon name="bar_chart" className="!text-[20px] text-[#475569]" />
       </button>
 
       {/* Stats Panel (always mounted, animates) */}
@@ -738,7 +762,7 @@ export function PetaInteraktif({
                 className="w-5 h-5 flex items-center justify-center rounded hover:bg-[#F1F5F9] transition-colors"
                 aria-label="Minimalkan"
               >
-                <span className="material-symbols-outlined !text-[14px] text-[#64748B]">close</span>
+                <Icon name="close" className="!text-[14px] text-[#64748B]" />
               </button>
             </div>
 
@@ -786,14 +810,32 @@ export function PetaInteraktif({
               </div>
             </div>
 
-            {mapStats.sla_breach_count > 0 && (
-              <div className="mt-2 pt-2 border-t border-[#F1F5F9]">
-                <div className="flex items-center gap-1">
-                  <span className="material-symbols-outlined !text-[14px] text-[#E11D48]">warning</span>
-                  <span className="text-[11px] text-[#E11D48] font-medium">
-                    {mapStats.sla_breach_count} laporan &gt; 7 hari
-                  </span>
-                </div>
+            {(mapStats.terlambat_count > 0 || (mapStats.terlambat_review ?? 0) > 0 || (mapStats.terlambat_resolusi ?? 0) > 0) && (
+              <div className="mt-2 pt-2 border-t border-[#F1F5F9] space-y-1">
+                {mapStats.terlambat_count > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Icon name="warning" className="!text-[14px] text-[#E11D48]" />
+                    <span className="text-[11px] text-[#E11D48] font-medium">
+                      {mapStats.terlambat_count} laporan &gt; 7 hari
+                    </span>
+                  </div>
+                )}
+                {(mapStats.terlambat_review ?? 0) > 0 && (
+                  <div className="flex items-center gap-1 ml-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                    <span className="text-[10px] text-[#E11D48]">
+                      Review: {mapStats.terlambat_review} terlewat
+                    </span>
+                  </div>
+                )}
+                {(mapStats.terlambat_resolusi ?? 0) > 0 && (
+                  <div className="flex items-center gap-1 ml-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                    <span className="text-[10px] text-[#E11D48]">
+                      Perbaikan: {mapStats.terlambat_resolusi} terlewat
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -801,7 +843,7 @@ export function PetaInteraktif({
       </div>
 
       {/* Layer indicator + Legend */}
-      <div className="absolute bottom-3 right-3 z-[1000] flex flex-col gap-1">
+      <div className="absolute bottom-3 right-3 z-[1000] flex flex-col gap-1 max-h-64 w-50">
         {/* Zoom Layer Indicator */}
         <div className="bg-white/90 backdrop-blur-sm border border-[#E2E8F0] rounded-lg px-2.5 py-1.5 shadow-sm">
           <div className="flex items-center gap-1.5 mb-1">
@@ -844,7 +886,7 @@ export function PetaInteraktif({
                 className="w-4 h-4 flex items-center justify-center rounded hover:bg-[#F1F5F9] transition-colors"
                 aria-label="Minimalkan legend"
               >
-                <span className="material-symbols-outlined !text-[12px] text-[#64748B]">close</span>
+                <Icon name="close" className="!text-[12px] text-[#64748B]" />
               </button>
             </div>
             {Object.entries(SEVERITY_CONFIG).map(([key, cfg]) => (
@@ -871,17 +913,7 @@ export function PetaInteraktif({
               <div className="w-3 h-3 rounded-full shrink-0" style={{ background: "#64748B", border: "2px solid white", boxShadow: "0 0 0 1px #E2E8F0" }} />
               <span className="text-[10px] text-[#475569] whitespace-nowrap">Menunggu Review</span>
             </div>
-            {polygonsShown && (
-              <>
-                <div className="border-t border-[#E2E8F0] my-1" />
-                <p className="text-[9px] font-semibold text-[#64748B] uppercase tracking-wider mb-0.5">Polygon (Aktif)</p>
-                <span className="text-[9px] text-[#64748B] leading-tight">Warna polygon berdasarkan severity laporan aktif (belum selesai/ditolak)</span>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded shrink-0 border-2" style={{ borderColor: "#1A4F8A", background: "#1A4F8A20" }} />
-                  <span className="text-[10px] text-[#475569] whitespace-nowrap">Batas Kecamatan</span>
-                </div>
-              </>
-            )}
+            
           </div>
         </div>
         {/* Legend toggle (always mounted) */}
@@ -891,11 +923,11 @@ export function PetaInteraktif({
           className={`self-end transition-all duration-200 ease-out ${
             showLegend
               ? 'opacity-0 scale-75 pointer-events-none w-0 h-0 overflow-hidden'
-              : 'opacity-100 scale-100 w-5 h-5'
+              : 'opacity-100 scale-100 w-10 h-10 bg-white mb-5'
           } flex items-center justify-center rounded hover:bg-[#F1F5F9] transition-colors`}
           aria-label="Buka legend"
         >
-          <span className="material-symbols-outlined !text-[14px] text-[#64748B]">legend_toggle</span>
+          <Icon name="legend_toggle" className="!text-[20px] text-[#64748B]" />
         </button>
       </div>
 

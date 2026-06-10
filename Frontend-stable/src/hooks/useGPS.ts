@@ -84,13 +84,15 @@ export function useGPS(): UseGPSReturn {
     return reasons;
   };
 
+  const pausedRef = useRef(false);
+
   const startWatching = () => {
     if (!navigator.geolocation) {
       setGPS((prev) => ({ ...prev, status: "error" }));
       return;
     }
+    if (watchId.current !== null) return;
 
-    // Reset riwayat akurasi saat mulai watching baru
     accuracyHistory.current = [];
     setGPS((prev) => ({ ...prev, status: "waiting" }));
 
@@ -128,9 +130,22 @@ export function useGPS(): UseGPSReturn {
     }
   };
 
-  // Cleanup saat komponen unmount
+  // Pause GPS saat page hidden, resume saat visible
   useEffect(() => {
-    return () => stopWatching();
+    function onVisibility() {
+      if (document.hidden) {
+        stopWatching();
+        pausedRef.current = true;
+      } else if (pausedRef.current) {
+        pausedRef.current = false;
+        startWatching();
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      stopWatching();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

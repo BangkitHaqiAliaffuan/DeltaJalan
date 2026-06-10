@@ -121,33 +121,43 @@ export const SEVERITY_CONFIG: Record<
   { bg: string; text: string; border: string; label: string }
 > = {
   "Rusak Berat": {
-    bg: "bg-[#FEE2E2]",
-    text: "text-[#991B1B]",
-    border: "border-[#FCA5A5]",
+    bg: "bg-[#E11D48]",
+    text: "text-white",
+    border: "border-[#E11D48]",
     label: "Rusak Berat",
   },
   "Rusak Sedang": {
-    bg: "bg-[#FFEDD5]",
-    text: "text-[#9A3412]",
-    border: "border-[#FDBA74]",
+    bg: "bg-orange-50",
+    text: "text-[#F97316]",
+    border: "border-orange-200",
     label: "Rusak Sedang",
   },
   "Rusak Ringan": {
-    bg: "bg-[#FEF3C7]",
-    text: "text-[#92400E]",
-    border: "border-[#FCD34D]",
+    bg: "bg-amber-50",
+    text: "text-[#F59E0B]",
+    border: "border-amber-200",
     label: "Rusak Ringan",
   },
   Baik: {
-    bg: "bg-[#D1FAE5]",
-    text: "text-[#065F46]",
-    border: "border-[#6EE7B7]",
+    bg: "bg-emerald-50",
+    text: "text-[#10B981]",
+    border: "border-emerald-200",
     label: "Baik",
   },
 };
 
 // ── API Configuration ─────────────────────────────────────────────────────
-// Gunakan path relatif agar Vite proxy bisa meneruskan ke Laravel (port 8080).
-// Vite dev server akan proxy /api/* → http://localhost:8080/api/*
-// Ini menghindari CORS karena request diteruskan server-to-server oleh Vite.
-export const API_BASE_URL = "/api";
+// Di browser: path relatif agar Vite proxy → Laravel (port 8080)
+// Di Capacitor: perlu full URL karena tidak ada Vite proxy.
+// Capacitor injects window.Capacitor — dicek tanpa import agar bundle aman.
+function getApiBaseUrl(): string {
+  if (
+    typeof window !== 'undefined' &&
+    typeof (window as Record<string, unknown>).Capacitor !== 'undefined'
+  ) {
+    return import.meta.env.VITE_API_BASE_URL ?? 'http://10.0.2.2:8080/api';
+  }
+  return '/api';
+}
+
+export const API_BASE_URL = getApiBaseUrl();

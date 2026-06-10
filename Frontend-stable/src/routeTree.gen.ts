@@ -26,6 +26,15 @@ import { Route as CreateReportRouteImport } from './routes/create-report'
 import { Route as CompleteReportRouteImport } from './routes/complete-report'
 import { Route as AiResultRouteImport } from './routes/ai-result'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as AdminUsersRouteImport } from './routes/admin/users'
+import { Route as AdminUprsRouteImport } from './routes/admin/uprs'
+import { Route as AdminReportsRouteImport } from './routes/admin/reports'
+import { Route as AdminLoginRouteImport } from './routes/admin/login'
+import { Route as AdminExportRouteImport } from './routes/admin/export'
+import { Route as AdminDashboardRouteImport } from './routes/admin/dashboard'
+import { Route as AdminConfigRouteImport } from './routes/admin/config'
+import { Route as AdminActivityRouteImport } from './routes/admin/activity'
 
 const UploadRoute = UploadRouteImport.update({
   id: '/upload',
@@ -112,6 +121,51 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/admin/users',
+  path: '/admin/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminUprsRoute = AdminUprsRouteImport.update({
+  id: '/admin/uprs',
+  path: '/admin/uprs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminReportsRoute = AdminReportsRouteImport.update({
+  id: '/admin/reports',
+  path: '/admin/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/admin/login',
+  path: '/admin/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminExportRoute = AdminExportRouteImport.update({
+  id: '/admin/export',
+  path: '/admin/export',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminDashboardRoute = AdminDashboardRouteImport.update({
+  id: '/admin/dashboard',
+  path: '/admin/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminConfigRoute = AdminConfigRouteImport.update({
+  id: '/admin/config',
+  path: '/admin/config',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminActivityRoute = AdminActivityRouteImport.update({
+  id: '/admin/activity',
+  path: '/admin/activity',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -131,6 +185,15 @@ export interface FileRoutesByFullPath {
   '/stats': typeof StatsRoute
   '/supervisor': typeof SupervisorRoute
   '/upload': typeof UploadRoute
+  '/admin/activity': typeof AdminActivityRoute
+  '/admin/config': typeof AdminConfigRoute
+  '/admin/dashboard': typeof AdminDashboardRoute
+  '/admin/export': typeof AdminExportRoute
+  '/admin/login': typeof AdminLoginRoute
+  '/admin/reports': typeof AdminReportsRoute
+  '/admin/uprs': typeof AdminUprsRoute
+  '/admin/users': typeof AdminUsersRoute
+  '/admin/': typeof AdminIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -150,6 +213,15 @@ export interface FileRoutesByTo {
   '/stats': typeof StatsRoute
   '/supervisor': typeof SupervisorRoute
   '/upload': typeof UploadRoute
+  '/admin/activity': typeof AdminActivityRoute
+  '/admin/config': typeof AdminConfigRoute
+  '/admin/dashboard': typeof AdminDashboardRoute
+  '/admin/export': typeof AdminExportRoute
+  '/admin/login': typeof AdminLoginRoute
+  '/admin/reports': typeof AdminReportsRoute
+  '/admin/uprs': typeof AdminUprsRoute
+  '/admin/users': typeof AdminUsersRoute
+  '/admin': typeof AdminIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -170,6 +242,15 @@ export interface FileRoutesById {
   '/stats': typeof StatsRoute
   '/supervisor': typeof SupervisorRoute
   '/upload': typeof UploadRoute
+  '/admin/activity': typeof AdminActivityRoute
+  '/admin/config': typeof AdminConfigRoute
+  '/admin/dashboard': typeof AdminDashboardRoute
+  '/admin/export': typeof AdminExportRoute
+  '/admin/login': typeof AdminLoginRoute
+  '/admin/reports': typeof AdminReportsRoute
+  '/admin/uprs': typeof AdminUprsRoute
+  '/admin/users': typeof AdminUsersRoute
+  '/admin/': typeof AdminIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -191,6 +272,15 @@ export interface FileRouteTypes {
     | '/stats'
     | '/supervisor'
     | '/upload'
+    | '/admin/activity'
+    | '/admin/config'
+    | '/admin/dashboard'
+    | '/admin/export'
+    | '/admin/login'
+    | '/admin/reports'
+    | '/admin/uprs'
+    | '/admin/users'
+    | '/admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -210,6 +300,15 @@ export interface FileRouteTypes {
     | '/stats'
     | '/supervisor'
     | '/upload'
+    | '/admin/activity'
+    | '/admin/config'
+    | '/admin/dashboard'
+    | '/admin/export'
+    | '/admin/login'
+    | '/admin/reports'
+    | '/admin/uprs'
+    | '/admin/users'
+    | '/admin'
   id:
     | '__root__'
     | '/'
@@ -229,6 +328,15 @@ export interface FileRouteTypes {
     | '/stats'
     | '/supervisor'
     | '/upload'
+    | '/admin/activity'
+    | '/admin/config'
+    | '/admin/dashboard'
+    | '/admin/export'
+    | '/admin/login'
+    | '/admin/reports'
+    | '/admin/uprs'
+    | '/admin/users'
+    | '/admin/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -249,6 +357,15 @@ export interface RootRouteChildren {
   StatsRoute: typeof StatsRoute
   SupervisorRoute: typeof SupervisorRoute
   UploadRoute: typeof UploadRoute
+  AdminActivityRoute: typeof AdminActivityRoute
+  AdminConfigRoute: typeof AdminConfigRoute
+  AdminDashboardRoute: typeof AdminDashboardRoute
+  AdminExportRoute: typeof AdminExportRoute
+  AdminLoginRoute: typeof AdminLoginRoute
+  AdminReportsRoute: typeof AdminReportsRoute
+  AdminUprsRoute: typeof AdminUprsRoute
+  AdminUsersRoute: typeof AdminUsersRoute
+  AdminIndexRoute: typeof AdminIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -372,6 +489,69 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/': {
+      id: '/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/users': {
+      id: '/admin/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/uprs': {
+      id: '/admin/uprs'
+      path: '/admin/uprs'
+      fullPath: '/admin/uprs'
+      preLoaderRoute: typeof AdminUprsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/reports': {
+      id: '/admin/reports'
+      path: '/admin/reports'
+      fullPath: '/admin/reports'
+      preLoaderRoute: typeof AdminReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/login': {
+      id: '/admin/login'
+      path: '/admin/login'
+      fullPath: '/admin/login'
+      preLoaderRoute: typeof AdminLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/export': {
+      id: '/admin/export'
+      path: '/admin/export'
+      fullPath: '/admin/export'
+      preLoaderRoute: typeof AdminExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/dashboard': {
+      id: '/admin/dashboard'
+      path: '/admin/dashboard'
+      fullPath: '/admin/dashboard'
+      preLoaderRoute: typeof AdminDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/config': {
+      id: '/admin/config'
+      path: '/admin/config'
+      fullPath: '/admin/config'
+      preLoaderRoute: typeof AdminConfigRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/activity': {
+      id: '/admin/activity'
+      path: '/admin/activity'
+      fullPath: '/admin/activity'
+      preLoaderRoute: typeof AdminActivityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -393,6 +573,15 @@ const rootRouteChildren: RootRouteChildren = {
   StatsRoute: StatsRoute,
   SupervisorRoute: SupervisorRoute,
   UploadRoute: UploadRoute,
+  AdminActivityRoute: AdminActivityRoute,
+  AdminConfigRoute: AdminConfigRoute,
+  AdminDashboardRoute: AdminDashboardRoute,
+  AdminExportRoute: AdminExportRoute,
+  AdminLoginRoute: AdminLoginRoute,
+  AdminReportsRoute: AdminReportsRoute,
+  AdminUprsRoute: AdminUprsRoute,
+  AdminUsersRoute: AdminUsersRoute,
+  AdminIndexRoute: AdminIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

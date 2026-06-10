@@ -2,9 +2,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { TrustBadge } from "@/components/jk/TrustBadge";
+import { SkeletonDetailReport } from "@/components/jk/Skeleton";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { API_BASE_URL } from "@/lib/aiStore";
 import { getToken, getCurrentUser } from "@/lib/auth";
+import { formatDate } from "@/lib/format";
 import type { Laporan, TimelineEvent, TrustLabel } from "@/types/laporan";
 import { ReportMap, type ReportMapPoint } from "@/components/jk/ReportMap";
 import { TimelineCard } from "@/components/jk/TimelineCard";
@@ -18,14 +20,6 @@ export const Route = createFileRoute("/detail-report")({
   },
   head: () => ({ meta: [{ title: "Detail Laporan — DeltaJalan" }] }),
 });
-
-function formatDate(dateStr: string): string {
-  try {
-    return new Date(dateStr).toLocaleDateString("id-ID", {
-      day: "numeric", month: "long", year: "numeric",
-    });
-  } catch { return dateStr; }
-}
 
 function displayStatus(s: string): string {
   return s === "Ditinjau" ? "Menunggu Review" : s;
@@ -55,8 +49,8 @@ function collectPhotos(r: Laporan): SliderPhoto[] {
 
 const SEVERITY_STYLES: Record<string, { badge: string; dot: string }> = {
   "Rusak Berat": { badge: "bg-[#E11D48] text-white", dot: "bg-white animate-pulse" },
-  "Rusak Sedang": { badge: "bg-[#F97316] text-white", dot: "bg-white" },
-  "Rusak Ringan": { badge: "bg-[#F59E0B] text-white", dot: "bg-white" },
+  "Rusak Sedang": { badge: "bg-orange-50 text-[#F97316] border border-orange-200", dot: "bg-white" },
+  "Rusak Ringan": { badge: "bg-amber-50 text-[#F59E0B] border border-amber-200", dot: "bg-white" },
   Baik: { badge: "bg-[#E8F5E9] text-[#2E7D32] border border-[#A5D6A7]", dot: "bg-[#2E7D32]" },
 };
 
@@ -65,13 +59,13 @@ function getSevStyle(sev: string | undefined | null) {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  "Menunggu Review": "bg-[#F1F5F9] text-[#475569] border border-[#CBD5E1]",
-  Ditinjau: "bg-[#F1F5F9] text-[#475569] border border-[#CBD5E1]",
-  Disetujui: "bg-[#EFF6FF] text-[#1E40AF] border border-[#BFDBFE]",
-  Ditolak: "bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA]",
-  "Sedang Diperbaiki": "bg-[#FFFBEB] text-[#D97706] border border-[#FDE68A]",
-  Selesai: "bg-[#F0FDF4] text-[#16A34A] border border-[#BBF7D0]",
-  Diedit: "bg-[#F1F5F9] text-[#475569] border border-[#CBD5E1]",
+  "Menunggu Review": "bg-amber-50 text-[#F59E0B] border border-amber-200",
+  Ditinjau: "bg-amber-50 text-[#F59E0B] border border-amber-200",
+  Disetujui: "bg-blue-50 text-[#2563EB] border border-blue-200",
+  Ditolak: "bg-[#E11D48] text-white",
+  "Sedang Diperbaiki": "bg-orange-50 text-[#F97316] border border-orange-200",
+  Selesai: "bg-[#10B981] text-white",
+  Diedit: "bg-slate-50 text-[#64748B] border border-slate-200",
 };
 
 function getStatusStyle(s: string): string {
@@ -154,7 +148,7 @@ function PhotoSlider({ photos }: { photos: SliderPhoto[] }) {
             className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/40 hover:bg-black/60 flex items-center justify-center transition-colors"
             aria-label="Foto sebelumnya"
           >
-            <span className="material-symbols-outlined !text-[20px] text-white">chevron_left</span>
+            <Icon name="chevron_left" className="!text-[20px] text-white" />
           </button>
           <button
             type="button"
@@ -162,7 +156,7 @@ function PhotoSlider({ photos }: { photos: SliderPhoto[] }) {
             className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/40 hover:bg-black/60 flex items-center justify-center transition-colors"
             aria-label="Foto berikutnya"
           >
-            <span className="material-symbols-outlined !text-[20px] text-white">chevron_right</span>
+            <Icon name="chevron_right" className="!text-[20px] text-white" />
           </button>
 
           <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-3 pt-8">
@@ -195,7 +189,11 @@ function PhotoSlider({ photos }: { photos: SliderPhoto[] }) {
 function DetailReportPage() {
   const { reportId } = Route.useSearch();
   const token = getToken() ?? "";
-  const user = getCurrentUser();
+  const [backPath, setBackPath] = useState("/my-reports");
+  useEffect(() => {
+    const u = getCurrentUser();
+    setBackPath(u?.role === "supervisor" ? "/supervisor" : u?.role === "petugas_eksekusi" ? "/petugas-eksekusi" : "/my-reports");
+  }, []);
 
   const [report, setReport] = useState<Laporan | null>(null);
   const [loading, setLoading] = useState(true);
@@ -247,20 +245,13 @@ function DetailReportPage() {
 
   const hasTimeline = statusHistory.length > 0;
 
-  const backPath =
-    user?.role === "supervisor" ? "/supervisor" :
-    user?.role === "petugas_eksekusi" ? "/petugas-eksekusi" : "/my-reports";
-
   // ── Loading State ──
 
   if (loading) {
     return (
       <PageLayout back={backPath} title="Detail Laporan">
-          <main className="flex-1 flex items-center justify-center bg-[#F5F7FA]">
-            <div className="flex flex-col items-center gap-3">
-              <span className="w-8 h-8 border-4 border-[#1A4F8A]/30 border-t-[#1A4F8A] rounded-full animate-spin" />
-              <p className="text-[13px] text-[#64748B]">Memuat laporan...</p>
-            </div>
+          <main aria-busy="true" aria-label="Memuat detail laporan">
+            <SkeletonDetailReport />
           </main>
       </PageLayout>
     );
@@ -271,7 +262,7 @@ function DetailReportPage() {
   if (error || !report) {
     return (
       <PageLayout back={backPath} title="Detail Laporan">
-          <main className="flex-1 flex flex-col items-center justify-center gap-3 px-4 bg-[#F5F7FA]">
+          <main className="flex flex-col items-center justify-center gap-3 px-4 bg-[#F5F7FA]">
             <div className="w-14 h-14 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-center">
               <Icon name="error" className="!text-[28px] text-[#E11D48]" />
             </div>
@@ -295,7 +286,7 @@ function DetailReportPage() {
       title="Detail Laporan"
       right={<span className="font-id-code text-[12px] text-[#64748B]">{report.report_code}</span>}
     >
-        <main className="flex-1 overflow-y-auto min-h-0">
+        <main>
           <div className="max-w-2xl mx-auto p-4 flex flex-col gap-4">
 
             {/* ── Photo Slider ── */}

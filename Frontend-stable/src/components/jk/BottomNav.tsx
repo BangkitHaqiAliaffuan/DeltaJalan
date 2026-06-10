@@ -1,6 +1,8 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { Icon } from "./Icon";
 import { getCurrentUser } from "@/lib/auth";
+import { usePwaInstall } from "@/hooks/usePwaInstall";
+import { useEffect, useState } from "react";
 
 const PETUGAS_ITEMS = [
   { to: "/home", icon: "home", label: "Beranda" },
@@ -22,7 +24,14 @@ const EKSEKUSI_ITEMS = [
 
 export function BottomNav() {
   const { pathname } = useLocation();
-  const user = getCurrentUser();
+  const [user, setUser] = useState<ReturnType<typeof getCurrentUser>>(null);
+  const { canInstall, install } = usePwaInstall();
+
+  useEffect(() => {
+    setUser(getCurrentUser());
+  }, []);
+
+  if (!user) return null;
 
   const items =
     user?.role === "supervisor"
@@ -32,7 +41,7 @@ export function BottomNav() {
         : PETUGAS_ITEMS;
 
   return (
-    <nav className="shrink-0 md:hidden w-full max-w-[430px] flex justify-around items-center px-2 bg-white h-16 border-t border-[#D0DAE8]">
+    <nav className="shrink-0 md:hidden w-full max-w-[430px] flex justify-around items-center px-2 bg-white h-16 border-t border-[#D0DAE8]" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
       {items.map((it) => {
         const active = pathname === it.to;
         return (
@@ -48,6 +57,16 @@ export function BottomNav() {
           </Link>
         );
       })}
+      {canInstall && (
+        <button
+          type="button"
+          onClick={install}
+          className="flex flex-col items-center justify-center h-full px-2 transition-all active:scale-95 text-on-surface-variant"
+        >
+          <Icon name="download" />
+          <span className="font-label-sm text-label-sm">Install</span>
+        </button>
+      )}
     </nav>
   );
 }

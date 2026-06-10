@@ -3,10 +3,13 @@
 namespace App\Notifications;
 
 use App\Models\Report;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
 
-class ReportEditedNotification extends Notification
+class ReportEditedNotification extends Notification implements ShouldQueue
 {
+    use Queueable;
 
     public function __construct(
         public Report $report,

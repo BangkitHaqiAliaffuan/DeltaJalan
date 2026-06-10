@@ -1,3 +1,4 @@
+import { Icon } from "@/components/jk/Icon";
 import type { TimelineEvent } from "@/types/laporan";
 
 interface TimelineCardProps {
@@ -61,9 +62,7 @@ export function TimelineCard({ events }: TimelineCardProps) {
                 className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isLast ? "animate-pulse" : ""}`}
                 style={{ backgroundColor: style.bg, borderColor: style.border, borderWidth: 1 }}
               >
-                <span className="material-symbols-outlined !text-[16px]" style={{ color: style.color }}>
-                  {style.icon}
-                </span>
+                <Icon name={style.icon} className="!text-[16px]" style={{ color: style.color }} />
               </div>
 
               {/* Content */}

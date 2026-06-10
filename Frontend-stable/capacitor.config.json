@@ -1,0 +1,13 @@
+{
+  "appId": "com.jalankita.app",
+  "appName": "Delta Jalan",
+  "webDir": "dist/client",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true,
+    "hostname": "localhost"
+  },
+  "plugins": {
+    "PhotoExifGps": {}
+  }
+}

@@ -146,7 +146,7 @@ function EditReportPage() {
   if (isLoading) {
     return (
       <PageLayout>
-        <div className="flex items-center justify-center flex-1">
+        <div className="flex items-center justify-center">
           <span className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
         </div>
       </PageLayout>
@@ -165,7 +165,7 @@ function EditReportPage() {
     <PageLayout title="Edit Laporan" withBottomNav>
 
         {submitState === "success" ? (
-          <div className="flex-1 overflow-y-auto min-h-0 flex flex-col items-center justify-center p-8 gap-4">
+          <div className="flex flex-col items-center justify-center p-8 gap-4">
             <Icon name="check_circle" className="!text-[64px] text-green-500" filled />
             <p className="text-lg font-bold text-on-surface">Laporan berhasil diperbarui!</p>
             <button
@@ -176,7 +176,7 @@ function EditReportPage() {
             </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto min-h-0 p-4 space-y-4 pb-28">
+          <form onSubmit={handleSubmit} className="p-4 space-y-4 pb-28">
             {errorMsg && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700">
                 {errorMsg}

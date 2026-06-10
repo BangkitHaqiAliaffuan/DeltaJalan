@@ -1,5 +1,3 @@
-backend_AI\dataset_merged
-
 # Environment variables — jangan commit API key
 .env
 .env.local
@@ -17,6 +15,40 @@ backend_AI/result/
 backend_AI/runs/
 backend_AI/dataset_merged/
 
-# Model backup not needed in repo (primary best.pt in LFS)
+# Model files — terlalu besar, cukup LFS
 backend_AI/best-corrupt.pt
 backend_AI/best-stable.pt
+backend_AI/best.pt
+backend_AI/best_stable.pt
+
+# Capacitor Android (generated — regenerate with `npx cap sync`)
+Frontend-stable/android/
+
+# Editor settings
+.vscode/
+
+# Root transient files
+mumu_screen*.png
+Problem_20-05-2026.txt
+result.json
+map-leaflet-fix.md
+Testing/
+
+# Logs
+*.log
+
+# Defense-in-depth: sub-dependencies & build outputs
+Frontend-stable/node_modules/
+Frontend-stable/dist/
+backend_POSTGRESQL/vendor/
+backend_POSTGRESQL/node_modules/
+backend_POSTGRESQL/.env
+backend_POSTGRESQL/bootstrap/cache/
+backend_POSTGRESQL/storage/framework/
+.opencode/
+
+# Backup / transient files
+Frontend-stable/vite.config.ts.backup
+
+# Local-only specs
+.kiro/

@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\Client\Pool;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use lsolesen\pel\PelJpeg;
+use lsolesen\pel\PelTag;
 
 /**
  * AIController
@@ -61,17 +64,18 @@ class AIController extends Controller
         $batchId  = (string) Str::uuid();
         $analyses = [];
 
+        $fastApiUrl = rtrim(config('services.fastapi.url', env('FASTAPI_URL', 'http://127.0.0.1:8000')), '/');
+        $endpoint   = $fastApiUrl . '/analyze';
+
+        // ── Pass 1: EXIF checks (fast, local) ──
+        $pendingAi = [];
         foreach ($request->file('files') as $idx => $file) {
             $fileName = $file->getClientOriginalName();
             $filePath = $file->getPathname();
 
-            // ── Langkah 1: Validasi EXIF tanggal ─────────────────────────
-            // Dilakukan di backend agar tidak bisa di-bypass dari frontend.
-            // Foto tanpa EXIF (kamera tanpa tag lokasi) tetap diterima dengan warning.
             $exifCheck = $this->validatePhotoDateExif($filePath);
 
             if (in_array($exifCheck['status'], ['too_old', 'future_date', 'no_exif_date', 'exif_read_error'])) {
-                // Foto terlalu lama, masa depan, atau tanpa EXIF tanggal — skip, jangan gagalkan batch
                 Log::warning('DeltaJalan: Foto batch ditolak karena EXIF tanggal tidak valid atau tidak ada.', [
                     'file_index' => $idx,
                     'file_name'  => $fileName,
@@ -89,7 +93,6 @@ class AIController extends Controller
                     'exif_reason'   => $exifCheck['status'],
                     'exif_message'  => $exifCheck['message'],
                     'error'         => $exifCheck['message'],
-                    // Tidak ada GPS EXIF karena foto ditolak
                     'exif_lat'      => null,
                     'exif_lng'      => null,
                     'has_exif_gps'  => false,
@@ -98,10 +101,6 @@ class AIController extends Controller
                 continue;
             }
 
-            // ── Langkah 2: Ekstrak GPS EXIF ───────────────────────────────
-            // Jika foto punya GPS EXIF → gunakan koordinat EXIF (lebih akurat, tidak bisa dipalsukan frontend)
-            // Jika tidak ada → fallback ke koordinat form (koordinat yang diinput user)
-            // Ini mengakomodasi kamera yang tidak menyimpan tag lokasi GPS.
             $exifGps = $this->extractExifGps($filePath);
 
             $photoLat         = $exifGps ? $exifGps['lat'] : $inputLat;
@@ -109,8 +108,6 @@ class AIController extends Controller
             $hasExifGps       = $exifGps !== null;
             $koordinatSumber  = $hasExifGps ? 'exif' : 'manual';
 
-            // Hitung jarak antara GPS EXIF dan koordinat yang diinput user
-            // Jika jauh (> 500m), ini indikasi koordinat form tidak sesuai lokasi foto
             $gpsDistanceMeters = null;
             if ($hasExifGps) {
                 $gpsDistanceMeters = $this->haversineDistance(
@@ -119,104 +116,104 @@ class AIController extends Controller
                 );
             }
 
-            // ── Langkah 3: Kirim ke FastAPI ───────────────────────────────
-            try {
-                $aiResult = $this->sendToAIServer($filePath, $fileName);
+            $pendingAi[$idx] = compact(
+                'fileName', 'filePath', 'exifGps', 'photoLat', 'photoLng',
+                'hasExifGps', 'koordinatSumber', 'gpsDistanceMeters', 'exifCheck'
+            );
+        }
 
-                if ($aiResult['success']) {
-                    $payload      = $aiResult['data'];
-                    $detections   = $payload['detections'] ?? [];
-                    $rawSeverity  = $payload['overall_severity'] ?? 'Baik';
-                    $severity     = $this->normalizeSeverity($rawSeverity);
-                    $contextValid = count($detections) > 0;
-                    $maxConf      = !empty($detections)
-                        ? max(array_column($detections, 'confidence'))
-                        : 0.0;
+        // ── Pass 2: Parallel FastAPI calls via Http::pool() ──
+        $aiResponses = [];
+        if (!empty($pendingAi)) {
+            $poolRequests = Http::pool(fn (Pool $pool) => array_map(
+                fn ($item, $key) => $pool->as('f' . $key)
+                    ->timeout(30)
+                    ->attach('file', file_get_contents($item['filePath']), $item['fileName'])
+                    ->post($endpoint),
+                $pendingAi,
+                array_keys($pendingAi)
+            ));
+            $aiResponses = $poolRequests;
+        }
 
-                    $analyses[] = [
-                        'file_index'    => $idx,
-                        'file_name'     => $fileName,
-                        'detections'    => array_map(fn($d) => [
-                            'type'       => $d['class']      ?? 'Unknown',
-                            'confidence' => $d['confidence'] ?? 0.0,
-                            'bbox'       => isset($d['bbox'])
-                                ? [$d['bbox']['x1'], $d['bbox']['y1'], $d['bbox']['x2'], $d['bbox']['y2']]
-                                : [],
-                        ], $detections),
-                        'severity'         => $severity,
-                        'context_valid'    => $contextValid,
-                        'confidence'       => round($maxConf, 3),
-                        'image_result'     => $payload['image_result'] ?? null,
-                        // Metadata EXIF — dipakai storeBatch untuk koordinat per foto
-                        'exif_lat'         => $exifGps ? $exifGps['lat'] : null,
-                        'exif_lng'         => $exifGps ? $exifGps['lng'] : null,
-                        'has_exif_gps'     => $hasExifGps,
-                        'photo_lat'        => $photoLat,   // koordinat efektif foto ini
-                        'photo_lng'        => $photoLng,
-                        'koordinat_sumber' => $koordinatSumber,
-                        'exif_invalid'     => false,
-                        'exif_date_status' => $exifCheck['status'], // 'valid' | 'no_exif_date' | 'exif_read_error'
-                        // Jarak GPS EXIF vs koordinat form — null jika tidak ada EXIF GPS
-                        'gps_distance_meters' => $gpsDistanceMeters,
-                        // Flag jika koordinat EXIF jauh dari koordinat form (> 500m)
-                        'gps_mismatch'     => $gpsDistanceMeters !== null && $gpsDistanceMeters > 500,
-                    ];
+        // ── Pass 3: Build results ──
+        foreach ($pendingAi as $idx => $item) {
+            $respKey = 'f' . $idx;
+            $response = $aiResponses[$respKey] ?? null;
+
+            if ($response && $response->successful()) {
+                $payload      = $response->json();
+                $detections   = $payload['detections'] ?? [];
+                $rawSeverity  = $payload['overall_severity'] ?? 'Baik';
+                $severity     = $this->normalizeSeverity($rawSeverity);
+                $contextValid = count($detections) > 0;
+                $maxConf      = !empty($detections)
+                    ? max(array_column($detections, 'confidence'))
+                    : 0.0;
+
+                $analyses[] = [
+                    'file_index'    => $idx,
+                    'file_name'     => $item['fileName'],
+                    'detections'    => array_map(fn($d) => [
+                        'type'       => $d['class']      ?? 'Unknown',
+                        'confidence' => $d['confidence'] ?? 0.0,
+                        'bbox'       => isset($d['bbox'])
+                            ? [$d['bbox']['x1'], $d['bbox']['y1'], $d['bbox']['x2'], $d['bbox']['y2']]
+                            : [],
+                    ], $detections),
+                    'severity'         => $severity,
+                    'context_valid'    => $contextValid,
+                    'confidence'       => round($maxConf, 3),
+                    'image_result'     => $payload['image_result'] ?? null,
+                    'exif_lat'         => $item['exifGps'] ? $item['exifGps']['lat'] : null,
+                    'exif_lng'         => $item['exifGps'] ? $item['exifGps']['lng'] : null,
+                    'has_exif_gps'     => $item['hasExifGps'],
+                    'photo_lat'        => $item['photoLat'],
+                    'photo_lng'        => $item['photoLng'],
+                    'koordinat_sumber' => $item['koordinatSumber'],
+                    'exif_invalid'     => false,
+                    'exif_date_status' => $item['exifCheck']['status'],
+                    'gps_distance_meters' => $item['gpsDistanceMeters'],
+                    'gps_mismatch'     => $item['gpsDistanceMeters'] !== null && $item['gpsDistanceMeters'] > 500,
+                ];
+            } else {
+                $errorMsg = $response ? "FastAPI merespons HTTP {$response->status()}." : 'Koneksi ke FastAPI gagal.';
+
+                if (!$response) {
+                    Log::error('DeltaJalan: FastAPI connection failed in batch pool.', [
+                        'file_index' => $idx,
+                        'file_name'  => $item['fileName'],
+                    ]);
                 } else {
                     Log::warning('DeltaJalan: FastAPI gagal untuk satu foto dalam batch.', [
                         'file_index' => $idx,
-                        'file_name'  => $fileName,
-                        'error'      => $aiResult['error'],
+                        'file_name'  => $item['fileName'],
+                        'status'     => $response->status(),
                     ]);
-
-                    $analyses[] = [
-                        'file_index'       => $idx,
-                        'file_name'        => $fileName,
-                        'detections'       => [],
-                        'severity'         => 'ringan',
-                        'context_valid'    => false,
-                        'confidence'       => 0.0,
-                        'exif_lat'         => $exifGps ? $exifGps['lat'] : null,
-                        'exif_lng'         => $exifGps ? $exifGps['lng'] : null,
-                        'has_exif_gps'     => $hasExifGps,
-                        'photo_lat'        => $photoLat,
-                        'photo_lng'        => $photoLng,
-                        'koordinat_sumber' => $koordinatSumber,
-                        'exif_invalid'     => false,
-                        'exif_date_status' => $exifCheck['status'],
-                        'gps_distance_meters' => $gpsDistanceMeters,
-                        'gps_mismatch'     => $gpsDistanceMeters !== null && $gpsDistanceMeters > 500,
-                        'error'            => $aiResult['error'],
-                    ];
                 }
-            } catch (\Exception $e) {
-                Log::error('DeltaJalan: Exception saat analisis foto dalam batch.', [
-                    'file_index' => $idx,
-                    'error'      => $e->getMessage(),
-                ]);
 
                 $analyses[] = [
                     'file_index'       => $idx,
-                    'file_name'        => $fileName,
+                    'file_name'        => $item['fileName'],
                     'detections'       => [],
                     'severity'         => 'ringan',
                     'context_valid'    => false,
                     'confidence'       => 0.0,
-                    'exif_lat'         => null,
-                    'exif_lng'         => null,
-                    'has_exif_gps'     => false,
-                    'photo_lat'        => $inputLat,
-                    'photo_lng'        => $inputLng,
-                    'koordinat_sumber' => 'manual',
+                    'exif_lat'         => $item['exifGps'] ? $item['exifGps']['lat'] : null,
+                    'exif_lng'         => $item['exifGps'] ? $item['exifGps']['lng'] : null,
+                    'has_exif_gps'     => $item['hasExifGps'],
+                    'photo_lat'        => $item['photoLat'],
+                    'photo_lng'        => $item['photoLng'],
+                    'koordinat_sumber' => $item['koordinatSumber'],
                     'exif_invalid'     => false,
-                    'exif_date_status' => 'exif_read_error',
-                    'gps_distance_meters' => null,
-                    'gps_mismatch'     => false,
-                    'error'            => $e->getMessage(),
+                    'exif_date_status' => $item['exifCheck']['status'],
+                    'gps_distance_meters' => $item['gpsDistanceMeters'],
+                    'gps_mismatch'     => $item['gpsDistanceMeters'] !== null && $item['gpsDistanceMeters'] > 500,
+                    'error'            => $errorMsg,
                 ];
             }
         }
 
-        // Hitung berapa foto yang punya GPS EXIF
         $photosWithExifGps = count(array_filter($analyses, fn($a) => $a['has_exif_gps'] ?? false));
         $photosRejected    = count(array_filter($analyses, fn($a) => $a['exif_invalid'] ?? false));
 
@@ -347,82 +344,149 @@ class AIController extends Controller
      */
     private function extractExifGps(string $filePath): ?array
     {
-        if (!function_exists('exif_read_data')) {
-            return null;
-        }
+        $result = $this->extractExifGpsNative($filePath);
+        if ($result) return $result;
+
+        return $this->extractExifGpsWithPel($filePath);
+    }
+
+    private function extractExifGpsNative(string $filePath): ?array
+    {
+        if (!function_exists('exif_read_data')) return null;
 
         try {
-            $exifData = @exif_read_data($filePath, 'GPS', false);
+            $exif = @exif_read_data($filePath, null, false);
+            if (!$exif) return null;
 
-            if (!$exifData || !isset($exifData['GPSLatitude'], $exifData['GPSLongitude'])) {
-                return null;
+            if (isset($exif['GPSLatitude'], $exif['GPSLongitude'])) {
+                $lat = $this->normalizeAndConvertGps($exif['GPSLatitude'], $exif['GPSLatitudeRef'] ?? 'N');
+                $lng = $this->normalizeAndConvertGps($exif['GPSLongitude'], $exif['GPSLongitudeRef'] ?? 'E');
+                if ($lat !== null && $lng !== null && $this->inIndonesiaBounds($lat, $lng)) return ['lat' => $lat, 'lng' => $lng];
             }
 
-            $lat = $this->convertGpsDmsToDecimal(
-                $exifData['GPSLatitude'],
-                $exifData['GPSLatitudeRef'] ?? 'N'
-            );
-            $lng = $this->convertGpsDmsToDecimal(
-                $exifData['GPSLongitude'],
-                $exifData['GPSLongitudeRef'] ?? 'E'
-            );
-
-            if ($lat === null || $lng === null) {
-                return null;
+            if (isset($exif['COMPUTED']['GPSLatitude'], $exif['COMPUTED']['GPSLongitude'])) {
+                $lat = (float) $exif['COMPUTED']['GPSLatitude'];
+                $lng = (float) $exif['COMPUTED']['GPSLongitude'];
+                if ($this->inIndonesiaBounds($lat, $lng)) return ['lat' => $lat, 'lng' => $lng];
             }
 
-            // Validasi range koordinat Indonesia
-            if ($lat < -11 || $lat > 6 || $lng < 95 || $lng > 141) {
-                Log::warning('DeltaJalan: GPS EXIF di luar range Indonesia.', [
-                    'lat' => $lat, 'lng' => $lng, 'file' => basename($filePath),
-                ]);
-                return null;
+            foreach (['IFD0', 'EXIF'] as $section) {
+                if (!isset($exif[$section])) continue;
+                $s = $exif[$section];
+                if (isset($s['GPSLatitude'], $s['GPSLongitude'])) {
+                    $lat = $this->normalizeAndConvertGps($s['GPSLatitude'], $s['GPSLatitudeRef'] ?? 'N');
+                    $lng = $this->normalizeAndConvertGps($s['GPSLongitude'], $s['GPSLongitudeRef'] ?? 'E');
+                    if ($lat !== null && $lng !== null && $this->inIndonesiaBounds($lat, $lng)) return ['lat' => $lat, 'lng' => $lng];
+                }
             }
 
-            return ['lat' => $lat, 'lng' => $lng];
-
+            return null;
         } catch (\Exception $e) {
-            Log::warning('DeltaJalan: Gagal membaca GPS EXIF.', ['error' => $e->getMessage()]);
             return null;
         }
     }
 
-    /**
-     * Konversi format GPS EXIF (Degrees/Minutes/Seconds) ke desimal.
-     *
-     * Format EXIF GPS: array of rational strings, misal ["7/1", "27/1", "3456/100"]
-     * = 7° 27' 34.56" → 7 + 27/60 + 34.56/3600 = 7.459600
-     *
-     * @param  array   $dms  Array [derajat, menit, detik] dalam format rasional
-     * @param  string  $ref  'N'/'S' untuk latitude, 'E'/'W' untuk longitude
-     * @return float|null
-     */
-    private function convertGpsDmsToDecimal(array $dms, string $ref): ?float
+    private function extractExifGpsWithPel(string $filePath): ?array
     {
-        if (count($dms) < 3) {
+        if (!class_exists(PelJpeg::class)) return null;
+
+        try {
+            $jpeg = new PelJpeg($filePath);
+            $exif = $jpeg->getExif();
+            if (!$exif) return null;
+            $tiff = $exif->getTiff();
+            if (!$tiff) return null;
+            $ifd0 = $tiff->getIfd();
+            if (!$ifd0) return null;
+            $gps = $ifd0->getSubIfd(PelTag::GPS_INFO_IFD);
+            if (!$gps) return null;
+
+            $latEntry = $gps->getEntry(PelTag::GPS_LATITUDE);
+            $lngEntry = $gps->getEntry(PelTag::GPS_LONGITUDE);
+            if (!$latEntry || !$lngEntry) return null;
+
+            $latValues = $latEntry->getValue();
+            $lngValues = $lngEntry->getValue();
+
+            $latRefEntry = $gps->getEntry(PelTag::GPS_LATITUDE_REF);
+            $lngRefEntry = $gps->getEntry(PelTag::GPS_LONGITUDE_REF);
+            $latRef = $latRefEntry ? trim($latRefEntry->getValue()) : 'N';
+            $lngRef = $lngRefEntry ? trim($lngRefEntry->getValue()) : 'E';
+
+            $lat = $this->dmsToDecimal($latValues, $latRef);
+            $lng = $this->dmsToDecimal($lngValues, $lngRef);
+
+            if ($lat === null || $lng === null) return null;
+            if (!$this->inIndonesiaBounds($lat, $lng)) return null;
+
+            return ['lat' => $lat, 'lng' => $lng];
+        } catch (\Throwable $e) {
+            Log::warning('DeltaJalan: PEL gagal baca GPS.', ['error' => $e->getMessage()]);
             return null;
         }
+    }
 
-        $parseRational = function (string $rational): float {
-            $parts = explode('/', $rational);
-            if (count($parts) === 2 && (float) $parts[1] !== 0.0) {
-                return (float) $parts[0] / (float) $parts[1];
+    private function dmsToDecimal(array $values, string $ref): ?float
+    {
+        if (count($values) < 3) return null;
+        $decimal = ((float) $values[0]) + ((float) $values[1]) / 60 + ((float) $values[2]) / 3600;
+        if (in_array(strtoupper($ref), ['S', 'W'])) $decimal = -$decimal;
+        return round($decimal, 8);
+    }
+
+    private function inIndonesiaBounds(float $lat, float $lng): bool
+    {
+        return $lat >= -11 && $lat <= 6 && $lng >= 95 && $lng <= 141;
+    }
+
+    private function normalizeAndConvertGps(mixed $gpsValue, string $ref): ?float
+    {
+        $degrees = null;
+        $minutes = null;
+        $seconds = null;
+
+        if (is_string($gpsValue)) {
+            $parts = array_map('trim', explode(',', $gpsValue));
+            if (count($parts) >= 3) {
+                $degrees = $this->parseRational($parts[0]);
+                $minutes = $this->parseRational($parts[1]);
+                $seconds = $this->parseRational($parts[2]);
             }
-            return (float) $parts[0];
-        };
-
-        $degrees = $parseRational((string) $dms[0]);
-        $minutes = $parseRational((string) $dms[1]);
-        $seconds = $parseRational((string) $dms[2]);
-
-        $decimal = $degrees + ($minutes / 60) + ($seconds / 3600);
-
-        // S dan W adalah negatif
-        if (in_array(strtoupper($ref), ['S', 'W'])) {
-            $decimal = -$decimal;
+        } elseif (is_array($gpsValue) && count($gpsValue) >= 3) {
+            if (is_array($gpsValue[0])) {
+                $degrees = $this->rationalPairToFloat($gpsValue[0]);
+                $minutes = $this->rationalPairToFloat($gpsValue[1]);
+                $seconds = $this->rationalPairToFloat($gpsValue[2]);
+            } elseif (is_numeric($gpsValue[0])) {
+                $degrees = (float) $gpsValue[0];
+                $minutes = (float) ($gpsValue[1] ?? 0);
+                $seconds = (float) ($gpsValue[2] ?? 0);
+            } else {
+                $degrees = $this->parseRational((string) $gpsValue[0]);
+                $minutes = $this->parseRational((string) $gpsValue[1]);
+                $seconds = $this->parseRational((string) $gpsValue[2]);
+            }
         }
 
+        if ($degrees === null || $minutes === null || $seconds === null) return null;
+        $decimal = $degrees + ($minutes / 60) + ($seconds / 3600);
+        if (in_array(strtoupper($ref), ['S', 'W'])) $decimal = -$decimal;
         return round($decimal, 8);
+    }
+
+    private function parseRational(string $rational): float
+    {
+        $parts = explode('/', $rational);
+        if (count($parts) === 2 && (float) $parts[1] !== 0.0) {
+            return (float) $parts[0] / (float) $parts[1];
+        }
+        return (float) $parts[0];
+    }
+
+    private function rationalPairToFloat(array $pair): float
+    {
+        if (count($pair) < 2) return (float) ($pair[0] ?? 0);
+        return ((float) $pair[0]) / ((float) $pair[1]);
     }
 
     /**

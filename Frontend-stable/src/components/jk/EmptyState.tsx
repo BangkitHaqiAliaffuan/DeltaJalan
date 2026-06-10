@@ -11,7 +11,7 @@ interface EmptyStateAction {
 }
 
 interface EmptyStateProps {
-  /** Nama icon Material Symbols */
+  /** Nama icon */
   icon?: string;
   title: string;
   description?: string;

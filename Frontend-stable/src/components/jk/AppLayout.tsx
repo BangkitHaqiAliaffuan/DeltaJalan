@@ -14,7 +14,7 @@ import { Sidebar } from "./Sidebar";
  */
 export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="h-screen bg-[#F5F7FA] flex overflow-hidden">
+    <div className="h-[100dvh] bg-[#F5F7FA] flex overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 min-h-0">{children}</div>
     </div>

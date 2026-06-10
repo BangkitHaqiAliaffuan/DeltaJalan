@@ -230,7 +230,7 @@ function DeteksiFoto({
         </>
       ) : (
         <div className="absolute inset-0 flex items-center justify-center text-[#64748B]">
-          <span className="material-symbols-outlined !text-[48px]">broken_image</span>
+          <Icon name="broken_image" className="!text-[48px]" />
         </div>
       )}
 
@@ -249,7 +249,7 @@ function DeteksiFoto({
       </div>
 
       <div className="absolute top-3 right-3 bg-black/60 text-white px-2.5 py-1 rounded-lg flex items-center gap-1.5">
-        <span className="material-symbols-outlined !text-[14px]">search</span>
+        <Icon name="search" className="!text-[14px]" />
         <span className="font-label-md text-[12px] font-bold">{detections.length} deteksi</span>
       </div>
     </div>
@@ -320,7 +320,7 @@ function AiResultPage() {
         </button>
       }
     >
-        <main className="flex-1 overflow-y-auto min-h-0 px-4 pt-4 pb-6 w-full">
+        <main className="px-4 pt-4 pb-6 w-full">
           <div
             style={{ maxWidth: "42rem", marginLeft: "auto", marginRight: "auto" }}
             className="flex flex-col gap-4"

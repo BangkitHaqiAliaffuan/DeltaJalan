@@ -10,7 +10,7 @@
  * - Z-index bekerja relatif terhadap root stacking context
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 interface PortalProps {
@@ -21,28 +21,27 @@ interface PortalProps {
 
 export function Portal({ children, containerId = "portal-root" }: PortalProps) {
   const containerRef = useRef<HTMLElement | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const idRef = useRef(containerId);
 
-  if (typeof document !== "undefined" && !containerRef.current) {
-    let el = document.getElementById(containerId);
+  useEffect(() => {
+    let el = document.getElementById(idRef.current);
     if (!el) {
       el = document.createElement("div");
-      el.id = containerId;
+      el.id = idRef.current;
       document.body.appendChild(el);
     }
     containerRef.current = el;
-  }
+    setMounted(true);
 
-  useEffect(() => {
     return () => {
-      // Cleanup: hapus container jika sudah kosong
-      const el = containerRef.current;
       if (el && el.childNodes.length === 0 && el.parentNode) {
         el.parentNode.removeChild(el);
       }
     };
   }, []);
 
-  if (!containerRef.current) return null;
+  if (!mounted || !containerRef.current) return null;
 
   return createPortal(children, containerRef.current);
 }

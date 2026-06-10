@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test EXIF GPS</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f1f5f9;
+      display: flex;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.1);
+      padding: 24px;
+      width: 100%;
+      max-width: 520px;
+    }
+    h1 { font-size: 1.25rem; margin-bottom: 4px; color: #0f172a; }
+    p.sub { font-size: .8rem; color: #64748b; margin-bottom: 20px; }
+    label { font-size: .8rem; font-weight: 600; color: #334155; display: block; margin-bottom: 4px; }
+    input, textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: .85rem;
+      margin-bottom: 14px;
+      font-family: inherit;
+    }
+    input:focus { outline: 2px solid #3b82f6; border-color: transparent; }
+    input[type=file] { padding: 6px; }
+    button {
+      width: 100%;
+      padding: 10px;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    button:hover:not(:disabled) { background: #1d4ed8; }
+    .result {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 8px;
+      font-family: 'JetBrains Mono', 'Consolas', monospace;
+      font-size: .8rem;
+      white-space: pre-wrap;
+      word-break: break-all;
+      min-height: 60px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .result.success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .result.error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .result.pending { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
+    .result.info { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+    .hint {
+      font-size: .75rem;
+      color: #94a3b8;
+      margin-top: -10px;
+      margin-bottom: 14px;
+    }
+    .row { display: flex; gap: 8px; }
+    .row input { flex: 1; }
+    .row button {
+      width: auto;
+      padding: 8px 14px;
+      white-space: nowrap;
+    }
+    .curl-box {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 12px;
+      border-radius: 8px;
+      font-family: 'JetBrains Mono', 'Consolas', monospace;
+      font-size: .75rem;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin-bottom: 14px;
+      user-select: all;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Test EXIF GPS</h1>
+    <p class="sub">Upload foto untuk cek ekstraksi GPS dari metadata EXIF</p>
+
+    <div class="curl-box" id="curlCmd"></div>
+
+    <label for="server">Server URL</label>
+    <div class="row">
+      <input id="server" type="text" value="http://localhost:8080" placeholder="http://localhost:8080">
+      <button id="btnPing" style="background:#64748b">Ping</button>
+    </div>
+
+    <label for="token">Token Auth</label>
+    <input id="token" type="text" placeholder="paste token dari eruda → localStorage.getItem('auth_token')" autocomplete="off">
+
+    <label for="file">Foto (JPEG/PNG)</label>
+    <input id="file" type="file" accept="image/jpeg,image/png">
+
+    <button id="btn">Kirim & Cek GPS</button>
+
+    <div id="result" class="result pending">Menunggu upload...</div>
+  </div>
+
+  <script>
+    const btn = document.getElementById('btn');
+    const btnPing = document.getElementById('btnPing');
+    const fileInput = document.getElementById('file');
+    const tokenInput = document.getElementById('token');
+    const serverInput = document.getElementById('server');
+    const resultDiv = document.getElementById('result');
+    const curlDiv = document.getElementById('curlCmd');
+
+    function baseUrl() {
+      let u = serverInput.value.trim().replace(/\/+$/, '');
+      if (!u) u = 'http://localhost:8080';
+      return u;
+    }
+
+    function updateCurl() {
+      const url = baseUrl() + '/api/v1/reports/extract-exif-gps';
+      const token = tokenInput.value.trim() || '<token>';
+      curlDiv.textContent = `curl -X POST "${url}" \\\n  -H "Authorization: Bearer ${token}" \\\n  -F "image=@foto.jpg"`;
+    }
+    tokenInput.addEventListener('input', updateCurl);
+    serverInput.addEventListener('input', updateCurl);
+    updateCurl();
+
+    btnPing.addEventListener('click', async () => {
+      try {
+        const r = await fetch(baseUrl() + '/api/v1/reports/check-duplicate', {
+          headers: { Accept: 'application/json' },
+        });
+        setResult(
+          `PING ${r.status} ${r.statusText}\n\n${await r.text().then(t => { try { return JSON.stringify(JSON.parse(t), null, 2) } catch { return t } })}`,
+          r.ok ? 'success' : 'error'
+        );
+      } catch (e) {
+        setResult('PING FAILED: ' + e.message, 'error');
+      }
+    });
+
+    btn.addEventListener('click', async () => {
+      const file = fileInput.files[0];
+      if (!file) { setResult('Pilih foto dulu', 'error'); return; }
+      const token = tokenInput.value.trim();
+      if (!token) { setResult('Isi token auth dulu', 'error'); return; }
+
+      btn.disabled = true;
+      setResult('Mengirim ke server...', 'pending');
+
+      const url = baseUrl() + '/api/v1/reports/extract-exif-gps';
+      const fd = new FormData();
+      fd.append('image', file);
+
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd,
+        });
+
+        const text = await res.text();
+        const detail = [
+          `HTTP ${res.status} ${res.statusText}`,
+          `URL: ${url}`,
+          `File: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`,
+          `Content-Type: ${file.type}`,
+          '',
+          '=== Response Body ===',
+          (() => { try { return JSON.stringify(JSON.parse(text), null, 2) } catch { return text } })(),
+        ].join('\n');
+
+        if (res.ok) {
+          try {
+            const json = JSON.parse(text);
+            if (json.lat !== null && json.lng !== null) {
+              setResult(
+                `✅ GPS DITEMUKAN\n\nLatitude:  ${json.lat}\nLongitude: ${json.lng}\n\nGoogle Maps: https://www.google.com/maps?q=${json.lat},${json.lng}`,
+                'success'
+              );
+            } else {
+              setResult(`❌ GPS NULL\n\n${detail}`, 'error');
+            }
+          } catch {
+            setResult(`❌ BUKAN JSON\n\n${detail}`, 'error');
+          }
+        } else if (res.status === 422) {
+          setResult(`❌ VALIDASI GAGAL\n\n${detail}`, 'error');
+        } else if (res.status === 405) {
+          setResult(
+            `❌ METHOD NOT ALLOWED\n\n${detail}\n\n` +
+            'Kemungkinan: rute tidak terdaftar sebagai POST.\n' +
+            'Coba: php artisan route:list --path=api/v1/reports/extract-exif-gps',
+            'error'
+          );
+        } else {
+          setResult(`❌ GAGAL\n\n${detail}`, 'error');
+        }
+      } catch (err) {
+        setResult(
+          `❌ NETWORK ERROR — ${err.message}\n\n` +
+          `URL: ${url}\n\n` +
+          'Pastikan:\n' +
+          '1. Backend running di port 8080\n' +
+          '2. Halaman dibuka via http://localhost:8080/test-exif.html (bukan file://)\n' +
+          '3. Tidak ada CORS/proxy blocker',
+          'error'
+        );
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    function setResult(msg, type) {
+      resultDiv.textContent = msg;
+      resultDiv.className = 'result ' + type;
+    }
+  </script>
+</body>
+</html>

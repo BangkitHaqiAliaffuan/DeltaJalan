@@ -2,8 +2,12 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useMemo } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
+import { SkeletonCard } from "@/components/jk/Skeleton";
 import { API_BASE_URL } from "@/lib/aiStore";
+import { DeadlineBadge } from "@/components/jk/DeadlineBadge";
+import { hitungStatusDeadline } from "@/lib/deadline";
 import { getCurrentUser, getToken } from "@/lib/auth";
+import { getSeverityLabel, statusBadgeStyle, formatDate } from "@/lib/format";
 import type { Laporan } from "@/types/laporan";
 
 export const Route = createFileRoute("/petugas-eksekusi")({
@@ -13,41 +17,17 @@ export const Route = createFileRoute("/petugas-eksekusi")({
 
 export default PetugasEksekusiPage;
 
-function getSeverityLabel(severity?: string | null): { chip: string; label: string } {
-  const s = (severity ?? "").toLowerCase();
-  if (s.includes("berat"))
-    return { chip: "bg-red-50 text-[#E11D48] border-red-200", label: "Rusak Berat" };
-  if (s.includes("sedang"))
-    return { chip: "bg-amber-50 text-[#F97316] border-amber-200", label: "Rusak Sedang" };
-  if (s.includes("ringan"))
-    return { chip: "bg-green-50 text-[#F59E0B] border-green-200", label: "Rusak Ringan" };
-  return { chip: "bg-gray-50 text-[#475569] border-gray-200", label: severity ?? "Baik" };
+function priorityBadgeStyle(priority: string | undefined | null): string {
+  const map: Record<string, string> = {
+    Tinggi: "bg-red-50 text-[#E11D48] border border-red-200",
+    Sedang: "bg-orange-50 text-[#F97316] border border-orange-200",
+    Rendah: "bg-emerald-50 text-[#10B981] border border-emerald-200",
+  };
+  return map[priority ?? ""] ?? "bg-slate-50 text-[#64748B] border border-slate-200";
 }
 
 function displayStatus(status: string): string {
   return status === "Ditinjau" ? "Menunggu Review" : status;
-}
-
-function statusBadgeStyle(status: string): string {
-  const map: Record<string, string> = {
-    "Menunggu Review": "bg-[#FEF3C7] text-[#F59E0B] border-[#FCD34D]",
-    Ditinjau: "bg-[#FEF3C7] text-[#F59E0B] border-[#FCD34D]",
-    Disetujui: "bg-[#DBEAFE] text-[#1e40af] border-[#93C5FD]",
-    Ditolak: "bg-red-50 text-[#E11D48] border-red-200",
-    "Sedang Diperbaiki": "bg-[#DBEAFE] text-[#1e40af] border-[#93C5FD]",
-    Selesai: "bg-[#D1FAE5] text-[#10B981] border-[#6EE7B7]",
-    Diedit: "bg-gray-50 text-[#475569] border-gray-200",
-  };
-  return map[status] ?? "bg-gray-50 text-[#475569] border-gray-200";
-}
-
-function priorityBadgeStyle(priority: string | undefined | null): string {
-  const map: Record<string, string> = {
-    Tinggi: "bg-red-50 text-[#E11D48] border-red-200",
-    Sedang: "bg-amber-50 text-[#F97316] border-amber-200",
-    Rendah: "bg-green-50 text-[#10B981] border-green-200",
-  };
-  return map[priority ?? ""] ?? "bg-gray-50 text-[#475569] border-gray-200";
 }
 
 function priorityIcon(priority: string | undefined | null): string {
@@ -71,26 +51,27 @@ function timeAgo(dateStr: string | null | undefined): string {
   return `${days} hari yang lalu`;
 }
 
-function formatDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return "-";
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+function computeDeadline(report: Laporan): string {
+  const deadline = report.deadline_resolusi ?? report.deadline_review;
+  if (!deadline) return "-";
+  return new Date(deadline).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
 }
 
-function formatDateShort(dateStr: string | null | undefined): string {
-  if (!dateStr) return "-";
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+function deadlineCountdown(report: Laporan, client: boolean): string | null {
+  if (!client) return null;
+  const deadline = report.deadline_resolusi ?? report.deadline_review;
+  if (!deadline || ["Selesai", "Ditolak"].includes(report.status ?? "")) return null;
+  const diffMs = new Date(deadline).getTime() - Date.now();
+  if (diffMs < 0) return "Terlambat!";
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+  if (hours < 1) return "Kurang dari 1 jam";
+  if (hours < 24) return `${hours} jam tersisa`;
+  const days = Math.floor(hours / 24);
+  return `${days} hari tersisa`;
 }
 
-function computeDeadline(createdAt: string | null | undefined): string {
-  if (!createdAt) return "-";
-  const d = new Date(createdAt);
-  d.setDate(d.getDate() + 14);
-  return d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
-}
-
-function todayFormatted(): string {
+function todayFormatted(isClient: boolean): string {
+  if (!isClient) return "";
   const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
   const months = [
     "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -104,6 +85,9 @@ function PetugasEksekusiPage() {
   const user = getCurrentUser();
   const token = getToken() ?? "";
   const navigate = useNavigate();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => { setIsClient(true); }, []);
 
   const [laporan, setLaporan] = useState<Laporan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -177,69 +161,100 @@ function PetugasEksekusiPage() {
         const bp = prioOrder[b.priority ?? ""] ?? 3;
         if (ap !== bp) return ap - bp;
       }
+      if (sortBy === "deadline") {
+        const aDeadline = a.deadline_resolusi ?? a.deadline_review;
+        const bDeadline = b.deadline_resolusi ?? b.deadline_review;
+        if (aDeadline && bDeadline) return new Date(aDeadline).getTime() - new Date(bDeadline).getTime();
+        if (aDeadline) return -1;
+        if (bDeadline) return 1;
+      }
       return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime();
     };
   }, [sortBy]);
 
-  const tugasDisetujui = useMemo(
-    () => laporan.filter((r) => r.status === "Disetujui").filter(byFilter).sort(sortFn),
-    [laporan, byFilter, sortFn],
-  );
-  const tugasBerjalan = useMemo(
-    () => laporan.filter((r) => r.status === "Sedang Diperbaiki").filter(byFilter).sort(sortFn),
-    [laporan, byFilter, sortFn],
-  );
-  const tugasSelesai = useMemo(
-    () => laporan.filter((r) => r.status === "Selesai").filter(byFilter).sort(sortFn),
-    [laporan, byFilter, sortFn],
-  );
+  const { tugasDisetujui, tugasBerjalan, tugasSelesai, stats } = useMemo(() => {
+    const disetujui: typeof laporan = [];
+    const berjalan: typeof laporan = [];
+    const selesai: typeof laporan = [];
+    let berat = 0;
+    let hariIni = 0;
+    let mendekatiDeadline = 0;
+    const today = isClient ? new Date() : null;
+    for (const r of laporan) {
+      const pass = byFilter(r);
+      if (r.status === "Disetujui" && pass) disetujui.push(r);
+      if (r.status === "Sedang Diperbaiki" && pass) berjalan.push(r);
+      if (r.status === "Selesai" && pass) selesai.push(r);
 
-  const greeting = (() => {
+      const s = r.overall_severity ?? r.ai_severity ?? "";
+      if (s.toLowerCase().includes("berat")) berat++;
+      if (today && r.created_at) {
+        const created = new Date(r.created_at);
+        if (
+          created.getDate() === today.getDate() &&
+          created.getMonth() === today.getMonth() &&
+          created.getFullYear() === today.getFullYear()
+        ) hariIni++;
+      }
+      if (today && !["Selesai", "Ditolak"].includes(r.status)) {
+        const deadline = r.deadline_resolusi ?? r.deadline_review;
+        if (deadline) {
+          const diffMs = new Date(deadline).getTime() - today.getTime();
+          if (diffMs > 0 && diffMs < 24 * 60 * 60 * 1000) mendekatiDeadline++;
+        }
+      }
+    }
+    const sort = (arr: typeof laporan) => arr.sort(sortFn);
+    return {
+      tugasDisetujui: sort(disetujui),
+      tugasBerjalan: sort(berjalan),
+      tugasSelesai: sort(selesai),
+      stats: { total: laporan.length, berat, hariIni, mendekatiDeadline },
+    };
+  }, [laporan, byFilter, sortFn, isClient]);
+
+  const greeting = useMemo(() => {
+    if (!isClient) return "Selamat Pagi";
     const h = new Date().getHours();
     if (h < 10) return "Selamat Pagi";
     if (h < 15) return "Selamat Siang";
     return "Selamat Sore";
-  })();
-
-  const stats = useMemo(() => {
-    const total = laporan.length;
-    const berat = laporan.filter((r) => {
-      const s = r.overall_severity ?? r.ai_severity ?? "";
-      return s.toLowerCase().includes("berat");
-    }).length;
-    const hariIni = laporan.filter((r) => {
-      if (!r.created_at) return false;
-      const today = new Date();
-      const created = new Date(r.created_at);
-      return (
-        created.getDate() === today.getDate() &&
-        created.getMonth() === today.getMonth() &&
-        created.getFullYear() === today.getFullYear()
-      );
-    }).length;
-    return { total, berat, hariIni };
-  }, [laporan]);
+  }, [isClient]);
 
   if (loading) {
     return (
       <PageLayout showBrand withBottomNav>
-          <main className="flex-1 overflow-y-auto min-h-0 pb-4">
+          <main className="pb-4" aria-busy="true" aria-label="Memuat data tugas">
             <section className="px-4 pt-6 pb-6 bg-[#F1F5F9] rounded-b-lg border-b border-[#E2E8F0] mb-6">
               <div className="animate-pulse space-y-3">
-                <div className="h-8 w-56 bg-gray-200 rounded" />
-                <div className="h-4 w-72 bg-gray-200 rounded" />
+                <div className="h-8 w-56 bg-[#D0DAE8] rounded" />
+                <div className="h-4 w-72 bg-[#E8F0FA] rounded" />
               </div>
             </section>
             <section className="px-4 mb-6">
               <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="bg-white border border-[#E2E8F0] rounded-xl p-4 animate-pulse">
-                    <div className="h-3 w-24 bg-gray-200 rounded mb-2" />
-                    <div className="h-8 w-12 bg-gray-200 rounded mb-2" />
-                    <div className="h-3 w-20 bg-gray-200 rounded" />
-                  </div>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <SkeletonCard key={i} />
                 ))}
               </div>
+            </section>
+            {/* Skeleton untuk area report cards */}
+            <section className="px-4 space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden animate-pulse">
+                  <div className="flex flex-col md:flex-row">
+                    <div className="w-full md:w-36 h-44 md:h-auto bg-[#E8F0FA]" />
+                    <div className="flex-1 p-4 space-y-3">
+                      <div className="w-28 h-4 bg-[#D0DAE8] rounded" />
+                      <div className="w-3/4 h-5 bg-[#D0DAE8] rounded" />
+                      <div className="flex gap-2">
+                        <div className="w-20 h-5 bg-[#E8F0FA] rounded" />
+                        <div className="w-24 h-5 bg-[#E8F0FA] rounded" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </section>
           </main>
       </PageLayout>
@@ -255,7 +270,7 @@ function PetugasEksekusiPage() {
         style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
         <div className="md:self-stretch md:aspect-square w-full md:w-36 h-44 md:h-auto shrink-0 bg-gray-100 overflow-hidden relative">
           {r.first_photo_url ? (
-            <img src={r.first_photo_url} alt={r.road_name} className="w-full h-full object-cover" />
+            <img src={r.first_photo_url} alt={r.road_name} loading="lazy" className="w-full h-full object-cover" />
           ) : isMulti ? (
             <div className="w-full h-full flex items-center justify-center">
               <div className="text-center">
@@ -284,17 +299,20 @@ function PetugasEksekusiPage() {
           </h4>
 
           <div className="flex flex-wrap items-center gap-1.5 mb-3">
-            <span className={`inline-flex items-center px-2 py-0.5 rounded text-label-sm font-bold border ${sc.chip}`}>
+            <span className={`inline-flex items-center px-2 py-0.5 rounded text-label-sm font-bold ${sc.chip}`}>
               {sc.label}
             </span>
-            <span className={`inline-flex items-center px-2 py-0.5 rounded text-label-sm font-bold border ${statusBadgeStyle(r.status)}`}>
+            <span className={`inline-flex items-center px-2 py-0.5 rounded text-label-sm font-bold ${statusBadgeStyle(r.status)}`}>
               {displayStatus(r.status)}
             </span>
             {r.priority && !["Ditolak", "Selesai"].includes(r.status) && (
-              <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-label-sm font-bold border ${priorityBadgeStyle(r.priority)}`}>
+              <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-label-sm font-bold ${priorityBadgeStyle(r.priority)}`}>
                 <Icon name={priorityIcon(r.priority)} className="!text-[12px]" />
                 {r.priority}
               </span>
+            )}
+            {(variant === "siap" || variant === "berjalan") && (
+              <DeadlineBadge {...hitungStatusDeadline(r, isClient)} />
             )}
           </div>
 
@@ -305,7 +323,7 @@ function PetugasEksekusiPage() {
             </div>
             <div className="flex items-center gap-1 text-[#475569]">
               <Icon name="calendar_today" className="!text-[14px]" />
-              <span>{r.created_at ? formatDateShort(r.created_at) : "-"}</span>
+              <span>{r.created_at ? formatDate(r.created_at, { short: true }) : "-"}</span>
             </div>
             {(r.kerusakan_panjang ?? r.kerusakan_lebar) && (
               <div className="flex items-center gap-1 text-[#475569]">
@@ -322,10 +340,12 @@ function PetugasEksekusiPage() {
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#E2E8F0]">
             <span className="font-label-sm text-label-sm text-[#475569]">
               {variant === "berjalan"
-                ? `Terakhir: ${timeAgo(r.updated_at ?? r.perbaikan_dimulai_at)}`
-                : variant === "selesai"
-                  ? `Selesai: ${formatDate(r.perbaikan_selesai_at)}`
-                  : null}
+                ? `Deadline: ${deadlineCountdown(r, isClient) ?? computeDeadline(r)}`
+                : variant === "siap"
+                  ? `Deadline: ${deadlineCountdown(r, isClient) ?? computeDeadline(r)}`
+                  : variant === "selesai"
+                    ? `Selesai: ${formatDate(r.perbaikan_selesai_at)}`
+                    : null}
             </span>
             <div className="flex gap-2">
               {variant === "siap" && (
@@ -374,14 +394,14 @@ function PetugasEksekusiPage() {
 
   return (
     <PageLayout showBrand withBottomNav>
-        <main className="flex-1 overflow-y-auto min-h-0 pb-4">
+        <main className="pb-4">
           <section className="px-4 pt-6 pb-6 bg-[#F1F5F9] rounded-b-lg border-b border-[#E2E8F0] mb-6">
             <div className="flex flex-col gap-0.5 mb-4">
               <h2 className="font-headline-lg-mobile text-headline-lg-mobile font-bold text-[#0F172A]">
                 {greeting}, {userName}
               </h2>
               <p className="font-body-sm text-body-sm text-[#475569]">
-                {uprName ? `${uprName} · ` : ""}{todayFormatted()}
+                {uprName ? `${uprName} · ` : ""}{todayFormatted(isClient)}
               </p>
               <div className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-full bg-[#D1FAE5] border border-[#6EE7B7] self-start">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
@@ -426,6 +446,20 @@ function PetugasEksekusiPage() {
                   {tugasBerjalan.length}
                 </p>
                 <p className="font-label-sm text-label-sm text-[#475569]">Titik Pengerjaan</p>
+              </div>
+
+              <div className="bg-white border border-[#E2E8F0] rounded-xl p-4"
+                style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                <div className="flex items-center justify-between mb-3">
+                    <span className="font-label-sm text-label-sm font-semibold text-[#E11D48] uppercase tracking-wider">
+                      Mendekati Deadline
+                    </span>
+                    <Icon name="alarm" className="!text-[18px] text-[#E11D48]" />
+                </div>
+                <p className="font-headline-lg text-headline-lg font-bold text-[#0F172A] leading-none mb-1">
+                  {stats.mendekatiDeadline}
+                </p>
+                <p className="font-label-sm text-label-sm text-[#475569]">Kurang dari 24 jam</p>
               </div>
 
               <div className="bg-white border border-[#E2E8F0] rounded-xl p-4"
@@ -502,6 +536,7 @@ function PetugasEksekusiPage() {
                   className="font-label-sm text-label-sm text-[#0F172A] bg-white border border-[#E2E8F0] rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af]"
                 >
                   <option value="prioritas">Prioritas Tertinggi</option>
+                  <option value="deadline">Paling Mendesak</option>
                   <option value="terdekat">Terdekat</option>
                   <option value="waktu">Waktu Laporan</option>
                 </select>

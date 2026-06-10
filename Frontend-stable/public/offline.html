@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Offline - DeltaJalan</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100dvh;
+      margin: 0;
+      background: #f8fafc;
+      color: #1e293b;
+      text-align: center;
+      padding: 1rem;
+    }
+    .container { max-width: 380px; }
+    .icon { width: 64px; height: 64px; margin: 0 auto 1.5rem; color: #94a3b8; }
+    h1 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    p { color: #64748b; font-size: 0.875rem; line-height: 1.5; }
+    .actions { margin-top: 2rem; display: flex; flex-direction: column; gap: 0.75rem; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+      padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-size: 0.875rem;
+      font-weight: 600; text-decoration: none; transition: opacity 0.2s;
+    }
+    .btn-primary { background: #1A4F8A; color: #fff; }
+    .btn-secondary { background: #fff; color: #1e293b; border: 1px solid #e2e8f0; }
+    .btn:hover { opacity: 0.85; }
+    .draft-count { margin-top: 0.5rem; font-size: 0.75rem; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <svg class="icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+    </svg>
+    <h1>Koneksi Terputus</h1>
+    <p>DeltaJalan memerlukan koneksi internet untuk mengirim laporan. Data yang sudah diisi bisa disimpan sebagai draf dan dikirim nanti.</p>
+    <div class="actions">
+      <a href="/drafts" class="btn btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6"/><path d="M12 9v6"/><path d="M12 3c7.2 0 9 1.8 9 9s-1.8 9-9 9-9-1.8-9-9 1.8-9 9-9z"/></svg>
+        Lihat Draf Tersimpan
+      </a>
+      <button onclick="window.location.reload()" class="btn btn-secondary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 3v4h-4"/></svg>
+        Coba Lagi
+      </button>
+    </div>
+  </div>
+</body>
+</html>

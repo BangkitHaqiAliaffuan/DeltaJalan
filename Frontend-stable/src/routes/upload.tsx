@@ -3,6 +3,7 @@ import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { FraudWarningModal } from "@/components/jk/FraudWarningModal";
 import { DuplicateChecker } from "@/components/jk/DuplicateChecker";
+import { GpsBanner } from "@/components/jk/GpsBanner";
 import { useRef, useState, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { setAiResult, setFormData, setBatchResult, API_BASE_URL } from "@/lib/aiStore";
@@ -27,6 +28,8 @@ import type { BatchAnalysisResponse, BatchStoreResponse } from "@/types/laporan"
 import { BatchMapPreview, type BatchPhotoLocation } from "@/components/jk/BatchMapPreview";
 import { snapToRoad } from "@/lib/geo";
 import { saveDraft, getDraft, deleteDraft } from "@/lib/offlineDrafts";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { enqueueSubmission } from "@/lib/submissionQueue";
 
 async function computeFileHash(file: File): Promise<string> {
   const buffer = await file.arrayBuffer();
@@ -56,94 +59,6 @@ const ALL_KECAMATAN = KECAMATAN_LIST.flatMap((g) => g.items);
 
 type AnalysisState = "idle" | "loading" | "error";
 
-// ── GPS Status Banner ──────────────────────────────────────────────────────
-
-function GpsBanner({
-  status,
-  message,
-  lat,
-  lng,
-}: {
-  status: GpsStatus;
-  message: string;
-  lat: number | null;
-  lng: number | null;
-}) {
-  if (status === "idle") return null;
-
-  const variants: Record<string, { bg: string; border: string; text: string; icon: string }> = {
-    detecting: {
-      bg: "bg-[#EFF6FF]",
-      border: "border-[#93C5FD]",
-      text: "text-[#1E40AF]",
-      icon: "gps_fixed",
-    },
-    geocoding: {
-      bg: "bg-[#EFF6FF]",
-      border: "border-[#93C5FD]",
-      text: "text-[#1E40AF]",
-      icon: "travel_explore",
-    },
-    success: {
-      bg: "bg-[#D1FAE5]",
-      border: "border-[#6EE7B7]",
-      text: "text-[#065F46]",
-      icon: "check_circle",
-    },
-    exif_no_gps: {
-      bg: "bg-[#FEF3C7]",
-      border: "border-[#FCD34D]",
-      text: "text-[#92400E]",
-      icon: "info",
-    },
-    permission_denied: {
-      bg: "bg-[#FEE2E2]",
-      border: "border-[#FCA5A5]",
-      text: "text-[#991B1B]",
-      icon: "location_off",
-    },
-    timeout: {
-      bg: "bg-[#FEF3C7]",
-      border: "border-[#FCD34D]",
-      text: "text-[#92400E]",
-      icon: "timer_off",
-    },
-    error: {
-      bg: "bg-[#FEE2E2]",
-      border: "border-[#FCA5A5]",
-      text: "text-[#991B1B]",
-      icon: "error",
-    },
-  };
-
-  const v = variants[status] ?? variants.error;
-  const isSpinning = status === "detecting" || status === "geocoding";
-
-  return (
-    <div className={`flex items-start gap-2.5 ${v.bg} border ${v.border} rounded-lg px-4 py-3`}>
-      {isSpinning ? (
-        <span
-          className={`w-5 h-5 border-2 border-current/30 border-t-current rounded-full animate-spin shrink-0 mt-0.5 ${v.text}`}
-        />
-      ) : (
-        <Icon
-          name={v.icon}
-          className={`${v.text} !text-[20px] shrink-0 mt-0.5`}
-          filled={status === "success"}
-        />
-      )}
-      <div className="flex-1 min-w-0">
-        <p className={`font-label-md text-[12px] leading-relaxed ${v.text}`}>{message}</p>
-        {status === "success" && lat !== null && lng !== null && (
-          <p className={`font-id-code text-[10px] mt-0.5 ${v.text} opacity-70`}>
-            {lat.toFixed(6)}, {lng.toFixed(6)}
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ── Main Component ─────────────────────────────────────────────────────────
 
 function UploadPage() {
@@ -168,12 +83,20 @@ function UploadPage() {
   // Form state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
+  previewUrlRef.current = previewUrl;
   const [namaJalan, setNamaJalan] = useState("");
   const [kecamatan, setKecamatan] = useState("");
-  const [tanggal, setTanggal] = useState(() => new Date().toISOString().split("T")[0]);
+  const [tanggal, setTanggal] = useState("");
   const [catatan, setCatatan] = useState("");
   const [kerusakanPanjang, setKerusakanPanjang] = useState("");
   const [kerusakanLebar, setKerusakanLebar] = useState("");
+
+  useEffect(() => {
+    if (!tanggal) {
+      setTanggal(new Date().toISOString().split("T")[0]);
+    }
+  }, []);
 
   // Per-photo dimension state for batch mode
   const [fileKerusakanPanjang, setFileKerusakanPanjang] = useState<Record<number, string>>({});
@@ -214,6 +137,8 @@ function UploadPage() {
   // ── State Batch Upload (Task 4A) ─────────────────────────────────────────
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const previewUrlsRef = useRef<string[]>([]);
+  previewUrlsRef.current = previewUrls;
   const [roadNameSource, setRoadNameSource] = useState<"autocomplete" | "manual" | null>(null);
   const [uploadPhase, setUploadPhase] = useState<
     "idle" | "uploading" | "analyzing" | "validating" | "done" | "error"
@@ -235,6 +160,14 @@ function UploadPage() {
   const [fileDuplicateMap, setFileDuplicateMap] = useState<
     Record<number, { isDuplicate: boolean; reportCode?: string }>
   >({});
+
+  // Clean up object URLs on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, []);
 
   // ── Callbacks untuk hook lokasi ──────────────────────────────────────────
 
@@ -325,6 +258,9 @@ function UploadPage() {
     setRoadNameSource("autocomplete");
   }, []);
 
+  // ── Online status ─────────────────────────────────────────────────────
+  const online = useOnlineStatus();
+
   // ── Save offline draft ──────────────────────────────────────────────────
 
   const handleSaveDraft = useCallback(async () => {
@@ -335,6 +271,14 @@ function UploadPage() {
       for (const f of selectedFiles) {
         photos.push(f);
       }
+    }
+    if (photos.length === 0) {
+      toast.error("Tambahkan minimal 1 foto sebelum menyimpan draf.");
+      return;
+    }
+    if (!namaJalan || namaJalan.trim().length === 0) {
+      toast.error("Isi nama jalan sebelum menyimpan draf.");
+      return;
     }
     const lat = locationState.lat ?? roadCoords?.lat ?? null;
     const lng = locationState.lng ?? roadCoords?.lng ?? null;
@@ -568,10 +512,10 @@ function UploadPage() {
           });
           if (!res.ok) return;
           const data = await res.json();
-          if ((data.image_duplicates ?? []).length > 0) {
+          if (data.has_active_report && data.report) {
             setFileDuplicateMap((prev) => ({
               ...prev,
-              [idx]: { isDuplicate: true, reportCode: data.image_duplicates[0].report_code },
+              [idx]: { isDuplicate: true, reportCode: data.report.report_code },
             }));
           }
         } catch {
@@ -646,6 +590,11 @@ function UploadPage() {
    */
   const handleSubmitBatch = useCallback(async () => {
     setBatchError("");
+
+    if (!online) {
+      setBatchError("Kamu sedang offline. Simpan sebagai draf terlebih dahulu, kirim nanti saat online.");
+      return;
+    }
 
     if (selectedFiles.length === 0) {
       setBatchError("Pilih minimal 1 foto untuk batch upload.");
@@ -916,48 +865,10 @@ function UploadPage() {
     };
   }, [selectedFile]);
 
-  // Cek duplikasi otomatis saat hash foto single selesai dihitung
-  const [singleDupeInfo, setSingleDupeInfo] = useState<{
-    isDuplicate: boolean;
-    reportCode?: string;
-  }>({ isDuplicate: false });
-
-  useEffect(() => {
-    if (!selectedFile || !selectedFileHash) {
-      setSingleDupeInfo({ isDuplicate: false });
-      return;
-    }
-    let cancelled = false;
-    const check = async () => {
-      try {
-        const token = getToken() ?? "";
-        const url = new URL(`${window.location.origin}${API_BASE_URL}/v1/reports/check-duplicate`);
-        url.searchParams.set("file_hash", selectedFileHash);
-        const res = await fetch(url.toString(), {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!res.ok || cancelled) return;
-        const data = await res.json();
-        if (cancelled) return;
-        const dupes = data.image_duplicates ?? [];
-        setSingleDupeInfo({
-          isDuplicate: dupes.length > 0,
-          reportCode: dupes.length > 0 ? dupes[0].report_code : undefined,
-        });
-      } catch {
-        if (!cancelled) setSingleDupeInfo({ isDuplicate: false });
-      }
-    };
-    check();
-    return () => { cancelled = true; };
-  }, [selectedFileHash, selectedFile]);
-
   const {
-    checkState,
-    result: duplicateResult,
-    hasDuplicates,
+    checking: duplicateChecking,
+    activeReport,
     addEvidenceState,
-    addEvidenceTargetId,
     addEvidenceMessage,
     submitEvidence,
     reset: resetDuplicateCheck,
@@ -970,28 +881,23 @@ function UploadPage() {
     selectedFileHash,
   );
 
-  // Auto-scroll ke warning biar petugas sadar
-  useEffect(() => {
-    if (errorMsg || singleDupeInfo.isDuplicate) {
-      const el = document.querySelector("#upload-error-banner");
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [errorMsg, singleDupeInfo.isDuplicate]);
-
-  // Handler saat tombol "Dukung Laporan" diklik
-  const handleSupportReport = useCallback(
+  // Handler saat tombol "Lampirkan Foto Bukti" diklik
+  const handleSendEvidence = useCallback(
     async (reportId: string) => {
       if (!selectedFile) return;
       const reporterName = user?.name ?? "Petugas";
-      // Sembunyikan tombol submit utama (Requirement 4.7)
       setIsSubmitHidden(true);
-      await submitEvidence(reportId, selectedFile, reporterName);
-      // Jika error, aktifkan kembali tombol submit (Requirement 4.9)
+      await submitEvidence(reportId, selectedFile, reporterName, {
+        isBatch: false,
+        kerusakanPanjang: kerusakanPanjang || undefined,
+        kerusakanLebar: kerusakanLebar || undefined,
+        catatan: catatan || undefined,
+      });
       if (addEvidenceState === "error") {
         setIsSubmitHidden(false);
       }
     },
-    [selectedFile, user, submitEvidence, addEvidenceState],
+    [selectedFile, user, submitEvidence, addEvidenceState, kerusakanPanjang, kerusakanLebar, catatan],
   );
 
   // ── File handling ────────────────────────────────────────────────────────
@@ -1161,6 +1067,11 @@ function UploadPage() {
   // ── Analisis AI ──────────────────────────────────────────────────────────
 
   async function handleAnalyze() {
+    if (!online) {
+      setErrorMsg("Kamu sedang offline. Simpan sebagai draf terlebih dahulu, kirim nanti saat online.");
+      return;
+    }
+
     if (!selectedFile) {
       setErrorMsg("Pilih foto terlebih dahulu sebelum menganalisis.");
       return;
@@ -1213,8 +1124,8 @@ function UploadPage() {
         });
         if (dupRes.ok) {
           const dupData = await dupRes.json();
-          if ((dupData.image_duplicates ?? []).length > 0) {
-            const dup = dupData.image_duplicates[0];
+          if (dupData.has_active_report && dupData.report) {
+            const dup = dupData.report;
             setErrorMsg(
               `Foto ini sudah pernah digunakan untuk laporan ${dup.report_code}. ` +
               'Gunakan foto baru untuk melanjutkan.',
@@ -1283,7 +1194,7 @@ function UploadPage() {
   return (
     <PageLayout title="Upload & Analisis" back="/home">
 
-        <main className="flex-1 overflow-y-auto min-h-0 px-4 pt-4 pb-6 w-full">
+        <main className="px-4 pt-4 pb-6 w-full">
           {/* 
             PENTING: div pembatas lebar ini TIDAK boleh pakai mx-auto langsung
             sebagai flex item. Gunakan block display (default div) di dalam
@@ -1620,7 +1531,7 @@ function UploadPage() {
             ) : (
               /* ── Preview Single Foto ── */
               <div className="rounded-lg border border-[#E2E8F0] overflow-hidden bg-white">
-                <div className={`relative w-full aspect-video bg-surface-container-high ${singleDupeInfo.isDuplicate ? "ring-2 ring-amber-400 ring-inset" : ""}`}>
+                <div className="relative w-full aspect-video bg-surface-container-high">
                   <img
                     src={previewUrl!}
                     alt="Preview foto"
@@ -1700,24 +1611,7 @@ function UploadPage() {
                     </span>
                   )}
                 </div>
-                {/* Duplicate warning banner */}
-                {singleDupeInfo.isDuplicate && (
-                  <div id="upload-error-banner" className="mx-3 mb-3 flex items-start gap-2.5 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2.5">
-                    <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                      <Icon name="content_copy" className="text-amber-700 !text-[14px]" />
-                    </div>
-                    <div>
-                      <p className="text-[12px] font-semibold text-amber-800">
-                        Foto sudah pernah digunakan
-                      </p>
-                      <p className="text-[11px] text-amber-700 mt-0.5">
-                        Foto ini sudah pernah dipakai pada laporan{' '}
-                        <strong>{singleDupeInfo.reportCode}</strong>.
-                        Gunakan foto baru untuk melanjutkan.
-                      </p>
-                    </div>
-                  </div>
-                )}
+
               </div>
             )}
 
@@ -1725,7 +1619,7 @@ function UploadPage() {
             <input
               ref={cameraInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/jpg"
+              accept="image/jpeg,image/png,image/jpg,text/plain"
               capture="environment"
               multiple
               className="hidden"
@@ -1737,7 +1631,7 @@ function UploadPage() {
             <input
               ref={galleryInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/jpg"
+              accept="image/jpeg,image/png,image/jpg,text/plain"
               multiple
               className="hidden"
               onChange={handleGalleryChange}
@@ -2130,23 +2024,13 @@ function UploadPage() {
             {selectedFile && (
               <section className="rounded-lg border border-[#E2E8F0] bg-white p-4">
                 <DuplicateChecker
-                  userLat={effectiveLat}
-                  userLng={effectiveLng}
-                  isGpsActive={isGpsActive || roadCoords !== null}
-                  isGpsDetecting={isGpsDetecting}
-                  district={kecamatan}
-                  checkState={checkState}
-                  spatialDuplicates={duplicateResult.spatial_duplicates}
-                  textualDuplicates={duplicateResult.textual_duplicates}
-                  imageDuplicates={duplicateResult.image_duplicates}
-                  hasDuplicates={hasDuplicates}
+                  checking={duplicateChecking}
+                  activeReport={activeReport}
                   addEvidenceState={addEvidenceState}
-                  addEvidenceTargetId={addEvidenceTargetId}
                   addEvidenceMessage={addEvidenceMessage}
-                  selectedFile={selectedFile}
+                  hasFile={selectedFile !== null}
                   reporterName={user?.name ?? "Petugas"}
-                  onSupportReport={handleSupportReport}
-                  isSubmitHidden={isSubmitHidden}
+                  onSendEvidence={handleSendEvidence}
                 />
               </section>
             )}
@@ -2177,6 +2061,7 @@ function UploadPage() {
                   type="button"
                   onClick={handleSubmitBatch}
                   disabled={
+                    !online ||
                     ["uploading", "analyzing", "validating"].includes(uploadPhase) ||
                     selectedFiles.some((_, idx) => {
                       const isRejected = fileExifStatus[idx]?.status === "rejected";
@@ -2223,6 +2108,7 @@ function UploadPage() {
                 type="button"
                 onClick={handleAnalyze}
                 disabled={
+                  !online ||
                   isLoading ||
                   !selectedFile ||
                   !kecamatan ||
@@ -2231,8 +2117,7 @@ function UploadPage() {
                   !kerusakanLebar ||
                   effectiveLat === null ||
                   effectiveLng === null ||
-                  isGpsWorking ||
-                  singleDupeInfo.isDuplicate
+                  isGpsWorking
                 }
                 className="w-full h-11 bg-primary text-white rounded-lg flex items-center justify-center gap-2 font-headline-sm-mobile text-[16px] font-bold active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
               >

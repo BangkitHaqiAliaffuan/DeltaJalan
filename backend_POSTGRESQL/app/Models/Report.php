@@ -31,7 +31,6 @@ use App\Models\ReportPhoto;
  * @property string $status              Status workflow laporan
  * @property string|null $system_notes   Catatan internal sistem
  * @property string|null $image_hash     MD5 hash foto asli (anti-duplikasi)
- * @property int    $support_count       Jumlah petugas yang mendukung laporan ini
  */
 class Report extends Model
 {
@@ -57,7 +56,6 @@ class Report extends Model
         'image_original_path',
         'image_result_path',
         'image_hash',
-        'support_count',
         'total_detections',
         'overall_severity',
         'ai_raw_output',
@@ -91,6 +89,11 @@ class Report extends Model
         'kerusakan_lebar',
         // Prioritas penanganan
         'priority',
+        // Deadline & breach flags
+        'deadline_review',
+        'deadline_resolusi',
+        'terlambat_review',
+        'terlambat_resolusi',
     ];
 
     /**
@@ -107,13 +110,16 @@ class Report extends Model
         'latitude'         => 'decimal:8',  // Presisi 8 desimal
         'longitude'        => 'decimal:8',  // Presisi 8 desimal
         'total_detections' => 'integer',
-        'support_count'    => 'integer',
         'trust_score'      => 'integer',
 
-        'ai_confidence'       => 'decimal:3',
-        'perbaikan_dimulai_at' => 'datetime',
-        'perbaikan_selesai_at' => 'datetime',
-        'assigned_at'          => 'datetime',
+        'ai_confidence'         => 'decimal:3',
+        'perbaikan_dimulai_at'  => 'datetime',
+        'perbaikan_selesai_at'  => 'datetime',
+        'assigned_at'           => 'datetime',
+        'deadline_review'   => 'datetime',
+        'deadline_resolusi' => 'datetime',
+        'terlambat_review'     => 'boolean',
+        'terlambat_resolusi' => 'boolean',
     ];
 
     /**
@@ -124,7 +130,6 @@ class Report extends Model
         'total_detections' => 0,
         'overall_severity' => 'Baik',
         'status'           => 'Menunggu Review',
-        'support_count'    => 0,
         'priority'         => 'Sedang',
     ];
 
@@ -229,14 +234,6 @@ public const STATUS_VALUES = [
     // ── Relationships ─────────────────────────────────────────────────────
 
     /**
-     * Laporan ini memiliki banyak foto bukti tambahan.
-     */
-    public function evidences(): HasMany
-    {
-        return $this->hasMany(ReportEvidence::class, 'report_id');
-    }
-
-    /**
      * Foto-foto batch yang terkait dengan laporan ini.
      */
     public function photos(): HasMany
@@ -272,6 +269,40 @@ public const STATUS_VALUES = [
             return $this->firstPhoto->image_original_url;
         }
         return null;
+    }
+
+    /**
+     * Hitung deadline review berdasarkan priority.
+     */
+    public static function hitungDeadlineReview(string $priority): \Carbon\Carbon
+    {
+        $hours = config("deadline.{$priority}.review_hours", 72);
+        return now()->addHours((int) $hours);
+    }
+
+    /**
+     * Hitung deadline resolusi berdasarkan priority.
+     */
+    public static function hitungDeadlineResolusi(string $priority): \Carbon\Carbon
+    {
+        $hours = config("deadline.{$priority}.resolution_hours", 168);
+        return now()->addHours((int) $hours);
+    }
+
+    /**
+     * Set deadline pada laporan (dipakai saat create & update priority).
+     */
+    public function setDeadline(?string $priority = null): void
+    {
+        $priority = $priority ?? $this->priority ?? 'Sedang';
+        $this->deadline_review = static::hitungDeadlineReview($priority);
+
+        // Resolution deadline hanya relevan jika sudah disetujui
+        if (in_array($this->status, ['Disetujui', 'Sedang Diperbaiki', 'Selesai'])) {
+            $approvedAt = $this->perbaikan_dimulai_at ?? $this->updated_at ?? $this->created_at;
+            $this->deadline_resolusi = \Carbon\Carbon::parse($approvedAt)
+                ->addHours((int) config("deadline.{$priority}.resolution_hours", 168));
+        }
     }
 
     /**

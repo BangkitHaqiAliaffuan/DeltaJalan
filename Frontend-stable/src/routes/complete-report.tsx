@@ -19,8 +19,10 @@ function CompleteReportPage() {
   const { reportId } = Route.useSearch();
   const navigate = useNavigate();
   const token = getToken() ?? "";
-  const backUrl =
-    getCurrentUser()?.role === "petugas_eksekusi" ? "/petugas-eksekusi" : "/supervisor";
+  const [backUrl, setBackUrl] = useState("/supervisor");
+  useEffect(() => {
+    setBackUrl(getCurrentUser()?.role === "petugas_eksekusi" ? "/petugas-eksekusi" : "/supervisor");
+  }, []);
 
   const [report, setReport] = useState<Laporan | null>(null);
   const [loading, setLoading] = useState(true);
@@ -109,7 +111,7 @@ function CompleteReportPage() {
   if (loading) {
     return (
       <PageLayout showBrand back={backUrl}>
-        <div className="flex items-center justify-center flex-1">
+        <div className="flex items-center justify-center">
           <span className="w-8 h-8 border-4 border-primary-container/30 border-t-primary-container rounded-full animate-spin" />
         </div>
       </PageLayout>
@@ -119,7 +121,7 @@ function CompleteReportPage() {
   if (error || !report) {
     return (
       <PageLayout showBrand back={backUrl}>
-        <div className="flex flex-col items-center justify-center flex-1 text-on-surface-variant px-4">
+        <div className="flex flex-col items-center justify-center text-on-surface-variant px-4">
           <Icon name="error_outline" className="!text-5xl mb-3 opacity-30" />
           <p className="text-body-md">{error || "Laporan tidak ditemukan."}</p>
           <Link to={backUrl} className="mt-4 text-primary text-sm font-semibold">
@@ -133,7 +135,7 @@ function CompleteReportPage() {
   if (successMsg) {
     return (
       <PageLayout showBrand back={backUrl}>
-        <div className="flex flex-col items-center justify-center flex-1 px-4">
+        <div className="flex flex-col items-center justify-center px-4">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
             <Icon name="check_circle" className="!text-4xl text-green-600" />
           </div>
@@ -148,7 +150,7 @@ function CompleteReportPage() {
 
   return (
     <PageLayout showBrand back={backUrl}>
-      <div className="flex-1 overflow-y-auto min-h-0">
+      <div>
       <div className="px-margin-mobile py-lg max-w-lg mx-auto">
         <h2 className="text-headline-sm font-headline-sm font-bold text-on-surface mb-1">
           Selesaikan Laporan

@@ -2,8 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
+import { SkeletonNotificationItem } from "@/components/jk/Skeleton";
 import { PushSubscriptionManager } from "@/components/jk/PushSubscriptionManager";
 import { fetchNotifications, markNotificationRead, markAllNotificationsRead, deleteAllNotifications } from "@/lib/notifications";
+import { formatDate } from "@/lib/format";
 import type { NotificationItem } from "@/types/laporan";
 
 export const Route = createFileRoute("/notifications")({
@@ -11,7 +13,8 @@ export const Route = createFileRoute("/notifications")({
   head: () => ({ meta: [{ title: "Semua Notifikasi — DeltaJalan" }] }),
 });
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, client: boolean): string {
+  if (!client) return "";
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60_000);
   if (mins < 1) return "baru saja";
@@ -22,22 +25,14 @@ function timeAgo(dateStr: string): string {
   return `${days}h`;
 }
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function NotificationsPage() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [filterType, setFilterType] = useState("");
+  const [isClient, setIsClient] = useState(false);
+  useEffect(() => { setIsClient(true); }, []);
 
   const load = async (p: number, type: string) => {
     setLoading(true);
@@ -129,7 +124,7 @@ function NotificationsPage() {
         </button>
       </div>
     }>
-      <div className="px-4 py-4 max-w-2xl mx-auto">
+      <div className="flex-1 px-4 py-4 max-w-2xl mx-auto">
 
         <div className="flex gap-1.5 overflow-x-auto pb-3 mb-2 scrollbar-none">
           {types.map((t) => (
@@ -149,8 +144,12 @@ function NotificationsPage() {
         </div>
 
         {loading && notifications.length === 0 ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <div className="space-y-1" aria-busy="true" aria-label="Memuat notifikasi">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="bg-white border border-[#E2E8F0] rounded-lg">
+                <SkeletonNotificationItem />
+              </div>
+            ))}
           </div>
         ) : notifications.length === 0 ? (
           <div className="text-center py-16">
@@ -176,10 +175,10 @@ function NotificationsPage() {
                     <p className="text-[13px] text-on-surface leading-snug">{item.data.message}</p>
                     <div className="flex items-center gap-2 mt-1.5">
                       <span className="text-[10px] text-on-surface-variant">
-                        {formatDate(item.created_at)}
+                        {formatDate(item.created_at, { withTime: true, short: true })}
                       </span>
                       <span className="text-[10px] text-on-surface-variant">•</span>
-                      <span className="text-[10px] text-on-surface-variant">{timeAgo(item.created_at)}</span>
+                      <span className="text-[10px] text-on-surface-variant">{timeAgo(item.created_at, isClient)}</span>
                     </div>
                   </div>
                 </div>
@@ -192,7 +191,7 @@ function NotificationsPage() {
                 disabled={loading}
                 className="w-full text-center py-3 text-[12px] text-primary font-medium hover:bg-[#F8FAFC] rounded-lg transition-colors disabled:opacity-50"
               >
-                {loading ? "Memuat..." : "Muat lebih banyak"}
+                {loading ? "Memuat lebih banyak..." : "Muat lebih banyak"}
               </button>
             )}
           </div>

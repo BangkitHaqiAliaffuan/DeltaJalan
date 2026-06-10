@@ -174,7 +174,7 @@ function StatsPage() {
 
   return (
     <PageLayout showBrand withBottomNav>
-      <main className="flex-1 overflow-y-auto min-h-0 pb-4 w-full">
+      <main className="pb-4 w-full">
         <div className="max-w-5xl mx-auto px-4 pt-6 pb-4 flex flex-col gap-6">
           {/* ── Header ─────────────────────────────────────────────── */}
           <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] rounded-2xl p-6 text-white">
@@ -219,8 +219,97 @@ function StatsPage() {
 
           {/* ── Content ────────────────────────────────────────────── */}
           {loading ? (
-            <div className="flex items-center justify-center py-24">
-              <span className="w-8 h-8 border-4 border-[#1e40af]/20 border-t-[#1e40af] rounded-full animate-spin" />
+            <div className="space-y-6" aria-busy="true" aria-label="Memuat statistik">
+              {/* Status cards skeleton */}
+              <section>
+                <div className="w-32 h-4 bg-[#D0DAE8] rounded animate-pulse mb-3" />
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="bg-white border border-[#E2E8F0] rounded-xl p-4 animate-pulse">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="w-6 h-6 bg-[#D0DAE8] rounded" />
+                        <div className="w-10 h-5 bg-[#D0DAE8] rounded" />
+                      </div>
+                      <div className="w-20 h-3 bg-[#E8F0FA] rounded" />
+                    </div>
+                  ))}
+                </div>
+              </section>
+              {/* 2-column skeleton: severity + trust */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <section>
+                  <div className="w-44 h-4 bg-[#D0DAE8] rounded animate-pulse mb-3" />
+                  <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 space-y-4 animate-pulse">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <div className="w-24 h-3.5 bg-[#D0DAE8] rounded" />
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-3.5 bg-[#D0DAE8] rounded" />
+                            <div className="w-10 h-3 bg-[#E8F0FA] rounded" />
+                          </div>
+                        </div>
+                        <div className="w-full h-2.5 bg-[#E8F0FA] rounded-full" />
+                      </div>
+                    ))}
+                  </div>
+                </section>
+                <section>
+                  <div className="w-36 h-4 bg-[#D0DAE8] rounded animate-pulse mb-3" />
+                  <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 space-y-4 animate-pulse">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <div className="w-20 h-3.5 bg-[#D0DAE8] rounded" />
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-3.5 bg-[#D0DAE8] rounded" />
+                            <div className="w-10 h-3 bg-[#E8F0FA] rounded" />
+                          </div>
+                        </div>
+                        <div className="w-full h-2.5 bg-[#E8F0FA] rounded-full" />
+                      </div>
+                    ))}
+                    <div className="pt-3 border-t border-[#E2E8F0]">
+                      <div className="w-40 h-3 bg-[#E8F0FA] rounded" />
+                    </div>
+                  </div>
+                </section>
+              </div>
+              {/* Monthly chart skeleton */}
+              <section>
+                <div className="w-36 h-4 bg-[#D0DAE8] rounded animate-pulse mb-3" />
+                <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 animate-pulse">
+                  <div className="flex items-end gap-2 h-28">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="flex-1 bg-[#E8F0FA] rounded-t"
+                        style={{ height: `${(i % 3 + 1) * 20 + 20}px` }}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="flex-1 h-2.5 bg-[#E8F0FA] rounded" />
+                    ))}
+                  </div>
+                </div>
+              </section>
+              {/* UPR stats skeleton */}
+              <section>
+                <div className="w-28 h-4 bg-[#D0DAE8] rounded animate-pulse mb-3" />
+                <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden animate-pulse">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 border-b border-[#E2E8F0] last:border-b-0">
+                      <div className="w-1/3 h-3.5 bg-[#D0DAE8] rounded" />
+                      <div className="w-1/6 h-3 bg-[#E8F0FA] rounded" />
+                      <div className="w-1/6 h-3 bg-[#E8F0FA] rounded" />
+                      <div className="w-1/6 h-3 bg-[#E8F0FA] rounded" />
+                      <div className="flex-1 h-2 bg-[#E8F0FA] rounded" />
+                    </div>
+                  ))}
+                </div>
+              </section>
             </div>
           ) : stats ? (
             <>

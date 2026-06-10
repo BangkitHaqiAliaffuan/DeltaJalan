@@ -1,22 +1,245 @@
+import type { LucideIcon } from "lucide-react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  AlarmClock,
+  ArrowDown,
+  ArrowLeft,
+  ArrowLeftRight,
+  Ban,
+  BarChart3,
+  Bell,
+  Calendar,
+  CalendarX,
+  Camera,
+  Check,
+  CheckCircle,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  ClipboardCheck,
+  ClipboardList,
+  Clock,
+  CloudOff,
+  CloudUpload,
+  Construction,
+  Copy,
+  Crosshair,
+  Database,
+  Download,
+  Eye,
+  EyeOff,
+  FileDown,
+  FileEdit,
+  FileText,
+  Filter,
+  History,
+  Home,
+  Hourglass,
+  Image,
+  ImageOff,
+  ImagePlus,
+  Images,
+  Inbox,
+  Info,
+  LayoutDashboard,
+  LayoutGrid,
+  Lightbulb,
+  List,
+  LogIn,
+  LogOut,
+  Mail,
+  Map,
+  MapPin,
+  Menu,
+  MessageSquare,
+  Minus,
+  MoreVertical,
+  Navigation,
+  Pencil,
+  Play,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  Ruler,
+  Save,
+  Search,
+  SearchX,
+  Send,
+  Settings,
+  Share2,
+  Shield,
+  Sparkles,
+  Table,
+  Tag,
+  ThumbsUp,
+  Timer,
+  ToggleRight,
+  Trash2,
+  TrendingUp,
+  User,
+  UserPlus,
+  Users,
+  TriangleAlert,
+  Verified,
+  WifiOff,
+  Wrench,
+  X,
+  XCircle,
+} from "lucide-react";
+
+const ICON_MAP: Record<string, LucideIcon> = {
+  add: Plus,
+  add_a_photo: Camera,
+  add_photo_alternate: ImagePlus,
+  alarm: AlarmClock,
+  arrow_back: ArrowLeft,
+  arrow_downward: ArrowDown,
+  assignment: ClipboardList,
+  auto_awesome: Sparkles,
+  bar_chart: BarChart3,
+  block: Ban,
+  broken_image: ImageOff,
+  build: Wrench,
+  burst_mode: Images,
+  calendar_month: Calendar,
+  calendar_today: Calendar,
+  camera_alt: Camera,
+  cancel: XCircle,
+  check: Check,
+  check_circle: CheckCircle,
+  chevron_left: ChevronLeft,
+  chevron_right: ChevronRight,
+  close: X,
+  cloud_off: CloudOff,
+  cloud_upload: CloudUpload,
+  compare_arrows: ArrowLeftRight,
+  construction: Construction,
+  content_copy: Copy,
+  dashboard: LayoutDashboard,
+  dataset: Database,
+  delete: Trash2,
+  delete_sweep: Trash2,
+  description: FileText,
+  download: Download,
+  edit: Pencil,
+  edit_note: FileEdit,
+  error: AlertCircle,
+  error_outline: AlertCircle,
+  event_busy: CalendarX,
+  expand_less: ChevronUp,
+  expand_more: ChevronDown,
+  fact_check: ClipboardCheck,
+  file_download: FileDown,
+  filter_list: Filter,
+  format_text_clip: FileEdit,
+  grid_view: LayoutGrid,
+  group: Users,
+  groups: Users,
+  history: History,
+  home: Home,
+  hourglass_empty: Hourglass,
+  image: Image,
+  inbox: Inbox,
+  info: Info,
+  legend_toggle: List,
+  lightbulb: Lightbulb,
+  list: List,
+  location_on: MapPin,
+  location_pin: MapPin,
+  login: LogIn,
+  logout: LogOut,
+  mail: Mail,
+  manage_search: Search,
+  map: Map,
+  menu: Menu,
+  more_vert: MoreVertical,
+  my_location: Crosshair,
+  near_me: Navigation,
+  notifications: Bell,
+  notifications_none: Bell,
+  pending_actions: Clock,
+  people: Users,
+  person: User,
+  person_add: UserPlus,
+  photo: Image,
+  photo_camera: Camera,
+  photo_library: Images,
+  picture_as_pdf: FileText,
+  play_arrow: Play,
+  priority_high: AlertTriangle,
+  rate_review: MessageSquare,
+  refresh: RefreshCw,
+  remove: Minus,
+  replay: RotateCcw,
+  running_with_errors: AlertTriangle,
+  save: Save,
+  search: Search,
+  search_off: SearchX,
+  security: Shield,
+  send: Send,
+  settings: Settings,
+  share: Share2,
+  shield: Shield,
+  straighten: Ruler,
+  swap_horiz: ArrowLeftRight,
+  sync: RefreshCw,
+  table_chart: Table,
+  tag: Tag,
+  thumb_up: ThumbsUp,
+  timer: Timer,
+  toggle_on: ToggleRight,
+  trending_up: TrendingUp,
+  verified: Verified,
+  visibility: Eye,
+  visibility_off: EyeOff,
+  warning: TriangleAlert,
+  wifi_off: WifiOff,
+};
+
 export function Icon({
   name,
   className = "",
-  filled = false,
-  weight,
+  style,
+  shadowed,
 }: {
   name: string;
   className?: string;
-  filled?: boolean;
-  weight?: number;
+  style?: React.CSSProperties;
+  shadowed?: boolean;
 }) {
-  const style: React.CSSProperties = {};
-  const parts: string[] = [];
-  if (filled) parts.push("'FILL' 1");
-  if (weight) parts.push(`'wght' ${weight}`);
-  if (parts.length) style.fontVariationSettings = parts.join(", ");
+  const LucideIconComponent = ICON_MAP[name];
+  if (!LucideIconComponent) {
+    return null;
+  }
+
+  const iconSize = className ? undefined : 20;
+
+  if (shadowed) {
+    return (
+      <span className="relative inline-flex items-center justify-center leading-none">
+        <LucideIconComponent
+          className={className}
+          size={iconSize}
+          strokeWidth={3}
+          style={{ ...style, position: "absolute", left: 0, top: 0, opacity: 0.25, transform: "translate(2px, 3px)" }}
+          aria-hidden="true"
+        />
+        <LucideIconComponent
+          className={className}
+          size={iconSize}
+          style={style}
+        />
+      </span>
+    );
+  }
+
   return (
-    <span className={`material-symbols-outlined ${className}`} style={style}>
-      {name}
-    </span>
+    <LucideIconComponent
+      className={className}
+      size={iconSize}
+      style={style}
+    />
   );
 }

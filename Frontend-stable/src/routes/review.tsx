@@ -1,10 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Icon } from "@/components/jk/Icon";
 import { TrustBadge } from "@/components/jk/TrustBadge";
+import { SkeletonDetailReport } from "@/components/jk/Skeleton";
 import { useState, useEffect, Fragment } from "react";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { API_BASE_URL } from "@/lib/aiStore";
 import { getToken, getCurrentUser } from "@/lib/auth";
+import { severityBadgeStyle } from "@/lib/format";
 import type { Laporan, TrustLabel, TimelineEvent } from "@/types/laporan";
 import { ImageWithLoading } from "@/components/jk/ImageWithLoading";
 import { ReportMap, type ReportMapPoint } from "@/components/jk/ReportMap";
@@ -25,7 +27,12 @@ function ReviewPage() {
   const navigate = useNavigate();
   const token = getToken() ?? "";
   const user = getCurrentUser();
-  const dashboardUrl = user?.role === "petugas_eksekusi" ? "/petugas-eksekusi" : "/supervisor";
+  const [dashboardUrl, setDashboardUrl] = useState("/supervisor");
+  const [isClient, setIsClient] = useState(false);
+  useEffect(() => {
+    setIsClient(true);
+    setDashboardUrl(getCurrentUser()?.role === "petugas_eksekusi" ? "/petugas-eksekusi" : "/supervisor");
+  }, []);
 
   const [report, setReport] = useState<Laporan | null>(null);
   const [loading, setLoading] = useState(true);
@@ -99,16 +106,6 @@ function ReviewPage() {
 
   function isRejected(s: string) {
     return s === "Ditolak";
-  }
-
-  function severityBadge(sev: string | undefined | null) {
-    const map: Record<string, string> = {
-      "Rusak Berat": "bg-red-50 text-red-700 border-red-200",
-      "Rusak Sedang": "bg-amber-50 text-amber-700 border-amber-200",
-      "Rusak Ringan": "bg-green-50 text-green-700 border-green-200",
-      Baik: "bg-green-50 text-green-700 border-green-200",
-    };
-    return map[sev ?? ""] ?? "bg-gray-50 text-gray-700 border-gray-200";
   }
 
   async function handleApprove() {
@@ -241,8 +238,13 @@ function ReviewPage() {
   if (loading) {
     return (
       <PageLayout>
-        <div className="flex items-center justify-center flex-1">
-          <span className="w-8 h-8 border-4 border-primary-container/30 border-t-primary-container rounded-full animate-spin" />
+        <div aria-busy="true" aria-label="Memuat detail laporan">
+          <SkeletonDetailReport />
+          {/* Action buttons skeleton */}
+          <div className="px-4 mt-4 space-y-2 animate-pulse">
+            <div className="w-full h-10 bg-[#D0DAE8] rounded-lg" />
+            <div className="w-full h-10 bg-[#E8F0FA] rounded-lg" />
+          </div>
         </div>
       </PageLayout>
     );
@@ -251,7 +253,7 @@ function ReviewPage() {
   if (error || !report) {
     return (
       <PageLayout>
-        <div className="flex flex-col items-center justify-center flex-1 gap-3 px-4">
+        <div className="flex flex-col items-center justify-center gap-3 px-4">
           <Icon name="error" className="!text-5xl text-error opacity-50" />
           <p className="text-on-surface-variant">{error || "Laporan tidak ditemukan."}</p>
           <Link to={dashboardUrl} className="text-primary text-sm font-bold">
@@ -287,7 +289,7 @@ function ReviewPage() {
         </div>
       )}
 
-      {user?.role !== "supervisor" && (
+      {isClient && user?.role !== "supervisor" && (
         <section className="bg-surface-container-lowest px-4 py-3 flex items-center justify-between overflow-x-auto hide-scrollbar border-b border-border-subtle">
           {(rejected ? [...steps.slice(0, 2), rejectedStep] : steps).map((s, i, arr) => (
             <Fragment key={s.l}>
@@ -339,8 +341,8 @@ function ReviewPage() {
         </section>
       )}
 
-      <div className="flex flex-col flex-1 min-h-0">
-        <main className="flex-1 overflow-y-auto min-h-0 p-4 flex flex-col gap-4">
+      <div className="flex flex-col">
+        <main className="p-4 flex flex-col gap-4">
           {/* Info laporan */}
           <div className="bg-white rounded-lg border border-[#D0DAE8] p-4">
             <h2 className="font-headline-sm text-base font-bold text-on-surface mb-3">
@@ -388,7 +390,7 @@ function ReviewPage() {
                 />
                 {sev && sev !== "Baik" && (
                   <span
-                    className={`text-[11px] font-bold px-2 py-0.5 rounded border ${severityBadge(sev)}`}
+                    className={`text-[11px] font-bold px-2 py-0.5 rounded border ${severityBadgeStyle(sev)}`}
                   >
                     {sev}
                   </span>
@@ -455,10 +457,10 @@ function ReviewPage() {
                           <span
                             className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
                               photo.ai_severity === "berat"
-                                ? "bg-red-50 text-red-700 border-red-200"
+                                ? "bg-[#E11D48] text-white"
                                 : photo.ai_severity === "sedang"
-                                  ? "bg-amber-50 text-amber-700 border-amber-200"
-                                  : "bg-green-50 text-green-700 border-green-200"
+                                  ? "bg-orange-50 text-[#F97316] border border-orange-200"
+                                  : "bg-amber-50 text-[#F59E0B] border border-amber-200"
                             }`}
                           >
                             {photo.ai_severity === "berat"
@@ -467,7 +469,7 @@ function ReviewPage() {
                                 ? "Rusak Sedang"
                                 : "Rusak Ringan"}
                           </span>
-                        ) : null}
+          ) : null}
                         {photo.ai_confidence != null && (
                           <p className="text-[10px] text-slate-400">
                             {(photo.ai_confidence * 100).toFixed(0)}% confidence
@@ -509,7 +511,13 @@ function ReviewPage() {
                     </p>
                   )}
                   {report.ai_severity ? (
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border bg-red-50 text-red-700 border-red-200">
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                      report.ai_severity === "berat"
+                        ? "bg-[#E11D48] text-white"
+                        : report.ai_severity === "sedang"
+                          ? "bg-orange-50 text-[#F97316] border border-orange-200"
+                          : "bg-amber-50 text-[#F59E0B] border border-amber-200"
+                    }`}>
                       {report.ai_severity === "berat" ? "Rusak Berat" : report.ai_severity === "sedang" ? "Rusak Sedang" : "Rusak Ringan"}
                     </span>
                   ) : null}
@@ -668,7 +676,7 @@ function ReviewPage() {
                   <Icon name="format_text_clip" className="text-primary" />
                   <h3 className="font-label-md font-bold text-on-surface">Penilaian Supervisor</h3>
                 </div>
-                <span className="bg-orange-50 text-orange-600 text-[10px] font-bold px-2 py-0.5 rounded border border-orange-200 uppercase">
+                <span className="bg-orange-600 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase">
                   Wajib Diisi
                 </span>
               </div>
@@ -755,7 +763,7 @@ function ReviewPage() {
 
         {/* Footer actions */}
         <footer className="shrink-0 bg-white border-t border-[#D0DAE8] p-4 flex gap-3">
-          {user?.role === "petugas_eksekusi" ? (
+          {isClient ? (user?.role === "petugas_eksekusi" ? (
             <>
               {report.status === "Disetujui" && (
                 <button
@@ -835,13 +843,21 @@ function ReviewPage() {
                 </>
               )}
               {report.status === "Disetujui" && !showSatgasPicker && (
-                <button
-                  onClick={() => { setShowSatgasPicker(true); fetchUprList(); }}
-                  className="flex-1 h-11 bg-primary text-white font-bold rounded-lg text-sm flex items-center justify-center gap-2 active:scale-95 transition-all"
-                >
-                  <Icon name="play_arrow" className="!text-[20px]" filled />
-                  Mulai Pengerjaan
-                </button>
+                <>
+                  <button
+                    onClick={() => { setShowSatgasPicker(true); fetchUprList(); }}
+                    className="flex-[3] h-12 bg-gradient-to-r from-[#2563EB] to-[#1e40af] text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-500/30 active:scale-95 transition-all hover:shadow-blue-500/50"
+                  >
+                    <Icon name="play_arrow" className="!text-[22px]" filled />
+                    Mulai Pengerjaan
+                  </button>
+                  <Link
+                    to="/supervisor"
+                    className="flex-1 h-12 border border-[#C0CEDF] text-[#64748B] font-semibold rounded-xl text-xs flex items-center justify-center hover:bg-slate-50 transition-all"
+                  >
+                    Kembali
+                  </Link>
+                </>
               )}
               {showSatgasPicker && (
                 <div className="flex flex-col gap-3 w-full">
@@ -888,16 +904,17 @@ function ReviewPage() {
               {report.status !== "Menunggu Review" &&
                 report.status !== "Ditinjau" &&
                 report.status !== "Selesai" &&
+                report.status !== "Disetujui" &&
                 !showSatgasPicker && (
                   <Link
                     to="/supervisor"
-                    className="flex-1 h-11 bg-primary text-white font-bold rounded-lg text-sm flex items-center justify-center"
+                    className="flex-1 h-11 border border-[#C0CEDF] text-[#64748B] font-semibold rounded-xl text-xs flex items-center justify-center hover:bg-slate-50 transition-all"
                   >
                     Kembali ke Dashboard
                   </Link>
                 )}
             </>
-          )}
+          )) : null}
         </footer>
       </div>
     </PageLayout>

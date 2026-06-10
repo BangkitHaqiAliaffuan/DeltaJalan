@@ -6,10 +6,19 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReportExportController;
+use App\Http\Controllers\SettingController;
+use App\Http\Controllers\StatusLogController;
+use App\Http\Controllers\UprController;
+use App\Http\Controllers\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // ── API Routes — DeltaJalan Backend ─────────────────────────────────────────
+
+// ── Health Check / Ping (public) ──────────────────────────────────────────
+Route::get('/ping', function () {
+    return response()->json(['success' => true, 'timestamp' => now()->toIso8601String()]);
+});
 
 // ── Routes DeltaJalan ──────────────────────────────────────────────────────
 
@@ -56,6 +65,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/analyze-batch', [AIController::class, 'analyzeBatch']);
 
     /**
+     * POST /api/v1/reports/extract-exif-gps
+     * Ekstrak koordinat GPS dari EXIF foto — fallback untuk mobile browser
+     * yang strip data EXIF dari File object JavaScript.
+     */
+    Route::post('/v1/reports/extract-exif-gps', [ReportController::class, 'extractExifGpsFromUpload']);
+
+    /**
      * POST /api/reports/batch
      * Simpan laporan batch (satu laporan utama + sub-laporan per foto).
      * Menghitung trust score otomatis dan validasi nama jalan vs koordinat.
@@ -93,6 +109,13 @@ Route::middleware('auth:sanctum')->group(function () {
      * HARUS sebelum /reports/{id}.
      */
     Route::get('/reports/stats-by-upr', [ReportController::class, 'statsByUpr']);
+
+    /**
+     * GET /api/reports/ringkasan-deadline
+     * HARUS sebelum /reports/{id}.
+     * Agregasi status deadline per priority.
+     */
+    Route::get('/reports/ringkasan-deadline', [ReportController::class, 'ringkasanDeadline']);
 
     /**
      * GET /api/reports/{id}
@@ -134,7 +157,7 @@ Route::middleware('auth:sanctum')->group(function () {
      * GET /api/uprs
      * Daftar UPR/tim satgas yang tersedia.
      */
-    Route::get('/uprs', [ReportController::class, 'getUprs']);
+    Route::get('/uprs', [UprController::class, 'index']);
 
     /**
      * POST /api/reports/{id}/assign
@@ -165,7 +188,14 @@ Route::middleware('auth:sanctum')->group(function () {
      * Export PDF rekap bulanan (supervisor only).
      * Query params: ?month=5&year=2026
      */
-    Route::get('/reports/export/monthly-pdf', [ReportExportController::class, 'exportMonthlyPdf']);
+     Route::get('/reports/export/monthly-pdf', [ReportExportController::class, 'exportMonthlyPdf']);
+
+    /**
+     * GET /api/reports/export/monthly-excel
+     * Export Excel rekap bulanan (supervisor only).
+     * Query params: ?month=5&year=2026
+     */
+    Route::get('/reports/export/monthly-excel', [ReportExportController::class, 'exportMonthlyExcel']);
 
     /**
      * POST /api/reports/{id}/mulai-edit
@@ -208,4 +238,24 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/push/vapid-key', [PushSubscriptionController::class, 'vapidKey']);
     Route::post('/push/subscribe', [PushSubscriptionController::class, 'subscribe']);
     Route::post('/push/unsubscribe', [PushSubscriptionController::class, 'unsubscribe']);
+
+    // ── Activity / Status Logs ─────────────────────────────────────────────
+    Route::get('/activity', [StatusLogController::class, 'index']);
+
+    // ── Settings ────────────────────────────────────────────────────────────
+    Route::get('/settings', [SettingController::class, 'index']);
+    Route::put('/settings', [SettingController::class, 'update']);
+
+    // ── UPR CRUD ──────────────────────────────────────────────────────────
+    Route::post('/uprs', [UprController::class, 'store']);
+    Route::get('/uprs/{id}', [UprController::class, 'show']);
+    Route::put('/uprs/{id}', [UprController::class, 'update']);
+    Route::delete('/uprs/{id}', [UprController::class, 'destroy']);
+
+    // ── Users CRUD ─────────────────────────────────────────────────────────
+    Route::get('/users', [UserController::class, 'index']);
+    Route::post('/users', [UserController::class, 'store']);
+    Route::get('/users/{id}', [UserController::class, 'show']);
+    Route::put('/users/{id}', [UserController::class, 'update']);
+    Route::delete('/users/{id}', [UserController::class, 'destroy']);
 });

@@ -99,6 +99,6 @@ return [
     | Jika true, allowed_origins TIDAK boleh menggunakan wildcard '*'.
     |
     */
-    'supports_credentials' => false,
+    'supports_credentials' => true,
 
 ];

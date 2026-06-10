@@ -1,0 +1,16 @@
+{
+  "name": "@jalankita/capacitor-exif-gps",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/definitions.ts",
+  "peerDependencies": {
+    "@capacitor/core": "^8.0.0"
+  },
+  "capacitor": {
+    "android": {
+      "src": "android"
+    }
+  }
+}

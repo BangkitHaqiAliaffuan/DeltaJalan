@@ -15,6 +15,7 @@ class ReportPhoto extends Model
 
     protected $fillable = [
         'report_id',
+        'reporter_name',
         'image_original_path',
         'image_result_path',
         'image_hash',

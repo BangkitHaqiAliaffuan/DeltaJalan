@@ -2,12 +2,21 @@
 
 This file provides guidance to AI coding agents (Claude Code, Cursor, Copilot, Antigravity, etc.) when working with code in this repository.
 
+## MANDATORY RULE: Long-Running Commands
+
+Before running any command that may take longer than 10 seconds, the agent MUST:
+1. Warn the user with an estimated duration
+2. Explain what will be tracked/visible so they can monitor progress
+3. For long-running dev servers, background them and notify the user how to check status
+
+This rule applies to `npx vite`, `npx cap run`, `python build.py`, `npm install`, `npx cap sync`, and any other command that runs >10s.
+
 ## MANDATORY RULE: Skill-First Execution
 
 Before implementing ANY task, feature, bug fix, refactor, or UI change, the agent MUST:
 
-1. Determine which skill(s) from `./skills/<skill-name>/SKILL.md` apply (e.g., `incremental-implementation`, `frontend-ui-engineering`, `debugging-and-error-recovery`, `planning-and-task-breakdown`, etc.)
-2. Read the full SKILL.md file(s) using the file reader
+1. Determine which skill(s) from `.opencode/skills/<skill-name>/SKILL.md` apply (e.g., `incremental-implementation`, `frontend-ui-engineering`, `debugging-and-error-recovery`, `planning-and-task-breakdown`, etc.)
+2. Load the full SKILL.md using the `skill` tool (e.g., `skill({ name: "incremental-implementation" })`)
 3. Follow the skill instructions strictly — never implement directly without reading the skill first
 
 This rule applies to every single prompt. The agent may NOT skip this step for any reason, including "this is too small" or "I'll just do it quickly."
@@ -18,24 +27,22 @@ A collection of skills for Claude.ai and Claude Code for senior software enginee
 
 ## OpenCode Integration
 
-OpenCode uses a **skill-driven execution model** powered by the `skill` tool and this repository's `/skills` directory.
+OpenCode uses a **skill-driven execution model** powered by the `skill` tool and this repository's `.opencode/skills/` directory.
 
 ## SKILL DISCOVERY & INVOCATION (CRITICAL)
-DO NOT attempt to use any built-in skill tool or function call to load workflows. It will fail.
 
-To execute a workflow, you MUST use your standard file-reading capabilities to read the corresponding Markdown file directly from the local ./skills/ directory.
+OpenCode auto-discovers all skills from `.opencode/skills/` at startup and lists them in the `<available_skills>` system prompt.
 
-Steps to load a skill:
+To invoke a skill, use the native `skill` tool:
+```
+skill({ name: "<skill-name>" })
+```
 
-Analyze the user's request and determine the correct phase and skill (e.g., spec-driven-development for new features).
-Read the file located at: ./skills/<skill-name>/SKILL.md using your file reader tool.
-Completely read, absorb, and apply the instructions in that SKILL.md file.
-Do not write any code until you have followed the planning/spec steps defined in the skill file.
-Do not guess the contents of the skill. Always read the file first.
+This will inject the full SKILL.md instructions into context.
 
 Core Rules
 If a task matches a skill, you MUST invoke it
-Skills are located in skills/<skill-name>/SKILL.md
+Skills are located in `.opencode/skills/<skill-name>/SKILL.md`
 Never implement directly if a skill applies
 Always follow the skill instructions exactly (do not partially apply them)
 Intent → Skill Mapping
@@ -80,7 +87,7 @@ This ensures OpenCode behaves similarly to Claude Code with full workflow enforc
 ### Core Rules
 
 - If a task matches a skill, you MUST invoke it
-- Skills are located in `skills/<skill-name>/SKILL.md`
+- Skills are located in `.opencode/skills/<skill-name>/SKILL.md`
 - Never implement directly if a skill applies
 - Always follow the skill instructions exactly (do not partially apply them)
 
@@ -136,7 +143,7 @@ This ensures OpenCode behaves similarly to Claude Code with full workflow enforc
 
 This repo has three composable layers. They have different jobs and should not be confused:
 
-- **Skills** (`skills/<name>/SKILL.md`) — workflows with steps and exit criteria. The *how*. Mandatory hops when an intent matches.
+- **Skills** (`.opencode/skills/<name>/SKILL.md`) — workflows with steps and exit criteria. The *how*. Mandatory hops when an intent matches.
 - **Personas** (`agents/<role>.md`) — roles with a perspective and an output format. The *who*.
 - **Slash commands** (`.claude/commands/*.md`) — user-facing entry points. The *when*. The orchestration layer.
 
@@ -153,7 +160,7 @@ See [agents/README.md](agents/README.md) for the decision matrix and [references
 ### Directory Structure
 
 ```
-skills/
+.opencode/skills/
   {skill-name}/           # kebab-case directory name
     SKILL.md              # Required: skill definition
     scripts/              # Required: executable scripts
@@ -191,7 +198,7 @@ Equivalent headings like `Workflow`, `Core Process`, or `When to Use` are fine w
 Include this section only if the skill ships runnable helpers under `scripts/`. Markdown-only skills can omit both the section and the directory entirely.
 
 ```bash
-bash /mnt/skills/user/{skill-name}/scripts/{script}.sh [args]
+bash /mnt/.opencode/skills/user/{skill-name}/scripts/{script}.sh [args]
 ```
 
 **Arguments:**
@@ -230,14 +237,14 @@ Skills are loaded on-demand — only the skill name and description are loaded a
 - Write status messages to stderr: `echo "Message" >&2`
 - Write machine-readable output (JSON) to stdout
 - Include a cleanup trap for temp files
-- Reference the script path as `/mnt/skills/user/{skill-name}/scripts/{script}.sh`
+- Reference the script path as `/mnt/.opencode/skills/user/{skill-name}/scripts/{script}.sh`
 
 ### Creating the Zip Package
 
 After creating or updating a skill:
 
 ```bash
-cd skills
+cd .opencode/skills
 zip -r {skill-name}.zip {skill-name}/
 ```
 
@@ -247,10 +254,54 @@ Document these two installation methods for users:
 
 **Claude Code:**
 ```bash
-cp -r skills/{skill-name} ~/.claude/skills/
+cp -r .opencode/skills/{skill-name} ~/.opencode/skills/
 ```
 
 **claude.ai:**
 Add the skill to project knowledge or paste SKILL.md contents into the conversation.
 
 If the skill requires network access, instruct users to add required domains at `claude.ai/settings/capabilities`.
+
+## Platform: Windows + Git Bash
+
+This repo uses **Git Bash** (included with Git for Windows) to run `.sh` scripts. PowerShell is NOT used for `.sh` scripts.
+
+### IMPORTANT: Do NOT auto-refactor .sh scripts
+
+- `.sh` scripts in `scripts/` (`start-tunnel.sh`, etc.) are designed for **Git Bash on Windows** AND Linux/macOS
+- **Do NOT rewrite them to PowerShell** — Git Bash is the standard shell for this project
+- The primary tunnel/ngrok script is `scripts/start-tunnel.sh` — run it via Git Bash:
+  ```bash
+  bash scripts/start-tunnel.sh          # start Laravel + ngrok, update .env
+  bash scripts/start-tunnel.sh --rebuild # same + rebuild Capacitor APK
+  ```
+- The script auto-updates both `VITE_API_BASE_URL` (frontend `.env`) and `NGROK_URL` (backend `.env`) with the live ngrok URL
+- After running the script, rebuild the Capacitor app: `npm run build:mobile` or `py build.py --install`
+- Only create `.ps1` equivalents if the user explicitly asks
+
+### VITE_API_BASE_URL build-time caveat
+
+`VITE_API_BASE_URL` is embedded into the JS bundle at **build time**. Changing `.env` alone does NOT update a running app. After updating `.env`, always rebuild:
+```bash
+npm run build:mobile    # py build.py --build-only
+npx cap copy && npx cap run android
+```
+
+## Lessons Learned
+
+### 1. Always close `<style>` tags when injecting HTML programmatically
+- **Mistake**: `content.replace("</head>", f"<style>{CSS}\n{SCRIPT}\n</head>")` — missing `</style>` before `</head>`.
+- **Why it breaks**: HTML5 parser enters RAWTEXT state on `<style>` and treats everything until `</style>` as CSS text. Without `</style>`, it swallows `<script>`, `</head>`, `<body>`, and all body content — entire page becomes unusable, no JS executes, body is empty.
+- **Fix**: Always pair `<style>` with `</style>`: `f"<style>{CSS}\n</style>\n{SCRIPT}\n</head>"`.
+- **Detection**: CDP shows `document.body.innerHTML = ""`, `document.scripts.length = 0`, `document.head.querySelectorAll("script").length = 0` even though HTML source has scripts.
+
+### 2. Self-removing inline scripts (`document.currentScript.remove()`) break React hydration
+- **Mistake**: Assuming TanStack Start's SSR inline scripts (scroll restoration, stream barrier) can safely `document.currentScript.remove()` themselves without affecting hydration.
+- **Why it breaks**: These scripts execute synchronously during HTML parsing and remove themselves from the DOM before React's `hydrateRoot` walks the tree. React expects to find `<script>` nodes at those positions but finds comment nodes shifted into their place, throwing Error #418.
+- **Fix**: Strip `document.currentScript.remove()` calls from built HTML via `re.sub(r';?\s*document\.currentScript\.remove\(\)', '', content)` in the build script. The script nodes remain in DOM (inert, already executed) and React hydrates cleanly.
+- **Detection**: React Error #418 with args `["HTML"]` — "server rendered HTML didn't match the client". Body renders fine (React recovers via client rendering) but console shows minified error.
+
+### 3. Verify post-patch DOM against React's hydration tree
+- When patching SSR output (injecting elements, stripping JS), always verify the actual browser DOM structure matches what React's fiber tree expects.
+- Use CDP (`Runtime.evaluate` + `DOM.getDocument`) to inspect the live DOM after page load.
+- Compare body child nodes in order: React walks first-child → next-sibling, so position matters. Missing/extra/shifted nodes at any position cascade into mismatches for all subsequent siblings.

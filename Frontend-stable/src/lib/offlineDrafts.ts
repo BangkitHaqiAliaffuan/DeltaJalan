@@ -62,14 +62,37 @@ function generateThumbnail(blob: Blob, maxSize = 200): Promise<string> {
   });
 }
 
+function compressImage(blob: Blob, maxWidth = 1200, quality = 0.7): Promise<Blob> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      let w = img.width;
+      let h = img.height;
+      if (w > maxWidth) { h = h * maxWidth / w; w = maxWidth; }
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { resolve(blob); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob((compressed) => {
+        resolve(compressed || blob);
+      }, "image/jpeg", quality);
+    };
+    img.onerror = () => resolve(blob);
+    img.src = URL.createObjectURL(blob);
+  });
+}
+
 export async function saveDraft(
   data: Omit<OfflineDraft, "id" | "createdAt" | "updatedAt" | "photos"> & { photos: Blob[] },
 ): Promise<number> {
   const db = await openDB();
   const photos: DraftPhoto[] = [];
   for (const blob of data.photos) {
-    const thumbnail = await generateThumbnail(blob);
-    photos.push({ blob, thumbnail });
+    const compressed = await compressImage(blob);
+    const thumbnail = await generateThumbnail(compressed);
+    photos.push({ blob: compressed, thumbnail });
   }
   const draft: OfflineDraft = {
     ...data,

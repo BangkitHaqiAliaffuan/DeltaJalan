@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Report;
-use App\Models\ReportEvidence;
 use App\Models\ReportPhoto;
 use App\Models\User;
 use App\Notifications\ReportApprovedNotification;
@@ -18,10 +17,13 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use lsolesen\pel\PelJpeg;
+use lsolesen\pel\PelTag;
 
 /**
  * ReportController
@@ -99,16 +101,17 @@ class ReportController extends Controller
     }
 
     /**
-     * Endpoint pengecekan duplikasi laporan.
+     * Endpoint pengecekan laporan aktif di suatu lokasi.
      *
      * Mencari laporan aktif (status != 'Selesai') berdasarkan:
      * 1. Spatial: radius 15 meter dari koordinat GPS (Haversine Formula)
      * 2. Textual: kecamatan + nama jalan (ILIKE)
+     * 3. Image hash: foto yang sama sudah pernah digunakan
      *
      * Endpoint ini bersifat PUBLIK (tidak perlu autentikasi).
      *
      * GET /api/v1/reports/check-duplicate
-     * Query params: latitude, longitude, district, road_name
+     * Query params: latitude, longitude, district, road_name, file_hash
      *
      * @param  Request  $request
      * @return JsonResponse
@@ -122,58 +125,58 @@ class ReportController extends Controller
             $roadName = $request->query('road_name');
             $fileHash = $request->query('file_hash');
 
-            $spatialDuplicates = [];
-            $textualDuplicates = [];
-            $imageDuplicates   = [];
+            $foundReport = null;
 
-            // ── Pencarian Spasial (Haversine Formula) ─────────────────────
+            // ── Prioritas 1: Pencarian Spasial (Haversine Formula) ─────
             if ($lat !== null && $lng !== null && is_numeric($lat) && is_numeric($lng)) {
                 $latF = (float) $lat;
                 $lngF = (float) $lng;
 
                 if ($latF >= -11 && $latF <= 6 && $lngF >= 95 && $lngF <= 141) {
-                    $spatialResults = DB::select("
-                        SELECT * FROM (
-                            SELECT
-                                id, report_code, road_name, district,
-                                latitude, longitude, status, support_count, created_at,
-                                (
-                                    6371000 * acos(
-                                        LEAST(1.0, cos(radians(:lat1)) * cos(radians(latitude::float))
-                                        * cos(radians(longitude::float) - radians(:lng1))
-                                        + sin(radians(:lat2)) * sin(radians(latitude::float)))
-                                    )
-                                ) AS distance_meters
-                            FROM reports
-                            WHERE status != 'Selesai'
-                        ) sub
-                        WHERE distance_meters <= 15
+                    $row = DB::selectOne("
+                        SELECT id, report_code, road_name, district,
+                               latitude, longitude, status, created_at,
+                               (
+                                   6371000 * acos(
+                                       LEAST(1.0, cos(radians(:lat1)) * cos(radians(latitude::float))
+                                       * cos(radians(longitude::float) - radians(:lng1))
+                                       + sin(radians(:lat2)) * sin(radians(latitude::float)))
+                                   )
+                               ) AS distance_meters
+                        FROM reports
+                        WHERE status != 'Selesai'
+                        HAVING (
+                            6371000 * acos(
+                                LEAST(1.0, cos(radians(:lat3)) * cos(radians(latitude::float))
+                                * cos(radians(longitude::float) - radians(:lng2))
+                                + sin(radians(:lat4)) * sin(radians(latitude::float)))
+                            )
+                        ) <= 15
                         ORDER BY distance_meters ASC
-                        LIMIT 20
+                        LIMIT 1
                     ", [
                         'lat1' => $latF, 'lng1' => $lngF,
-                        'lat2' => $latF,
+                        'lat2' => $latF, 'lat3' => $latF,
+                        'lng2' => $lngF, 'lat4' => $latF,
                     ]);
 
-                    $spatialDuplicates = array_map(function ($row) {
-                        return [
-                            'id'              => $row->id,
-                            'report_code'     => $row->report_code,
-                            'road_name'       => $row->road_name,
-                            'district'        => $row->district,
-                            'latitude'        => (float) $row->latitude,
-                            'longitude'       => (float) $row->longitude,
-                            'status'          => $row->status,
-                            'support_count'   => (int) $row->support_count,
-                            'created_at'      => $row->created_at,
-                            'distance_meters' => round((float) $row->distance_meters, 1),
+                    if ($row) {
+                        $foundReport = [
+                            'id'          => $row->id,
+                            'report_code' => $row->report_code,
+                            'road_name'   => $row->road_name,
+                            'district'    => $row->district,
+                            'latitude'    => (float) $row->latitude,
+                            'longitude'   => (float) $row->longitude,
+                            'status'      => $row->status,
+                            'created_at'  => $row->created_at,
                         ];
-                    }, $spatialResults);
+                    }
                 }
             }
 
-            // ── Pencarian Tekstual (ILIKE) ────────────────────────────────
-            if ($district) {
+            // ── Prioritas 2: Pencarian Tekstual (ILIKE) ──────────────
+            if (!$foundReport && $district) {
                 $query = Report::where('status', '!=', 'Selesai')
                     ->where('district', $district);
 
@@ -181,75 +184,77 @@ class ReportController extends Controller
                     $query->where('road_name', 'ilike', '%' . trim($roadName) . '%');
                 }
 
-                $textualResults = $query
+                $textualResult = $query
                     ->select([
                         'id', 'report_code', 'road_name', 'district',
-                        'latitude', 'longitude', 'status', 'support_count', 'created_at',
+                        'latitude', 'longitude', 'status', 'created_at',
                     ])
                     ->orderBy('created_at', 'desc')
-                    ->limit(20)
-                    ->get();
+                    ->first();
 
-                $textualDuplicates = $textualResults->map(function ($report) {
-                    return [
-                        'id'            => $report->id,
-                        'report_code'   => $report->report_code,
-                        'road_name'     => $report->road_name,
-                        'district'      => $report->district,
-                        'latitude'      => $report->latitude ? (float) $report->latitude : null,
-                        'longitude'     => $report->longitude ? (float) $report->longitude : null,
-                        'status'        => $report->status,
-                        'support_count' => (int) $report->support_count,
-                        'created_at'    => $report->created_at?->toIso8601String(),
+                if ($textualResult) {
+                    $foundReport = [
+                        'id'          => $textualResult->id,
+                        'report_code' => $textualResult->report_code,
+                        'road_name'   => $textualResult->road_name,
+                        'district'    => $textualResult->district,
+                        'latitude'    => $textualResult->latitude ? (float) $textualResult->latitude : null,
+                        'longitude'   => $textualResult->longitude ? (float) $textualResult->longitude : null,
+                        'status'      => $textualResult->status,
+                        'created_at'  => $textualResult->created_at?->toIso8601String(),
                     ];
-                })->toArray();
+                }
             }
 
-            // ── Pencarian Berdasarkan Hash Gambar ───────────────────────────
-            if ($fileHash) {
+            // ── Prioritas 3: Pencarian Berdasarkan Hash Gambar ──────
+            if (!$foundReport && $fileHash) {
                 $photoReportIds = ReportPhoto::where('image_hash', $fileHash)->pluck('report_id');
-                $imageResults = Report::whereIn('id', $photoReportIds)
+                $imageResult = Report::whereIn('id', $photoReportIds)
                     ->orWhere('image_hash', $fileHash)
+                    ->where('status', '!=', 'Selesai')
                     ->select([
                         'id', 'report_code', 'road_name', 'district',
-                        'latitude', 'longitude', 'status', 'support_count', 'created_at',
+                        'latitude', 'longitude', 'status', 'created_at',
                     ])
                     ->orderBy('created_at', 'desc')
-                    ->limit(20)
-                    ->get();
+                    ->first();
 
-                $imageDuplicates = $imageResults->map(function ($report) {
-                    return [
-                        'id'            => $report->id,
-                        'report_code'   => $report->report_code,
-                        'road_name'     => $report->road_name,
-                        'district'      => $report->district,
-                        'latitude'      => $report->latitude ? (float) $report->latitude : null,
-                        'longitude'     => $report->longitude ? (float) $report->longitude : null,
-                        'status'        => $report->status,
-                        'support_count' => (int) $report->support_count,
-                        'created_at'    => $report->created_at?->toIso8601String(),
+                if ($imageResult) {
+                    $foundReport = [
+                        'id'          => $imageResult->id,
+                        'report_code' => $imageResult->report_code,
+                        'road_name'   => $imageResult->road_name,
+                        'district'    => $imageResult->district,
+                        'latitude'    => $imageResult->latitude ? (float) $imageResult->latitude : null,
+                        'longitude'   => $imageResult->longitude ? (float) $imageResult->longitude : null,
+                        'status'      => $imageResult->status,
+                        'created_at'  => $imageResult->created_at?->toIso8601String(),
                     ];
-                })->toArray();
+                }
             }
 
             return response()->json([
-                'spatial_duplicates' => $spatialDuplicates,
-                'textual_duplicates' => $textualDuplicates,
-                'image_duplicates'   => $imageDuplicates,
+                'has_active_report' => $foundReport !== null,
+                'report'            => $foundReport,
             ], 200);
 
         } catch (\Exception $e) {
             Log::error('DeltaJalan: checkDuplicate error.', ['error' => $e->getMessage()]);
             return response()->json([
-                'spatial_duplicates' => [],
-                'textual_duplicates' => [],
+                'has_active_report' => false,
+                'report'            => null,
             ], 200);
         }
     }
 
     /**
-     * Endpoint penambahan bukti foto ke laporan yang sudah ada.
+     * Endpoint penambahan bukti foto ke laporan yang sudah ada (evidence).
+     *
+     * Alur:
+     * - Hanya laporan dengan status "Menunggu Review" yang bisa ditambahi bukti
+     * - Foto bukti disimpan ke tabel report_photos (seperti foto batch)
+     * - Single: dilakukan analisis AI penuh + dimensi kerusakan
+     * - Batch (is_batch=true): skip AI, skip dimensi, hanya EXIF GPS
      *
      * POST /api/v1/reports/{id}/add-evidence
      * Memerlukan autentikasi Sanctum.
@@ -262,9 +267,12 @@ class ReportController extends Controller
     {
         try {
             $validated = $request->validate([
-                'image'         => ['required', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
-                'reporter_name' => ['required', 'string', 'max:100'],
-                'notes'         => ['nullable', 'string', 'max:500'],
+                'image'             => ['required', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
+                'reporter_name'     => ['required', 'string', 'max:100'],
+                'catatan'           => ['nullable', 'string', 'max:1000'],
+                'is_batch'          => ['nullable', 'boolean'],
+                'kerusakan_panjang' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+                'kerusakan_lebar'   => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
             ]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -275,87 +283,148 @@ class ReportController extends Controller
         }
 
         $report = Report::find($id);
-        if (! $report) {
+        if (!$report) {
             return response()->json([
                 'success' => false,
                 'message' => "Laporan dengan ID {$id} tidak ditemukan.",
             ], 404);
         }
 
+        if ($report->status !== 'Menunggu Review') {
+            return response()->json([
+                'success'    => false,
+                'message'    => "Laporan dengan status \"{$report->status}\" tidak dapat ditambahi bukti foto. Hanya laporan \"Menunggu Review\" yang dapat dilengkapi.",
+                'error_code' => 'INVALID_STATUS',
+            ], 422);
+        }
+
         $imageFile = $request->file('image');
         $imageHash = $this->calculateImageHash($imageFile->getPathname());
 
-        if ($imageHash !== null) {
-            if (Report::imageHashExists($imageHash) || ReportEvidence::where('image_hash', $imageHash)->exists()) {
-                return response()->json([
-                    'success'    => false,
-                    'message'    => 'Foto ini sudah digunakan pada laporan lain.',
-                    'error_code' => 'DUPLICATE_IMAGE',
-                ], 422);
+        if ($imageHash !== null && Report::imageHashExists($imageHash)) {
+            return response()->json([
+                'success'    => false,
+                'message'    => 'Foto ini sudah pernah digunakan pada laporan lain.',
+                'error_code' => 'DUPLICATE_IMAGE',
+            ], 422);
+        }
+
+        $isBatch = $validated['is_batch'] ?? false;
+
+        $resultPath       = null;
+        $totalDetections  = 0;
+        $aiJeniusKerusakan = null;
+        $aiSeverity       = null;
+        $aiConfidence     = null;
+        $aiRawOutput      = null;
+        $exifGpsNotes     = null;
+        $photoLat         = null;
+        $photoLng         = null;
+        $koordinatSumber  = 'exif';
+
+        if (!$isBatch) {
+            $aiData = $this->callFastApiAnalyze($imageFile->getPathname(), $imageFile->getClientOriginalName());
+
+            if ($aiData['success']) {
+                $payload = $aiData['data'];
+                $totalDetections  = $payload['total'] ?? 0;
+                $aiRawOutput      = $payload['detections'] ?? null;
+
+                if (!empty($payload['detections'][0]['type'])) {
+                    $aiJeniusKerusakan = $payload['detections'][0]['type'];
+                }
+                $aiSeverity   = $payload['overall_severity'] ?? null;
+                $aiConfidence = $payload['confidence'] ?? null;
+
+                if (!empty($payload['image_result'])) {
+                    $resultPath = $this->saveBase64Image($payload['image_result'], self::RESULTS_FOLDER);
+                }
+            } else {
+                Log::warning('DeltaJalan: FastAPI tidak merespons saat add-evidence.', [
+                    'error' => $aiData['error'],
+                ]);
             }
         }
 
         try {
-            $evidence = DB::transaction(function () use ($report, $imageFile, $validated, $imageHash) {
-                $filename  = Str::uuid() . '-evidence-' . time() . '.' . $imageFile->getClientOriginalExtension();
-                $imagePath = $imageFile->storeAs('reports/evidences', $filename, 'public');
+            $exifGps = $this->extractExifGps($imageFile->getPathname());
+            if ($exifGps) {
+                $photoLat        = $exifGps['lat'];
+                $photoLng        = $exifGps['lng'];
+                $koordinatSumber = 'exif';
+            }
+        } catch (\Exception $e) {
+            $exifGpsNotes = '[INFO] Gagal membaca GPS EXIF: ' . $e->getMessage();
+        }
 
-                if (! $imagePath) {
+        try {
+            $photo = DB::transaction(function () use ($report, $imageFile, $validated, $imageHash, $isBatch, $resultPath, $totalDetections, $aiJeniusKerusakan, $aiSeverity, $aiConfidence, $aiRawOutput, $photoLat, $photoLng, $koordinatSumber, $exifGpsNotes) {
+
+                $lastSortOrder = ReportPhoto::where('report_id', $report->id)->max('sort_order') ?? -1;
+
+                $filename  = Str::uuid() . '-evidence-' . time() . '.' . $imageFile->getClientOriginalExtension();
+                $photoPath = $imageFile->storeAs(self::ORIGINALS_FOLDER, $filename, 'public');
+
+                if (!$photoPath) {
                     throw new \RuntimeException('Gagal menyimpan foto bukti ke storage.');
                 }
 
-                $evidence = ReportEvidence::create([
-                    'report_id'     => $report->id,
-                    'image_path'    => $imagePath,
-                    'image_hash'    => $imageHash,
-                    'reporter_name' => $validated['reporter_name'],
-                    'notes'         => $validated['notes'] ?? null,
-                ]);
+                $panjang = $isBatch ? null : ($validated['kerusakan_panjang'] ?? null);
+                $lebar   = $isBatch ? null : ($validated['kerusakan_lebar'] ?? null);
 
-                $report->increment('support_count');
-                return $evidence;
+                return ReportPhoto::create([
+                    'report_id'           => $report->id,
+                    'reporter_name'       => $validated['reporter_name'],
+                    'image_original_path' => $photoPath,
+                    'image_result_path'   => $resultPath,
+                    'image_hash'          => $imageHash,
+                    'latitude'            => $photoLat,
+                    'longitude'           => $photoLng,
+                    'koordinat_sumber'    => $koordinatSumber,
+                    'ai_jenis_kerusakan'  => $aiJeniusKerusakan,
+                    'ai_severity'         => $aiSeverity,
+                    'ai_confidence'       => $aiConfidence,
+                    'ai_raw_output'       => $aiRawOutput,
+                    'total_detections'    => $totalDetections,
+                    'kerusakan_panjang'   => $panjang,
+                    'kerusakan_lebar'     => $lebar,
+                    'system_notes'        => $exifGpsNotes,
+                    'sort_order'          => $lastSortOrder + 1,
+                    'original_filename'   => $imageFile->getClientOriginalName(),
+                ]);
             });
 
-            Log::info('DeltaJalan: Evidence ditambahkan.', [
+            Log::info('DeltaJalan: Evidence foto ditambahkan via addEvidence.', [
                 'report_id'     => $report->id,
                 'report_code'   => $report->report_code,
                 'reporter_name' => $validated['reporter_name'],
-                'evidence_id'   => $evidence->id,
+                'photo_id'      => $photo->id,
+                'is_batch'      => $isBatch,
                 'timestamp'     => now()->toIso8601String(),
             ]);
-
-            $report->refresh();
-            $report->load('evidences');
 
             return response()->json([
                 'success' => true,
                 'message' => 'Foto bukti berhasil ditambahkan ke laporan ' . $report->report_code . '.',
                 'data'    => [
                     'report' => [
-                        'id'            => $report->id,
-                        'report_code'   => $report->report_code,
-                        'road_name'     => $report->road_name,
-                        'district'      => $report->district,
-                        'status'        => $report->status,
-                        'support_count' => $report->support_count,
+                        'id'          => $report->id,
+                        'report_code' => $report->report_code,
+                        'road_name'   => $report->road_name,
+                        'district'    => $report->district,
+                        'status'      => $report->status,
                     ],
-                    'evidence' => [
-                        'id'            => $evidence->id,
-                        'image_url'     => $evidence->image_url,
-                        'reporter_name' => $evidence->reporter_name,
-                        'created_at'    => $evidence->created_at->toIso8601String(),
+                    'photo' => [
+                        'id'                 => $photo->id,
+                        'image_original_url' => $photo->image_original_url,
+                        'reporter_name'      => $photo->reporter_name,
+                        'created_at'         => $photo->created_at->toIso8601String(),
                     ],
-                    'all_evidences' => $report->evidences->map(fn ($e) => [
-                        'id'            => $e->id,
-                        'image_url'     => $e->image_url,
-                        'reporter_name' => $e->reporter_name,
-                        'created_at'    => $e->created_at->toIso8601String(),
-                    ]),
                 ],
             ], 200);
 
         } catch (\Exception $e) {
-            Log::error('DeltaJalan: Gagal menyimpan evidence.', [
+            Log::error('DeltaJalan: Gagal menyimpan bukti foto.', [
                 'error'     => $e->getMessage(),
                 'report_id' => $id,
             ]);
@@ -485,7 +554,7 @@ class ReportController extends Controller
                     'success'    => false,
                     'message'    => 'Foto ini sudah pernah digunakan untuk laporan ' .
                                     $existingReport->report_code . '. ' .
-                                    'Gunakan fitur "Dukung Laporan" jika Anda menemukan kerusakan yang sama.',
+                                    'Gunakan fitur bukti foto jika laporan masih dalam status "Menunggu Review".',
                     'error_code' => 'DUPLICATE_IMAGE',
                     'existing_report' => [
                         'id'          => $existingReport->id,
@@ -510,15 +579,78 @@ class ReportController extends Controller
         // Ekstrak GPS EXIF sebelum transaction untuk dipakai di trust score.
         $exifGps = $this->extractExifGps($imageFile->getPathname());
 
-        // ── LANGKAH 4-7: Proses dalam Database Transaction ───────────────
-        // DB::transaction memastikan semua operasi berhasil atau semua dibatalkan.
-        try {
-            $report = DB::transaction(function () use ($validated, $imageFile, $systemNotes, $imageHash, $roadValidation, $exifGps) {
+        // ── LANGKAH 4: Proses AI + GPS + Trust (DI LUAR transaction) ──────
+        // HTTP call ke FastAPI + base64 decode bisa makan waktu 3-30 detik.
+        // Dilakukan di sini agar tidak menahan koneksi database.
+        $aiData = $this->callFastApiAnalyze($imageFile->getPathname(), $imageFile->getClientOriginalName());
 
-                // ── 4a: Generate kode laporan unik ────────────────────────
+        $resultPath       = null;
+        $totalDetections  = 0;
+        $overallSeverity  = 'Baik';
+        $aiRawOutput      = null;
+        $localSystemNotes = null;
+        $gpsMismatchNotes = null;
+        $fakeGpsSuspected = false;
+
+        if ($aiData['success']) {
+            $payload = $aiData['data'];
+
+            $totalDetections = $payload['total'] ?? 0;
+            $overallSeverity = $this->normalizeSeverityEnum($payload['overall_severity'] ?? 'Baik');
+            $aiRawOutput     = $payload['detections'] ?? null;
+
+            if (! empty($payload['image_result'])) {
+                $resultPath = $this->saveBase64Image(
+                    $payload['image_result'],
+                    self::RESULTS_FOLDER
+                );
+            }
+        } else {
+            $localSystemNotes = '[FALLBACK] FastAPI tidak merespons: ' . $aiData['error'];
+            Log::warning('DeltaJalan: FastAPI tidak merespons saat menyimpan laporan.', [
+                'error' => $aiData['error'],
+            ]);
+        }
+
+        // ── Cek GPS Mismatch ──────────────────────────────────────────────
+        if ($exifGps) {
+            $distance = $this->haversineDistance(
+                $exifGps['lat'], $exifGps['lng'],
+                (float) $validated['latitude'], (float) $validated['longitude']
+            );
+            if ($distance > 500) {
+                $gpsMismatchNotes = '[PERINGATAN] GPS EXIF foto berjarak ' . round($distance) . 'm dari koordinat input form. Perlu diverifikasi.';
+                $fakeGpsSuspected = true;
+            }
+        } else {
+            $gpsMismatchNotes = '[INFO] Foto tidak memuat GPS EXIF, jarak validasi menggunakan koordinat dari form manual atau Browser GPS.';
+        }
+
+        // ── Hitung Trust Score ────────────────────────────────────────────
+        $trustResult = app(\App\Services\TrustScoreService::class)->calculate([
+            'exif_lat'           => $exifGps ? $exifGps['lat'] : null,
+            'exif_lng'           => $exifGps ? $exifGps['lng'] : null,
+            'road_name_matched'  => $roadValidation['matched'],
+            'ai_detections'      => $aiRawOutput ?? [],
+            'ai_context_valid'   => !empty($aiRawOutput) && count($aiRawOutput) > 0,
+            'fake_gps_suspected' => $fakeGpsSuspected,
+        ]);
+
+        // Gabungkan system notes
+        $finalSystemNotes = implode(' | ', array_filter([
+            $localSystemNotes,
+            $gpsMismatchNotes,
+        ]));
+
+        // ── LANGKAH 5: Simpan ke database (DI DALAM transaction) ─────────
+        // Hanya operasi DB — tidak ada HTTP/I/O lambat.
+        try {
+            $report = DB::transaction(function () use ($validated, $imageFile, $systemNotes, $imageHash, $roadValidation, $exifGps, $resultPath, $totalDetections, $overallSeverity, $aiRawOutput, $finalSystemNotes, $trustResult) {
+
+                // ── 5a: Generate kode laporan unik ────────────────────────
                 $reportCode = $this->generateReportCode();
 
-                // ── 4b: Simpan foto asli ke storage ──────────────────────
+                // ── 5b: Simpan foto asli ke storage ──────────────────────
                 $originalFilename = Str::uuid() . '-' . time() . '.' . $imageFile->getClientOriginalExtension();
 
                 $originalPath = $imageFile->storeAs(
@@ -531,75 +663,10 @@ class ReportController extends Controller
                     throw new \RuntimeException('Gagal menyimpan foto asli ke storage.');
                 }
 
-                // ── 4c: Kirim foto ke FastAPI untuk analisis AI ───────────
-                $aiData = $this->callFastApiAnalyze($imageFile->getPathname(), $imageFile->getClientOriginalName());
-
-                // ── 4d: Proses hasil FastAPI ──────────────────────────────
-                $resultPath       = null;
-                $totalDetections  = 0;
-                $overallSeverity  = 'Baik';
-                $aiRawOutput      = null;
-                $localSystemNotes = null;
-                $gpsMismatchNotes = null;
-                $fakeGpsSuspected = false;
-
-                if ($aiData['success']) {
-                    $payload = $aiData['data'];
-
-                    $totalDetections = $payload['total'] ?? 0;
-                    $overallSeverity = $this->normalizeSeverityEnum($payload['overall_severity'] ?? 'Baik');
-                    $aiRawOutput     = $payload['detections'] ?? null;
-
-                    // ── 4e: Decode base64 → simpan foto hasil AI ─────────
-                    if (! empty($payload['image_result'])) {
-                        $resultPath = $this->saveBase64Image(
-                            $payload['image_result'],
-                            self::RESULTS_FOLDER
-                        );
-                    }
-                } else {
-                    $localSystemNotes = '[FALLBACK] FastAPI tidak merespons: ' . $aiData['error'];
-                    Log::warning('DeltaJalan: FastAPI tidak merespons saat menyimpan laporan.', [
-                        'error' => $aiData['error'],
-                    ]);
-                }
-                
-                // ── Cek GPS Mismatch ──────────────────────────────────────
-                // Jika GPS EXIF jauh dari koordinat form, tandai fake_gps_suspected
-                // agar trust score berkurang.
-                if ($exifGps) {
-                    $distance = $this->haversineDistance(
-                        $exifGps['lat'], $exifGps['lng'],
-                        (float) $validated['latitude'], (float) $validated['longitude']
-                    );
-                    if ($distance > 500) {
-                        $gpsMismatchNotes = '[PERINGATAN] GPS EXIF foto berjarak ' . round($distance) . 'm dari koordinat input form. Perlu diverifikasi.';
-                        $fakeGpsSuspected = true;
-                    }
-                } else {
-                    $gpsMismatchNotes = '[INFO] Foto tidak memuat GPS EXIF, jarak validasi menggunakan koordinat dari form manual atau Browser GPS.';
-                }
-
-                // ── Hitung Trust Score ────────────────────────────────────
-                $trustResult = app(\App\Services\TrustScoreService::class)->calculate([
-                    'exif_lat'           => $exifGps ? $exifGps['lat'] : null,
-                    'exif_lng'           => $exifGps ? $exifGps['lng'] : null,
-                    'road_name_matched'  => $roadValidation['matched'],
-                    'ai_detections'      => $aiRawOutput ?? [],
-                    'ai_context_valid'   => !empty($aiRawOutput) && count($aiRawOutput) > 0,
-                    'fake_gps_suspected' => $fakeGpsSuspected,
-                ]);
-
-                // Gabungkan system notes
-                $finalSystemNotes = implode(' | ', array_filter([
-                    $localSystemNotes,
-                    $gpsMismatchNotes,
-                ]));
-
-                // ── 4f: Simpan ke database PostgreSQL ────────────────────
+                // ── 5c: Simpan ke database PostgreSQL ────────────────────
+                $defaultPriority = 'Sedang';
                 $report = Report::create([
                     'report_code'          => $reportCode,
-                    // Prioritaskan nama dari auth token, fallback ke input form
                     'reporter_name'        => auth()->user()?->name ?? $validated['reporter_name'],
                     'road_name'            => $validated['road_name'],
                     'district'             => $validated['district'],
@@ -608,21 +675,19 @@ class ReportController extends Controller
                     'image_original_path'  => $originalPath,
                     'image_result_path'    => $resultPath,
                     'image_hash'           => $imageHash,
-                    'support_count'        => 0,
                     'total_detections'     => $totalDetections,
                     'overall_severity'     => $overallSeverity,
                     'ai_raw_output'        => $aiRawOutput,
                     'status'               => 'Menunggu Review',
+                    'priority'             => $defaultPriority,
                     'system_notes'         => $finalSystemNotes ?: null,
-                    // Trust score
                     'trust_score'          => $trustResult['score'],
                     'trust_label'          => $trustResult['label'],
                     'trust_breakdown'      => $trustResult['breakdown'],
-                    // Dimensi kerusakan
                     'kerusakan_panjang'    => $validated['kerusakan_panjang'] ?? null,
                     'kerusakan_lebar'      => $validated['kerusakan_lebar'] ?? null,
-                    // Catatan petugas
                     'catatan_petugas'      => $validated['catatan'] ?? null,
+                    'deadline_review'  => Report::hitungDeadlineReview($defaultPriority),
                 ]);
 
                 return $report;
@@ -766,12 +831,32 @@ class ReportController extends Controller
             $query->where('reporter_name', $user->name);
         }
 
+        // Filter deadline status
+        if ($request->filled('status_deadline')) {
+            $statusDeadline = $request->input('status_deadline');
+            if ($statusDeadline === 'terlambat') {
+                $query->where(function ($q) {
+                    $q->where('terlambat_review', true)
+                      ->orWhere('terlambat_resolusi', true);
+                });
+            } elseif ($statusDeadline === 'tepat_waktu') {
+                $query->where('terlambat_review', false)
+                      ->where('terlambat_resolusi', false);
+            }
+        }
+
         $limit = min((int) $request->input('limit', 50), 100);
+        $page  = max(1, (int) $request->input('page', 1));
+
+        // Hitung total SEBELUM limit untuk akurasi
+        $total = (clone $query)->count();
 
         $reports = $query->orderBy('created_at', 'desc')
-            ->limit($limit)
+            ->skip(($page - 1) * $limit)
+            ->take($limit)
             ->withCount('photos')
             ->with('firstPhoto')
+            ->with('assignedUpr')
             ->get()
             ->map(function ($report) {
                 return [
@@ -800,17 +885,23 @@ class ReportController extends Controller
                     'kerusakan_panjang'    => $report->kerusakan_panjang ? (float) $report->kerusakan_panjang : null,
                     'kerusakan_lebar'      => $report->kerusakan_lebar ? (float) $report->kerusakan_lebar : null,
                     'catatan_petugas'      => $report->catatan_petugas,
-                    'priority'             => $report->priority,
-                    'batch_id'             => $report->batch_id,
-                    'photos_count'         => $report->batch_id ? (int) $report->photos_count : 0,
-                    'created_at'           => $report->created_at?->toIso8601String(),
+                    'priority'               => $report->priority,
+                    'batch_id'               => $report->batch_id,
+                    'photos_count'           => $report->batch_id ? (int) $report->photos_count : 0,
+                    'deadline_review'    => $report->deadline_review?->toIso8601String(),
+                    'deadline_resolusi' => $report->deadline_resolusi?->toIso8601String(),
+                    'terlambat_review'      => $report->terlambat_review,
+                    'terlambat_resolusi'  => $report->terlambat_resolusi,
+                    'created_at'             => $report->created_at?->toIso8601String(),
                 ];
             });
 
         return response()->json([
-            'success' => true,
-            'data'    => $reports,
-            'total'   => $reports->count(),
+            'success'    => true,
+            'data'       => $reports,
+            'total'      => $total,
+            'page'       => $page,
+            'last_page'  => max(1, (int) ceil($total / $limit)),
         ]);
     }
 
@@ -820,7 +911,7 @@ class ReportController extends Controller
      */
     public function show(string $id): JsonResponse
     {
-        $report = Report::with(['evidences', 'photos', 'statusLogs'])->find($id);
+        $report = Report::with(['photos', 'statusLogs'])->find($id);
 
         if (!$report) {
             return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
@@ -862,21 +953,19 @@ class ReportController extends Controller
             'assigned_upr_name'  => $report->assignedUpr?->name,
             'assigned_at'        => $report->assigned_at?->toIso8601String(),
             'catatan_petugas'    => $report->catatan_petugas,
-            'priority'           => $report->priority,
-            'kerusakan_panjang'    => $report->kerusakan_panjang ? (float) $report->kerusakan_panjang : null,
-            'kerusakan_lebar'      => $report->kerusakan_lebar ? (float) $report->kerusakan_lebar : null,
-            'batch_id'             => $report->batch_id,
-            'created_at'           => $report->created_at?->toIso8601String(),
+            'priority'               => $report->priority,
+            'deadline_review'    => $report->deadline_review?->toIso8601String(),
+            'deadline_resolusi' => $report->deadline_resolusi?->toIso8601String(),
+            'terlambat_review'      => $report->terlambat_review,
+            'terlambat_resolusi'  => $report->terlambat_resolusi,
+            'kerusakan_panjang'      => $report->kerusakan_panjang ? (float) $report->kerusakan_panjang : null,
+            'kerusakan_lebar'        => $report->kerusakan_lebar ? (float) $report->kerusakan_lebar : null,
+            'batch_id'               => $report->batch_id,
+            'created_at'             => $report->created_at?->toIso8601String(),
             'updated_at'           => $report->updated_at?->toIso8601String(),
-            'evidences'            => $report->evidences->map(fn ($e) => [
-                'id'            => $e->id,
-                'image_url'     => $e->image_url,
-                'reporter_name' => $e->reporter_name,
-                'notes'         => $e->notes,
-                'created_at'    => $e->created_at?->toIso8601String(),
-            ]),
             'photos'             => $report->photos->map(fn ($p) => [
                 'id'                 => $p->id,
+                'reporter_name'      => $p->reporter_name,
                 'ai_jenis_kerusakan' => $p->ai_jenis_kerusakan,
                 'ai_severity'        => $p->ai_severity,
                 'ai_confidence'      => $p->ai_confidence ? (float) $p->ai_confidence : null,
@@ -916,32 +1005,61 @@ class ReportController extends Controller
      * Data agregat untuk Peta Interaktif:
      *  - districts: statistik per kecamatan (GROUP BY district)
      *  - reports:   laporan dengan koordinat (ringan, untuk marker)
-     *  - stats:     statistik global (by severity, by status, SLA breach)
+     *  - stats:     statistik global (by severity, by status, terlambat deadline)
      */
     public function mapData(Request $request): JsonResponse
     {
         $user = $request->user();
 
-        // 1. Statistik per kecamatan
-        $districts = Report::selectRaw("
-            district,
-            COUNT(*) as total,
-            SUM(CASE WHEN overall_severity::text = 'Rusak Berat' OR LOWER(ai_severity) = 'berat' THEN 1 ELSE 0 END) as rusak_berat,
-            SUM(CASE WHEN overall_severity::text = 'Rusak Sedang' OR LOWER(ai_severity) = 'sedang' THEN 1 ELSE 0 END) as rusak_sedang,
-            SUM(CASE WHEN overall_severity::text = 'Rusak Ringan' OR LOWER(ai_severity) = 'ringan' THEN 1 ELSE 0 END) as rusak_ringan,
-            AVG(CASE
-                WHEN overall_severity::text = 'Rusak Berat' OR LOWER(ai_severity) = 'berat' THEN 3
-                WHEN overall_severity::text = 'Rusak Sedang' OR LOWER(ai_severity) = 'sedang' THEN 2
-                WHEN overall_severity::text = 'Rusak Ringan' OR LOWER(ai_severity) = 'ringan' THEN 1
-                ELSE 0
-            END) as avg_severity_score
-        ")
-            ->whereNotNull('district')
-            ->whereNotNull('latitude')
-            ->whereNotNull('longitude')
-            ->groupBy('district')
-            ->get()
-            ->keyBy('district');
+        // 1. Statistik per kecamatan — cache 5 menit
+        $districts = Cache::remember('map_districts', 300, function () {
+            return DB::table('reports')
+                ->selectRaw("
+                    district,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN overall_severity::text = 'Rusak Berat' OR LOWER(ai_severity) = 'berat' THEN 1 ELSE 0 END) as rusak_berat,
+                    SUM(CASE WHEN overall_severity::text = 'Rusak Sedang' OR LOWER(ai_severity) = 'sedang' THEN 1 ELSE 0 END) as rusak_sedang,
+                    SUM(CASE WHEN overall_severity::text = 'Rusak Ringan' OR LOWER(ai_severity) = 'ringan' THEN 1 ELSE 0 END) as rusak_ringan,
+                    AVG(CASE
+                        WHEN overall_severity::text = 'Rusak Berat' OR LOWER(ai_severity) = 'berat' THEN 3
+                        WHEN overall_severity::text = 'Rusak Sedang' OR LOWER(ai_severity) = 'sedang' THEN 2
+                        WHEN overall_severity::text = 'Rusak Ringan' OR LOWER(ai_severity) = 'ringan' THEN 1
+                        ELSE 0
+                    END) as avg_severity_score
+                ")
+                ->whereNotNull('district')
+                ->whereNotNull('latitude')
+                ->whereNotNull('longitude')
+                ->groupBy('district')
+                ->get()
+                ->keyBy('district')
+                ->all();
+        });
+        // Guard: stale cache may return __PHP_Incomplete_Class; re-query
+        if (!is_array($districts)) {
+            Cache::forget('map_districts');
+            $districts = DB::table('reports')
+                ->selectRaw("
+                    district,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN overall_severity::text = 'Rusak Berat' OR LOWER(ai_severity) = 'berat' THEN 1 ELSE 0 END) as rusak_berat,
+                    SUM(CASE WHEN overall_severity::text = 'Rusak Sedang' OR LOWER(ai_severity) = 'sedang' THEN 1 ELSE 0 END) as rusak_sedang,
+                    SUM(CASE WHEN overall_severity::text = 'Rusak Ringan' OR LOWER(ai_severity) = 'ringan' THEN 1 ELSE 0 END) as rusak_ringan,
+                    AVG(CASE
+                        WHEN overall_severity::text = 'Rusak Berat' OR LOWER(ai_severity) = 'berat' THEN 3
+                        WHEN overall_severity::text = 'Rusak Sedang' OR LOWER(ai_severity) = 'sedang' THEN 2
+                        WHEN overall_severity::text = 'Rusak Ringan' OR LOWER(ai_severity) = 'ringan' THEN 1
+                        ELSE 0
+                    END) as avg_severity_score
+                ")
+                ->whereNotNull('district')
+                ->whereNotNull('latitude')
+                ->whereNotNull('longitude')
+                ->groupBy('district')
+                ->get()
+                ->keyBy('district')
+                ->all();
+        }
 
         // 2. Laporan ringan untuk marker
         $query = Report::select([
@@ -987,9 +1105,9 @@ class ReportController extends Controller
             $query->where('assigned_upr_id', (int) $request->input('upr_id'));
         }
 
-        // SLA filter: tampilkan laporan yang sudah > N hari tanpa selesai/ditolak
-        if ($request->filled('sla_days')) {
-            $days = max(1, (int) $request->input('sla_days'));
+        // Deadline filter: tampilkan laporan yang sudah > N hari tanpa selesai/ditolak
+        if ($request->filled('deadline_hari')) {
+            $days = max(1, (int) $request->input('deadline_hari'));
             $query->where('created_at', '<', now()->subDays($days))
                   ->whereNotIn('status', ['Selesai', 'Ditolak']);
         }
@@ -997,29 +1115,32 @@ class ReportController extends Controller
         $reports = $query->orderBy('created_at', 'desc')->limit(1000)->get()
             ->each(fn ($r) => $r->append('first_photo_url')->setAttribute('assigned_upr_name', $r->assignedUpr?->name));
 
-        // 3. Statistik global
-        $baseStats = Report::whereNotNull('latitude')->whereNotNull('longitude');
+        // 3. Statistik global — single grouped query + cache
+        $cacheKey = 'map_global_stats';
+        $globalStats = Cache::remember($cacheKey, 60, function () {
+            return $this->queryMapGlobalStats();
+        });
 
-        $total = (clone $baseStats)->count();
+        // Guard: stale cache can yield an incomplete object; re-fetch from DB
+        if (!($globalStats instanceof \stdClass)) {
+            Cache::forget($cacheKey);
+            $globalStats = $this->queryMapGlobalStats();
+        }
 
+        $total = (int) $globalStats->total;
         $bySeverity = [
-            'berat'  => (clone $baseStats)->where(function ($q) { $q->whereRaw("overall_severity::text = 'Rusak Berat'")->orWhereRaw("LOWER(ai_severity) = 'berat'"); })->count(),
-            'sedang' => (clone $baseStats)->where(function ($q) { $q->whereRaw("overall_severity::text = 'Rusak Sedang'")->orWhereRaw("LOWER(ai_severity) = 'sedang'"); })->count(),
-            'ringan' => (clone $baseStats)->where(function ($q) { $q->whereRaw("overall_severity::text = 'Rusak Ringan'")->orWhereRaw("LOWER(ai_severity) = 'ringan'"); })->count(),
+            'berat'  => (int) $globalStats->berat,
+            'sedang' => (int) $globalStats->sedang,
+            'ringan' => (int) $globalStats->ringan,
         ];
-
         $byStatus = [
-            'Menunggu Review'   => (clone $baseStats)->whereIn('status', ['Menunggu Review', 'Ditinjau'])->count(),
-            'Disetujui'         => (clone $baseStats)->where('status', 'Disetujui')->count(),
-            'Sedang Diperbaiki' => (clone $baseStats)->where('status', 'Sedang Diperbaiki')->count(),
-            'Selesai'           => (clone $baseStats)->where('status', 'Selesai')->count(),
-            'Ditolak'           => (clone $baseStats)->where('status', 'Ditolak')->count(),
+            'Menunggu Review'   => (int) $globalStats->menunggu_review,
+            'Disetujui'         => (int) $globalStats->disetujui,
+            'Sedang Diperbaiki' => (int) $globalStats->sedang_diperbaiki,
+            'Selesai'           => (int) $globalStats->selesai,
+            'Ditolak'           => (int) $globalStats->ditolak,
         ];
-
-        $slaBreachCount = (clone $baseStats)
-            ->where('created_at', '<', now()->subDays(7))
-            ->whereNotIn('status', ['Selesai', 'Ditolak'])
-            ->count();
+        $terlambatCount = (int) $globalStats->terlambat_count;
 
         return response()->json([
             'success' => true,
@@ -1027,10 +1148,12 @@ class ReportController extends Controller
                 'districts' => $districts,
                 'reports'   => $reports,
                 'stats'     => [
-                    'total'             => $total,
-                    'by_severity'       => $bySeverity,
-                    'by_status'         => $byStatus,
-                    'sla_breach_count'  => $slaBreachCount,
+                    'total'                   => $total,
+                    'by_severity'             => $bySeverity,
+                    'by_status'               => $byStatus,
+                    'terlambat_count'        => $terlambatCount,
+                    'terlambat_review'       => (int) $globalStats->terlambat_review_count,
+                    'terlambat_resolusi'   => (int) $globalStats->terlambat_resolusi_count,
                 ],
             ],
         ]);
@@ -1047,6 +1170,27 @@ class ReportController extends Controller
      * @param  string  $filePath  Path absolut ke file foto
      * @return string|null        MD5 hash (32 karakter hex), atau null jika gagal
      */
+    private function queryMapGlobalStats(): \stdClass
+    {
+        return DB::table('reports')
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->selectRaw("
+            COUNT(*) as total,
+            SUM(CASE WHEN overall_severity::text = 'Rusak Berat' OR LOWER(ai_severity) = 'berat' THEN 1 ELSE 0 END) as berat,
+            SUM(CASE WHEN overall_severity::text = 'Rusak Sedang' OR LOWER(ai_severity) = 'sedang' THEN 1 ELSE 0 END) as sedang,
+            SUM(CASE WHEN overall_severity::text = 'Rusak Ringan' OR LOWER(ai_severity) = 'ringan' THEN 1 ELSE 0 END) as ringan,
+            SUM(CASE WHEN status IN ('Menunggu Review', 'Ditinjau') THEN 1 ELSE 0 END) as menunggu_review,
+            SUM(CASE WHEN status = 'Disetujui' THEN 1 ELSE 0 END) as disetujui,
+            SUM(CASE WHEN status = 'Sedang Diperbaiki' THEN 1 ELSE 0 END) as sedang_diperbaiki,
+            SUM(CASE WHEN status = 'Selesai' THEN 1 ELSE 0 END) as selesai,
+            SUM(CASE WHEN status = 'Ditolak' THEN 1 ELSE 0 END) as ditolak,
+            SUM(CASE WHEN created_at < NOW() - INTERVAL '7 days' AND status NOT IN ('Selesai', 'Ditolak') THEN 1 ELSE 0 END) as terlambat_count,
+            SUM(CASE WHEN terlambat_review = true THEN 1 ELSE 0 END) as terlambat_review_count,
+            SUM(CASE WHEN terlambat_resolusi = true THEN 1 ELSE 0 END) as terlambat_resolusi_count
+        ")->first();
+    }
+
     private function calculateImageHash(string $filePath): ?string
     {
         try {
@@ -1434,8 +1578,24 @@ class ReportController extends Controller
             $batchNotes = '[PERINGATAN] Terdeteksi ' . $photosWithExif . ' foto dengan koordinat GPS EXIF identik — kemungkinan EXIF di-clone.';
         }
 
+        // ── Pre-calculate hashes + batch duplicate check (1 query instead of N) ──
+        $imageHashes = [];
+        foreach ($request->file('files') as $idx => $file) {
+            $hash = $this->calculateImageHash($file->getPathname());
+            if ($hash) {
+                $imageHashes[$idx] = $hash;
+            }
+        }
+        $existingHashes = [];
+        if (!empty($imageHashes)) {
+            $existingHashes = array_unique(array_merge(
+                Report::whereIn('image_hash', $imageHashes)->pluck('image_hash')->toArray(),
+                ReportPhoto::whereIn('image_hash', $imageHashes)->pluck('image_hash')->toArray()
+            ));
+        }
+
         try {
-            $result = DB::transaction(function () use ($validated, $analyses, $request, $trustResult, $roadValidation, $batchNotes, $exifCloneSuspected) {
+            $result = DB::transaction(function () use ($validated, $analyses, $request, $trustResult, $roadValidation, $batchNotes, $exifCloneSuspected, $imageHashes, $existingHashes) {
                 $severities  = array_column($analyses, 'severity');
                 $aggSeverity = $this->aggregateSeverity($severities);
                 $severityMap = [
@@ -1481,16 +1641,14 @@ class ReportController extends Controller
                     $file       = $request->file('files')[$idx] ?? null;
                     $photoPath  = null;
                     $resultPath = null;
-                    $imageHash  = null;
+                    $imageHash  = $imageHashes[$idx] ?? null;
 
                     $photoLat        = (float) ($analysis['photo_lat'] ?? $validated['latitude']);
                     $photoLng        = (float) ($analysis['photo_lng'] ?? $validated['longitude']);
                     $koordinatSumber = $analysis['koordinat_sumber'] ?? $validated['koordinat_sumber'];
 
                     if ($file) {
-                        $imageHash = $this->calculateImageHash($file->getPathname());
-
-                        if ($imageHash && Report::imageHashExists($imageHash)) {
+                        if ($imageHash && in_array($imageHash, $existingHashes)) {
                             Log::info('DeltaJalan: Foto duplikat dilewati dalam batch.', [
                                 'file_index' => $idx,
                                 'file_name'  => $analysis['file_name'] ?? '',
@@ -1629,98 +1787,98 @@ class ReportController extends Controller
      */
     public function stats(Request $request): JsonResponse
     {
-        $query = Report::query();
-
         $user = auth()->user();
 
-        if ($user->role === 'petugas') {
-            $query->where('reporter_name', $user->name);
-        }
+        $cacheKey = 'stats_' . ($user->role ?? 'guest') . '_' . ($user->id ?? '0');
+        $cacheTTL = 60; // seconds
 
-        if ($user->role === 'petugas_eksekusi') {
-            $query->when($user->upr_id, fn($q) => $q->where('assigned_upr_id', $user->upr_id))
-                  ->unless($user->upr_id, fn($q) => $q->whereRaw('1 = 0'));
-        }
+        $stats = Cache::remember($cacheKey, $cacheTTL, function () use ($user) {
+            $query = Report::query();
 
-        $total = (clone $query)->count();
-        $menungguReview = (clone $query)->whereIn('status', ['Menunggu Review', 'Ditinjau'])->count();
-        $disetujui      = (clone $query)->where('status', 'Disetujui')->count();
-        $ditolak        = (clone $query)->where('status', 'Ditolak')->count();
-        $diperbaiki     = (clone $query)->where('status', 'Sedang Diperbaiki')->count();
-        $selesai        = (clone $query)->where('status', 'Selesai')->count();
+            if ($user->role === 'petugas') {
+                $query->where('reporter_name', $user->name);
+            }
 
-        $hijau  = (clone $query)->where('trust_label', 'hijau')->count();
-        $kuning = (clone $query)->where('trust_label', 'kuning')->count();
-        $merah  = (clone $query)->where('trust_label', 'merah')->count();
+            if ($user->role === 'petugas_eksekusi') {
+                $query->when($user->upr_id, fn($q) => $q->where('assigned_upr_id', $user->upr_id))
+                      ->unless($user->upr_id, fn($q) => $q->whereRaw('1 = 0'));
+            }
 
-        // Severity distribution
-        $rusakBerat  = (clone $query)->where(function ($q) {
-            $q->whereRaw("overall_severity::text = 'Rusak Berat'")->orWhereRaw("LOWER(ai_severity) = 'berat'");
-        })->count();
-        $rusakSedang = (clone $query)->where(function ($q) {
-            $q->whereRaw("overall_severity::text = 'Rusak Sedang'")->orWhereRaw("LOWER(ai_severity) = 'sedang'");
-        })->count();
-        $rusakRingan = (clone $query)->where(function ($q) {
-            $q->whereRaw("overall_severity::text = 'Rusak Ringan'")->orWhereRaw("LOWER(ai_severity) = 'ringan'");
-        })->count();
+            // Single grouped query replacing 12 individual COUNTs
+            $agg = (clone $query)->selectRaw("
+                COUNT(*) as total,
+                SUM(CASE WHEN status IN ('Menunggu Review', 'Ditinjau') THEN 1 ELSE 0 END) as menunggu_review,
+                SUM(CASE WHEN status = 'Disetujui' THEN 1 ELSE 0 END) as disetujui,
+                SUM(CASE WHEN status = 'Ditolak' THEN 1 ELSE 0 END) as ditolak,
+                SUM(CASE WHEN status = 'Sedang Diperbaiki' THEN 1 ELSE 0 END) as sedang_diperbaiki,
+                SUM(CASE WHEN status = 'Selesai' THEN 1 ELSE 0 END) as selesai,
+                SUM(CASE WHEN trust_label = 'hijau' THEN 1 ELSE 0 END) as trust_hijau,
+                SUM(CASE WHEN trust_label = 'kuning' THEN 1 ELSE 0 END) as trust_kuning,
+                SUM(CASE WHEN trust_label = 'merah' THEN 1 ELSE 0 END) as trust_merah,
+                SUM(CASE WHEN overall_severity::text = 'Rusak Berat' OR LOWER(ai_severity) = 'berat' THEN 1 ELSE 0 END) as rusak_berat,
+                SUM(CASE WHEN overall_severity::text = 'Rusak Sedang' OR LOWER(ai_severity) = 'sedang' THEN 1 ELSE 0 END) as rusak_sedang,
+                SUM(CASE WHEN overall_severity::text = 'Rusak Ringan' OR LOWER(ai_severity) = 'ringan' THEN 1 ELSE 0 END) as rusak_ringan
+            ")->first();
 
-        // Monthly trend — last 6 months
-        $sixMonthsAgo = now()->subMonths(6)->startOfMonth();
-        $monthlyQuery = Report::selectRaw("
-            TO_CHAR(created_at, 'YYYY-MM') as bulan,
-            COUNT(*) as total,
-            SUM(CASE WHEN status = 'Selesai' THEN 1 ELSE 0 END) as selesai,
-            SUM(CASE
-                WHEN overall_severity::text = 'Rusak Berat' OR LOWER(ai_severity) = 'berat' THEN 1
-                ELSE 0
-            END) as rusak_berat
-        ")
-            ->where('created_at', '>=', $sixMonthsAgo);
+            // Monthly trend — last 6 months
+            $sixMonthsAgo = now()->subMonths(6)->startOfMonth();
+            $monthlyQuery = Report::selectRaw("
+                TO_CHAR(created_at, 'YYYY-MM') as bulan,
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'Selesai' THEN 1 ELSE 0 END) as selesai,
+                SUM(CASE
+                    WHEN overall_severity::text = 'Rusak Berat' OR LOWER(ai_severity) = 'berat' THEN 1
+                    ELSE 0
+                END) as rusak_berat
+            ")
+                ->where('created_at', '>=', $sixMonthsAgo);
 
-        if ($user->role === 'petugas') {
-            $monthlyQuery->where('reporter_name', $user->name);
-        }
-        if ($user->role === 'petugas_eksekusi') {
-            $monthlyQuery->when($user->upr_id, fn($q) => $q->where('assigned_upr_id', $user->upr_id))
-                         ->unless($user->upr_id, fn($q) => $q->whereRaw('1 = 0'));
-        }
+            if ($user->role === 'petugas') {
+                $monthlyQuery->where('reporter_name', $user->name);
+            }
+            if ($user->role === 'petugas_eksekusi') {
+                $monthlyQuery->when($user->upr_id, fn($q) => $q->where('assigned_upr_id', $user->upr_id))
+                             ->unless($user->upr_id, fn($q) => $q->whereRaw('1 = 0'));
+            }
 
-        $monthlyTrend = $monthlyQuery
-            ->groupBy('bulan')
-            ->orderBy('bulan')
-            ->get()
-            ->keyBy('bulan');
+            $monthlyTrend = $monthlyQuery
+                ->groupBy('bulan')
+                ->orderBy('bulan')
+                ->get()
+                ->keyBy('bulan');
 
-        // Fill missing months with zeroes
-        $trend = [];
-        for ($i = 5; $i >= 0; $i--) {
-            $bulan = now()->subMonths($i)->format('Y-m');
-            $row = $monthlyTrend->get($bulan);
-            $trend[] = [
-                'bulan'       => $bulan,
-                'total'       => (int) ($row->total ?? 0),
-                'selesai'     => (int) ($row->selesai ?? 0),
-                'rusak_berat' => (int) ($row->rusak_berat ?? 0),
+            $trend = [];
+            for ($i = 5; $i >= 0; $i--) {
+                $bulan = now()->subMonths($i)->format('Y-m');
+                $row = $monthlyTrend->get($bulan);
+                $trend[] = [
+                    'bulan'       => $bulan,
+                    'total'       => (int) ($row->total ?? 0),
+                    'selesai'     => (int) ($row->selesai ?? 0),
+                    'rusak_berat' => (int) ($row->rusak_berat ?? 0),
+                ];
+            }
+
+            return [
+                'total'             => (int) $agg->total,
+                'menunggu_review'   => (int) $agg->menunggu_review,
+                'disetujui'         => (int) $agg->disetujui,
+                'ditolak'           => (int) $agg->ditolak,
+                'sedang_diperbaiki' => (int) $agg->sedang_diperbaiki,
+                'selesai'           => (int) $agg->selesai,
+                'trust_hijau'       => (int) $agg->trust_hijau,
+                'trust_kuning'      => (int) $agg->trust_kuning,
+                'trust_merah'       => (int) $agg->trust_merah,
+                'rusak_berat'       => (int) $agg->rusak_berat,
+                'rusak_sedang'      => (int) $agg->rusak_sedang,
+                'rusak_ringan'      => (int) $agg->rusak_ringan,
+                'monthly_trend'     => $trend,
             ];
-        }
+        });
 
         return response()->json([
             'success' => true,
-            'data'    => [
-                'total'             => $total,
-                'menunggu_review'   => $menungguReview,
-                'disetujui'         => $disetujui,
-                'ditolak'           => $ditolak,
-                'sedang_diperbaiki' => $diperbaiki,
-                'selesai'           => $selesai,
-                'trust_hijau'       => $hijau,
-                'trust_kuning'      => $kuning,
-                'trust_merah'       => $merah,
-                'rusak_berat'       => $rusakBerat,
-                'rusak_sedang'      => $rusakSedang,
-                'rusak_ringan'      => $rusakRingan,
-                'monthly_trend'     => $trend,
-            ],
+            'data'    => $stats,
         ]);
     }
 
@@ -1747,10 +1905,12 @@ class ReportController extends Controller
             $priority = null;
         }
 
+        $finalPriority = $priority ?? $report->priority;
         $report->update([
-            'status'       => 'Disetujui',
-            'priority'     => $priority ?? $report->priority,
-            'system_notes' => $report->system_notes
+            'status'                 => 'Disetujui',
+            'priority'               => $finalPriority,
+            'deadline_resolusi' => Report::hitungDeadlineResolusi($finalPriority),
+            'system_notes'           => $report->system_notes
                 ? $report->system_notes . ' | [APPROVED] Disetujui oleh ' . auth()->user()->name
                 : '[APPROVED] Disetujui oleh ' . auth()->user()->name,
         ]);
@@ -2111,29 +2271,29 @@ class ReportController extends Controller
         $ids = $request->validate(['ids' => 'required|array', 'ids.*' => 'string|uuid']);
         $user = auth()->user();
 
-        $count = 0;
-        foreach ($ids['ids'] as $id) {
-            $report = Report::find($id);
-            if (!$report || !in_array($report->status, ['Menunggu Review', 'Ditinjau'])) continue;
+        $reports = Report::whereIn('id', $ids['ids'])
+            ->whereIn('status', ['Menunggu Review', 'Ditinjau'])
+            ->get();
+
+        $noteSuffix = " | [BULK APPROVE] oleh {$user->name}";
+        $now = now();
+
+        foreach ($reports as $report) {
             $report->update([
                 'status'       => 'Disetujui',
                 'system_notes' => $report->system_notes
-                    ? $report->system_notes . " | [BULK APPROVE] oleh {$user->name}"
+                    ? $report->system_notes . $noteSuffix
                     : "[BULK APPROVE] oleh {$user->name}",
             ]);
-            try {
-                if ($report->reporter_name) {
-                    $petugasUser = User::where('name', $report->reporter_name)->first();
-                    if ($petugasUser) {
-                        $petugasUser->notify(new BulkActionNotification($report, 'approve', $user->name));
-                    }
+            if ($report->reporter_name) {
+                $petugasUser = User::where('name', $report->reporter_name)->first();
+                if ($petugasUser) {
+                    $petugasUser->notify(new BulkActionNotification($report, 'approve', $user->name));
                 }
-            } catch (\Throwable $e) {
-                Log::warning('Gagal mengirim notifikasi bulk approve: ' . $e->getMessage());
             }
-            $count++;
         }
 
+        $count = $reports->count();
         Log::info('DeltaJalan: Bulk approve.', ['count' => $count, 'by' => $user->name]);
 
         return response()->json([
@@ -2156,29 +2316,27 @@ class ReportController extends Controller
         ]);
         $user = auth()->user();
 
-        $count = 0;
-        foreach ($validated['ids'] as $id) {
-            $report = Report::find($id);
-            if (!$report || !in_array($report->status, ['Menunggu Review', 'Ditinjau'])) continue;
+        $reports = Report::whereIn('id', $validated['ids'])
+            ->whereIn('status', ['Menunggu Review', 'Ditinjau'])
+            ->get();
+
+        $alasan = $validated['alasan'];
+        foreach ($reports as $report) {
             $report->update([
                 'status'       => 'Ditolak',
                 'system_notes' => $report->system_notes
-                    ? $report->system_notes . " | [BULK TOLAK] oleh {$user->name}: {$validated['alasan']}"
-                    : "[BULK TOLAK] oleh {$user->name}: {$validated['alasan']}",
+                    ? $report->system_notes . " | [BULK TOLAK] oleh {$user->name}: {$alasan}"
+                    : "[BULK TOLAK] oleh {$user->name}: {$alasan}",
             ]);
-            try {
-                if ($report->reporter_name) {
-                    $petugasUser = User::where('name', $report->reporter_name)->first();
-                    if ($petugasUser) {
-                        $petugasUser->notify(new BulkActionNotification($report, 'tolak', $user->name));
-                    }
+            if ($report->reporter_name) {
+                $petugasUser = User::where('name', $report->reporter_name)->first();
+                if ($petugasUser) {
+                    $petugasUser->notify(new BulkActionNotification($report, 'tolak', $user->name));
                 }
-            } catch (\Throwable $e) {
-                Log::warning('Gagal mengirim notifikasi bulk tolak: ' . $e->getMessage());
             }
-            $count++;
         }
 
+        $count = $reports->count();
         Log::info('DeltaJalan: Bulk tolak.', ['count' => $count, 'by' => $user->name]);
 
         return response()->json([
@@ -2194,34 +2352,103 @@ class ReportController extends Controller
      */
     public function statsByUpr(Request $request): JsonResponse
     {
-        $uprs = \App\Models\Upr::where('is_active', true)->get();
-        $stats = [];
+        $stats = Cache::remember('stats_by_upr', 120, function () {
+            $uprs = \App\Models\Upr::where('is_active', true)->get();
 
-        foreach ($uprs as $upr) {
-            $query = Report::where('assigned_upr_id', $upr->id);
-            $total      = (clone $query)->count();
-            $diperbaiki = (clone $query)->where('status', 'Sedang Diperbaiki')->count();
-            $selesai    = (clone $query)->where('status', 'Selesai')->count();
-            $totalPanjang = (clone $query)->whereNotNull('kerusakan_panjang')->sum('kerusakan_panjang');
-            $totalLuas    = (clone $query)
-                ->whereNotNull('kerusakan_panjang')
-                ->whereNotNull('kerusakan_lebar')
-                ->selectRaw('COALESCE(SUM(kerusakan_panjang * kerusakan_lebar), 0) as total_luas')
-                ->value('total_luas');
+            // Single grouped query — replaces N*5 individual queries
+            $grouped = Report::selectRaw("
+                assigned_upr_id,
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'Sedang Diperbaiki' THEN 1 ELSE 0 END) as sedang_diperbaiki,
+                SUM(CASE WHEN status = 'Selesai' THEN 1 ELSE 0 END) as selesai,
+                COALESCE(SUM(NULLIF(kerusakan_panjang, 0)), 0) as total_panjang,
+                COALESCE(SUM(NULLIF(kerusakan_panjang, 0) * NULLIF(kerusakan_lebar, 0)), 0) as total_luas
+            ")
+                ->whereNotNull('assigned_upr_id')
+                ->groupBy('assigned_upr_id')
+                ->get()
+                ->keyBy('assigned_upr_id');
 
-            $stats[] = [
-                'upr_id'          => $upr->id,
-                'upr_name'        => $upr->name,
-                'wilayah'         => $upr->wilayah,
-                'total'           => $total,
-                'sedang_diperbaiki' => $diperbaiki,
-                'selesai'         => $selesai,
-                'total_panjang_m' => round((float) $totalPanjang, 1),
-                'total_luas_m2'   => round((float) $totalLuas, 1),
-            ];
-        }
+            $stats = [];
+            foreach ($uprs as $upr) {
+                $g = $grouped->get($upr->id);
+                $stats[] = [
+                    'upr_id'            => $upr->id,
+                    'upr_name'          => $upr->name,
+                    'wilayah'           => $upr->wilayah,
+                    'total'             => (int) ($g->total ?? 0),
+                    'sedang_diperbaiki' => (int) ($g->sedang_diperbaiki ?? 0),
+                    'selesai'           => (int) ($g->selesai ?? 0),
+                    'total_panjang_m'   => round((float) ($g->total_panjang ?? 0), 1),
+                    'total_luas_m2'     => round((float) ($g->total_luas ?? 0), 1),
+                ];
+            }
+
+            return $stats;
+        });
 
         return response()->json(['success' => true, 'data' => $stats]);
+    }
+
+    /**
+     * GET /api/reports/ringkasan-deadline
+     * Agregasi status deadline (tepat_waktu, mendekati, terlambat) per priority.
+     */
+    public function ringkasanDeadline(): JsonResponse
+    {
+        $summary = Report::selectRaw("
+            priority,
+            COUNT(*) as total,
+            SUM(CASE WHEN terlambat_review = true OR terlambat_resolusi = true THEN 1 ELSE 0 END) as terlambat,
+            SUM(CASE
+                WHEN terlambat_review = false AND terlambat_resolusi = false
+                    AND (
+                        deadline_review IS NULL
+                        OR deadline_review > NOW()
+                        OR status IN ('Selesai', 'Ditolak')
+                    )
+                    AND (
+                        deadline_resolusi IS NULL
+                        OR deadline_resolusi > NOW()
+                        OR status = 'Selesai'
+                    )
+                THEN 1 ELSE 0 END
+            ) as tepat_waktu
+        ")
+            ->whereIn('priority', ['Tinggi', 'Sedang', 'Rendah'])
+            ->groupBy('priority')
+            ->get()
+            ->keyBy('priority');
+
+        $perPriority = [];
+        $totals = ['total' => 0, 'tepat_waktu' => 0, 'mendekati' => 0, 'terlambat' => 0];
+
+        foreach (['Tinggi', 'Sedang', 'Rendah'] as $p) {
+            $row = $summary[$p] ?? null;
+            $t = (int) ($row->total ?? 0);
+            $b = (int) ($row->terlambat ?? 0);
+            $o = (int) ($row->tepat_waktu ?? 0);
+            $w = max(0, $t - $b - $o);
+
+            $perPriority[$p] = [
+                'total'    => $t,
+                'tepat_waktu' => $o,
+                'mendekati'  => $w,
+                'terlambat' => $b,
+            ];
+            $totals['total']    += $t;
+            $totals['tepat_waktu'] += $o;
+            $totals['mendekati']  += $w;
+            $totals['terlambat'] += $b;
+        }
+
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'per_priority' => $perPriority,
+                'total'        => $totals,
+            ],
+        ]);
     }
 
     /**
@@ -2467,6 +2694,10 @@ class ReportController extends Controller
         $updateData = [];
         if (!empty($validated['priority'])) {
             $updateData['priority'] = $validated['priority'];
+            $updateData['deadline_review'] = Report::hitungDeadlineReview($validated['priority']);
+            if (in_array($report->status, ['Disetujui', 'Sedang Diperbaiki', 'Selesai'])) {
+                $updateData['deadline_resolusi'] = Report::hitungDeadlineResolusi($validated['priority']);
+            }
         }
         if (!empty($validated['severity'])) {
             $updateData['overall_severity'] = $validated['severity'];
@@ -2675,67 +2906,208 @@ class ReportController extends Controller
     }
 
     /**
+     * POST /api/v1/reports/extract-exif-gps
+     *
+     * Ekstrak koordinat GPS dari EXIF foto yang diupload.
+     * Fallback untuk mobile browser yang strip EXIF dari File object.
+     *
+     * Request: multipart/form-data dengan field "image" (file JPEG/PNG, max 5MB)
+     * Response: { lat: float|null, lng: float|null }
+     */
+    public function extractExifGpsFromUpload(Request $request): JsonResponse
+    {
+        $request->validate([
+            'image' => ['required', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
+        ]);
+
+        $file = $request->file('image');
+        $filePath = $file->getPathname();
+
+        $gps = $this->extractExifGps($filePath);
+
+        if (!$gps) {
+            Log::warning('[extractExifGps] Gagal ekstrak GPS dari EXIF', [
+                'mime' => $file->getMimeType(),
+                'size' => $file->getSize(),
+            ]);
+        }
+
+        return response()->json([
+            'lat' => $gps ? $gps['lat'] : null,
+            'lng' => $gps ? $gps['lng'] : null,
+        ]);
+    }
+
+    /**
      * Ekstrak koordinat GPS dari metadata EXIF foto.
+     *
+     * Strategy 1: PHP exif_read_data (fast path, works for most files).
+     * Strategy 2: PEL library (pure-PHP fallback untuk Samsung et al yang broken).
      */
     private function extractExifGps(string $filePath): ?array
     {
-        if (!function_exists('exif_read_data')) {
-            return null;
-        }
+        $result = $this->extractExifGpsNative($filePath);
+        if ($result) return $result;
+
+        return $this->extractExifGpsWithPel($filePath);
+    }
+
+    private function extractExifGpsNative(string $filePath): ?array
+    {
+        if (!function_exists('exif_read_data')) return null;
 
         try {
-            $exifData = @exif_read_data($filePath, 'GPS', false);
+            $exif = @exif_read_data($filePath, null, false);
+            if (!$exif) return null;
 
-            if (!$exifData || !isset($exifData['GPSLatitude'], $exifData['GPSLongitude'])) {
-                return null;
+            if (isset($exif['GPSLatitude'], $exif['GPSLongitude'])) {
+                $lat = $this->normalizeAndConvertGps($exif['GPSLatitude'], $exif['GPSLatitudeRef'] ?? 'N');
+                $lng = $this->normalizeAndConvertGps($exif['GPSLongitude'], $exif['GPSLongitudeRef'] ?? 'E');
+                if ($lat !== null && $lng !== null && $this->inIndonesiaBounds($lat, $lng)) return ['lat' => $lat, 'lng' => $lng];
             }
 
-            $lat = $this->convertGpsDmsToDecimal(
-                $exifData['GPSLatitude'],
-                $exifData['GPSLatitudeRef'] ?? 'N'
-            );
-            $lng = $this->convertGpsDmsToDecimal(
-                $exifData['GPSLongitude'],
-                $exifData['GPSLongitudeRef'] ?? 'E'
-            );
-
-            if ($lat === null || $lng === null) {
-                return null;
+            if (isset($exif['COMPUTED']['GPSLatitude'], $exif['COMPUTED']['GPSLongitude'])) {
+                $lat = (float) $exif['COMPUTED']['GPSLatitude'];
+                $lng = (float) $exif['COMPUTED']['GPSLongitude'];
+                if ($this->inIndonesiaBounds($lat, $lng)) return ['lat' => $lat, 'lng' => $lng];
             }
 
-            if ($lat < -11 || $lat > 6 || $lng < 95 || $lng > 141) {
-                return null;
+            foreach (['IFD0', 'EXIF'] as $section) {
+                if (!isset($exif[$section])) continue;
+                $s = $exif[$section];
+                if (isset($s['GPSLatitude'], $s['GPSLongitude'])) {
+                    $lat = $this->normalizeAndConvertGps($s['GPSLatitude'], $s['GPSLatitudeRef'] ?? 'N');
+                    $lng = $this->normalizeAndConvertGps($s['GPSLongitude'], $s['GPSLongitudeRef'] ?? 'E');
+                    if ($lat !== null && $lng !== null && $this->inIndonesiaBounds($lat, $lng)) return ['lat' => $lat, 'lng' => $lng];
+                }
             }
 
-            return ['lat' => $lat, 'lng' => $lng];
+            return null;
         } catch (\Exception $e) {
             return null;
         }
     }
 
-    private function convertGpsDmsToDecimal(array $dms, string $ref): ?float
+    /**
+     * PEL fallback — baca GPS langsung dari raw bytes, tanpa bergantung exif_read_data.
+     */
+    private function extractExifGpsWithPel(string $filePath): ?array
     {
-        if (count($dms) < 3) return null;
+        if (!class_exists(PelJpeg::class)) return null;
 
-        $parseRational = function (string $rational): float {
-            $parts = explode('/', $rational);
-            if (count($parts) === 2 && (float) $parts[1] !== 0.0) {
-                return (float) $parts[0] / (float) $parts[1];
+        try {
+            $jpeg = new PelJpeg($filePath);
+            $exif = $jpeg->getExif();
+            if (!$exif) return null;
+            $tiff = $exif->getTiff();
+            if (!$tiff) return null;
+            $ifd0 = $tiff->getIfd();
+            if (!$ifd0) return null;
+            $gps = $ifd0->getSubIfd(PelTag::GPS_INFO_IFD);
+            if (!$gps) return null;
+
+            $latEntry = $gps->getEntry(PelTag::GPS_LATITUDE);
+            $lngEntry = $gps->getEntry(PelTag::GPS_LONGITUDE);
+            if (!$latEntry || !$lngEntry) return null;
+
+            $latValues = $latEntry->getValue();
+            $lngValues = $lngEntry->getValue();
+
+            $latRefEntry = $gps->getEntry(PelTag::GPS_LATITUDE_REF);
+            $lngRefEntry = $gps->getEntry(PelTag::GPS_LONGITUDE_REF);
+            $latRef = $latRefEntry ? trim($latRefEntry->getValue()) : 'N';
+            $lngRef = $lngRefEntry ? trim($lngRefEntry->getValue()) : 'E';
+
+            $lat = $this->dmsToDecimal($latValues, $latRef);
+            $lng = $this->dmsToDecimal($lngValues, $lngRef);
+
+            if ($lat === null || $lng === null) return null;
+            if (!$this->inIndonesiaBounds($lat, $lng)) return null;
+
+            return ['lat' => $lat, 'lng' => $lng];
+        } catch (\Throwable $e) {
+            Log::warning('[extractExifGps] PEL gagal', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    private function dmsToDecimal(array $values, string $ref): ?float
+    {
+        if (count($values) < 3) return null;
+        $decimal = ((float) $values[0]) + ((float) $values[1]) / 60 + ((float) $values[2]) / 3600;
+        if (in_array(strtoupper($ref), ['S', 'W'])) $decimal = -$decimal;
+        return round($decimal, 8);
+    }
+
+    /**
+     * Normalize GPS value from various PHP exif_read_data formats to decimal degrees.
+     *
+     * PHP 8 can return GPS data in multiple formats:
+     * - ["7/1", "26/1", "35660400/1000000"]  — string rationals (PHP 7)
+     * - [[7, 1], [26, 1], [35660400, 1000000]] — raw rational pairs (PHP 8)
+     * - [7, 26, 35.6604] — already decimal
+     * - "7/1,26/1,35660400/1000000" — single comma-separated string
+     */
+    private function normalizeAndConvertGps(mixed $gpsValue, string $ref): ?float
+    {
+        $degrees = null;
+        $minutes = null;
+        $seconds = null;
+
+        if (is_string($gpsValue)) {
+            $parts = array_map('trim', explode(',', $gpsValue));
+            if (count($parts) >= 3) {
+                $degrees = $this->parseRational($parts[0]);
+                $minutes = $this->parseRational($parts[1]);
+                $seconds = $this->parseRational($parts[2]);
             }
-            return (float) $parts[0];
-        };
+        } elseif (is_array($gpsValue) && count($gpsValue) >= 3) {
+            // Check first element type
+            if (is_array($gpsValue[0])) {
+                // Raw rational pairs: [[7,1], [26,1], [35660400,1000000]]
+                $degrees = $this->rationalPairToFloat($gpsValue[0]);
+                $minutes = $this->rationalPairToFloat($gpsValue[1]);
+                $seconds = $this->rationalPairToFloat($gpsValue[2]);
+            } elseif (is_numeric($gpsValue[0])) {
+                // Already numeric: [7, 26, 35.6604]
+                $degrees = (float) $gpsValue[0];
+                $minutes = (float) ($gpsValue[1] ?? 0);
+                $seconds = (float) ($gpsValue[2] ?? 0);
+            } else {
+                // String rationals: ["7/1", "26/1", "35660400/1000000"]
+                $degrees = $this->parseRational((string) $gpsValue[0]);
+                $minutes = $this->parseRational((string) $gpsValue[1]);
+                $seconds = $this->parseRational((string) $gpsValue[2]);
+            }
+        }
 
-        $degrees = $parseRational((string) $dms[0]);
-        $minutes = $parseRational((string) $dms[1]);
-        $seconds = $parseRational((string) $dms[2]);
+        if ($degrees === null || $minutes === null || $seconds === null) return null;
 
         $decimal = $degrees + ($minutes / 60) + ($seconds / 3600);
-
         if (in_array(strtoupper($ref), ['S', 'W'])) {
             $decimal = -$decimal;
         }
-
         return round($decimal, 8);
+    }
+
+    private function parseRational(string $rational): float
+    {
+        $parts = explode('/', $rational);
+        if (count($parts) === 2 && (float) $parts[1] !== 0.0) {
+            return (float) $parts[0] / (float) $parts[1];
+        }
+        return (float) $parts[0];
+    }
+
+    private function rationalPairToFloat(array $pair): float
+    {
+        if (count($pair) < 2) return (float) ($pair[0] ?? 0);
+        return ((float) $pair[0]) / ((float) $pair[1]);
+    }
+
+    private function inIndonesiaBounds(float $lat, float $lng): bool
+    {
+        return $lat >= -11 && $lat <= 6 && $lng >= 95 && $lng <= 141;
     }
 
     /**

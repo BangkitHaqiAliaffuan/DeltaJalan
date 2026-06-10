@@ -3,19 +3,12 @@ import { useState, useEffect } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { listDrafts, deleteDraft, type OfflineDraft } from "@/lib/offlineDrafts";
+import { formatDate } from "@/lib/format";
 
 export const Route = createFileRoute("/drafts")({
   component: DraftsPage,
   head: () => ({ meta: [{ title: "Draf Offline — DeltaJalan" }] }),
 });
-
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("id-ID", {
-    day: "numeric", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
-}
 
 function DraftsPage() {
   const navigate = useNavigate();
@@ -41,7 +34,7 @@ function DraftsPage() {
 
   return (
     <PageLayout title="Draf Offline" back="/home">
-      <div className="px-4 py-4 max-w-2xl mx-auto">
+      <div className="flex-1 px-4 py-4 max-w-2xl mx-auto">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -69,7 +62,7 @@ function DraftsPage() {
                   <div className="flex gap-3">
                     <div className="w-16 h-16 shrink-0 rounded-lg overflow-hidden bg-gray-100">
                       {draft.photos[0]?.thumbnail ? (
-                        <img src={draft.photos[0].thumbnail} alt="" className="w-full h-full object-cover" />
+                        <img src={draft.photos[0].thumbnail} alt="" loading="lazy" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
                           <Icon name="photo" className="text-gray-300 !text-[20px]" />
@@ -92,7 +85,7 @@ function DraftsPage() {
                         </span>
                       </div>
                       <div className="flex items-center gap-2 mt-1.5 text-[10px] text-on-surface-variant">
-                        <span>{formatDate(draft.updatedAt)}</span>
+                        <span>{formatDate(draft.updatedAt, { withTime: true, short: true })}</span>
                         {!draft.latitude && (
                           <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded text-[9px] font-medium">
                             Tanpa GPS

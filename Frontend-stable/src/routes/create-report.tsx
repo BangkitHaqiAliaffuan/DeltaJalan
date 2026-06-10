@@ -24,7 +24,8 @@ type SubmitState = "idle" | "loading" | "success" | "error";
 
 function CreateReportPage() {
   const navigate = useNavigate();
-  const user = getCurrentUser();
+  const [reporterName, setReporterName] = useState("Agus Setiawan");
+  useEffect(() => { setReporterName(getCurrentUser()?.name ?? "Petugas"); }, []);
 
   // Ambil data hasil AI dan form dari in-memory store (diisi di halaman upload)
   const aiResult = getAiResult();
@@ -163,7 +164,7 @@ function CreateReportPage() {
   return (
     <PageLayout title="Buat Laporan Resmi" back="/ai-result">
 
-        <main className="flex-1 overflow-y-auto min-h-0 px-4 pt-md pb-[140px] w-full">
+        <main className="px-4 pt-md pb-[140px] w-full">
           <div
             style={{ maxWidth: "42rem", marginLeft: "auto", marginRight: "auto" }}
             className="flex flex-col gap-4"
@@ -412,7 +413,7 @@ function CreateReportPage() {
                     />
                     <input
                       readOnly
-                      value={user?.name ?? "Agus Setiawan"}
+                      value={reporterName}
                       className="w-full pl-10 pr-4 py-3 border border-border-subtle rounded-xl font-body-md text-body-md bg-surface-container text-on-surface-variant cursor-not-allowed"
                     />
                   </div>

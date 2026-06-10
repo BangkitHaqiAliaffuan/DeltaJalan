@@ -1,12 +1,19 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Icon } from "@/components/jk/Icon";
+import { getSeverityLabel, statusBadgeStyle } from "@/lib/format";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { TrustBadge } from "@/components/jk/TrustBadge";
 import { API_BASE_URL } from "@/lib/aiStore";
+import { authFetch } from "@/hooks/useReportQueries";
 import { SupervisorMapView } from "@/components/jk/SupervisorMapView";
 import { getCurrentUser, getToken } from "@/lib/auth";
-import type { Laporan, TrustLabel } from "@/types/laporan";
+import { DeadlineBadge } from "@/components/jk/DeadlineBadge";
+import { DeadlineStatsCards } from "@/components/jk/DeadlineStatsCards";
+import { hitungStatusDeadline } from "@/lib/deadline";
+import { useStats, useUprs, useAllReports, useUprStats, useRingkasanDeadline } from "@/hooks/useReportQueries";
+import type { Laporan, TrustLabel, RingkasanDeadlineResponse } from "@/types/laporan";
 
 export const Route = createFileRoute("/supervisor")({
   component: SupervisorPage,
@@ -14,6 +21,7 @@ export const Route = createFileRoute("/supervisor")({
 });
 
 interface SupervisorStats {
+  total: number;
   menunggu_review: number;
   disetujui: number;
   ditolak: number;
@@ -24,37 +32,27 @@ interface SupervisorStats {
   trust_merah: number;
 }
 
-interface UprStat {
-  upr_id: number;
-  upr_name: string;
-  wilayah: string;
-  total: number;
-  sedang_diperbaiki: number;
-  selesai: number;
-  total_panjang_m: number;
-  total_luas_m2: number;
-}
-
 function SupervisorPage() {
   const user = getCurrentUser();
   const token = getToken() ?? "";
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [isClient, setIsClient] = useState(false);
+  useEffect(() => { setIsClient(true); }, []);
 
-  const [laporan, setLaporan] = useState<Laporan[]>([]);
-  const [allLaporan, setAllLaporan] = useState<Laporan[]>([]);
-  const [stats, setStats] = useState<SupervisorStats | null>(null);
-  const [uprStats, setUprStats] = useState<UprStat[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<
-    "menunggu" | "disetujui" | "ditolak" | "sedang_diperbaiki" | "semua"
-  >("menunggu");
+  const { data: stats, isFetching: statsFetching } = useStats(token);
+  const { data: allLaporan } = useAllReports(token);
+  const { data: uprStats = [], isFetching: uprFetching } = useUprStats(token);
+  const { data: ringkasanDeadline } = useRingkasanDeadline(token);
+  const { data: uprList = [] } = useUprs(token);
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
-  const [filterUpr, setFilterUpr] = useState("");
-  const [filterSeverity, setFilterSeverity] = useState("");
-  const [uprList, setUprList] = useState<{ id: number; name: string; wilayah: string }[]>([]);
-  const [showUprStats, setShowUprStats] = useState(false);
+  function refetchAll() {
+    queryClient.invalidateQueries({ queryKey: ["stats"] });
+    queryClient.invalidateQueries({ queryKey: ["reports"] });
+    queryClient.invalidateQueries({ queryKey: ["upr-stats"] });
+    queryClient.invalidateQueries({ queryKey: ["ringkasan-deadline"] });
+    queryClient.invalidateQueries({ queryKey: ["uprs"] });
+  }
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
@@ -75,97 +73,33 @@ function SupervisorPage() {
   const [actionMsgType, setActionMsgType] = useState<"success" | "error">("success");
 
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
+  const [showUprStats, setShowUprStats] = useState(false);
 
-  const now = new Date();
-  const [exportMonth, setExportMonth] = useState(now.getMonth() + 1);
-  const [exportYear, setExportYear] = useState(now.getFullYear());
+  const [activeTab, setActiveTab] = useState<
+    "menunggu" | "disetujui" | "ditolak" | "sedang_diperbaiki" | "semua"
+  >("menunggu");
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterUpr, setFilterUpr] = useState("");
+  const [filterSeverity, setFilterSeverity] = useState("");
+  const [filterSla, setFilterSla] = useState("");
+
+  const [exportMonth, setExportMonth] = useState(1);
+  const [exportYear, setExportYear] = useState(2026);
+  useEffect(() => {
+    const n = new Date();
+    setExportMonth(n.getMonth() + 1);
+    setExportYear(n.getFullYear());
+  }, []);
 
   useEffect(() => {
     if (user?.role !== "supervisor") {
       navigate({ to: "/" });
-      return;
     }
-    loadUprs();
-    loadAllData();
+  }, [user, navigate]);
 
-    const INTERVAL_MS = 30000;
-
-    function handleVisibility() {
-      if (document.visibilityState === "visible") {
-        refreshData();
-      }
-    }
-    function handleFocus() {
-      refreshData();
-    }
-
-    const intervalId = setInterval(refreshData, INTERVAL_MS);
-    document.addEventListener("visibilitychange", handleVisibility);
-    window.addEventListener("focus", handleFocus);
-
-    return () => {
-      clearInterval(intervalId);
-      document.removeEventListener("visibilitychange", handleVisibility);
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, []);
-
-  async function refreshData() {
-    try {
-      await Promise.all([loadStats(), loadAllLaporan(), loadUprStats()]);
-    } catch {}
-  }
-
-  async function loadUprs() {
-    try {
-      const res = await fetch(`${API_BASE_URL}/uprs`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) setUprList((await res.json()).data ?? []);
-    } catch {}
-  }
-
-  async function loadAllData() {
-    setIsLoading(true);
-    try {
-      await refreshData();
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function loadAllLaporan() {
-    const res = await fetch(`${API_BASE_URL}/reports?limit=100`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      const j = await res.json();
-      setAllLaporan(j.data ?? []);
-    }
-  }
-
-  async function loadStats() {
-    const res = await fetch(`${API_BASE_URL}/reports/stats`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      const j = await res.json();
-      setStats(j.data ?? null);
-    }
-  }
-
-  async function loadUprStats() {
-    const res = await fetch(`${API_BASE_URL}/reports/stats-by-upr`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      const j = await res.json();
-      setUprStats(j.data ?? []);
-    }
-  }
-
-  function loadLaporanWithParams() {
-    setIsLoading(true);
+  const laporanParams = useMemo(() => {
     const p = new URLSearchParams();
     if (activeTab === "menunggu") p.set("status", "menunggu_review");
     else if (activeTab === "disetujui") p.set("status", "disetujui");
@@ -175,25 +109,16 @@ function SupervisorPage() {
     if (filterStatus) p.set("status", filterStatus);
     if (filterUpr) p.set("upr_id", filterUpr);
     if (filterSeverity) p.set("severity", filterSeverity);
+    if (filterSla) p.set("status_deadline", filterSla);
+    return p.toString();
+  }, [activeTab, searchQuery, filterStatus, filterUpr, filterSeverity, filterSla]);
 
-    fetch(`${API_BASE_URL}/reports?${p}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => (r.ok ? r.json() : { data: [] }))
-      .then((j) => {
-        setLaporan(j.data ?? []);
-        setIsLoading(false);
-      })
-      .catch(() => setIsLoading(false));
-  }
-
-  useEffect(() => {
-    loadLaporanWithParams();
-  }, [activeTab]);
-  useEffect(() => {
-    if (!searchQuery && !filterStatus && !filterUpr && !filterSeverity) return;
-    loadLaporanWithParams();
-  }, [searchQuery, filterStatus, filterUpr, filterSeverity]);
+  const { data: laporan = [], isFetching } = useQuery({
+    queryKey: ["reports", "filtered", laporanParams],
+    queryFn: () => authFetch<Laporan[]>(`${API_BASE_URL}/reports?${laporanParams}`, token),
+    enabled: !!token,
+    staleTime: 15_000,
+  });
 
   function showMsg(msg: string, type: "success" | "error" = "success") {
     setActionMsg(msg);
@@ -211,7 +136,7 @@ function SupervisorPage() {
       const json = await res.json();
       if (res.ok) {
         showMsg(json.message);
-        await loadAllData();
+        refetchAll();
       } else {
         showMsg(json.message ?? "Gagal.", "error");
       }
@@ -237,7 +162,7 @@ function SupervisorPage() {
         setTolakTarget(null);
         setTolakAlasan("");
         setTolakCatatan("");
-        await loadAllData();
+        refetchAll();
       } else {
         showMsg(json.message ?? "Gagal.", "error");
       }
@@ -265,7 +190,7 @@ function SupervisorPage() {
         setMulaiTarget(null);
         setMulaiUprId("");
         setMulaiCatatan("");
-        await loadAllData();
+        refetchAll();
       } else {
         showMsg(json.message ?? "Gagal.", "error");
       }
@@ -289,7 +214,7 @@ function SupervisorPage() {
       if (res.ok) {
         showMsg(json.message);
         setSelectedIds(new Set());
-        await loadAllData();
+        refetchAll();
       } else {
         showMsg(json.message ?? "Gagal.", "error");
       }
@@ -315,7 +240,7 @@ function SupervisorPage() {
         setSelectedIds(new Set());
         setBulkTolakOpen(false);
         setBulkTolakAlasan("");
-        await loadAllData();
+        refetchAll();
       } else {
         showMsg(json.message ?? "Gagal.", "error");
       }
@@ -372,36 +297,12 @@ function SupervisorPage() {
     }
   }
 
-  function getSeverityColor(severity: string | undefined | null) {
-    const map: Record<string, { bar: string; chip: string }> = {
-      "Rusak Berat": { bar: "bg-rusak-berat", chip: "text-rusak-berat bg-rusak-berat/10" },
-      "Rusak Sedang": { bar: "bg-rusak-sedang", chip: "text-rusak-sedang bg-rusak-sedang/10" },
-      "Rusak Ringan": { bar: "bg-rusak-ringan", chip: "text-rusak-ringan bg-rusak-ringan/10" },
-      berat: { bar: "bg-rusak-berat", chip: "text-rusak-berat bg-rusak-berat/10" },
-      sedang: { bar: "bg-rusak-sedang", chip: "text-rusak-sedang bg-rusak-sedang/10" },
-      ringan: { bar: "bg-rusak-ringan", chip: "text-rusak-ringan bg-rusak-ringan/10" },
-    };
-    return map[severity ?? ""] ?? { bar: "bg-gray-300", chip: "text-gray-600 bg-gray-100" };
-  }
-
   function displayStatus(status: string) {
     return status === "Ditinjau" ? "Menunggu Review" : status;
   }
 
-  function statusBadge(status: string) {
-    const map: Record<string, string> = {
-      "Menunggu Review": "bg-amber-50 text-amber-700 border border-amber-200",
-      Ditinjau: "bg-amber-50 text-amber-700 border border-amber-200",
-      Disetujui: "bg-green-50 text-green-700 border border-green-200",
-      Ditolak: "bg-red-50 text-red-700 border border-red-200",
-      "Sedang Diperbaiki": "bg-blue-50 text-blue-700 border border-blue-200",
-      Selesai: "bg-gray-50 text-gray-700 border border-gray-200",
-    };
-    return map[status] ?? "bg-gray-50 text-gray-600 border border-gray-200";
-  }
-
   const filteredReports = useMemo(() => {
-    let list = allLaporan;
+    let list = allLaporan ?? [];
     if (activeTab === "menunggu")
       list = list.filter((r) => r.status === "Menunggu Review" || r.status === "Ditinjau");
     else if (activeTab === "disetujui") list = list.filter((r) => r.status === "Disetujui");
@@ -430,7 +331,7 @@ function SupervisorPage() {
   return (
     <PageLayout showBrand withBottomNav>
 
-        <main className="flex-1 overflow-y-auto min-h-0 pb-4">
+        <main className="pb-4">
           <section className="px-4 pt-6 pb-8 bg-[#E8F0FA] rounded-b-lg border-b border-[#D0DAE8] mb-6">
             <div className="flex flex-col gap-1">
               <h2 className="font-headline-lg-mobile text-headline-lg-mobile font-bold text-primary">
@@ -444,42 +345,71 @@ function SupervisorPage() {
             </div>
           </section>
         <section className="px-4 mb-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-            {[
-              { label: "Menunggu Review", value: stats?.menunggu_review, icon: "rate_review", color: "blue" },
-              { label: "Disetujui", value: stats?.disetujui, icon: "check_circle", color: "green" },
-              { label: "Ditolak", value: stats?.ditolak, icon: "cancel", color: "red" },
-              { label: "Diperbaiki", value: stats?.sedang_diperbaiki, icon: "construction", color: "orange" },
-            ].map(({ label, value, icon, color }) => (
-              <div
-                key={label}
-                className="bg-white border border-[#D0DAE8] p-4 rounded-lg"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <Icon name={icon} className={`text-${color}-600`} />
+          {statsFetching && !stats ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4" aria-busy="true" aria-label="Memuat statistik">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="bg-white border border-[#D0DAE8] p-4 rounded-lg animate-pulse">
+                  <div className="w-6 h-6 bg-[#D0DAE8] rounded mb-2" />
+                  <div className="w-12 h-7 bg-[#D0DAE8] rounded mb-1" />
+                  <div className="w-24 h-4 bg-[#E8F0FA] rounded" />
                 </div>
-                <p className="font-headline-md text-headline-md font-bold text-primary mb-1">
-                  {isLoading ? "—" : (value ?? 0)}
-                </p>
-                <p className="font-label-md text-label-md text-[#476788]">{label}</p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              {[
+                { label: "Menunggu Review", value: stats?.menunggu_review, icon: "rate_review", color: "blue" },
+                { label: "Disetujui", value: stats?.disetujui, icon: "check_circle", color: "green" },
+                { label: "Ditolak", value: stats?.ditolak, icon: "cancel", color: "red" },
+                { label: "Diperbaiki", value: stats?.sedang_diperbaiki, icon: "construction", color: "orange" },
+              ].map(({ label, value, icon, color }) => (
+                <div
+                  key={label}
+                  className="bg-white border border-[#D0DAE8] p-4 rounded-lg"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <Icon name={icon} className={`text-${color}-600`} />
+                  </div>
+                  <p className="font-headline-md text-headline-md font-bold text-primary mb-1">
+                    {value ?? 0}
+                  </p>
+                  <p className="font-label-md text-label-md text-[#476788]">{label}</p>
+                </div>
+              ))}
+            </div>
+          )}
 
-          <div className="flex gap-2 mb-4">
-            {[
-              { label: "Kredibel", value: stats?.trust_hijau, dot: "bg-green-500" },
-              { label: "Perlu Review", value: stats?.trust_kuning, dot: "bg-yellow-500" },
-              { label: "Diragukan", value: stats?.trust_merah, dot: "bg-red-500" },
-            ].map(({ label, value, dot }) => (
-              <span
-                key={label}
-                className="flex items-center gap-1 px-2 py-1 rounded-full bg-[#EEF3FA] text-[#476788] text-label-sm"
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
-                {label}: {value ?? 0}
-              </span>
-            ))}
+          {statsFetching && !stats ? (
+            <div className="flex gap-2 mb-4" aria-busy="true" aria-label="Memuat trust badges">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="w-28 h-6 bg-[#EEF3FA] rounded-full animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <div className="flex gap-2 mb-4">
+              {[
+                { label: "Kredibel", value: stats?.trust_hijau, dot: "bg-green-500" },
+                { label: "Perlu Review", value: stats?.trust_kuning, dot: "bg-yellow-500" },
+                { label: "Diragukan", value: stats?.trust_merah, dot: "bg-red-500" },
+              ].map(({ label, value, dot }) => (
+                <span
+                  key={label}
+                  className="flex items-center gap-1 px-2 py-1 rounded-full bg-[#EEF3FA] text-[#476788] text-label-sm"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+                  {label}: {value ?? 0}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Deadline Stats Cards */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Icon name="timer" className="!text-lg text-[#476788]" />
+              <span className="font-label-sm text-label-sm text-[#476788] font-semibold">Status Deadline</span>
+            </div>
+            <DeadlineStatsCards data={ringkasanDeadline ?? undefined} isLoading={isFetching} />
           </div>
 
           {/* Export PDF */}
@@ -543,51 +473,69 @@ function SupervisorPage() {
 
           {showUprStats && (
             <div className="flex flex-col gap-2 mb-4">
-              {uprStats.length === 0 && (
-                <p className="text-xs text-[#476788] px-1">Memuat...</p>
-              )}
-              {uprStats.map((u) => (
-                <div
-                  key={u.upr_id}
-                  className="bg-white border border-[#D0DAE8] rounded-lg p-3"
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-semibold text-sm text-[#0F1623]">{u.upr_name}</span>
-                    <span className="text-xs text-[#476788]">{u.total} laporan</span>
-                  </div>
-                  <div className="text-xs text-[#476788] space-y-0.5 mb-2">
-                    <span>
-                      {u.selesai} selesai · {u.sedang_diperbaiki} dikerjakan
-                    </span>
-                    {u.total_panjang_m > 0 && (
-                      <div className="text-[11px]">
-                        Total: {u.total_panjang_m} m ({u.total_luas_m2} m²)
+              {uprFetching && uprStats.length === 0 ? (
+                <div className="flex flex-col gap-2" aria-busy="true" aria-label="Memuat statistik UPR">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="bg-white border border-[#D0DAE8] rounded-lg p-3 animate-pulse">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="w-36 h-4 bg-[#D0DAE8] rounded" />
+                        <div className="w-16 h-3 bg-[#E8F0FA] rounded" />
                       </div>
-                    )}
-                  </div>
-                  <div className="flex gap-0.5">
-                    {Array.from({ length: Math.max(1, Math.min(Math.ceil(u.total / 5), 20)) }).map(
-                      (_, i) => {
-                        const selesai =
-                          u.selesai > 0 && i < Math.round((u.selesai / Math.max(1, u.total)) * 20);
-                        const dikerjakan =
-                          !selesai &&
-                          u.sedang_diperbaiki > 0 &&
-                          i <
-                            Math.round(
-                              ((u.selesai + u.sedang_diperbaiki) / Math.max(1, u.total)) * 20,
-                            );
-                        return (
-                          <div
-                            key={i}
-                            className={`h-1.5 flex-1 rounded-full ${selesai ? "bg-green-400" : dikerjakan ? "bg-blue-400" : "bg-gray-200"}`}
-                          />
-                        );
-                      },
-                    )}
-                  </div>
+                      <div className="w-44 h-3 bg-[#E8F0FA] rounded mb-2" />
+                      <div className="flex gap-0.5">
+                        {Array.from({ length: 10 }).map((_, j) => (
+                          <div key={j} className="h-1.5 flex-1 rounded-full bg-[#E8F0FA]" />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              ) : uprStats.length === 0 ? (
+                <p className="text-xs text-[#476788] px-1">Belum ada data UPR</p>
+              ) : (
+                uprStats.map((u) => (
+                  <div
+                    key={u.upr_id}
+                    className="bg-white border border-[#D0DAE8] rounded-lg p-3"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-semibold text-sm text-[#0F1623]">{u.upr_name}</span>
+                      <span className="text-xs text-[#476788]">{u.total} laporan</span>
+                    </div>
+                    <div className="text-xs text-[#476788] space-y-0.5 mb-2">
+                      <span>
+                        {u.selesai} selesai · {u.sedang_diperbaiki} dikerjakan
+                      </span>
+                      {u.total_panjang_m > 0 && (
+                        <div className="text-[11px]">
+                          Total: {u.total_panjang_m} m ({u.total_luas_m2} m²)
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-0.5">
+                      {Array.from({ length: Math.max(1, Math.min(Math.ceil(u.total / 5), 20)) }).map(
+                        (_, i) => {
+                          const selesai =
+                            u.selesai > 0 && i < Math.round((u.selesai / Math.max(1, u.total)) * 20);
+                          const dikerjakan =
+                            !selesai &&
+                            u.sedang_diperbaiki > 0 &&
+                            i <
+                              Math.round(
+                                ((u.selesai + u.sedang_diperbaiki) / Math.max(1, u.total)) * 20,
+                              );
+                          return (
+                            <div
+                              key={i}
+                              className={`h-1.5 flex-1 rounded-full ${selesai ? "bg-green-400" : dikerjakan ? "bg-blue-400" : "bg-gray-200"}`}
+                            />
+                          );
+                        },
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           )}
         </section>
@@ -676,6 +624,15 @@ function SupervisorPage() {
                 </option>
               ))}
             </select>
+            <select
+              value={filterSla}
+              onChange={(e) => setFilterSla(e.target.value)}
+              className="text-xs px-2 py-1.5 border border-[#D0DAE8] rounded-lg bg-white outline-none text-[#0F1623]"
+            >
+              <option value="">Semua Deadline</option>
+              <option value="tepat_waktu">Tepat Waktu</option>
+              <option value="terlambat">Terlewat Deadline</option>
+            </select>
           </div>
         </section>
 
@@ -712,9 +669,31 @@ function SupervisorPage() {
 
           {viewMode === "map" ? (
             <SupervisorMapView reports={filteredReports} />
-          ) : isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <span className="w-8 h-8 border-4 border-primary-container/30 border-t-primary-container rounded-full animate-spin" />
+          ) : isFetching ? (
+            <div className="flex flex-col gap-3" aria-busy="true" aria-label="Memuat laporan">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="bg-white rounded-lg border border-[#D0DAE8] overflow-hidden animate-pulse"
+                >
+                  <div className="flex">
+                    <div className="w-36 shrink-0 bg-[#E8F0FA]" />
+                    <div className="w-1.5 bg-[#D0DAE8]" />
+                    <div className="p-4 flex-1 space-y-3">
+                      <div className="flex justify-between">
+                        <div className="w-24 h-5 bg-[#D0DAE8] rounded" />
+                        <div className="w-20 h-5 bg-[#E8F0FA] rounded" />
+                      </div>
+                      <div className="w-3/4 h-6 bg-[#D0DAE8] rounded" />
+                      <div className="flex gap-4">
+                        <div className="w-28 h-4 bg-[#E8F0FA] rounded" />
+                        <div className="w-24 h-4 bg-[#E8F0FA] rounded" />
+                        <div className="w-20 h-4 bg-[#E8F0FA] rounded" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : filteredReports.length === 0 ? (
             <div className="text-center py-12 text-[#476788]">
@@ -745,7 +724,7 @@ function SupervisorPage() {
                   </label>
                 )}
               {filteredReports.map((row) => {
-                const sc = getSeverityColor(row.overall_severity ?? row.ai_severity);
+                const sc = getSeverityLabel(row.overall_severity ?? row.ai_severity);
                 const isSelected = selectedIds.has(row.id);
                 return (
                   <div
@@ -761,6 +740,7 @@ function SupervisorPage() {
                         <img
                           src={row.first_photo_url}
                           alt={row.road_name}
+                          loading="lazy"
                           className="w-full h-full object-cover"
                         />
                       ) : row.batch_id && (row.photos_count ?? 0) > 0 ? (
@@ -781,9 +761,10 @@ function SupervisorPage() {
                         </div>
                       )}
                     </div>
-                    <div className={`w-1.5 ${sc.bar}`} />
+                    <div className={`w-1.5 `} />
                     <div className="p-4 flex-1">
-                      <div className="flex justify-between items-start mb-2 flex-wrap gap-2">
+                      {/* Row 1: Report code + checkbox + batch (left), Status badge (right) */}
+                      <div className="flex justify-between items-center mb-1.5 flex-wrap gap-2">
                         <div className="flex items-center gap-2">
                           {activeTab === "menunggu" &&
                             (row.status === "Menunggu Review" || row.status === "Ditinjau") && (
@@ -803,42 +784,56 @@ function SupervisorPage() {
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span
-                            className={`px-2 py-0.5 rounded text-label-sm font-bold ${statusBadge(row.status)}`}
-                          >
-                            {displayStatus(row.status)}
-                          </span>
-                          {(row.overall_severity !== "Baik" || (row.ai_severity && row.ai_severity !== "baik")) && (
-                              <span
-                                className={`${sc.chip} text-label-sm font-bold px-2 py-0.5 rounded`}
-                              >
-                                {row.overall_severity ?? row.ai_severity}
-                              </span>
-                            )}
+                        <span
+                          className={`px-2 py-0.5 rounded text-label-sm font-bold ${statusBadgeStyle(row.status)}`}
+                        >
+                          {displayStatus(row.status)}
+                        </span>
+                      </div>
+                      <h4 className="text-xl font-bold text-[#0F1623] mb-2 leading-snug">
+                        {row.road_name}
+                      </h4>
+                      {/* Badge columns — each label+badge stacked vertically */}
+                      <div className="flex flex-wrap items-start gap-x-6 gap-y-2 mb-3">
+                        {(row.overall_severity !== "Baik" || (row.ai_severity && row.ai_severity !== "baik")) && (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs font-semibold text-[#476788]">Tingkat Kerusakan:</span>
+                            <span
+                              className={`inline-flex items-center gap-1 text-xs font-medium ${sc.chip} px-2 py-0.5 rounded self-start`}
+                            >
+                              <Icon name="warning" className="!text-[14px]" />
+                              {row.overall_severity ?? row.ai_severity}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs font-semibold text-[#476788]">Tingkat Kepercayaan:</span>
                           <TrustBadge
                             score={row.trust_score ?? 0}
                             label={(row.trust_label as TrustLabel) ?? "merah"}
+                            compact
                           />
                         </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs font-semibold text-[#476788]">Status Deadline:</span>
+                          <DeadlineBadge {...hitungStatusDeadline(row, isClient)} />
+                        </div>
                       </div>
-                      <h4 className="font-label-md text-label-md font-bold text-[#0F1623] mb-1">
-                        {row.road_name}
-                      </h4>
-                      <div className="text-[#476788] text-label-sm space-y-0.5 mb-2">
+                      
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[#476788] text-label-sm mb-3">
                         <div className="flex items-center gap-1">
                           <Icon name="location_on" className="!text-[14px]" />
                           <span>{row.district}</span>
                           {row.assigned_upr_name && (
                             <>
-                              <span className="mx-1">·</span>
+                              <span className="mx-0.5">·</span>
                               <span>{row.assigned_upr_name}</span>
                             </>
                           )}
                         </div>
                         <div className="flex items-center gap-1">
                           <Icon name="person" className="!text-[14px]" />
-                          <span>Pelapor: {row.reporter_name}</span>
+                          <span>{row.reporter_name}</span>
                         </div>
                         <div className="flex items-center gap-1">
                           <Icon name="calendar_month" className="!text-[14px]" />
@@ -865,9 +860,9 @@ function SupervisorPage() {
                           </div>
                         )}
                         {(row as any).catatan_petugas && (
-                          <div className="flex items-start gap-1">
-                            <Icon name="edit_note" className="!text-[14px] mt-0.5 shrink-0" />
-                            <span className="text-xs text-[#476788] line-clamp-2">
+                          <div className="flex items-center gap-1">
+                            <Icon name="edit_note" className="!text-[14px] shrink-0" />
+                            <span className="text-xs text-[#476788] truncate max-w-[160px]">
                               {(row as any).catatan_petugas}
                             </span>
                           </div>

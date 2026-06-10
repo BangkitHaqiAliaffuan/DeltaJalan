@@ -11,61 +11,58 @@ export function NotificationBell() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
-  const [prevUnread, setPrevUnread] = useState(0);
+  const prevUnreadRef = useRef(0);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+  useEffect(() => { setIsClient(true); }, []);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const refreshUnread = useCallback(() => {
     if (!getToken()) return;
     fetchUnreadCount().then((count) => {
-      if (count > prevUnread && prevUnread > 0) {
+      const prev = prevUnreadRef.current;
+      if (count > prev && prev > 0) {
         playNotificationSound();
         toast("Notifikasi baru", {
-          description: `${count - prevUnread} notifikasi baru`,
+          description: `${count - prev} notifikasi baru`,
           action: { label: "Lihat", onClick: () => setOpen(true) },
         });
       }
-      setPrevUnread(count);
+      prevUnreadRef.current = count;
       setUnread(count);
     });
-  }, [prevUnread]);
+  }, []);
 
   useEffect(() => {
     if (!getToken()) return;
     fetchUnreadCount().then((count) => {
       setUnread(count);
-      setPrevUnread(count);
+      prevUnreadRef.current = count;
     });
-    const interval = setInterval(refreshUnread, 15_000);
+    const interval = setInterval(refreshUnread, 60_000);
     return () => clearInterval(interval);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [refreshUnread]);
 
   useEffect(() => {
     if (!getToken()) return;
-    function onVisible() {
+    function refresh() {
       if (document.visibilityState === "visible") {
         fetchUnreadCount().then((count) => {
+          prevUnreadRef.current = count;
           setUnread(count);
-          setPrevUnread(count);
         });
       }
     }
-    function onFocus() {
-      fetchUnreadCount().then((count) => {
-        setUnread(count);
-        setPrevUnread(count);
-      });
-    }
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("focus", refresh);
     return () => {
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", refresh);
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -124,7 +121,8 @@ export function NotificationBell() {
     setLoading(false);
   }
 
-  function timeAgo(dateStr: string): string {
+  function timeAgo(dateStr: string, client: boolean): string {
+    if (!client) return "";
     const diff = Date.now() - new Date(dateStr).getTime();
     const mins = Math.floor(diff / 60_000);
     if (mins < 1) return "baru saja";
@@ -199,7 +197,7 @@ export function NotificationBell() {
                           {item.data.message}
                         </p>
                         <p className="text-[10px] text-on-surface-variant mt-1">
-                          {timeAgo(item.created_at)}
+                          {timeAgo(item.created_at, isClient)}
                         </p>
                       </div>
                     </div>
