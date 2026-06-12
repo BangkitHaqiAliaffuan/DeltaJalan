@@ -1,7 +1,8 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Icon } from "@/components/jk/Icon";
 import { useState, useEffect } from "react";
 import { saveAuth, isLoggedIn, getCurrentUser } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
 
 export const Route = createFileRoute("/")({
   component: LoginPage,
@@ -18,37 +19,34 @@ export const Route = createFileRoute("/")({
 });
 
 function LoginPage() {
-  const navigate = useNavigate();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
+  const navigate = useNavigate();
   useEffect(() => {
     if (isLoggedIn()) {
       const user = getCurrentUser();
-      navigate({
-        to:
-          user?.role === "admin"
-            ? "/admin/dashboard"
-            : user?.role === "supervisor"
-              ? "/supervisor"
-              : user?.role === "petugas_eksekusi"
-                ? "/petugas-eksekusi"
-                : "/home",
-      });
+      const path =
+        user?.role === "admin"
+          ? "/admin/dashboard"
+          : user?.role === "supervisor"
+            ? "/supervisor"
+            : user?.role === "petugas_eksekusi"
+              ? "/petugas-eksekusi"
+              : "/home";
+      navigate({ to: path });
     }
   }, [navigate]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleLogin() {
+    if (loading) return;
     setError("");
     setLoading(true);
 
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await apiFetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -63,15 +61,15 @@ function LoginPage() {
 
       saveAuth(data.user, data.token);
 
-      if (data.user.role === "admin") {
-        navigate({ to: "/admin/dashboard" });
-      } else if (data.user.role === "supervisor") {
-        navigate({ to: "/supervisor" });
-      } else if (data.user.role === "petugas_eksekusi") {
-        navigate({ to: "/petugas-eksekusi" });
-      } else {
-        navigate({ to: "/home" });
-      }
+      const path =
+        data.user.role === "admin"
+          ? "/admin/dashboard"
+          : data.user.role === "supervisor"
+            ? "/supervisor"
+            : data.user.role === "petugas_eksekusi"
+              ? "/petugas-eksekusi"
+              : "/home";
+      navigate({ to: path });
     } catch {
       setError("Tidak dapat terhubung ke server. Pastikan server berjalan.");
     } finally {
@@ -80,92 +78,129 @@ function LoginPage() {
   }
 
   return (
-    <div className="fixed inset-0 w-full h-full">
-      <div className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: "url('/background.jpg')" }} />
-      <div className="absolute inset-0 bg-gradient-to-b from-[#1e40af]/80 to-[#0f2b6d]/90 backdrop-blur-sm" />
-      <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
-        <div className="w-full max-w-[420px] bg-white/95 backdrop-blur rounded-2xl border border-white/20 overflow-hidden"
-          style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.08)" }}>
-          <div className="relative flex flex-col items-center pt-8 pb-4 px-8 border-b border-[#E2E8F0]">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-1 bg-[#1e40af] rounded-b-full" />
-            <img src="/logo.png" alt="DeltaJalan" className="h-16 mb-3" />
-            <h1 className="font-headline-lg-mobile text-headline-lg-mobile font-bold text-[#0F172A] tracking-tight">
-              DeltaJalan
-            </h1>
-            <p className="font-label-sm text-label-sm text-[#475569] mt-2 text-center leading-relaxed max-w-[280px]">
-              Dinas PU Bina Marga &amp; SDA — Kab. Sidoarjo
-            </p>
+    <div className="flex min-h-screen w-full">
+      {/* Left Panel — background.jpg + blue overlay + branding (desktop only) */}
+      <div className="hidden md:flex w-1/2 relative flex-col items-center justify-center overflow-hidden">
+        <div className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: "url('/background.jpg')" }} />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#1e40af]/85 to-[#00288e]/95" />
+        <div className="relative z-10 flex flex-col items-center text-center px-12">
+          <div className="mb-8 bg-white p-4 rounded-2xl shadow-lg">
+            <img
+              src="/logo.png"
+              alt="DeltaJalan"
+              className="w-28 h-28 md:w-40 md:h-40"
+            />
           </div>
+          <h1 className="font-headline-lg text-headline-lg text-on-primary tracking-tight mb-2">
+            DeltaJalan
+          </h1>
+          <p className="text-on-primary/80 font-label-md text-label-md max-w-sm">
+            Sistem Informasi Jalan Raya — Dinas PU Bina Marga
+          </p>
+          <div className="mt-12 h-1 w-24 bg-on-primary/30 rounded-full" />
+        </div>
+        <div className="absolute bottom-8 left-8 right-8 text-center md:text-left">
+          <p className="text-xs font-medium text-on-primary/60 uppercase tracking-widest">
+            Dinas PU Bina Marga & SDA — Kab. Sidoarjo
+          </p>
+          <p className="text-[10px] text-on-primary/40 mt-1">
+            &copy; 2024 DeltaJalan Infrastructure Suite. All Rights Reserved.
+          </p>
+        </div>
+      </div>
 
-          <div className="px-8 pt-5 pb-5">
-            <div className="mb-4">
-              <h2 className="font-headline-sm text-headline-sm font-bold text-[#0F172A]">
-                Selamat Datang
+      {/* Right Panel — login form */}
+      <div className="w-full md:w-1/2 flex flex-col items-center justify-center bg-surface px-6 py-6 md:py-0 relative overflow-hidden">
+        <div
+          className="w-full max-w-[420px] rounded-xl border border-outline-variant/30 shadow-sm overflow-hidden"
+          style={{ backgroundColor: "var(--color-surface-container-low)" }}
+        >
+          <div className="h-1.5 w-full bg-[#1e40af]" />
+          <div className="p-6 md:p-8">
+            <div className="flex flex-col items-center mb-6">
+              <div className="bg-white p-2 rounded-xl shadow-sm mb-3">
+                <img
+                  src="/logo.png"
+                  alt="DeltaJalan"
+                  className="w-10 h-10"
+                />
+              </div>
+              <h2 className="text-[24px] leading-8 font-headline-md text-on-surface mb-1">
+                Masuk
               </h2>
-              <p className="font-body-sm text-body-sm text-[#475569] mt-1">
-                Silakan masuk dengan kredensial petugas Anda.
+              <p className="text-on-surface-variant font-body-sm text-body-sm">
+                Silakan masuk menggunakan akun Anda
               </p>
             </div>
 
-            {error && (
-              <div className="mb-4 flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-                <Icon name="error" className="text-[#E11D48] !text-[18px] shrink-0 mt-0.5" />
-                <p className="font-body-sm text-body-sm text-[#E11D48] leading-relaxed">{error}</p>
-              </div>
-            )}
+            <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); handleLogin(); }}>
+              {error && (
+                <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                  <Icon name="error" className="text-[#E11D48] !text-[18px] shrink-0 mt-0.5" />
+                  <p className="font-body-sm text-body-sm text-[#E11D48] leading-relaxed">{error}</p>
+                </div>
+              )}
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
+              <div className="space-y-2">
+                <label className="block text-label-md font-semibold text-on-surface" htmlFor="email">
                   Email
                 </label>
-                <div className="relative flex items-center">
-                  <Icon name="mail" className="absolute left-3.5 text-[#757684] !text-[18px]" />
-                  <input
-                    required
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="nama@pu.sidoarjokab.go.id"
-                    autoComplete="email"
-                    className="w-full h-11 pl-10 pr-4 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af] transition-colors"
-                  />
-                </div>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="email@domain.com"
+                  autoComplete="email"
+                  className="w-full h-12 px-4 rounded-lg border border-outline-variant text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary transition-all duration-200"
+                  style={{ backgroundColor: "var(--color-surface-container-high)" }}
+                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                />
               </div>
 
-              <div className="flex flex-col gap-1.5">
-                <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
-                  Kata Sandi
-                </label>
-                <div className="relative flex items-center">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="block text-label-md font-semibold text-on-surface" htmlFor="password">
+                    Kata Sandi
+                  </label>
+                </div>
+                <div className="relative">
                   <input
-                    required
+                    id="password"
                     type={showPw ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Masukkan kata sandi"
+                    placeholder="••••••••"
                     autoComplete="current-password"
-                    className="w-full h-11 pl-4 pr-11 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af] transition-colors"
+                    className="w-full h-12 px-4 pr-11 rounded-lg border border-outline-variant text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary transition-all duration-200"
+                    style={{ backgroundColor: "var(--color-surface-container-high)" }}
+                    onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPw((v) => !v)}
-                    className="absolute right-3.5 text-[#757684] hover:text-[#475569] transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors"
                     aria-label={showPw ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
                   >
                     <Icon
                       name={showPw ? "visibility_off" : "visibility"}
-                      className="!text-[20px]"
+                      className="!text-xl"
                     />
                   </button>
+                </div>
+                <div className="flex justify-end pt-1">
+                  <a className="text-[12px] font-medium text-on-surface-variant hover:text-primary transition-colors" href="#">
+                    Lupa Password?
+                  </a>
                 </div>
               </div>
 
               <button
                 type="submit"
+                onClick={handleLogin}
                 disabled={loading}
-                className="w-full h-11 bg-[#1e40af] text-white rounded-lg font-label-md text-label-md font-semibold flex items-center justify-center gap-2 mt-1 hover:bg-[#173bab] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+                className="w-full h-12 bg-[#1e40af] text-white font-semibold rounded-lg hover:opacity-90 active:scale-[0.98] transition-all duration-200 shadow-md shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
               >
                 {loading ? (
                   <>
@@ -179,14 +214,8 @@ function LoginPage() {
                   </>
                 )}
               </button>
-            </form>
-          </div>
 
-          <div className="px-8 py-3 bg-white border-t border-[#E2E8F0] flex items-center justify-center gap-2">
-            <Icon name="security" className="!text-[14px] text-[#475569]" />
-            <p className="font-label-sm text-label-sm text-[#475569]">
-              Sistem Keamanan Internal Terenkripsi
-            </p>
+            </form>
           </div>
         </div>
       </div>

@@ -10,7 +10,6 @@ import {
 } from "@tanstack/react-router";
 
 import { Toaster } from "sonner";
-import appCss from "../styles.css?url";
 import { SubmissionQueue } from "@/components/jk/SubmissionQueue";
 import { ErudaToggle } from "@/components/jk/ErudaToggle";
 
@@ -119,11 +118,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap",
-      },
-      {
-        rel: "stylesheet",
-        href: appCss,
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600;700;800&display=swap",
       },
     ],
   }),
@@ -135,21 +130,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="id" suppressHydrationWarning>
-      <head>
-        <HeadContent />
-      </head>
-      <body suppressHydrationWarning>
-        {children}
-        <Scripts />
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            style: { fontSize: "13px", padding: "10px 14px" },
-          }}
-        />
-      </body>
-    </html>
+    <>
+      <HeadContent />
+      {children}
+      <Scripts />
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          style: { fontSize: "13px", padding: "10px 14px" },
+        }}
+      />
+    </>
   );
 }
 

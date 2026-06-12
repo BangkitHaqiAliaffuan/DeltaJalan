@@ -268,118 +268,115 @@ function HomePage() {
         </section>
 
         <section className="px-4 mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-headline-sm text-headline-sm font-bold text-[#0F172A]">
-              Laporan Terbaru
-            </h3>
-            <Link to="/my-reports" className="font-label-md text-label-md text-primary font-bold">
-              Lihat Semua
-            </Link>
-          </div>
+          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden" style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <div className="px-6 py-4 border-b border-outline-variant flex items-center justify-between bg-surface-container-low/50">
+              <h4 className="font-headline-md text-headline-md text-on-surface">Laporan Terbaru</h4>
+              <Link to="/my-reports" className="text-primary font-label-md hover:underline flex items-center gap-1">
+                Lihat Semua
+                <Icon name="chevron_right" className="!text-[18px]" />
+              </Link>
+            </div>
 
-          {loading ? (
-            <div className="space-y-3" aria-busy="true" aria-label="Memuat laporan terbaru">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="bg-white border border-[#E2E8F0] rounded-xl p-4 animate-pulse">
-                  <div className="flex gap-4">
-                    <div className="w-16 h-16 rounded-lg bg-[#D0DAE8] shrink-0" />
+            {loading ? (
+              <div className="space-y-3 p-6" aria-busy="true" aria-label="Memuat laporan terbaru">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex gap-4 animate-pulse">
+                    <div className="w-12 h-4 bg-surface-container-high rounded" />
                     <div className="flex-1 space-y-2">
-                      <div className="w-3/4 h-4 bg-[#D0DAE8] rounded" />
-                      <div className="w-1/2 h-3 bg-[#E8F0FA] rounded" />
-                      <div className="w-1/3 h-2.5 bg-[#E8F0FA] rounded" />
+                      <div className="w-3/4 h-4 bg-surface-container-high rounded" />
+                      <div className="w-1/2 h-3 bg-surface-container rounded" />
                     </div>
+                    <div className="w-20 h-4 bg-surface-container-high rounded" />
+                    <div className="w-16 h-6 bg-surface-container-high rounded-full" />
+                    <div className="w-24 h-4 bg-surface-container-high rounded" />
                   </div>
+                ))}
+              </div>
+            ) : recent.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="w-12 h-12 rounded-xl bg-surface-container-low flex items-center justify-center mb-4">
+                  <Icon name="inbox" className="text-on-surface-variant !text-[22px]" />
                 </div>
-              ))}
-            </div>
-          ) : recent.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center bg-white border border-[#E2E8F0] rounded-xl">
-              <div className="w-12 h-12 rounded-xl bg-[#F1F5F9] border border-[#E2E8F0] flex items-center justify-center mb-4">
-                <Icon name="inbox" className="text-[#475569] !text-[22px]" />
+                <p className="font-body-md font-semibold text-on-surface mb-1">Belum ada laporan</p>
+                <p className="font-body-sm text-body-sm text-on-surface-variant">
+                  Upload laporan pertama Anda untuk mulai.
+                </p>
               </div>
-              <p className="font-body-md font-semibold text-[#0F172A] mb-1">Belum ada laporan</p>
-              <p className="font-body-sm text-body-sm text-[#475569]">
-                Upload laporan pertama Anda untuk mulai.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {recent.slice(0, 5).map((r) => {
-                  const sc = getSeverityLabel(r.overall_severity ?? r.ai_severity);
-                  return (
-                    <Link
-                      to={!isClient ? "/my-reports" : user?.role === "petugas" ? "/detail-report" : "/review"}
-                      search={{ reportId: r.id }}
-                      key={r.id}
-                      className={`flex gap-4 bg-white border border-[#E2E8F0] rounded-xl p-4 hover:shadow-md transition-shadow border-l-4 ${severityBorder(r.overall_severity ?? r.ai_severity)}`}
-                    >
-                      <div className="w-24 h-24 shrink-0 rounded-lg overflow-hidden bg-gray-100">
-                        {r.first_photo_url ? (
-                          <img
-                            src={r.first_photo_url}
-                            alt=""
-                            loading="lazy"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Icon name="photo" className="text-gray-300 !text-[24px]" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0 flex flex-col justify-between">
-                        <div>
-                          <p className="font-id-code text-id-code text-[#475569] mb-0.5">
-                            {r.report_code}
-                          </p>
-                          <h4 className="font-body-md text-body-md font-semibold text-[#0F172A] truncate">
-                            {r.road_name}
-                          </h4>
-                          <div className="flex items-center gap-3 mt-1 font-body-sm text-body-sm text-[#475569]">
-                            <span className="flex items-center gap-1">
-                              <Icon name="location_on" className="!text-[14px]" />
-                              {r.district ?? "-"}
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-surface-container-low/30">
+                    <tr>
+                      <th className="px-6 py-3 font-label-md text-on-surface-variant uppercase tracking-wider text-[11px] whitespace-nowrap">No</th>
+                      <th className="px-6 py-3 font-label-md text-on-surface-variant uppercase tracking-wider text-[11px] whitespace-nowrap">Foto</th>
+                      <th className="px-6 py-3 font-label-md text-on-surface-variant uppercase tracking-wider text-[11px] whitespace-nowrap">Judul</th>
+                      <th className="px-6 py-3 font-label-md text-on-surface-variant uppercase tracking-wider text-[11px] whitespace-nowrap">Lokasi</th>
+                      <th className="px-6 py-3 font-label-md text-on-surface-variant uppercase tracking-wider text-[11px] whitespace-nowrap">Status</th>
+                      <th className="px-6 py-3 font-label-md text-on-surface-variant uppercase tracking-wider text-[11px] whitespace-nowrap">Tanggal</th>
+                      <th className="px-6 py-3 font-label-md text-on-surface-variant uppercase tracking-wider text-[11px] text-right whitespace-nowrap">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-outline-variant">
+                    {recent.slice(0, 5).map((r) => {
+                      const sc = getSeverityLabel(r.overall_severity ?? r.ai_severity);
+                      const reportPath = !isClient ? "/my-reports" : user?.role === "petugas" ? "/detail-report" : "/review";
+                      return (
+                        <tr key={r.id} className="hover:bg-surface-container-low transition-colors group">
+                          <td className="px-6 py-3">
+                            <Link to={reportPath} search={{ reportId: r.id }} className="text-body-md text-on-surface no-underline block">
+                              {r.report_code}
+                            </Link>
+                          </td>
+                          <td className="px-6 py-3">
+                            <Link to={reportPath} search={{ reportId: r.id }} className="no-underline block">
+                              <div className="w-9 h-9 rounded-lg overflow-hidden bg-surface-container-high">
+                                {r.first_photo_url ? (
+                                  <img src={r.first_photo_url} alt="" loading="lazy" className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <Icon name="photo" className="text-surface-container-highest !text-[14px]" />
+                                  </div>
+                                )}
+                              </div>
+                            </Link>
+                          </td>
+                          <td className="px-6 py-3">
+                            <Link to={reportPath} search={{ reportId: r.id }} className="no-underline block">
+                              <div className="font-semibold text-on-surface truncate max-w-[180px]">{r.road_name}</div>
+                            </Link>
+                          </td>
+                          <td className="px-6 py-3 text-on-surface-variant whitespace-nowrap">{r.district ?? "-"}</td>
+                          <td className="px-6 py-3 whitespace-nowrap">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold leading-none ${statusBadgeStyle(r.status)}`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${statusDotStyle(r.status)}`} />
+                              {displayStatus(r.status)}
                             </span>
-                            <span className="flex items-center gap-1">
-                              <Icon name="calendar_today" className="!text-[14px]" />
-                               {r.created_at ? formatDateRelative(r.created_at, isClient) : "-"}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 mt-3">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${severityBadgeStyle(sc.label)}`}
-                          >
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full ${severityDotStyle(sc.label)}`}
-                            />
-                            {sc.label}
-                          </span>
-                          <span
-                             className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${statusBadgeStyle(r.status)}`}
-                          >
-                            <span
-                               className={`w-1.5 h-1.5 rounded-full ${statusDotStyle(r.status)}`}
-                            />
-                            {displayStatus(r.status)}
-                          </span>
-                          <span className="ml-auto">
-                            <Icon name="visibility" className="text-primary !text-[20px]" />
-                          </span>
-                        </div>
-                      </div>
-                    </Link>
-                  );
-                })}
+                          </td>
+                          <td className="px-6 py-3 text-on-surface-variant whitespace-nowrap">{r.created_at ? formatDateRelative(r.created_at, isClient) : "-"}</td>
+                          <td className="px-6 py-3 text-right whitespace-nowrap">
+                            <Link
+                              to={reportPath}
+                              search={{ reportId: r.id }}
+                              className="p-1 text-outline hover:text-primary inline-flex"
+                            >
+                              <Icon name="visibility" className="!text-[20px]" />
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-              <div className="mt-4 px-5 py-3 bg-[#F1F5F9] border border-[#E2E8F0] rounded-xl">
-                <p className="font-label-sm text-label-sm text-[#475569]">
+            )}
+            {recent.length > 0 && (
+              <div className="px-6 py-3 border-t border-outline-variant bg-surface-container-low/30">
+                <p className="font-label-md text-label-md text-on-surface-variant">
                   Menampilkan {Math.min(recent.length, 5)} dari {stats?.total ?? 0} laporan
                 </p>
               </div>
-            </>
-          )}
+            )}
+          </div>
         </section>
       </main>
     </PageLayout>
