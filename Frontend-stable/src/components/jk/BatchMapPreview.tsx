@@ -54,7 +54,7 @@ export function BatchMapPreview({ locations }: BatchMapPreviewProps) {
     });
 
     const group = L.featureGroup(markersRef.current);
-    map.fitBounds(group.getBounds().pad(0.2), { maxZoom: 16 });
+    map.fitBounds(group.getBounds().pad(0.2), { maxZoom: 16, animate: false });
   }
 
   useEffect(() => {

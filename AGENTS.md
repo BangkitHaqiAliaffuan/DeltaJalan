@@ -2,6 +2,22 @@
 
 This file provides guidance to AI coding agents (Claude Code, Cursor, Copilot, Antigravity, etc.) when working with code in this repository.
 
+## MANDATORY RULE: No Automatic Mobile Builds
+
+The agent MUST NEVER run `npm run build:mobile`, `npx cap`, `python build.py`, `gradlew`, `gradlew.bat`, or any Android/iOS build commands directly — even if the user says "implement your fix perfectly" or "eksekusi plan anda". This includes `npx cap copy`, `npx cap sync`, `gradlew.bat assembleDebug`, and any APK/asset deployment step.
+
+All mobile builds, including `npx cap add android`, `npx cap sync`, `npx cap copy`, `npx cap run`, Gradle builds, and APK installation, are handled EXCLUSIVELY by the user via `bash scripts/start-android.sh`.
+
+If a build step is needed after code changes, inform the user with the exact command to run:
+```
+bash scripts/start-android.sh --rebuild
+```
+Do NOT attempt to run any part of the build pipeline yourself.
+
+## MANDATORY RULE: No Automatic Git Commits or Pushes
+
+The agent MUST NOT commit or push any changes unless the user explicitly says "commit", "push", or "commit dan push". This includes both individual file commits and bulk commits. The agent may stage files in preparation, but the commit and push actions themselves require a direct user command.
+
 ## MANDATORY RULE: Long-Running Commands
 
 Before running any command that may take longer than 10 seconds, the agent MUST:
@@ -10,6 +26,17 @@ Before running any command that may take longer than 10 seconds, the agent MUST:
 3. For long-running dev servers, background them and notify the user how to check status
 
 This rule applies to `npx vite`, `npx cap run`, `python build.py`, `npm install`, `npx cap sync`, and any other command that runs >10s.
+
+## MANDATORY RULE: Always Use Context7
+
+Before writing ANY code that involves libraries, frameworks, APIs, SDKs, CLI tools, or cloud services, the agent MUST:
+
+1. Use the Context7 MCP tool (`resolve-library-id` + `query-docs`) to fetch current official documentation
+2. This applies even to well-known libraries like React, Next.js, TanStack Router, Tailwind, Laravel, etc.
+3. Use version-specific library IDs when the user mentions a version
+4. Cite sources in code comments with full URLs
+
+This rule exists because training data goes stale — APIs change, best practices evolve, and patterns that look correct may be outdated against current versions.
 
 ## MANDATORY RULE: Skill-First Execution
 
@@ -305,3 +332,127 @@ npx cap copy && npx cap run android
 - When patching SSR output (injecting elements, stripping JS), always verify the actual browser DOM structure matches what React's fiber tree expects.
 - Use CDP (`Runtime.evaluate` + `DOM.getDocument`) to inspect the live DOM after page load.
 - Compare body child nodes in order: React walks first-child → next-sibling, so position matters. Missing/extra/shifted nodes at any position cascade into mismatches for all subsequent siblings.
+
+### 4. Registering custom plugins in MainActivity.java
+
+**Mistake**: Assuming `npx cap sync` alone is enough for a custom Capacitor plugin to work at runtime on Android. The custom plugin `@jalankita/capacitor-exif-gps` was synced correctly into Gradle config (`implementation project(':jalankita-capacitor-exif-gps')`), but Capacitor's runtime annotation scanning (`@CapacitorPlugin`) failed to discover it — possibly because it's a `file:` dependency, not from npm registry.
+
+**Why it breaks**: On Android, Capacitor discovers plugins via annotation scanning at app startup. For local/workspace plugins that aren't installed via `npm install <name>` but via `"file:./path"`, the annotation processor may not register the plugin in the generated plugin list. The JavaScript proxy (`registerPlugin("PhotoExifGps")`) returns a thenable that calls `.then()` from the async function return — which throws "not implemented" because the native side never heard of this plugin.
+
+**Fix**: Always explicitly register custom local plugins in `MainActivity.java`:
+```java
+import com.jalankita.capacitor.exifgps.PhotoExifGpsPlugin;
+
+public class MainActivity extends BridgeActivity {
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(PhotoExifGpsPlugin.class);
+        super.onCreate(savedInstanceState);
+    }
+}
+```
+Also import the pre-configured plugin from the package (`import { PhotoExifGps } from "@jalankita/capacitor-exif-gps"`) rather than calling `registerPlugin()` manually in the hook — this avoids returning a thenable from an async function.
+
+**Detection**: Error `"PluginName.then()" is not implemented on android` in WebView console.
+**Prevention**: Always check `MainActivity.java` when adding or updating custom Capacitor plugins installed via `file:` path.
+
+### 5. `typeof window.Capacitor !== 'undefined'` is NOT sufficient to detect native platform
+- **Mistake**: Using `typeof window.Capacitor !== 'undefined'` alone to check if running in Capacitor native environment.
+- **Why it breaks**: `@capacitor/core` sets `window.Capacitor` as a module-load side effect in ALL environments — including plain browsers. The check returns `true` even in dev server (localhost:5173), causing `setupNativeFetch()` to overwrite `window.fetch` with a Capacitor-aware wrapper that calls `CapacitorHttp.request()`. In browser, `CapacitorHttp.request()` hangs indefinitely (no native bridge), freezing the app with `loading = true` forever.
+- **Symptoms**: Clicking "Masuk" shows spinner but no network request appears in DevTools, no error thrown, button stays disabled, browser tab appears frozen. Works fine in Android APK because Capacitor bridge is real.
+- **Fix**: Always chain `window.Capacitor.isNativePlatform?.() === true`:
+  ```typescript
+  const isNative =
+    typeof window !== 'undefined' &&
+    typeof window.Capacitor !== 'undefined' &&
+    window.Capacitor.isNativePlatform?.() === true;
+  ```
+- **Detection**: `window.fetch.toString().includes('native')` returns `false` in Console when it should return `true` in browser. Or check `window.Capacitor.getPlatform()` — if it returns `"web"`, you're not native.
+- **Files that had this bug**: `src/lib/api.ts:3`, `src/hooks/useBlobImage.ts:4`, `src/lib/aiStore.ts:156`, `src/routes/admin/export.tsx:51`, `src/hooks/useLocationFromPhoto.ts:24`.
+- **Prevention**: When adding ANY new code that checks for Capacitor native, always use `Capacitor.isNativePlatform()` (from dynamic import) or `window.Capacitor.isNativePlatform?.() === true` (from global). Never rely on `typeof window.Capacitor` alone. `@capacitor/core` injects the global in all contexts, including Vite dev server.
+
+### 6. Native batch gallery: `readExifGps` fallback required when plugin returns null GPS
+- **Mistake**: Assuming `PhotoExifGps.pickPhotos()` plugin successfully reads GPS from all URIs. The Android plugin returns `lat: null, lng: null` for `ACTION_OPEN_DOCUMENT` batch URIs (DocumentsProvider URIs) on Android 14+ because the ContentProvider strips EXIF GPS by default.
+- **Why it breaks**: The single gallery upload works because of a fallback at `upload.tsx:1172-1173` (`if (r.lat == null) await handleGallerySelect(r.file)`) which calls `readExifGps(file)` on the JavaScript side using `exifr`. But the native batch path (`handleNativeBatchSelect`) had no such fallback — it directly used the plugin's null return value.
+- **Fix**: In `upload.tsx:1246-1251` (`handleNativeBatchSelect`), add `readExifGps(r.file)` as fallback when `r.lat` is null, matching the web batch path (`handleFilesSelected`) which already does this at line 444-446:
+  ```typescript
+  const [dateResult, gpsResult] = await Promise.all([
+    validatePhotoDate(r.file),
+    (r.lat != null && r.lng != null)
+      ? Promise.resolve({ latitude: r.lat, longitude: r.lng } as ExifGps)
+      : readExifGps(r.file),
+  ]);
+  ```
+- **Detection**: ADB log shows `lat=null lng=null` for all URIs, but single upload shows GPS in UI. ADB log uses plugin's return; UI GPS comes from the JS `exifr.gps()` fallback.
+- **Prevention**: When adding any native plugin path that returns per-file data and has a parallel web path, check if the web path has a `readExifGps` fallback and mirror it in the native path.
+
+### 7. `ACCESS_MEDIA_LOCATION` auto-grant masks `READ_MEDIA_IMAGES` not being requested
+- **Mistake**: In Capacitor plugin permission checks, only checking `getPermissionState("accessMediaLocation") == GRANTED` before deciding whether to request permissions.
+- **Why it breaks**: `ACCESS_MEDIA_LOCATION` is a **normal** permission on Android — auto-granted at install time without user dialog. So `getPermissionState("accessMediaLocation")` returns `GRANTED` immediately, and the code skips requesting permissions entirely. `READ_MEDIA_IMAGES` (a **dangerous** permission that shows a dialog) is **never requested**. When converting DocumentsProvider URI → MediaStore URI + `setRequireOriginal()`, the app "has no access" to the MediaStore URI because `READ_MEDIA_IMAGES` was never granted.
+- **Fix**: Always check BOTH permission aliases before proceeding:
+  ```java
+  if (getPermissionState("accessMediaLocation") == PermissionState.GRANTED
+      && getPermissionState("readMediaImages") == PermissionState.GRANTED) {
+    doPickPhotos(call);
+  } else {
+    requestPermissionForAliases(
+        new String[] { "accessMediaLocation", "readMediaImages" },
+        call, "permissionCallback");
+  }
+  ```
+- **Detection**: Log shows `SecurityException: has no access to content://media/external/images/media/...?requireOriginal=1` for converted MediaStore URIs, even though `ACCESS_MEDIA_LOCATION` is in manifest.
+- **Prevention**: When mixing normal permissions (auto-granted) with dangerous permissions (dialog-granted) in the same permission group, always check ALL permission aliases in the gate condition.
+
+### 8. `pickPhotosResult` `getData()` vs `getClipData()` must not be mutually exclusive
+- **Mistake**: Using `if-else` structure when processing `data.getData()` and `data.getClipData()`:
+  ```java
+  if (singleUri != null) {
+    photos.put(extractGps(singleUri));
+  } else {
+    ClipData clipData = data.getClipData();
+    // ...
+  }
+  ```
+- **Why it breaks**: On many Android versions, `data.getData()` returns the first URI AND `data.getClipData()` contains ALL URIs (including the first). The `if-else` only processes the first URI and silently drops the rest.
+- **Fix**: Process BOTH independently, with dedup:
+  ```java
+  if (singleUri != null) {
+    photos.put(extractGps(singleUri));
+  }
+  if (clipData != null) {
+    for (Uri uri : clipDataUris) {
+      if (uri.equals(singleUri)) continue;
+      photos.put(extractGps(uri));
+    }
+  }
+  ```
+- **Detection**: In batch mode, log shows URIs all fail but count is 3 (from ClipData). Single mode URIs were processed via `getData()`.
+- **Prevention**: Always process `getData()` AND `getClipData()` independently when `EXTRA_ALLOW_MULTIPLE=true`.
+
+### 9. Leaflet `fitBounds` zoom animation race condition on unmount
+- **Mistake**: Using `map.fitBounds()` without disabling animation when the map might unmount or re-render during the CSS transition.
+- **Why it breaks**: `fitBounds` starts a CSS zoom animation. If the component unmounts or re-renders during the animation (e.g., due to state updates from `snapToRoadBatch` resolution or parallel batch processing), `map.remove()` detaches the DOM element while the CSS transition is still queued. The `transitionend` event fires on the detached element, Leaflet tries to read `element._leaflet_pos` which is undefined, throwing `TypeError: Cannot read properties of undefined (reading '_leaflet_pos')`.
+- **Fix**: Disable animation on `fitBounds` for preview maps:
+  ```typescript
+  map.fitBounds(group.getBounds().pad(0.2), { maxZoom: 16, animate: false });
+  ```
+- **Detection**: Crash in `_onZoomTransitionEnd` → `_getMapPanePos` → `getPosition` when batch state updates trigger re-render of map component.
+- **Prevention**: For any Leaflet map that is conditionally rendered or re-renders based on async state updates, pass `animate: false` to `fitBounds`/`setView`/`flyTo` to prevent transitionend races on DOM removal.
+
+## MANDATORY RULE: Use Context Mode
+
+This project has **Context Mode** installed as an MCP server for context optimization.
+
+**What it does:**
+- Sandboxes tool output so raw data never enters the context window (98% reduction)
+- Provides session continuity across context compaction via SQLite FTS5
+
+**Available tools:**
+- `ctx_execute` — Run code in 11 languages (only stdout enters context)
+- `ctx_batch_execute` — Multiple commands in one call
+- `ctx_execute_file` — Process files in sandbox
+- `ctx_index` — Chunk markdown into FTS5 with BM25 ranking
+- `ctx_search` — Query indexed content on-demand
+- `ctx_fetch_and_index` — Fetch URLs, convert to markdown, index with 24h TTL cache
+
+**Usage:** Prefer `ctx_execute` over `Bash` when the command output is large (logs, test output, API responses). The raw output stays in the sandbox and only a compact summary enters context.

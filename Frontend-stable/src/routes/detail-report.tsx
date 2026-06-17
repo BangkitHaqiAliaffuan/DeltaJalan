@@ -1,16 +1,24 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Icon } from "@/components/jk/Icon";
-import { TrustBadge } from "@/components/jk/TrustBadge";
 import { SkeletonDetailReport } from "@/components/jk/Skeleton";
 import { PageLayout } from "@/components/jk/PageLayout";
-import { API_BASE_URL } from "@/lib/aiStore";
+import { API_BASE_URL, normalizeSeverityKey } from "@/lib/aiStore";
 import { getToken, getCurrentUser } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import type { Laporan, TimelineEvent, TrustLabel } from "@/types/laporan";
 import { ReportMap, type ReportMapPoint } from "@/components/jk/ReportMap";
 import { TimelineCard } from "@/components/jk/TimelineCard";
 import { BeforeAfterSlider } from "@/components/jk/BeforeAfterSlider";
+import { Portal } from "@/components/jk/Portal";
+import {
+  BadgeStatCard,
+  severityIcon,
+  statusIcon,
+  trustIcon,
+  statusCardStyle,
+  trustCardStyle,
+} from "@/components/jk/StatCard";
 
 export const Route = createFileRoute("/detail-report")({
   component: DetailReportPage,
@@ -20,32 +28,6 @@ export const Route = createFileRoute("/detail-report")({
   },
   head: () => ({ meta: [{ title: "Detail Laporan — DeltaJalan" }] }),
 });
-
-function displayStatus(s: string): string {
-  return s === "Ditinjau" ? "Menunggu Review" : s;
-}
-
-interface SliderPhoto {
-  url: string;
-  label: string;
-}
-
-function collectPhotos(r: Laporan): SliderPhoto[] {
-  const photos: SliderPhoto[] = [];
-  if (r.photos && r.photos.length > 0) {
-    r.photos.forEach((p, i) => {
-      if (p.image_original_url) photos.push({ url: p.image_original_url, label: `Foto ${i + 1}` });
-      if (p.image_result_url && p.image_result_url !== p.image_original_url)
-        photos.push({ url: p.image_result_url, label: `Hasil AI ${i + 1}` });
-    });
-  } else {
-    if (r.image_original_url) photos.push({ url: r.image_original_url, label: "Foto Asli" });
-    if (r.image_result_url && r.image_result_url !== r.image_original_url)
-      photos.push({ url: r.image_result_url, label: "Hasil Deteksi AI" });
-  }
-  if (r.after_photo_url) photos.push({ url: r.after_photo_url, label: "Setelah Perbaikan" });
-  return photos;
-}
 
 const SEVERITY_STYLES: Record<string, { badge: string; dot: string }> = {
   "Rusak Berat": { badge: "bg-[#E11D48] text-white", dot: "bg-white animate-pulse" },
@@ -58,146 +40,33 @@ function getSevStyle(sev: string | undefined | null) {
   return SEVERITY_STYLES[sev ?? ""] ?? SEVERITY_STYLES.Baik;
 }
 
-const STATUS_STYLES: Record<string, string> = {
-  "Menunggu Review": "bg-amber-50 text-[#F59E0B] border border-amber-200",
-  Ditinjau: "bg-amber-50 text-[#F59E0B] border border-amber-200",
-  Disetujui: "bg-blue-50 text-[#2563EB] border border-blue-200",
-  Ditolak: "bg-[#E11D48] text-white",
-  "Sedang Diperbaiki": "bg-orange-50 text-[#F97316] border border-orange-200",
-  Selesai: "bg-[#10B981] text-white",
-  Diedit: "bg-slate-50 text-[#64748B] border border-slate-200",
-};
-
-function getStatusStyle(s: string): string {
-  return STATUS_STYLES[s] ?? STATUS_STYLES["Menunggu Review"];
-}
-
-// ── Photo Slider Component ──
-
-function PhotoSlider({ photos }: { photos: SliderPhoto[] }) {
-  const [idx, setIdx] = useState(0);
-  const [loaded, setLoaded] = useState<Set<number>>(new Set([0]));
-  const [naturalAspect, setNaturalAspect] = useState<number | null>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
-
-  const goTo = useCallback((i: number) => {
-    const next = (i + photos.length) % photos.length;
-    setIdx(next);
-    setNaturalAspect(null);
-    setLoaded((prev) => new Set(prev).add(next));
-  }, [photos.length]);
-
-  const prev = useCallback(() => goTo(idx - 1), [goTo, idx]);
-  const next = useCallback(() => goTo(idx + 1), [goTo, idx]);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft") prev();
-      if (e.key === "ArrowRight") next();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [prev, next]);
-
-  function handleImgLoad(e: React.SyntheticEvent<HTMLImageElement>) {
-    const img = e.currentTarget;
-    if (img.naturalWidth && img.naturalHeight && !naturalAspect) {
-      setNaturalAspect(img.naturalWidth / img.naturalHeight);
-    }
-  }
-
-  if (photos.length === 0) return null;
-
-  return (
-    <div className="relative bg-[#0F172A] rounded-xl overflow-hidden">
-      <div
-        className="relative w-full"
-        style={naturalAspect ? { aspectRatio: `${naturalAspect}` } : { aspectRatio: "16 / 9" }}
-      >
-        {photos.map((p, i) => (
-          <img
-            key={i}
-            ref={i === idx ? imgRef : undefined}
-            src={p.url}
-            alt={p.label}
-            loading={loaded.has(i) ? "eager" : "lazy"}
-            className={`absolute inset-0 w-full h-full object-contain transition-opacity duration-300 ${
-              i === idx ? "opacity-100" : "opacity-0 pointer-events-none"
-            }`}
-            onLoad={(e) => {
-              setLoaded((prev) => new Set(prev).add(i));
-              handleImgLoad(e);
-            }}
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = "none";
-            }}
-          />
-        ))}
-        {!loaded.has(idx) && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          </div>
-        )}
-      </div>
-
-      {photos.length > 1 && (
-        <>
-          <button
-            type="button"
-            onClick={prev}
-            className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/40 hover:bg-black/60 flex items-center justify-center transition-colors"
-            aria-label="Foto sebelumnya"
-          >
-            <Icon name="chevron_left" className="!text-[20px] text-white" />
-          </button>
-          <button
-            type="button"
-            onClick={next}
-            className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/40 hover:bg-black/60 flex items-center justify-center transition-colors"
-            aria-label="Foto berikutnya"
-          >
-            <Icon name="chevron_right" className="!text-[20px] text-white" />
-          </button>
-
-          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-3 pt-8">
-            <div className="flex items-center justify-between">
-              <p className="text-white text-[12px] font-medium">{photos[idx].label}</p>
-              <p className="text-white/60 text-[11px]">{idx + 1}/{photos.length}</p>
-            </div>
-            <div className="flex gap-1.5 mt-2">
-              {photos.map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => goTo(i)}
-                  className={`h-1.5 rounded-full transition-all ${
-                    i === idx ? "w-5 bg-white" : "w-1.5 bg-white/40 hover:bg-white/60"
-                  }`}
-                  aria-label={`Foto ${i + 1}`}
-                />
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ── Main Page ──
+// ── Derived State ──
 
 function DetailReportPage() {
   const { reportId } = Route.useSearch();
   const token = getToken() ?? "";
+  const user = getCurrentUser();
+  const userRole = user?.role ?? "petugas";
   const [backPath, setBackPath] = useState("/my-reports");
   useEffect(() => {
-    const u = getCurrentUser();
-    setBackPath(u?.role === "supervisor" ? "/supervisor" : u?.role === "petugas_eksekusi" ? "/petugas-eksekusi" : "/my-reports");
-  }, []);
+    setBackPath(userRole === "supervisor" ? "/supervisor" : userRole === "petugas_eksekusi" ? "/petugas-eksekusi" : "/my-reports");
+  }, [userRole]);
 
   const [report, setReport] = useState<Laporan | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Action state
+  const [priority, setPriority] = useState<"Rendah" | "Sedang" | "Tinggi">("Sedang");
+  const [catatan, setCatatan] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionMsg, setActionMsg] = useState("");
+  const [tolakAlasan, setTolakAlasan] = useState("");
+  const [showTolak, setShowTolak] = useState(false);
+  const [showSatgasPicker, setShowSatgasPicker] = useState(false);
+  const [satgasUprId, setSatgasUprId] = useState("");
+  const [satgasCatatan, setSatgasCatatan] = useState("");
+  const [uprList, setUprList] = useState<{ id: number; name: string }[]>([]);
 
   useEffect(() => {
     if (!reportId) {
@@ -227,11 +96,152 @@ function DetailReportPage() {
     }
   }
 
-  const sliderPhotos = useMemo(() => (report ? collectPhotos(report) : []), [report]);
+  // Fetch UPR list for satgas picker
+  async function fetchUprList() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/uprs`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const json = await res.json();
+        setUprList(json.data ?? json ?? []);
+      }
+    } catch {}
+  }
 
-  const sev = report?.overall_severity ?? report?.ai_severity;
-  const sevStyle = getSevStyle(sev);
-  const statusStyle = getStatusStyle(report?.status ?? "");
+  // Supervisor: auto-set status to "Ditinjau" when viewing
+  useEffect(() => {
+    if (!reportId || userRole !== "supervisor") return;
+    if (!report || (report.status !== "Menunggu Review" && report.status !== "Ditinjau")) return;
+    fetch(`${API_BASE_URL}/reports/${reportId}/mulai-review`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => {});
+  }, [report?.id, report?.status]);
+
+  async function handleSetujui() {
+    if (!report) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/reports/${report.id}/approve`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ priority }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        await loadReport();
+        setActionMsg("Laporan disetujui.");
+      } else {
+        setActionMsg(json.message ?? "Gagal menyetujui.");
+      }
+    } catch {
+      setActionMsg("Kesalahan jaringan.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleTolak() {
+    if (!report || !tolakAlasan) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/reports/${report.id}/tolak`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ alasan: tolakAlasan, catatan }),
+      });
+      const json = await res.json();
+      setActionMsg(json.message ?? (res.ok ? "Ditolak" : "Gagal"));
+      if (res.ok) {
+        setShowTolak(false);
+        setTolakAlasan("");
+        setCatatan("");
+        await loadReport();
+      }
+    } catch {
+      setActionMsg("Gagal menolak.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleReopen() {
+    if (!report) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/reports/${report.id}/reopen`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      });
+      const json = await res.json();
+      setActionMsg(json.message ?? (res.ok ? "Laporan dibuka kembali" : "Gagal"));
+      if (res.ok) await loadReport();
+    } catch {
+      setActionMsg("Kesalahan jaringan.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleMulaiEksekusi() {
+    if (!report) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/reports/${report.id}/mulai`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const json = await res.json();
+      setActionMsg(json.message ?? (res.ok ? "Pengerjaan dimulai" : "Gagal"));
+      if (res.ok) await loadReport();
+    } catch {
+      setActionMsg("Kesalahan jaringan.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleSelesaikan() {
+    if (!report) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/reports/${report.id}/selesai`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      });
+      const json = await res.json();
+      setActionMsg(json.message ?? (res.ok ? "Pengerjaan selesai" : "Gagal"));
+      if (res.ok) await loadReport();
+    } catch {
+      setActionMsg("Kesalahan jaringan.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleMulaiWithSatgas() {
+    if (!report || !satgasUprId) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/reports/${report.id}/mulai`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ assigned_upr_id: satgasUprId, catatan: satgasCatatan }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        await loadReport();
+        setActionMsg("Satgas ditugaskan dan pengerjaan dimulai.");
+        setShowSatgasPicker(false);
+      } else {
+        setActionMsg(json.message ?? "Gagal memulai pengerjaan.");
+      }
+    } catch {
+      setActionMsg("Kesalahan jaringan.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
 
   const detections =
     (report?.ai_raw_output as Array<{ type: string; confidence: number }> | null) ?? [];
@@ -278,6 +288,185 @@ function DetailReportPage() {
     );
   }
 
+  // ── Footer (role‑aware) ──
+
+  function renderFooter() {
+    const status = report?.status ?? "";
+    const isSupervisor = userRole === "supervisor";
+    const isEksekusi = userRole === "petugas_eksekusi";
+
+    const showBack = () => (
+      <Link
+        to={backPath}
+        className="flex-1 h-10 bg-[#F8FAFC] border border-[#CBD5E1] text-[#475569] rounded-xl text-[12px] font-semibold flex items-center justify-center gap-1.5 hover:bg-[#F1F5F9] hover:border-[#94A3B8] active:scale-95 transition-all"
+      >
+        <Icon name="arrow_back" className="!text-[16px]" />
+        Kembali
+      </Link>
+    );
+
+    // Supervisor: Menunggu Review / Ditinjau → Setujui + Tolak
+    if (isSupervisor && (status === "Menunggu Review" || status === "Ditinjau")) {
+      return (
+        <footer className="shrink-0 bg-white border-t border-[#E2E8F0] p-4 flex flex-col gap-2">
+          {actionMsg && (
+            <div className="px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[12px] text-[#0F172A] text-center">{actionMsg}</div>
+          )}
+          <button
+            type="button"
+            disabled={actionLoading}
+            onClick={() => setShowSatgasPicker(true)}
+            className="w-full h-12 bg-[#1A4F8A] text-white rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm"
+          >
+            {actionLoading ? "Memproses…" : (
+              <>
+                <Icon name="check" className="!text-[20px]" />
+                Setujui & Tugaskan
+              </>
+            )}
+          </button>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              disabled={actionLoading}
+              onClick={() => setShowTolak(true)}
+              className="flex-1 h-10 bg-[#FFF5F5] border border-[#FECACA] text-[#DC2626] rounded-xl text-[12px] font-semibold flex items-center justify-center gap-1.5 hover:bg-[#FEF2F2] hover:border-[#F87171] active:scale-95 transition-all disabled:opacity-50"
+            >
+              <Icon name="close" className="!text-[16px]" />
+              Tolak
+            </button>
+            {showBack()}
+          </div>
+        </footer>
+      );
+    }
+
+    // Supervisor: Disetujui → Mulai Pengerjaan with satgas picker
+    if (isSupervisor && status === "Disetujui") {
+      return (
+        <footer className="shrink-0 bg-white border-t border-[#E2E8F0] p-4 flex flex-col gap-2">
+          {actionMsg && (
+            <div className="px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[12px] text-[#0F172A] text-center">{actionMsg}</div>
+          )}
+          <button
+            type="button"
+            disabled={actionLoading}
+            onClick={() => setShowSatgasPicker(true)}
+            className="w-full h-12 bg-[#1A4F8A] text-white rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm"
+          >
+            {actionLoading ? "Memproses…" : (
+              <>
+                <Icon name="assignment" className="!text-[20px]" />
+                Mulai Pengerjaan
+              </>
+            )}
+          </button>
+          <div className="flex gap-3">
+            <div className="flex-1" />
+            {showBack()}
+          </div>
+        </footer>
+      );
+    }
+
+    // Supervisor: Selesai → Re-open
+    if (isSupervisor && status === "Selesai") {
+      return (
+        <footer className="shrink-0 bg-white border-t border-[#E2E8F0] p-4 flex flex-col gap-2">
+          {actionMsg && (
+            <div className="px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[12px] text-[#0F172A] text-center">{actionMsg}</div>
+          )}
+          <button
+            type="button"
+            disabled={actionLoading}
+            onClick={handleReopen}
+            className="w-full h-10 bg-[#FFF7ED] border border-[#FED7AA] text-[#C2410C] rounded-xl text-[12px] font-semibold flex items-center justify-center gap-1.5 hover:bg-[#FFF5F5] hover:border-[#FB923C] active:scale-95 transition-all disabled:opacity-50"
+          >
+            {actionLoading ? "Memproses…" : (
+              <>
+                <Icon name="refresh" className="!text-[16px]" />
+                Buka Kembali
+              </>
+            )}
+          </button>
+          <div className="flex gap-3">
+            <div className="flex-1" />
+            {showBack()}
+          </div>
+        </footer>
+      );
+    }
+
+    // Petugas Eksekusi: Disetujui → Mulai
+    if (isEksekusi && status === "Disetujui") {
+      return (
+        <footer className="shrink-0 bg-white border-t border-[#E2E8F0] p-4 flex flex-col gap-2">
+          {actionMsg && (
+            <div className="px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[12px] text-[#0F172A] text-center">{actionMsg}</div>
+          )}
+          <button
+            type="button"
+            disabled={actionLoading}
+            onClick={handleMulaiEksekusi}
+            className="w-full h-12 bg-[#1A4F8A] text-white rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm"
+          >
+            {actionLoading ? "Memproses…" : (
+              <>
+                <Icon name="play_arrow" className="!text-[20px]" />
+                Mulai Pengerjaan
+              </>
+            )}
+          </button>
+          <div className="flex gap-3">
+            <div className="flex-1" />
+            {showBack()}
+          </div>
+        </footer>
+      );
+    }
+
+    // Petugas Eksekusi: Sedang Diperbaiki → Selesaikan
+    if (isEksekusi && status === "Sedang Diperbaiki") {
+      return (
+        <footer className="shrink-0 bg-white border-t border-[#E2E8F0] p-4 flex flex-col gap-2">
+          {actionMsg && (
+            <div className="px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[12px] text-[#0F172A] text-center">{actionMsg}</div>
+          )}
+          <button
+            type="button"
+            disabled={actionLoading}
+            onClick={handleSelesaikan}
+            className="w-full h-12 bg-[#1A4F8A] text-white rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm"
+          >
+            {actionLoading ? "Memproses…" : (
+              <>
+                <Icon name="check_circle" className="!text-[20px]" />
+                Selesaikan
+              </>
+            )}
+          </button>
+          <div className="flex gap-3">
+            <div className="flex-1" />
+            {showBack()}
+          </div>
+        </footer>
+      );
+    }
+
+    // Default: Kembali
+    return (
+      <footer className="shrink-0 bg-white border-t border-[#E2E8F0] p-4 flex flex-col gap-2">
+        {actionMsg && (
+          <div className="px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[12px] text-[#0F172A] text-center">{actionMsg}</div>
+        )}
+        <div className="flex gap-3">
+          <div className="flex-1" />
+          {showBack()}
+        </div>
+      </footer>
+    );
+  }
+
   // ── Content ──
 
   return (
@@ -289,26 +478,117 @@ function DetailReportPage() {
         <main>
           <div className="max-w-2xl mx-auto p-4 flex flex-col gap-4">
 
-            {/* ── Photo Slider ── */}
-            <PhotoSlider photos={sliderPhotos} />
+            {/* ── Foto & Analisis AI per foto ── */}
+            {report.photos && report.photos.length > 0 ? (
+              report.photos.map((photo, i) => (
+                <div key={photo.id} className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
+                  {photo.image_original_url && photo.image_result_url && photo.image_result_url !== photo.image_original_url ? (
+                    <BeforeAfterSlider
+                      beforeSrc={photo.image_original_url}
+                      afterSrc={photo.image_result_url}
+                      beforeLabel={`Foto ${i + 1} — Asli`}
+                      afterLabel={`Foto ${i + 1} — AI`}
+                    />
+                  ) : photo.image_original_url ? (
+                    <div className="bg-[#0F172A] flex items-center justify-center" style={{ minHeight: 280 }}>
+                      <img src={photo.image_original_url} alt={`Foto ${i + 1}`} className="w-full h-full object-contain max-h-[55vh]" />
+                    </div>
+                  ) : null}
+                  {(photo.ai_jenis_kerusakan || photo.ai_severity || photo.ai_confidence != null || photo.total_detections != null) && (
+                    <div className="p-3 border-t border-[#E2E8F0]">
+                      <div className="flex items-start gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-[#F1F5F9] flex items-center justify-center shrink-0">
+                          <Icon name="insights" className="!text-[16px] text-[#1A4F8A]" />
+                        </div>
+                        <div className="flex-1 min-w-0 space-y-1">
+                          {photo.ai_jenis_kerusakan && (
+                            <p className="text-[13px] font-semibold text-[#0F172A]">{photo.ai_jenis_kerusakan}</p>
+                          )}
+                          <div className="flex flex-wrap items-center gap-2">
+                            {photo.ai_severity && (
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                                photo.ai_severity === "berat" ? "bg-[#E11D48] text-white border-[#E11D48]" :
+                                photo.ai_severity === "sedang" ? "bg-orange-50 text-[#F97316] border-orange-200" :
+                                "bg-amber-50 text-[#F59E0B] border-amber-200"
+                              }`}>
+                                {normalizeSeverityKey(photo.ai_severity)}
+                              </span>
+                            )}
+                            {photo.ai_confidence != null && (
+                              <span className="text-[11px] text-[#64748B] font-medium">
+                                {(photo.ai_confidence * 100).toFixed(0)}% yakin
+                              </span>
+                            )}
+                            {photo.total_detections != null && (
+                              <span className="text-[11px] text-[#64748B]">
+                                {photo.total_detections} area terdeteksi
+                              </span>
+                            )}
+                          </div>
+                          {(photo.kerusakan_panjang != null || photo.kerusakan_lebar != null) && (
+                            <p className="text-[11px] text-[#64748B]">
+                              {photo.kerusakan_panjang != null && `${photo.kerusakan_panjang}m`}
+                              {photo.kerusakan_panjang != null && photo.kerusakan_lebar != null && " × "}
+                              {photo.kerusakan_lebar != null && `${photo.kerusakan_lebar}m`}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : report.image_original_url ? (
+              <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
+                {report.image_result_url && report.image_result_url !== report.image_original_url ? (
+                  <BeforeAfterSlider
+                    beforeSrc={report.image_original_url}
+                    afterSrc={report.image_result_url}
+                    beforeLabel="Foto Asli"
+                    afterLabel="Hasil AI"
+                  />
+                ) : (
+                  <div className="bg-[#0F172A] flex items-center justify-center" style={{ minHeight: 280 }}>
+                    <img src={report.image_original_url} alt="Foto" className="w-full h-full object-contain max-h-[55vh]" />
+                  </div>
+                )}
+              </div>
+            ) : null}
 
-            {/* ── Before/After Slider ── */}
+            {/* ── Before/After Slider (perbaikan) ── */}
             <DetailBeforeAfter report={report} />
 
-            {/* ── Badges ── */}
-            <div className="flex flex-wrap items-center gap-2">
-              {sev && (
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${sevStyle.badge}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${sevStyle.dot}`} />
-                  {sev}
-                </span>
-              )}
-              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${statusStyle}`}>
-                {displayStatus(report.status)}
-              </span>
-              <TrustBadge
-                score={report.trust_score}
-                label={(report.trust_label as TrustLabel) ?? "merah"}
+            {/* ── Badges (StatCard) ── */}
+            <div className="grid grid-cols-3 gap-3">
+              <BadgeStatCard
+                iconName={severityIcon(report.overall_severity ?? report.ai_severity)}
+                value={report.overall_severity ?? report.ai_severity ?? "-"}
+                label="Tingkat Kerusakan"
+                gradientFrom="#FEF2F2"
+                gradientTo="#FEF2F2"
+                borderColor="#FECACA"
+                iconColor="#DC2626"
+                textColor="#991B1B"
+              />
+              <BadgeStatCard
+                iconName={statusIcon(report.status ?? "")}
+                value={report.status === "Ditinjau" ? "Menunggu Review" : (report.status ?? "-")}
+                label="Status Laporan"
+                gradientFrom={statusCardStyle(report.status ?? "").from}
+                gradientTo={statusCardStyle(report.status ?? "").from}
+                borderColor={statusCardStyle(report.status ?? "").border}
+                iconColor={statusCardStyle(report.status ?? "").icon}
+                textColor={statusCardStyle(report.status ?? "").text}
+              />
+              <BadgeStatCard
+                iconName={trustIcon((report.trust_label as TrustLabel) ?? "merah")}
+                value={`${report.trust_score ?? "0"}/100`}
+                label={trustCardStyle((report.trust_label as TrustLabel) ?? "merah").label ?? "Diragukan"}
+                gradientFrom={trustCardStyle((report.trust_label as TrustLabel) ?? "merah").from}
+                gradientTo={trustCardStyle((report.trust_label as TrustLabel) ?? "merah").from}
+                borderColor={trustCardStyle((report.trust_label as TrustLabel) ?? "merah").border}
+                iconColor={trustCardStyle((report.trust_label as TrustLabel) ?? "merah").icon}
+                textColor={trustCardStyle((report.trust_label as TrustLabel) ?? "merah").text}
               />
             </div>
 
@@ -346,33 +626,130 @@ function DetailReportPage() {
             {/* ── Timeline Perbaikan ── */}
             {hasTimeline && <TimelineCard events={statusHistory} />}
 
-            {/* ── Hasil Deteksi AI ── */}
-            {detections.length > 0 && (
-              <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
-                <h3 className="font-label-md text-[13px] font-bold text-[#0F172A] mb-3">
-                  Hasil Deteksi AI
+            {/* ── Analisis & Perbandingan AI ── */}
+            {(detections.length > 0 || report?.trust_breakdown || report?.ai_severity || report?.photos?.some(p => p.ai_jenis_kerusakan)) && (
+              <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 space-y-4">
+                <h3 className="font-label-md text-[13px] font-bold text-[#0F172A] flex items-center gap-2">
+                  <Icon name="insights" className="!text-[18px] text-[#1A4F8A]" />
+                  Analisis & Perbandingan AI
                 </h3>
-                <div className="space-y-2.5">
-                  {detections.map((d, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <span className="text-[11px] font-semibold text-[#64748B] w-5 shrink-0">
-                        {String(i + 1).padStart(2, "0")}
-                      </span>
-                      <span className="flex-1 text-[13px] text-[#0F172A] truncate">{d.type}</span>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <div className="w-16 h-1.5 bg-[#F1F5F9] rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-[#1A4F8A] rounded-full transition-all"
-                            style={{ width: `${Math.round(d.confidence * 100)}%` }}
-                          />
+
+                {/* ── Severity perbandingan ── */}
+                {report.overall_severity && report.ai_severity && (
+                  <div className="bg-[#F8FAFC] rounded-lg p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[#64748B] mb-2">Tingkat kerusakan</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-white rounded-lg border border-[#E2E8F0] p-3">
+                        <p className="text-[10px] text-[#64748B] mb-1">Hasil asli</p>
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${getSevStyle(report.overall_severity).badge}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${getSevStyle(report.overall_severity).dot}`} />
+                            {report.overall_severity}
+                          </span>
+                          {normalizeSeverityKey(report.overall_severity) !== normalizeSeverityKey(report.ai_severity) && (
+                            <Icon name="arrow_forward" className="!text-[14px] text-[#F59E0B]" />
+                          )}
                         </div>
-                        <span className="text-[11px] text-[#64748B] w-8 text-right font-medium">
-                          {(d.confidence * 100).toFixed(0)}%
-                        </span>
+                      </div>
+                      <div className="bg-white rounded-lg border border-[#E2E8F0] p-3">
+                        <p className="text-[10px] text-[#64748B] mb-1">Analisis AI</p>
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${getSevStyle(normalizeSeverityKey(report.ai_severity)).badge}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${getSevStyle(normalizeSeverityKey(report.ai_severity)).dot}`} />
+                            {normalizeSeverityKey(report.ai_severity)}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
+                    {normalizeSeverityKey(report.overall_severity) !== normalizeSeverityKey(report.ai_severity) && (
+                      <div className="mt-2 flex items-center gap-1.5 text-[11px] text-[#F59E0B] font-medium">
+                        <Icon name="info" className="!text-[14px]" />
+                        Terdapat perbedaan antara hasil asli dan analisis AI
+                      </div>
+                    )}
+                    {normalizeSeverityKey(report.overall_severity) === normalizeSeverityKey(report.ai_severity) && (
+                      <div className="mt-2 flex items-center gap-1.5 text-[11px] text-[#10B981] font-medium">
+                        <Icon name="check_circle" className="!text-[14px]" />
+                        Hasil asli dan analisis AI sesuai
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── AI-only severity (when no overall) ── */}
+                {!report.overall_severity && report.ai_severity && (
+                  <div className="bg-[#F8FAFC] rounded-lg p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[#64748B] mb-1">Tingkat kerusakan (AI)</p>
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${getSevStyle(normalizeSeverityKey(report.ai_severity)).badge}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${getSevStyle(normalizeSeverityKey(report.ai_severity)).dot}`} />
+                      {normalizeSeverityKey(report.ai_severity)}
+                    </span>
+                  </div>
+                )}
+
+                {/* ── Detection confidence list ── */}
+                {detections.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[#64748B] mb-2">Deteksi per area</p>
+                    <div className="space-y-2">
+                      {detections.map((d, i) => (
+                        <div key={i} className="flex items-center gap-3">
+                          <span className="text-[11px] font-semibold text-[#64748B] w-5 shrink-0 font-mono">
+                            {String(i + 1).padStart(2, "0")}
+                          </span>
+                          <span className="flex-1 text-[13px] text-[#0F172A] truncate">{d.type}</span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className="w-16 h-1.5 bg-[#F1F5F9] rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-[#1A4F8A] rounded-full transition-all"
+                                style={{ width: `${Math.round(d.confidence * 100)}%` }}
+                              />
+                            </div>
+                            <span className="text-[11px] text-[#64748B] w-8 text-right font-medium font-mono">
+                              {(d.confidence * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Trust Breakdown ── */}
+                {report.trust_breakdown && (
+                  <div className="bg-[#F8FAFC] rounded-lg p-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[#64748B] mb-2">Skor kepercayaan</p>
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border
+                        ${report.trust_label === "hijau" ? "bg-emerald-50 text-[#059669] border-emerald-200" :
+                          report.trust_label === "kuning" ? "bg-amber-50 text-[#D97706] border-amber-200" :
+                          "bg-red-50 text-[#DC2626] border-red-200"}`}
+                      >
+                        <Icon name={report.trust_label === "hijau" ? "verified" : report.trust_label === "kuning" ? "running_with_errors" : "error"} className="!text-[14px]" />
+                        {report.trust_score}/100 — {report.trust_label === "hijau" ? "Kredibel" : report.trust_label === "kuning" ? "Perlu review" : "Diragukan"}
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      {(Object.entries(report.trust_breakdown) as [string, { nilai: number; status: string }][]).map(([key, val]) => {
+                        const labelMap: Record<string, string> = {
+                          exif_gps: "GPS EXIF",
+                          nama_jalan: "Nama jalan",
+                          ai_deteksi: "Deteksi AI",
+                          konteks_visual: "Konteks foto",
+                          fake_gps: "Keaslian GPS",
+                        };
+                        return (
+                          <div key={key} className="flex items-center justify-between text-[12px]">
+                            <span className="text-[#64748B]">{labelMap[key] ?? key}</span>
+                            <span className={val.nilai > 0 ? "text-[#059669] font-medium" : "text-[#F87171]"}>
+                              {val.nilai > 0 ? `+${val.nilai}` : "\u2014"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -396,16 +773,159 @@ function DetailReportPage() {
           </div>
         </main>
 
-        {/* ── Footer ── */}
-        <footer className="shrink-0 bg-white border-t border-[#E2E8F0] p-4">
-          <Link
-            to={backPath}
-            className="w-full h-11 bg-[#1A4F8A] text-white rounded-xl text-[13px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] transition-colors"
-          >
-            <Icon name="arrow_back" className="!text-[18px]" />
-            Kembali
-          </Link>
-        </footer>
+        {renderFooter()}
+
+        {/* ── Tolak Modal ── */}
+        {showTolak && (
+          <Portal>
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0, 0, 0, 0.55)" }} onClick={() => setShowTolak(false)} aria-hidden="true">
+              <div className="w-full max-w-sm bg-white rounded-xl border border-[#D0DAE8] shadow-lg" onClick={(e) => e.stopPropagation()} role="alertdialog" aria-modal="true">
+                <div className="bg-[#E11D48] border-b border-red-700 px-5 py-4 flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-white/60 flex items-center justify-center shrink-0">
+                    <Icon name="block" className="text-white !text-[24px]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-red-600 text-white border border-black/10 mb-1.5" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                      TOLAK LAPORAN
+                    </span>
+                    <h2 className="text-[16px] font-bold text-white leading-tight">Tolak Laporan</h2>
+                  </div>
+                </div>
+                <div className="px-5 py-4 space-y-3">
+                  <div>
+                    <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Alasan Penolakan <span className="text-[#E11D48]">*</span></label>
+                    <textarea
+                      value={tolakAlasan}
+                      onChange={(e) => setTolakAlasan(e.target.value)}
+                      className="w-full h-24 px-3 py-2 rounded-lg border border-[#D0DAE8] resize-none text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+                      placeholder="Jelaskan alasan mengapa laporan ini ditolak…"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Catatan (opsional)</label>
+                    <input
+                      value={catatan}
+                      onChange={(e) => setCatatan(e.target.value)}
+                      className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+                      placeholder="Catatan tambahan…"
+                    />
+                  </div>
+                </div>
+                <div className="px-5 pb-5 flex flex-col gap-2">
+                  <button
+                    type="button"
+                    disabled={actionLoading || !tolakAlasan.trim()}
+                    onClick={handleTolak}
+                    className="w-full h-11 bg-[#E11D48] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#BE123C] active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    {actionLoading ? "Memproses…" : (
+                      <>
+                        <Icon name="close" className="!text-[18px]" />
+                        Tolak Laporan
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowTolak(false)}
+                    className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Portal>
+        )}
+
+        {/* ── Satgas Picker Modal ── */}
+        {showSatgasPicker && (
+          <Portal>
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0, 0, 0, 0.55)" }} onClick={() => setShowSatgasPicker(false)} aria-hidden="true">
+              <div className="w-full max-w-sm bg-white rounded-xl border border-[#D0DAE8] shadow-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+                <div className="bg-[#1A4F8A] border-b border-[#153d6e] px-5 py-4 flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-white/60 flex items-center justify-center shrink-0">
+                    <Icon name="assignment" className="text-white !text-[24px]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-[#153d6e] text-white border border-black/10 mb-1.5" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                      {(userRole === "supervisor" && (report?.status === "Menunggu Review" || report?.status === "Ditinjau")) ? "SETUJUI & TUGASKAN" : "TUGASKAN SATGAS"}
+                    </span>
+                    <h2 className="text-[16px] font-bold text-white leading-tight">Setujui & Tugaskan</h2>
+                  </div>
+                </div>
+                <div className="px-5 py-4 space-y-3">
+                  <div>
+                    <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Prioritas</label>
+                    <select
+                      value={priority}
+                      onChange={(e) => setPriority(e.target.value as "Rendah" | "Sedang" | "Tinggi")}
+                      className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+                    >
+                      <option value="Rendah">Rendah</option>
+                      <option value="Sedang">Sedang</option>
+                      <option value="Tinggi">Tinggi</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Tugaskan ke UPR/Satgas <span className="text-[#E11D48]">*</span></label>
+                    <select
+                      value={satgasUprId}
+                      onChange={(e) => setSatgasUprId(e.target.value)}
+                      className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+                      onClick={() => { if (uprList.length === 0) fetchUprList(); }}
+                    >
+                      <option value="">Pilih UPR/Satgas…</option>
+                      {uprList.map((u) => (
+                        <option key={u.id} value={String(u.id)}>{u.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Catatan (opsional)</label>
+                    <input
+                      value={satgasCatatan}
+                      onChange={(e) => setSatgasCatatan(e.target.value)}
+                      className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+                      placeholder="Instruksi untuk satgas…"
+                    />
+                  </div>
+                </div>
+                <div className="px-5 pb-5 flex flex-col gap-2">
+                  <button
+                    type="button"
+                    disabled={actionLoading || !satgasUprId}
+                    onClick={() => {
+                      const needApprove = userRole === "supervisor" && (report?.status === "Menunggu Review" || report?.status === "Ditinjau");
+                      if (needApprove) {
+                        handleSetujui().then(() => {
+                          handleMulaiWithSatgas();
+                        });
+                      } else {
+                        handleMulaiWithSatgas();
+                      }
+                    }}
+                    className="w-full h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    {actionLoading ? "Memproses…" : (
+                      <>
+                        <Icon name="check" className="!text-[18px]" />
+                        {(userRole === "supervisor" && (report?.status === "Menunggu Review" || report?.status === "Ditinjau")) ? "Setujui & Tugaskan" : "Tugaskan"}
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowSatgasPicker(false)}
+                    className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Portal>
+        )}
     </PageLayout>
   );
 }

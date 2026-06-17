@@ -5,6 +5,7 @@
 
 # opencode config — contains API keys
 opencode.json
+opencode.json.bak
 
 # Python cache
 __pycache__/
