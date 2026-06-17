@@ -1,5 +1,5 @@
 import { getToken } from "./auth";
-import { API_BASE_URL } from "./aiStore";
+import { apiFetch } from "./api";
 
 function headers() {
   const token = getToken() ?? "";
@@ -10,7 +10,7 @@ function headers() {
 }
 
 export async function fetchNotifications(page = 1) {
-  const res = await fetch(`${API_BASE_URL}/notifications?page=${page}&per_page=20`, {
+  const res = await apiFetch(`/api/notifications?page=${page}&per_page=20`, {
     headers: headers(),
   });
   if (!res.ok) throw new Error("Gagal mengambil notifikasi");
@@ -18,7 +18,7 @@ export async function fetchNotifications(page = 1) {
 }
 
 export async function fetchUnreadCount(): Promise<number> {
-  const res = await fetch(`${API_BASE_URL}/notifications/unread-count`, {
+  const res = await apiFetch("/api/notifications/unread-count", {
     headers: headers(),
   });
   if (!res.ok) return 0;
@@ -27,21 +27,21 @@ export async function fetchUnreadCount(): Promise<number> {
 }
 
 export async function markNotificationRead(id: string) {
-  await fetch(`${API_BASE_URL}/notifications/${id}/read`, {
+  await apiFetch(`/api/notifications/${id}/read`, {
     method: "POST",
     headers: headers(),
   });
 }
 
 export async function markAllNotificationsRead() {
-  await fetch(`${API_BASE_URL}/notifications/read-all`, {
+  await apiFetch("/api/notifications/read-all", {
     method: "POST",
     headers: headers(),
   });
 }
 
 export async function deleteAllNotifications() {
-  await fetch(`${API_BASE_URL}/notifications`, {
+  await apiFetch("/api/notifications", {
     method: "DELETE",
     headers: headers(),
   });

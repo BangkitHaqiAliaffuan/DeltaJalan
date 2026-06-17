@@ -1,18 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { API_BASE_URL } from "@/lib/aiStore";
+import { apiFetch } from "@/lib/api";
 
 const PING_INTERVAL_MS = 60_000;
-const PING_TIMEOUT_MS = 5_000;
 
 async function pingServer(): Promise<boolean> {
   try {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), PING_TIMEOUT_MS);
-    const res = await fetch(`${API_BASE_URL}/ping`, {
-      method: "GET",
-      signal: controller.signal,
-    });
-    clearTimeout(id);
+    const res = await apiFetch("/api/ping", { method: "GET" });
     return res.ok;
   } catch {
     return false;

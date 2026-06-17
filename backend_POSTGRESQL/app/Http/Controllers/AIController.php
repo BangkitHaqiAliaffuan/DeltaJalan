@@ -268,6 +268,8 @@ class AIController extends Controller
         return match(strtolower(trim($rawSeverity))) {
             'rusak berat', 'berat'   => 'berat',
             'rusak sedang', 'sedang' => 'sedang',
+            'rusak ringan', 'ringan' => 'ringan',
+            'baik'                   => 'baik',
             default                  => 'ringan',
         };
     }

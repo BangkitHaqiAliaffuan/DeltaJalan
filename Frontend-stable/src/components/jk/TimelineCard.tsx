@@ -39,6 +39,13 @@ export function TimelineCard({ events }: TimelineCardProps) {
 
   return (
     <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
+      <style>{`
+        @keyframes timeline-pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.15); }
+        }
+        .timeline-end-icon { animation: timeline-pulse 2s ease-in-out infinite; }
+      `}</style>
       <h3 className="font-label-md text-[13px] font-bold text-[#0F172A] mb-3">
         Timeline Perbaikan
       </h3>
@@ -52,14 +59,14 @@ export function TimelineCard({ events }: TimelineCardProps) {
               {/* Vertical connecting line */}
               {!isLast && (
                 <div
-                  className="absolute left-[15px] top-8 w-0.5 h-[calc(100%+4px)]"
-                  style={{ backgroundColor: style.line }}
+                  className="absolute left-[15px] top-8 w-0.5"
+                  style={{ backgroundColor: style.line, height: "calc(100% + 4px)", zIndex: 0 }}
                 />
               )}
 
               {/* Dot */}
               <div
-                className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isLast ? "animate-pulse" : ""}`}
+                className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isLast ? "timeline-end-icon" : ""}`}
                 style={{ backgroundColor: style.bg, borderColor: style.border, borderWidth: 1 }}
               >
                 <Icon name={style.icon} className="!text-[16px]" style={{ color: style.color }} />

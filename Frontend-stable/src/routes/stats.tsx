@@ -175,9 +175,7 @@ function StatsPage() {
   return (
     <PageLayout showBrand withBottomNav>
       <main className="pb-4 w-full">
-        <div className="max-w-5xl mx-auto px-4 pt-6 pb-4 flex flex-col gap-6">
-          {/* ── Header ─────────────────────────────────────────────── */}
-          <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] rounded-2xl p-6 text-white">
+        <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] p-6 text-white">
             <div className="flex items-start justify-between">
               <div>
                 <h1 className="text-xl font-bold tracking-tight">Statistik Laporan</h1>
@@ -210,6 +208,7 @@ function StatsPage() {
             )}
           </section>
 
+          <div className="max-w-5xl mx-auto px-4 pb-4 flex flex-col gap-6">
           {error && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3.5 text-sm text-amber-800 flex items-center gap-2.5">
               <Icon name="info" className="!text-lg text-amber-600 shrink-0" />
@@ -321,22 +320,22 @@ function StatsPage() {
                 </h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                   {[
-                    { icon: "assignment", label: "Total", value: stats.total, color: "text-[#1e40af]", bg: "bg-[#EEF2FF]", border: "border-[#C7D2FE]" },
-                    { icon: "rate_review", label: "Menunggu Review", value: stats.menunggu_review, color: "text-[#D97706]", bg: "bg-[#FFFBEB]", border: "border-[#FDE68A]" },
-                    { icon: "thumb_up", label: "Disetujui", value: stats.disetujui, color: "text-[#1e40af]", bg: "bg-[#EEF2FF]", border: "border-[#C7D2FE]" },
-                    { icon: "build", label: "Diperbaiki", value: stats.sedang_diperbaiki, color: "text-[#D97706]", bg: "bg-[#FFFBEB]", border: "border-[#FDE68A]" },
-                    { icon: "check_circle", label: "Selesai", value: stats.selesai, color: "text-[#059669]", bg: "bg-[#ECFDF5]", border: "border-[#A7F3D0]" },
-                    { icon: "block", label: "Ditolak", value: stats.ditolak, color: "text-[#DC2626]", bg: "bg-[#FEF2F2]", border: "border-[#FECACA]" },
+                    { icon: "assignment", label: "Total", value: stats.total, color: "text-[#1e40af]" },
+                    { icon: "rate_review", label: "Menunggu Review", value: stats.menunggu_review, color: "text-[#D97706]" },
+                    { icon: "thumb_up", label: "Disetujui", value: stats.disetujui, color: "text-[#1e40af]" },
+                    { icon: "build", label: "Diperbaiki", value: stats.sedang_diperbaiki, color: "text-[#D97706]" },
+                    { icon: "check_circle", label: "Selesai", value: stats.selesai, color: "text-[#059669]" },
+                    { icon: "block", label: "Ditolak", value: stats.ditolak, color: "text-[#DC2626]" },
                   ].map((c) => (
                     <div
                       key={c.label}
-                      className={`${c.bg} border ${c.border} rounded-xl p-4 flex flex-col`}
+                      className="bg-gradient-to-br from-[#EEF2FF] to-white border border-[#C7D2FE] rounded-xl p-4 flex flex-col items-center justify-center gap-1.5 aspect-square group transition-all duration-200 ease-out hover:scale-[1.03] hover:shadow-md hover:border-[#A5B4FC]"
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <Icon name={c.icon} className={`${c.color} !text-xl`} />
-                        <span className={`text-lg font-bold ${c.color}`}>{c.value}</span>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <Icon name={c.icon} className={`${c.color} !text-2xl group-hover:scale-110 group-hover:-translate-y-0.5 transition-transform duration-200`} />
+                        <span className={`text-2xl font-bold ${c.color}`}>{c.value}</span>
                       </div>
-                      <p className={`text-[11px] font-medium ${c.color} opacity-80`}>{c.label}</p>
+                      <p className={`text-sm font-medium ${c.color} opacity-80`}>{c.label}</p>
                     </div>
                   ))}
                 </div>
@@ -467,18 +466,18 @@ function StatsPage() {
                     Dimensi Kerusakan
                   </h2>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-gradient-to-br from-[#EEF2FF] to-white border border-[#C7D2FE] rounded-xl p-5">
+                    <div className="bg-gradient-to-br from-[#EEF2FF] to-white border border-[#C7D2FE] rounded-xl p-5 group transition-all duration-200 ease-out hover:scale-[1.03] hover:shadow-md hover:border-[#A5B4FC]">
                       <div className="flex items-center gap-2 text-[#1e40af] mb-2">
-                        <Icon name="straighten" className="!text-xl" />
+                        <Icon name="straighten" className="!text-2xl group-hover:scale-110 group-hover:-translate-y-0.5 transition-transform duration-200" />
                       </div>
                       <p className="text-2xl font-bold text-[#1e40af]">
                         {totalPanjang.toLocaleString("id-ID")} <span className="text-sm font-medium">m</span>
                       </p>
                       <p className="text-xs text-[#475569] mt-1">Total Panjang Kerusakan</p>
                     </div>
-                    <div className="bg-gradient-to-br from-[#EEF2FF] to-white border border-[#C7D2FE] rounded-xl p-5">
+                    <div className="bg-gradient-to-br from-[#EEF2FF] to-white border border-[#C7D2FE] rounded-xl p-5 group transition-all duration-200 ease-out hover:scale-[1.03] hover:shadow-md hover:border-[#A5B4FC]">
                       <div className="flex items-center gap-2 text-[#1e40af] mb-2">
-                        <Icon name="grid_view" className="!text-xl" />
+                        <Icon name="grid_view" className="!text-2xl group-hover:scale-110 group-hover:-translate-y-0.5 transition-transform duration-200" />
                       </div>
                       <p className="text-2xl font-bold text-[#1e40af]">
                         {totalLuas.toLocaleString("id-ID")} <span className="text-sm font-medium">m²</span>

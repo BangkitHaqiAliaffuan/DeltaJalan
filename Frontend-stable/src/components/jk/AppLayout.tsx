@@ -12,11 +12,18 @@ import { Sidebar } from "./Sidebar";
  * Untuk modal/overlay, selalu gunakan komponen Portal agar di-render
  * langsung ke document.body.
  */
-export function AppLayout({ children }: { children: React.ReactNode }) {
+interface AppLayoutProps {
+  children: React.ReactNode;
+  fullPage?: boolean;
+}
+
+export function AppLayout({ children, fullPage }: AppLayoutProps) {
   return (
-    <div className="h-[100dvh] bg-[#F5F7FA] flex overflow-hidden">
+    <div
+      className={`bg-[#F5F7FA] flex ${fullPage ? "min-h-screen" : "h-[100dvh] overflow-hidden"}`}
+    >
       <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0 min-h-0">{children}</div>
+      <div className={`flex-1 flex flex-col min-w-0 ${fullPage ? "" : "min-h-0"}`}>{children}</div>
     </div>
   );
 }

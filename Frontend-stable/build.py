@@ -25,10 +25,6 @@ html.app-ready body::before,
 html.app-ready body::after {
   opacity: 0;
 }
-#root body::before,
-#root body::after {
-  display: none !important;
-}
 """
 
 ERROR_SCRIPT = """
@@ -40,6 +36,15 @@ window.addEventListener('unhandledrejection',function(e){console.error('[DeltaJa
 </script>
 """
 
+def inject_into_html(content):
+    """Inject splash CSS + error script into HTML content right before </head>."""
+    splash_tag = f"<style>{SPLASH_CSS}</style>"
+    error_tag = ERROR_SCRIPT
+    if splash_tag not in content:
+        content = content.replace("</head>", f"{splash_tag}\n{error_tag}\n</head>")
+    return content
+
+
 def build():
     print("=== Build SPA ===")
     r = subprocess.run(["npx", "vite", "build", "--config", "vite.config.capacitor.ts"], shell=True)
@@ -47,58 +52,65 @@ def build():
         print(f"[FAIL] Build -- exit {r.returncode}"); sys.exit(1)
 
     shell = f"{DIST}/_shell.html"
-    if not os.path.exists(shell):
-        print("[FAIL] _shell.html not found"); sys.exit(1)
+    existing_index = HTML
 
-    os.rename(shell, HTML)
-    print("_shell.html -> index.html")
+    if os.path.exists(shell):
+        # TanStack Start SPA mode: patch _shell.html into clean index.html
+        with open(shell, "r", encoding="utf-8") as f:
+            content = f.read()
 
-    with open(HTML, "r", encoding="utf-8") as f:
-        content = f.read()
+        head_tags = re.findall(
+            r'<(?:meta|link)[^>]*/?>|'
+            r'<title>.*?</title>|'
+            r'<style>.*?</style>',
+            content, re.DOTALL
+        )
 
-    # Strip TSR stream markers from <body>, keep only:
-    #   - <div id="root">        (React mounts here via createRoot)
-    #   - $tsr-stream-barrier    (router state for hydrateStart)
-    #   - module import script   (client entry point)
-    # This eliminates the #418 hydration error caused by TSR SPA shell
-    # prerender producing <!--$--> stream markers instead of route content.
-    tsr_script = re.search(
-        r'<script\s+class="\$tsr"[^>]*>.*?</script>', content, re.DOTALL
-    )
-    module_script = re.search(
-        r'<script\s+type="module"[^>]*>.*?</script>', content, re.DOTALL
-    )
-    parts = ['<div id="root"></div>']
-    if tsr_script:
-        parts.append(tsr_script.group(0))
-    if module_script:
-        parts.append(module_script.group(0))
-    new_body_inner = '\n'.join(parts) + '\n'
+        module_match = re.search(
+            r'<script\s+type="module"[^>]*>.*?</script>',
+            content, re.DOTALL
+        )
+        module_script = module_match.group(0) if module_match else ''
 
-    def replace_body(m):
-        return m.group(1) + new_body_inner + m.group(2)
+        head_inner = '\n'.join(head_tags)
 
-    content = re.sub(
-        r'(<body[^>]*>).*?(</body>)',
-        replace_body,
-        content,
-        flags=re.DOTALL,
-    )
+        html = f'''<!DOCTYPE html>
+<html lang="id">
+<head>
+{head_inner}
+<style>{SPLASH_CSS}</style>
+{ERROR_SCRIPT}
+</head>
+<body>
+  <div id="root"></div>
+  {module_script}
+</body>
+</html>'''
 
-    # Inject splash CSS + error handlers before </head>
-    content = content.replace("</head>", f"<style>{SPLASH_CSS}\n</style>\n{ERROR_SCRIPT}\n</head>")
+        with open(HTML, "w", encoding="utf-8") as f:
+            f.write(html)
 
-    # Patch: strip document.currentScript.remove() from TanStack inline scripts.
-    # These self-removals delete script nodes from DOM *before* React hydration starts,
-    # causing React Error #418 (hydration mismatch: expected SCRIPT node, found COMMENT).
-    # By keeping the script nodes in DOM, React finds the expected structure and hydrates cleanly.
-    content = re.sub(r';?\s*document\.currentScript\.remove\(\)', '', content)
-    print("Patched: stripped document.currentScript.remove() from TanStack inline scripts")
+        print("Generated clean index.html from _shell.html head + custom body")
 
-    with open(HTML, "w", encoding="utf-8") as f:
-        f.write(content)
+    elif os.path.exists(existing_index):
+        # index.html already exists (e.g. from npm run build:mobile or earlier run)
+        # Just inject splash CSS + error script
+        print("Found existing index.html — injecting splash CSS + error script")
+        with open(existing_index, "r", encoding="utf-8") as f:
+            content = f.read()
 
-    print("Pseudo-element splash + error handlers injected into index.html")
+        content = inject_into_html(content)
+
+        with open(existing_index, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        print("Patched index.html with splash CSS + error script")
+
+    else:
+        print("[FAIL] Build selesai tapi _shell.html DAN index.html tidak ditemukan di dist/client/.")
+        print("       Kemungkinan: npm run build (SSR) pernah dijalankan dan menimpa output SPA.")
+        print("       Fix: jalankan 'python build.py --build-only' untuk rebuild SPA.")
+        sys.exit(1)
 
 def device_available():
     r = subprocess.run(["adb", "devices"], capture_output=True, text=True)

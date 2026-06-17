@@ -48,11 +48,7 @@ function MapPage() {
   }, []);
 
   function handleViewDetail(id: string) {
-    if (clientUserRole === "supervisor") {
-      navigate({ to: "/review", search: { reportId: id } });
-    } else {
-      navigate({ to: "/detail-report", search: { reportId: id } });
-    }
+    navigate({ to: "/detail-report", search: { reportId: id } });
   }
 
   return (

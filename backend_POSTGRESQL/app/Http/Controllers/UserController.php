@@ -20,7 +20,7 @@ class UserController extends Controller
     {
         $user = $request->user();
 
-        if ($user->role !== 'supervisor') {
+        if (!in_array($user->role, ['supervisor', 'admin'], true)) {
             return response()->json(['success' => false, 'message' => 'Hanya supervisor yang dapat melihat daftar pengguna.'], 403);
         }
 
@@ -84,7 +84,7 @@ class UserController extends Controller
     {
         $user = $request->user();
 
-        if ($user->role !== 'supervisor') {
+        if (!in_array($user->role, ['supervisor', 'admin'], true)) {
             return response()->json(['success' => false, 'message' => 'Hanya supervisor yang dapat menambah pengguna.'], 403);
         }
 
@@ -93,7 +93,7 @@ class UserController extends Controller
                 'name'     => ['required', 'string', 'max:255'],
                 'email'    => ['required', 'email', 'max:255', Rule::unique('users')],
                 'password' => ['required', 'string', 'min:8'],
-                'role'     => ['required', Rule::in(['petugas', 'supervisor', 'petugas_eksekusi'])],
+                'role'     => ['required', Rule::in(['petugas', 'supervisor', 'petugas_eksekusi', 'admin'])],
                 'wilayah'  => ['nullable', 'string', 'max:100'],
                 'nip'      => ['nullable', 'string', 'max:20'],
                 'upr_id'   => ['nullable', 'integer', 'exists:uprs,id'],
@@ -141,7 +141,7 @@ class UserController extends Controller
     {
         $user = $request->user();
 
-        if ($user->role !== 'supervisor' && $user->id !== $id) {
+        if (!in_array($user->role, ['supervisor', 'admin'], true) && $user->id !== $id) {
             return response()->json(['success' => false, 'message' => 'Anda hanya dapat melihat detail akun Anda sendiri.'], 403);
         }
 
@@ -178,7 +178,7 @@ class UserController extends Controller
     {
         $authUser = $request->user();
 
-        if ($authUser->role !== 'supervisor' && $authUser->id !== $id) {
+        if (!in_array($authUser->role, ['supervisor', 'admin'], true) && $authUser->id !== $id) {
             return response()->json(['success' => false, 'message' => 'Anda hanya dapat mengupdate akun Anda sendiri.'], 403);
         }
 
@@ -192,14 +192,14 @@ class UserController extends Controller
             $rules = [
                 'name'    => ['sometimes', 'required', 'string', 'max:255'],
                 'email'   => ['sometimes', 'required', 'email', 'max:255', Rule::unique('users')->ignore($id)],
-                'role'    => ['sometimes', 'required', Rule::in(['petugas', 'supervisor', 'petugas_eksekusi'])],
+                'role'    => ['sometimes', 'required', Rule::in(['petugas', 'supervisor', 'petugas_eksekusi', 'admin'])],
                 'wilayah' => ['nullable', 'string', 'max:100'],
                 'nip'     => ['nullable', 'string', 'max:20'],
                 'upr_id'  => ['nullable', 'integer', 'exists:uprs,id'],
             ];
 
-            // Only supervisor can change role
-            if ($authUser->role !== 'supervisor') {
+            // Only supervisor/admin can change role
+            if (!in_array($authUser->role, ['supervisor', 'admin'], true)) {
                 unset($rules['role']);
             }
 
@@ -252,7 +252,7 @@ class UserController extends Controller
     {
         $user = $request->user();
 
-        if ($user->role !== 'supervisor') {
+        if (!in_array($user->role, ['supervisor', 'admin'], true)) {
             return response()->json(['success' => false, 'message' => 'Hanya supervisor yang dapat menghapus pengguna.'], 403);
         }
 

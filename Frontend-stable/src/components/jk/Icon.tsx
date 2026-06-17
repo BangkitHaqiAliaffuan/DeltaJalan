@@ -214,7 +214,11 @@ export function Icon({
     return null;
   }
 
-  const iconSize = className ? undefined : 20;
+  const iconSize = (() => {
+    if (!className) return 20;
+    const m = className.match(/text-\[(\d+)px\]/);
+    return m ? parseInt(m[1]) : 24;
+  })();
 
   if (shadowed) {
     return (

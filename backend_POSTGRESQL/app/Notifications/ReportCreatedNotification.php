@@ -17,7 +17,7 @@ class ReportCreatedNotification extends Notification implements ShouldQueue
 
     public function via($notifiable): array
     {
-        return ['database', 'webpush'];
+        return ['database', 'webpush', 'fcm'];
     }
 
     public function toWebPush($notifiable): array
@@ -26,6 +26,20 @@ class ReportCreatedNotification extends Notification implements ShouldQueue
             'title'       => 'Laporan Baru',
             'message'     => 'Laporan ' . $this->report->report_code . ' dari ' . $this->report->reporter_name . ' di ' . $this->report->district,
             'url'         => '/detail-report?reportId=' . $this->report->id,
+        ];
+    }
+
+    public function toFcm($notifiable): array
+    {
+        return [
+            'title'   => 'Laporan Baru',
+            'body'    => 'Laporan ' . $this->report->report_code . ' dari ' . $this->report->reporter_name . ' di ' . $this->report->district,
+            'data'    => [
+                'type'        => 'report_created',
+                'report_id'   => $this->report->id,
+                'report_code' => $this->report->report_code,
+            ],
+            'android' => ['channel_id' => 'delta_jalan_general'],
         ];
     }
 

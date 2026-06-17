@@ -227,6 +227,13 @@ Route::middleware('auth:sanctum')->group(function () {
      */
     Route::post('/reports/{id}/update-triage', [ReportController::class, 'updateTriage']);
 
+    /**
+     * DELETE /api/reports/{id}
+     * Petugas lapangan menghapus laporan miliknya sendiri.
+     * Hanya laporan milik user yang sedang login yang bisa dihapus.
+     */
+    Route::delete('/reports/{id}', [ReportController::class, 'destroy']);
+
     // ── Notifikasi ────────────────────────────────────────────────────────
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
@@ -234,10 +241,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
     Route::delete('/notifications', [NotificationController::class, 'destroyAll']);
 
-    // ── Push Notification (WebPush) ────────────────────────────────────────
+    // ── Push Notification (WebPush + FCM) ──────────────────────────────────
     Route::get('/push/vapid-key', [PushSubscriptionController::class, 'vapidKey']);
     Route::post('/push/subscribe', [PushSubscriptionController::class, 'subscribe']);
     Route::post('/push/unsubscribe', [PushSubscriptionController::class, 'unsubscribe']);
+    Route::post('/push/fcm-token', [PushSubscriptionController::class, 'storeFcmToken']);
+    Route::delete('/push/fcm-token', [PushSubscriptionController::class, 'removeFcmToken']);
 
     // ── Activity / Status Logs ─────────────────────────────────────────────
     Route::get('/activity', [StatusLogController::class, 'index']);

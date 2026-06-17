@@ -18,7 +18,7 @@ class ReportApprovedNotification extends Notification implements ShouldQueue
 
     public function via($notifiable): array
     {
-        return ['database', 'webpush'];
+        return ['database', 'webpush', 'fcm'];
     }
 
     public function toWebPush($notifiable): array
@@ -27,6 +27,20 @@ class ReportApprovedNotification extends Notification implements ShouldQueue
             'title'   => 'Laporan Disetujui',
             'message' => 'Laporan ' . $this->report->report_code . ' disetujui oleh ' . $this->approvedBy,
             'url'     => '/detail-report?reportId=' . $this->report->id,
+        ];
+    }
+
+    public function toFcm($notifiable): array
+    {
+        return [
+            'title'   => 'Laporan Disetujui',
+            'body'    => 'Laporan ' . $this->report->report_code . ' disetujui oleh ' . $this->approvedBy,
+            'data'    => [
+                'type'        => 'report_approved',
+                'report_id'   => $this->report->id,
+                'report_code' => $this->report->report_code,
+            ],
+            'android' => ['channel_id' => 'delta_jalan_general'],
         ];
     }
 

@@ -153,7 +153,8 @@ export const SEVERITY_CONFIG: Record<
 function getApiBaseUrl(): string {
   if (
     typeof window !== 'undefined' &&
-    typeof (window as Record<string, unknown>).Capacitor !== 'undefined'
+    typeof (window as Record<string, unknown>).Capacitor !== 'undefined' &&
+    (window as Record<string, unknown>).Capacitor.isNativePlatform?.() === true
   ) {
     return import.meta.env.VITE_API_BASE_URL ?? 'http://10.0.2.2:8080/api';
   }

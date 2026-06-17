@@ -18,7 +18,7 @@ class UprController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['supervisor', 'petugas_eksekusi'], true)) {
+        if (!in_array($user->role, ['supervisor', 'petugas_eksekusi', 'admin'], true)) {
             return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
         }
 
@@ -77,7 +77,7 @@ class UprController extends Controller
     {
         $user = $request->user();
 
-        if ($user->role !== 'supervisor') {
+        if (!in_array($user->role, ['supervisor', 'admin'], true)) {
             return response()->json(['success' => false, 'message' => 'Hanya supervisor yang dapat menambah UPR.'], 403);
         }
 
@@ -127,7 +127,7 @@ class UprController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['supervisor', 'petugas_eksekusi'], true)) {
+        if (!in_array($user->role, ['supervisor', 'petugas_eksekusi', 'admin'], true)) {
             return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
         }
 
@@ -160,7 +160,7 @@ class UprController extends Controller
     {
         $user = $request->user();
 
-        if ($user->role !== 'supervisor') {
+        if (!in_array($user->role, ['supervisor', 'admin'], true)) {
             return response()->json(['success' => false, 'message' => 'Hanya supervisor yang dapat mengubah UPR.'], 403);
         }
 
@@ -210,7 +210,7 @@ class UprController extends Controller
     {
         $user = $request->user();
 
-        if ($user->role !== 'supervisor') {
+        if (!in_array($user->role, ['supervisor', 'admin'], true)) {
             return response()->json(['success' => false, 'message' => 'Hanya supervisor yang dapat menghapus UPR.'], 403);
         }
 

@@ -18,7 +18,7 @@ class RepairCompletedNotification extends Notification implements ShouldQueue
 
     public function via($notifiable): array
     {
-        return ['database', 'webpush'];
+        return ['database', 'webpush', 'fcm'];
     }
 
     public function toWebPush($notifiable): array
@@ -27,6 +27,20 @@ class RepairCompletedNotification extends Notification implements ShouldQueue
             'title'   => 'Perbaikan Selesai',
             'message' => 'Perbaikan laporan ' . $this->report->report_code . ' selesai oleh ' . $this->completedBy,
             'url'     => '/detail-report?reportId=' . $this->report->id,
+        ];
+    }
+
+    public function toFcm($notifiable): array
+    {
+        return [
+            'title'   => 'Perbaikan Selesai',
+            'body'    => 'Perbaikan laporan ' . $this->report->report_code . ' selesai oleh ' . $this->completedBy,
+            'data'    => [
+                'type'        => 'repair_completed',
+                'report_id'   => $this->report->id,
+                'report_code' => $this->report->report_code,
+            ],
+            'android' => ['channel_id' => 'delta_jalan_general'],
         ];
     }
 

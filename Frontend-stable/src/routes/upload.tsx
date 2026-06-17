@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router"
 import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { FraudWarningModal } from "@/components/jk/FraudWarningModal";
+import { Portal } from "@/components/jk/Portal";
 import { DuplicateChecker } from "@/components/jk/DuplicateChecker";
 import { GpsBanner } from "@/components/jk/GpsBanner";
 import { useRef, useState, useCallback, useEffect } from "react";
@@ -123,6 +124,13 @@ function UploadPage() {
     message: "",
     isWarningOnly: false,
   });
+
+  // Zero-damage warning state — AI tidak mendeteksi kerusakan
+  const [showZeroDamageWarning, setShowZeroDamageWarning] = useState(false);
+  const zeroDamageResolveRef = useRef<((v: boolean) => void) | null>(null);
+  function waitForDamageConfirm(): Promise<boolean> {
+    return new Promise((resolve) => { zeroDamageResolveRef.current = resolve; });
+  }
 
   // State untuk tombol "Gunakan GPS Saya" (foto tanpa EXIF GPS)
   const [isRequestingLiveGps, setIsRequestingLiveGps] = useState(false);
@@ -712,6 +720,17 @@ function UploadPage() {
         );
       }
 
+      // ── Warning jika AI tidak mendeteksi kerusakan ──────────────────────
+      const allZeroBatch = batchData.analyses.every((a) => a.detections.length === 0);
+      if (allZeroBatch) {
+        setShowZeroDamageWarning(true);
+        const confirmed = await waitForDamageConfirm();
+        setShowZeroDamageWarning(false);
+        if (!confirmed) {
+          throw new Error("Laporan dibatalkan karena AI tidak mendeteksi kerusakan pada semua foto.");
+        }
+      }
+
       // ── Fase 2: Simpan laporan ke database ────────────────────────────
       setUploadPhase("validating");
       const fd2 = new FormData();
@@ -760,9 +779,9 @@ function UploadPage() {
       const batchAnalyses = batchData.analyses;
 
       const normSev = (s: string) =>
-        s === "berat" ? "Rusak Berat" : s === "sedang" ? "Rusak Sedang" : "Rusak Ringan";
+        s === "berat" ? "Rusak Berat" : s === "sedang" ? "Rusak Sedang" : s === "ringan" ? "Rusak Ringan" : "Baik";
 
-      const overallSev = normSev(reportData.overall_severity ?? "ringan");
+      const overallSev = normSev(reportData.overall_severity ?? "baik");
 
       const allDetections = batchAnalyses.flatMap((a) =>
         a.detections.map((d) => ({
@@ -1417,6 +1436,18 @@ function UploadPage() {
       }
 
       const result = await response.json();
+
+      // ── Warning jika AI tidak mendeteksi kerusakan ──
+      if ((result.total ?? 0) === 0) {
+        setShowZeroDamageWarning(true);
+        const confirmed = await waitForDamageConfirm();
+        setShowZeroDamageWarning(false);
+        if (!confirmed) {
+          setAnalysisState("idle");
+          setErrorMsg("Laporan dibatalkan karena AI tidak mendeteksi kerusakan pada foto.");
+          return;
+        }
+      }
 
       setAiResult(result);
       setFormData({
@@ -2441,6 +2472,48 @@ function UploadPage() {
         onClose={closeFraudModal}
         isWarningOnly={fraudModal.isWarningOnly}
       />
+
+      {/* ── Zero-Damage Warning Modal ── */}
+      {showZeroDamageWarning && (
+        <Portal>
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0, 0, 0, 0.55)" }} aria-hidden="true">
+            <div className="w-full max-w-sm bg-white rounded-xl border border-[#D0DAE8] shadow-lg" role="alertdialog" aria-modal="true">
+              <div className="bg-amber-500 border-b border-amber-600 px-5 py-4 flex items-start gap-3">
+                <div className="w-10 h-10 rounded-lg bg-white/60 flex items-center justify-center shrink-0">
+                  <Icon name="warning" className="text-white !text-[24px]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-amber-600 text-white border border-black/10 mb-1.5" style={{ fontFamily: "'JetBrains Mono', monospace" }}>AI TIDAK MENDETEKSI KERUSAKAN</span>
+                  <h2 className="text-[16px] font-bold text-white leading-tight">Tidak Ada Kerusakan Terdeteksi</h2>
+                </div>
+              </div>
+              <div className="px-5 py-4">
+                <p className="text-[13px] text-[#0F172A] leading-relaxed">
+                  AI tidak mendeteksi adanya kerusakan jalan pada foto yang diunggah. Apakah Anda yakin ingin tetap membuat laporan?
+                </p>
+              </div>
+              <div className="px-5 pb-5 flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => { zeroDamageResolveRef.current?.(true); setShowZeroDamageWarning(false); }}
+                  className="w-full h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-95 transition-all"
+                >
+                  <Icon name="check" className="!text-[18px]" />
+                  Ya, tetap buat laporan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { zeroDamageResolveRef.current?.(false); setShowZeroDamageWarning(false); }}
+                  className="w-full h-11 bg-white border border-[#D0DAE8] text-[#64748B] rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#F8FAFC] hover:text-[#0F172A] active:scale-95 transition-all"
+                >
+                  <Icon name="close" className="!text-[18px]" />
+                  Batalkan laporan
+                </button>
+              </div>
+            </div>
+          </div>
+        </Portal>
+      )}
 
       {/* ── Loading Overlay Batch Upload (Task 4F) ── */}
       {["uploading", "analyzing", "validating"].includes(uploadPhase) && (

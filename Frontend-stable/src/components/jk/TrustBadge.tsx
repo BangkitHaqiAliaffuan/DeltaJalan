@@ -56,10 +56,10 @@ export function TrustBadge({ score, label, breakdown, showDetail = false, compac
   if (compact) {
     return (
       <span
-        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${c.bg} ${c.text} ${c.border}`}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-[11px] font-semibold leading-none border ${c.bg} ${c.text} ${c.border}`}
         title={`Trust Score: ${score}/100 — ${c.desc}`}
       >
-        <Icon name={c.icon} className="!text-[14px]" />
+        <Icon name={c.icon} className="!text-[11px]" />
         {c.desc} {score}
       </span>
     );

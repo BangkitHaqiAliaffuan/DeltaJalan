@@ -24,7 +24,11 @@ BACKEND_ENV="$BACKEND_DIR/.env"
 FRONTEND_ENV="$FRONTEND_DIR/.env"
 
 REBUILD=false
-[[ "$1" == "--rebuild" ]] && REBUILD=true
+BUILD_ONLY=false
+for arg in "$@"; do
+  [[ "$arg" == "--rebuild" ]] && REBUILD=true
+  [[ "$arg" == "--build-only" ]] && BUILD_ONLY=true
+done
 
 NGROK_PID=""
 LARAVEL_PID=""
@@ -151,14 +155,18 @@ echo ""
 write_step "---" "Memeriksa prerequisites..."
 OK=true
 
-command -v php &>/dev/null || { write_step "X" "php tidak ditemukan di PATH"; OK=false; }
-command -v ngrok &>/dev/null || { write_step "X" "ngrok tidak ditemukan"; OK=false; }
-command -v nc &>/dev/null || command -v curl &>/dev/null || { write_step "X" "nc atau curl tidak ditemukan"; OK=false; }
+if [ "$BUILD_ONLY" != true ]; then
+  command -v php &>/dev/null || { write_step "X" "php tidak ditemukan di PATH"; OK=false; }
+  command -v ngrok &>/dev/null || { write_step "X" "ngrok tidak ditemukan"; OK=false; }
+  command -v nc &>/dev/null || command -v curl &>/dev/null || { write_step "X" "nc atau curl tidak ditemukan"; OK=false; }
+fi
 if [ "$REBUILD" = true ]; then
   command -v py &>/dev/null || command -v python &>/dev/null || { write_step "X" "py/python tidak ditemukan (dibutuhkan untuk --rebuild)"; OK=false; }
 fi
-[ -f "$BACKEND_DIR/artisan" ]   || { write_step "X" "artisan tidak ditemukan di $BACKEND_DIR"; OK=false; }
-[ -f "$BACKEND_ENV" ]           || { write_step "X" ".env tidak ditemukan di $BACKEND_DIR"; OK=false; }
+if [ "$BUILD_ONLY" != true ]; then
+  [ -f "$BACKEND_DIR/artisan" ]   || { write_step "X" "artisan tidak ditemukan di $BACKEND_DIR"; OK=false; }
+  [ -f "$BACKEND_ENV" ]           || { write_step "X" ".env tidak ditemukan di $BACKEND_DIR"; OK=false; }
+fi
 [ -f "$FRONTEND_ENV" ]          || { write_step "X" ".env tidak ditemukan di $FRONTEND_DIR"; OK=false; }
 
 if [ "$OK" != true ]; then
@@ -168,49 +176,51 @@ write_step "OK" "Semua prerequisite OK"
 echo ""
 
 # ── Start Laravel ──────────────────────────────────────────────────────────
-write_step "---" "Menjalankan Laravel di port $LARAVEL_PORT..."
-cd "$BACKEND_DIR"
-php artisan serve --host=0.0.0.0 --port=$LARAVEL_PORT > /dev/null 2>&1 &
-LARAVEL_PID=$!
+if [ "$BUILD_ONLY" != true ]; then
+  write_step "---" "Menjalankan Laravel di port $LARAVEL_PORT..."
+  cd "$BACKEND_DIR"
+  php artisan serve --host=0.0.0.0 --port=$LARAVEL_PORT > /dev/null 2>&1 &
+  LARAVEL_PID=$!
 
-if poll_port $LARAVEL_PORT; then
-  write_step "OK" "Laravel berjalan di http://localhost:$LARAVEL_PORT"
-else
-  write_step "X" "Laravel gagal (port $LARAVEL_PORT tidak terbuka setelah 30 detik)"
-  wait_for_enter; exit 1
+  if poll_port $LARAVEL_PORT; then
+    write_step "OK" "Laravel berjalan di http://localhost:$LARAVEL_PORT"
+  else
+    write_step "X" "Laravel gagal (port $LARAVEL_PORT tidak terbuka setelah 30 detik)"
+    wait_for_enter; exit 1
+  fi
+  echo ""
+
+  # ── Start ngrok ────────────────────────────────────────────────────────────
+  write_step "---" "Menjalankan ngrok tunnel ke port $LARAVEL_PORT..."
+  ngrok http $LARAVEL_PORT --log=stdout > /dev/null 2>&1 &
+  NGROK_PID=$!
+
+  write_step "..." "Menunggu ngrok siap (max 30 detik)..."
+  if ! NGROK_URL=$(get_ngrok_url); then
+    write_step "X" "Gagal mendapatkan ngrok URL"
+    wait_for_enter; exit 1
+  fi
+  write_step "OK" "Ngrok URL: $NGROK_URL"
+  echo ""
+
+  # ── Update backend .env ────────────────────────────────────────────────────
+  write_step "---" "Update backend .env NGROK_URL..."
+  OLD_BACKEND_NGROK=$(set_env_value "$BACKEND_ENV" "NGROK_URL" "$NGROK_URL")
+  write_step "OK" "NGROK_URL = $NGROK_URL"
+  [ -n "$OLD_BACKEND_NGROK" ] && write_step ".." "Sebelumnya: $OLD_BACKEND_NGROK"
+  echo ""
+
+  # ── Update frontend .env ───────────────────────────────────────────────────
+  API_URL="$NGROK_URL/api"
+  write_step "---" "Update frontend .env VITE_API_BASE_URL..."
+  OLD_FRONTEND_URL=$(set_env_value "$FRONTEND_ENV" "VITE_API_BASE_URL" "$API_URL")
+  [ -z "$OLD_FRONTEND_URL" ] && ADDED_FRONTEND_URL=true
+  write_step "OK" "VITE_API_BASE_URL = $API_URL"
+  echo ""
 fi
-echo ""
-
-# ── Start ngrok ────────────────────────────────────────────────────────────
-write_step "---" "Menjalankan ngrok tunnel ke port $LARAVEL_PORT..."
-ngrok http $LARAVEL_PORT --log=stdout > /dev/null 2>&1 &
-NGROK_PID=$!
-
-write_step "..." "Menunggu ngrok siap (max 30 detik)..."
-if ! NGROK_URL=$(get_ngrok_url); then
-  write_step "X" "Gagal mendapatkan ngrok URL"
-  wait_for_enter; exit 1
-fi
-write_step "OK" "Ngrok URL: $NGROK_URL"
-echo ""
-
-# ── Update backend .env ────────────────────────────────────────────────────
-write_step "---" "Update backend .env NGROK_URL..."
-OLD_BACKEND_NGROK=$(set_env_value "$BACKEND_ENV" "NGROK_URL" "$NGROK_URL")
-write_step "OK" "NGROK_URL = $NGROK_URL"
-[ -n "$OLD_BACKEND_NGROK" ] && write_step ".." "Sebelumnya: $OLD_BACKEND_NGROK"
-echo ""
-
-# ── Update frontend .env ───────────────────────────────────────────────────
-API_URL="$NGROK_URL/api"
-write_step "---" "Update frontend .env VITE_API_BASE_URL..."
-OLD_FRONTEND_URL=$(set_env_value "$FRONTEND_ENV" "VITE_API_BASE_URL" "$API_URL")
-[ -z "$OLD_FRONTEND_URL" ] && ADDED_FRONTEND_URL=true
-write_step "OK" "VITE_API_BASE_URL = $API_URL"
-echo ""
 
 # ── Rebuild (setelah .env diupdate, jadi pakai URL FRESH) ──────────────────
-if [ "$REBUILD" = true ]; then
+if [ "$REBUILD" = true ] || [ "$BUILD_ONLY" = true ]; then
   write_step "---" "Build ulang Capacitor app..."
   cd "$FRONTEND_DIR"
 
@@ -228,6 +238,12 @@ if [ "$REBUILD" = true ]; then
   fi
   write_step "OK" "Build + patch selesai (via build.py)"
 
+  if [ ! -f "$FRONTEND_DIR/dist/client/index.html" ]; then
+    write_step "X" "dist/client/index.html tidak ditemukan!"
+    write_step "X" "Build SPA gagal atau kamu menjalankan npm run build (SSR) yang menimpa output."
+    write_step "X" "Jalankan: python build.py --build-only, lalu ulangi."
+    cd "$SCRIPT_DIR"; wait_for_enter; exit 1
+  fi
   write_step "..." "npx cap copy..."
   npx cap copy || write_step "W" "cap copy gagal — lanjut..."
   write_step "OK" "Web assets tersalur"
@@ -243,6 +259,16 @@ if [ "$REBUILD" = true ]; then
     cd "$SCRIPT_DIR"; wait_for_enter; exit 1
   fi
   cd "$FRONTEND_DIR"
+
+  # ── Copy APK ke root project ────────────────────────────────────────────
+  APK_SRC=$(find "$FRONTEND_DIR/android/app/build" -name "*.apk" -type f 2>/dev/null | head -1)
+  APK_DST="$SCRIPT_DIR/../DeltaJalan.apk"
+  if [ -n "$APK_SRC" ]; then
+    cp "$APK_SRC" "$APK_DST"
+    write_step "OK" "APK dicopy ke $(cd "$SCRIPT_DIR/.." && pwd)/DeltaJalan.apk"
+  else
+    write_step "W" "APK tidak ditemukan — lewati copy ke root"
+  fi
 
   DEVICE=$(adb devices 2>/dev/null | grep -v "List" | grep "device$" | head -1 | awk '{print $1}')
   if [ -n "$DEVICE" ]; then
@@ -260,6 +286,11 @@ if [ "$REBUILD" = true ]; then
 
   write_step "OK" "Build + deploy selesai"
   echo ""
+fi
+
+if [ "$BUILD_ONLY" = true ]; then
+  write_step "OK" "Build-only selesai. APK siap di $(cd "$SCRIPT_DIR/.." && pwd)/DeltaJalan.apk"
+  exit 0
 fi
 
 # ── Post-rebuild health check (restart service jika mati selama rebuild) ────

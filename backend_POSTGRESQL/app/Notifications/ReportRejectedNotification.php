@@ -19,7 +19,7 @@ class ReportRejectedNotification extends Notification implements ShouldQueue
 
     public function via($notifiable): array
     {
-        return ['database', 'webpush'];
+        return ['database', 'webpush', 'fcm'];
     }
 
     public function toWebPush($notifiable): array
@@ -28,6 +28,20 @@ class ReportRejectedNotification extends Notification implements ShouldQueue
             'title'   => 'Laporan Ditolak',
             'message' => 'Laporan ' . $this->report->report_code . ' ditolak oleh ' . $this->rejectedBy,
             'url'     => '/detail-report?reportId=' . $this->report->id,
+        ];
+    }
+
+    public function toFcm($notifiable): array
+    {
+        return [
+            'title'   => 'Laporan Ditolak',
+            'body'    => 'Laporan ' . $this->report->report_code . ' ditolak oleh ' . $this->rejectedBy,
+            'data'    => [
+                'type'        => 'report_rejected',
+                'report_id'   => $this->report->id,
+                'report_code' => $this->report->report_code,
+            ],
+            'android' => ['channel_id' => 'delta_jalan_general'],
         ];
     }
 

@@ -55,7 +55,7 @@ class ReportSeeder extends Seeder
     public function run(): void
     {
         $uprs = Upr::all()->pluck('id')->toArray();
-        $reporters = ['Agus Setiawan', 'Rizky Pratama', 'Dwi Lestari', 'Bambang Gunawan'];
+        $reporters = ['Agus Setiawan', 'Rizky Firmansyah', 'Dewi Rahayu', 'Bambang Eko'];
         $sequence = Report::where('report_code', 'like', 'LP-' . date('Y') . '-%')
             ->orderBy('report_code', 'desc')
             ->value('report_code');

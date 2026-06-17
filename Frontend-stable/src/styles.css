@@ -45,9 +45,18 @@
   } /* 1280px */
 
   /* ── Konvensi Kelas DeltaJalan §11 ────────────────────────────────────────
-   * Card standar — Civic Precision (DeltaJalan Redesign) */
+   * Card standar — MD3 Surface Container */
   .jk-card {
     @apply bg-white border border-[#E2E8F0] rounded-lg p-6;
+  }
+  .jk-card-md3 {
+    @apply border rounded-xl p-4;
+    background-color: var(--color-surface-container-low);
+    border-color: var(--color-outline-variant);
+  }
+  .jk-surface-header {
+    background-color: var(--color-surface-container);
+    border-color: var(--color-outline-variant);
   }
 
   /* Badge tingkat kerusakan — sesuai §6.4 */
@@ -176,20 +185,20 @@
   --color-tertiary-fixed: #ffdbce;
   --color-on-tertiary-fixed: #380d00;
 
-  --color-surface: #f7f9fb;
+  --color-surface: #f6faff;
   --color-on-surface: #0F172A;
   --color-on-surface-variant: #475569;
-  --color-surface-variant: #e0e3e5;
-  --color-surface-bright: #ffffff;
-  --color-surface-dim: #d8dadc;
-  --color-surface-container-lowest: #ffffff;
-  --color-surface-container-low: #F1F5F9;
-  --color-surface-container: #eceef0;
-  --color-surface-container-high: #e6e8ea;
-  --color-surface-container-highest: #e0e3e5;
+  --color-surface-variant: #d9e4ed;
+  --color-surface-bright: #f6faff;
+  --color-surface-dim: #d1dbe5;
+  --color-surface-container-lowest: #f4f7fc;
+  --color-surface-container-low: #eef2f8;
+  --color-surface-container: #e7eff6;
+  --color-surface-container-high: #e0e9f2;
+  --color-surface-container-highest: #d9e4ed;
 
-  --color-bg-surface: #f7f9fb;
-  --color-background: #f7f9fb;
+  --color-bg-surface: #f6faff;
+  --color-background: #f6faff;
   --color-on-background: #191c1e;
 
   --color-outline: #757684;
@@ -251,11 +260,31 @@
   --font-display: "Manrope", sans-serif;
   --font-body-lg: "Inter", sans-serif;
   --font-body-md: "Inter", sans-serif;
+  --font-body-sm: "Inter", sans-serif;
   --font-label-md: "Inter", sans-serif;
   --font-label-sm: "Inter", sans-serif;
   --font-id-code: "JetBrains Mono", monospace;
 
   --radius: 0.5rem;
+
+  --animate-fade-in: fade-in 0.6s ease-out;
+  --animate-slide-up: slide-up 0.6s ease-out;
+  --animate-slow-zoom: slow-zoom 25s ease-in-out infinite alternate;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slow-zoom {
+  from { transform: scale(1); }
+  to { transform: scale(1.15); }
 }
 
 :root {

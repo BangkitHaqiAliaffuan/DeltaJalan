@@ -1,6 +1,13 @@
-import { Component, StrictMode, Suspense, type ErrorInfo, type ReactNode } from 'react'
+import { setupNativeFetch } from '@/lib/api'
+setupNativeFetch()
+
+import './styles.css'
+
+import { Component, StrictMode, type ErrorInfo, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { StartClient } from '@tanstack/react-start/client'
+import { RouterProvider } from '@tanstack/react-router'
+import { getRouter } from './router'
+import { useFcmRegistration } from '@/hooks/useFcmRegistration'
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null }
@@ -39,25 +46,21 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   }
 }
 
-const container = document.getElementById('root')
-if (container) {
-  try {
-    createRoot(container).render(
-      <StrictMode>
-        <ErrorBoundary>
-          <Suspense>
-            <StartClient />
-          </Suspense>
-        </ErrorBoundary>
-      </StrictMode>,
-    )
-  } catch (e) {
-    console.error('[DeltaJalan] createRoot failed:', e)
-    container.innerHTML = `<div style="display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px;background:#F1F5F9;font-family:system-ui,sans-serif">
-      <div style="max-width:400px;text-align:center">
-        <h1 style="font-size:20px;font-weight:600;color:#1E293B;margin-bottom:8px">Aplikasi gagal dimuat</h1>
-        <p style="font-size:14px;color:#64748B">Terjadi kesalahan kritis. Silakan restart aplikasi.</p>
-      </div>
-    </div>`
-  }
+function FcmInit() {
+  useFcmRegistration()
+  return null
 }
+
+const router = getRouter()
+
+const rootEl = document.getElementById('root')
+if (!rootEl) throw new Error('#root element not found. App cannot mount.')
+
+createRoot(rootEl).render(
+  
+    <ErrorBoundary>
+      <FcmInit />
+      <RouterProvider router={router} />
+    </ErrorBoundary>
+  
+)

@@ -1,12 +1,12 @@
 from ultralytics import YOLO
 import os
 
-MODEL_A = "best_stable.pt"
+MODEL_A = "best_best.pt"
 MODEL_B = "best.pt"
-TEST_FOLDER = r"C:\jalankita\foto_test"  # folder foto test kamu
+TEST_FOLDER = r"C:\jalankita dataset\foto_test"  # folder foto test kamu
 CONF = 0.4
 
-models = {"best_stable": YOLO(MODEL_A), "best_130epoch": YOLO(MODEL_B)}
+models = {"best_stable": YOLO(MODEL_A), "best_196epoch": YOLO(MODEL_B)}
 
 for name, model in models.items():
     print(f"\n{'='*40}")

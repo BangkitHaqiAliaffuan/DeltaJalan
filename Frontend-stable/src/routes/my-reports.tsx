@@ -53,7 +53,7 @@ function MyReportsPage() {
   async function loadLaporan() {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/reports?user_reports=true&limit=50`, {
+      const res = await fetch(`${API_BASE_URL}/reports?user_reports=true&limit=20`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (res.ok) {

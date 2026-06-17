@@ -18,7 +18,7 @@ class PeringatanTerlambat extends Notification implements ShouldQueue
 
     public function via($notifiable): array
     {
-        return ['database', 'webpush', 'mail'];
+        return ['database', 'webpush', 'mail', 'fcm'];
     }
 
     public function toMail($notifiable): MailMessage
@@ -53,6 +53,22 @@ class PeringatanTerlambat extends Notification implements ShouldQueue
             'title'   => "🚨 Deadline Terlewat — {$label}",
             'message' => "Laporan {$this->report->report_code} (prioritas {$this->report->priority}) telah melewati deadline {$label}.",
             'url'     => '/review?reportId=' . $this->report->id,
+        ];
+    }
+
+    public function toFcm($notifiable): array
+    {
+        $label = $this->type === 'review' ? 'Review' : 'Perbaikan';
+        return [
+            'title'   => 'Deadline Terlewat — ' . $label,
+            'body'    => "Laporan {$this->report->report_code} (prioritas {$this->report->priority}) telah melewati deadline {$label}.",
+            'data'    => [
+                'type'          => 'deadline_terlambat',
+                'report_id'     => $this->report->id,
+                'report_code'   => $this->report->report_code,
+                'deadline_type' => $this->type,
+            ],
+            'android' => ['channel_id' => 'delta_jalan_general'],
         ];
     }
 

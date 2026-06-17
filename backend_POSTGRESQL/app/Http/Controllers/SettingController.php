@@ -17,7 +17,7 @@ class SettingController extends Controller
     {
         $user = $request->user();
 
-        if ($user->role !== 'supervisor') {
+        if (!in_array($user->role, ['supervisor', 'admin'], true)) {
             return response()->json(['success' => false, 'message' => 'Hanya supervisor yang dapat melihat pengaturan sistem.'], 403);
         }
 
@@ -45,7 +45,7 @@ class SettingController extends Controller
     {
         $user = $request->user();
 
-        if ($user->role !== 'supervisor') {
+        if (!in_array($user->role, ['supervisor', 'admin'], true)) {
             return response()->json(['success' => false, 'message' => 'Hanya supervisor yang dapat mengubah pengaturan sistem.'], 403);
         }
 

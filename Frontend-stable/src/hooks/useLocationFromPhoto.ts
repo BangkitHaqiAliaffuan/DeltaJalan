@@ -19,27 +19,15 @@ import exifr from "exifr";
 import { snapToRoad } from "@/lib/geo";
 import { API_BASE_URL } from "@/lib/aiStore";
 import { getToken } from "@/lib/auth";
+import { PhotoExifGps } from "@jalankita/capacitor-exif-gps";
 
 /** Capacitor hanya tersedia di native — dicek via global window tanpa import */
-function isNativePlatform(): boolean {
+export function isNativePlatform(): boolean {
   return (
     typeof window !== "undefined" &&
     typeof (window as Record<string, unknown>).Capacitor !== "undefined" &&
-    typeof (window as Record<string, unknown>).Capacitor === "object" &&
-    typeof (window as Record<string, unknown>).Capacitor !== null
+    (window as Record<string, unknown>).Capacitor?.isNativePlatform?.() === true
   );
-}
-
-interface PhotoExifGpsPlugin {
-  pickPhotos: (options: { limit: number }) => Promise<{
-    photos: Array<{
-      fileName: string;
-      filePath: string;
-      previewUrl: string;
-      lat: number | null;
-      lng: number | null;
-    }>;
-  }>;
 }
 
 export interface NativePhoto {
@@ -50,21 +38,6 @@ export interface NativePhoto {
   lng: number | null;
   /** Convert file:// path jadi asset:// path untuk ditampilkan di <img> */
   src: string;
-}
-
-let photoExifPlugin: PhotoExifGpsPlugin | null = null;
-
-async function getPhotoExifPlugin(): Promise<PhotoExifGpsPlugin | null> {
-  if (photoExifPlugin) return photoExifPlugin;
-  if (!isNativePlatform()) return null;
-  try {
-    const { Capacitor, registerPlugin } = await import("@capacitor/core");
-    if (!Capacitor.isNativePlatform()) return null;
-    photoExifPlugin = registerPlugin("PhotoExifGps") as unknown as PhotoExifGpsPlugin;
-    return photoExifPlugin;
-  } catch {
-    return null;
-  }
 }
 
 function convertFileSrc(filePath: string): string {
@@ -78,6 +51,45 @@ function convertFileSrc(filePath: string): string {
     }
   } catch {}
   return filePath;
+}
+
+/**
+ * STRATEGI 4: Capacitor native — ambil foto dari kamera via @capacitor/camera.
+ * Kamera menyimpan ke file path langsung (bukan content URI), jadi EXIF GPS utuh.
+ */
+export async function nativeTakePhoto(): Promise<{
+  file: File;
+  lat: number | null;
+  lng: number | null;
+} | null> {
+  if (!isNativePlatform()) return null;
+  try {
+    const { Camera, CameraResultType, CameraSource } = await import("@capacitor/camera");
+
+    const image = await Camera.getPhoto({
+      quality: 85,
+      resultType: CameraResultType.Uri,
+      source: CameraSource.Camera,
+      saveToGallery: false,
+    });
+
+    if (!image.webPath) return null;
+
+    const response = await fetch(image.webPath);
+    const blob = await response.blob();
+    const file = new File([blob], `camera_${Date.now()}.jpg`, { type: "image/jpeg" });
+
+    const gps = await readExifGps(file);
+
+    return {
+      file,
+      lat: gps?.latitude ?? null,
+      lng: gps?.longitude ?? null,
+    };
+  } catch (err) {
+    console.warn("[nativeTakePhoto] Gagal:", err);
+    return null;
+  }
 }
 
 // ── Konstanta ──────────────────────────────────────────────────────────────
@@ -147,6 +159,15 @@ export interface UseLocationFromPhotoReturn {
    * dan mengembalikan foto + GPS langsung dari plugin.
    */
   handleNativePick: (limit?: number) => Promise<NativePhoto[]>;
+  /**
+   * Panggil ini di Capacitor native — ambil foto dari kamera via @capacitor/camera,
+   * EXIF GPS utuh karena file di-save ke path langsung.
+   */
+  handleNativeTakePhoto: () => Promise<{
+    file: File;
+    lat: number | null;
+    lng: number | null;
+  } | null>;
   /** Reset state lokasi */
   resetLocation: () => void;
 }
@@ -383,7 +404,10 @@ export function getBrowserLocation(options?: {
   });
 }
 
-export async function readExifGpsFromServer(file: File, signal?: AbortSignal): Promise<ExifGps | null> {
+export async function readExifGpsFromServer(
+  file: File,
+  signal?: AbortSignal,
+): Promise<ExifGps | null> {
   const token = getToken();
   const fd = new FormData();
   fd.append("image", file);
@@ -500,7 +524,7 @@ export function useLocationFromPhoto(
       }
 
       // 2nd attempt: server-side EXIF
-      setLocationState(prev => ({
+      setLocationState((prev) => ({
         ...prev,
         statusMessage: "Mengambil data GPS dari foto...",
       }));
@@ -512,7 +536,7 @@ export function useLocationFromPhoto(
       }
 
       // 3rd attempt: auto-geolocation fallback
-      setLocationState(prev => ({
+      setLocationState((prev) => ({
         ...prev,
         status: "auto_geolocating",
         statusMessage: "Mendeteksi lokasi perangkat...",
@@ -556,7 +580,7 @@ export function useLocationFromPhoto(
         return;
       }
 
-      setLocationState(prev => ({
+      setLocationState((prev) => ({
         ...prev,
         statusMessage: "Mengambil data GPS dari foto...",
       }));
@@ -567,7 +591,7 @@ export function useLocationFromPhoto(
         return;
       }
 
-      setLocationState(prev => ({
+      setLocationState((prev) => ({
         ...prev,
         status: "auto_geolocating",
         statusMessage: "Mendeteksi lokasi perangkat...",
@@ -593,61 +617,117 @@ export function useLocationFromPhoto(
   );
 
   /** STRATEGI 3: Capacitor native — pick photos langsung dari plugin dengan GPS */
-  const handleNativePick = useCallback(async (limit: number = 1): Promise<NativePhoto[]> => {
-    const plugin = await getPhotoExifPlugin();
-    if (!plugin) {
-      console.warn("[handleNativePick] Capacitor plugin tidak tersedia");
-      return [];
-    }
+  const handleNativePick = useCallback(
+    async (limit: number = 1): Promise<NativePhoto[]> => {
+      if (!isNativePlatform()) {
+        console.warn("[handleNativePick] Bukan native platform");
+        return [];
+      }
 
+      setLocationState({
+        lat: null,
+        lng: null,
+        source: "native",
+        status: "detecting",
+        statusMessage: "Memilih foto...",
+        roadNameLocked: false,
+      });
+
+      try {
+        const result = await PhotoExifGps.pickPhotos({ limit });
+        console.log("[DEBUG handleNativePick] raw result:", JSON.stringify(result, null, 2));
+        const photosWithSrc: NativePhoto[] = result.photos.map((p) => {
+          console.log("[DEBUG handleNativePick] each photo:", JSON.stringify(p, null, 2));
+          return {
+            fileName: p.name,
+            filePath: p.uri,
+            previewUrl: p.uri,
+            lat: p.lat,
+            lng: p.lng,
+            src: convertFileSrc(p.uri),
+          };
+        });
+
+        // Kalau single pick, proses koordinat foto pertama untuk auto-fill
+        if (limit === 1 && photosWithSrc.length > 0) {
+          const first = photosWithSrc[0];
+          if (first.lat != null && first.lng != null) {
+            await processCoordinates(first.lat, first.lng, "native");
+          } else {
+            setLocationState({
+              lat: null,
+              lng: null,
+              source: "native",
+              status: "exif_no_gps",
+              statusMessage: "Foto tidak memiliki data GPS.",
+              roadNameLocked: false,
+            });
+          }
+        }
+
+        return photosWithSrc;
+      } catch (err) {
+        console.warn("[handleNativePick] Gagal:", err);
+        setLocationState((prev) => ({
+          ...prev,
+          status: "error",
+          statusMessage: "Gagal membuka pemilih foto native",
+        }));
+        return [];
+      }
+    },
+    [processCoordinates],
+  );
+
+  /** STRATEGI 4: Capacitor native — ambil foto dari kamera dengan GPS */
+  const handleNativeTakePhoto = useCallback(async (): Promise<{
+    file: File;
+    lat: number | null;
+    lng: number | null;
+  } | null> => {
     setLocationState({
       lat: null,
       lng: null,
       source: "native",
       status: "detecting",
-      statusMessage: "Memilih foto...",
+      statusMessage: "Membuka kamera...",
       roadNameLocked: false,
     });
 
-    try {
-      const result = await plugin.pickPhotos({ limit });
-      const photosWithSrc: NativePhoto[] = result.photos.map((p) => ({
-        ...p,
-        src: convertFileSrc(p.filePath),
-      }));
+    const result = await nativeTakePhoto();
 
-      // Kalau single pick, proses koordinat foto pertama untuk auto-fill
-      if (limit === 1 && photosWithSrc.length > 0) {
-        const first = photosWithSrc[0];
-        if (first.lat != null && first.lng != null) {
-          await processCoordinates(first.lat, first.lng, "native");
-        } else {
-          setLocationState({
-            lat: null,
-            lng: null,
-            source: "native",
-            status: "exif_no_gps",
-            statusMessage: "Foto tidak memiliki data GPS.",
-            roadNameLocked: false,
-          });
-        }
-      }
-
-      return photosWithSrc;
-    } catch (err) {
-      console.warn("[handleNativePick] Gagal:", err);
-      setLocationState(prev => ({
+    if (result && result.lat != null && result.lng != null) {
+      await processCoordinates(result.lat, result.lng, "native");
+    } else if (result) {
+      setLocationState({
+        lat: null,
+        lng: null,
+        source: "native",
+        status: "exif_no_gps",
+        statusMessage: "Foto tidak memiliki data GPS.",
+        roadNameLocked: false,
+      });
+    } else {
+      setLocationState((prev) => ({
         ...prev,
-        status: "error",
-        statusMessage: "Gagal membuka pemilih foto native",
+        status: prev.lat ? "success" : "idle",
+        statusMessage: prev.lat ? prev.statusMessage : "",
       }));
-      return [];
     }
+
+    return result;
   }, [processCoordinates]);
 
   const resetLocation = useCallback(() => {
     setLocationState(INITIAL_STATE);
   }, []);
 
-  return { locationState, handleCameraCapture, handleGallerySelect, handleNativePick, resetLocation };
+  return {
+    locationState,
+    handleCameraCapture,
+    handleGallerySelect,
+    handleNativePick,
+    handleNativeTakePhoto,
+    resetLocation,
+  };
 }

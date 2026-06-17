@@ -18,7 +18,7 @@ class TriageUpdatedNotification extends Notification implements ShouldQueue
 
     public function via($notifiable): array
     {
-        return ['database', 'webpush'];
+        return ['database', 'webpush', 'fcm'];
     }
 
     public function toWebPush($notifiable): array
@@ -27,6 +27,20 @@ class TriageUpdatedNotification extends Notification implements ShouldQueue
             'title'   => 'Triage Diperbarui',
             'message' => 'Kategori kerusakan laporan ' . $this->report->report_code . ' diperbarui oleh ' . $this->updatedBy,
             'url'     => '/detail-report?reportId=' . $this->report->id,
+        ];
+    }
+
+    public function toFcm($notifiable): array
+    {
+        return [
+            'title'   => 'Triage Diperbarui',
+            'body'    => 'Kategori kerusakan laporan ' . $this->report->report_code . ' diperbarui oleh ' . $this->updatedBy,
+            'data'    => [
+                'type'        => 'triage_updated',
+                'report_id'   => $this->report->id,
+                'report_code' => $this->report->report_code,
+            ],
+            'android' => ['channel_id' => 'delta_jalan_general'],
         ];
     }
 

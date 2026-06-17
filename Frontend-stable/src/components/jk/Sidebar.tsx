@@ -112,18 +112,21 @@ export function Sidebar() {
             <Link
               key={item.label}
               to={item.to}
-              className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ease-out ${
+              className={`group relative overflow-hidden flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ease-out ${
                 active
                   ? "bg-white text-[#1A4F8A] font-semibold shadow-sm translate-x-0.5"
-                  : "text-white/70 hover:bg-white/10 hover:text-white hover:translate-x-0.5"
+                  : "text-white/70 hover:text-[#1A4F8A] hover:translate-x-0.5"
               }`}
             >
+              {!active && (
+                <span className="absolute inset-y-0 left-0 w-full bg-white rounded-lg transition-transform duration-300 ease-out -translate-x-full group-hover:translate-x-0" />
+              )}
               <Icon
                 name={item.icon}
-                className={`!text-[22px] sidebar-icon ${active ? "shadow-active" : ""}`}
+                className={`!text-[22px] sidebar-icon relative z-10 ${active ? "shadow-active" : "group-hover:text-[#1A4F8A] transition-colors duration-300"}`}
                 filled={active}
               />
-              <span className="text-[14px]" style={{ fontFamily: "'Inter', sans-serif" }}>
+              <span className={`text-[14px] relative z-10 ${active ? "" : "group-hover:text-[#1A4F8A] transition-colors duration-300"}`} style={{ fontFamily: "'Inter', sans-serif" }}>
                 {item.label}
               </span>
             </Link>

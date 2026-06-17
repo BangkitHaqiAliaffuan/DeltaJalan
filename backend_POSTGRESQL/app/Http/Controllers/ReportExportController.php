@@ -21,7 +21,7 @@ class ReportExportController extends Controller
     {
         $user = $request->user();
 
-        if ($user->role !== 'supervisor') {
+        if (!in_array($user->role, ['supervisor', 'admin'], true)) {
             abort(403, 'Hanya supervisor yang dapat mengunduh laporan rekap bulanan.');
         }
 
@@ -75,7 +75,7 @@ class ReportExportController extends Controller
     {
         $user = $request->user();
 
-        if ($user->role !== 'supervisor') {
+        if (!in_array($user->role, ['supervisor', 'admin'], true)) {
             abort(403, 'Hanya supervisor yang dapat mengunduh laporan rekap bulanan.');
         }
 

@@ -1,7 +1,6 @@
-import { Link, useLocation } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { Icon } from "./Icon";
-import { getCurrentUser } from "@/lib/auth";
-import { usePwaInstall } from "@/hooks/usePwaInstall";
+import { getCurrentUser, getToken, clearAuth } from "@/lib/auth";
 import { useEffect, useState } from "react";
 
 const PETUGAS_ITEMS = [
@@ -24,12 +23,26 @@ const EKSEKUSI_ITEMS = [
 
 export function BottomNav() {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const [user, setUser] = useState<ReturnType<typeof getCurrentUser>>(null);
-  const { canInstall, install } = usePwaInstall();
 
   useEffect(() => {
     setUser(getCurrentUser());
   }, []);
+
+  async function handleLogout() {
+    const token = getToken();
+    if (token) {
+      try {
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch {}
+    }
+    clearAuth();
+    navigate({ to: "/" });
+  }
 
   if (!user) return null;
 
@@ -57,16 +70,14 @@ export function BottomNav() {
           </Link>
         );
       })}
-      {canInstall && (
-        <button
-          type="button"
-          onClick={install}
-          className="flex flex-col items-center justify-center h-full px-2 transition-all active:scale-95 text-on-surface-variant"
-        >
-          <Icon name="download" />
-          <span className="font-label-sm text-label-sm">Install</span>
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={handleLogout}
+        className="flex flex-col items-center justify-center h-full px-2 transition-all active:scale-95 text-on-surface-variant"
+      >
+        <Icon name="logout" />
+        <span className="font-label-sm text-label-sm">Keluar</span>
+      </button>
     </nav>
   );
 }

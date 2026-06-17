@@ -1,4 +1,4 @@
-import { Link, useNavigate, useLocation } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router";
 import { Icon } from "@/components/jk/Icon";
 import { getCurrentUser, clearAuth } from "@/lib/auth";
 import { useEffect, useState, type ReactNode } from "react";
@@ -19,7 +19,6 @@ const ADMIN_MENU = [
 
 export function AdminLayout({ children }: { children?: ReactNode }) {
   const { pathname } = useLocation();
-  const navigate = useNavigate();
   const [user, setUser] = useState<ReturnType<typeof getCurrentUser>>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -27,13 +26,13 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
     const u = getCurrentUser();
     setUser(u);
     if (!u || u.role !== "admin") {
-      navigate({ to: "/admin/login" });
+      window.location.href = "/admin/login";
     }
-  }, [navigate]);
+  }, []);
 
   function handleLogout() {
     clearAuth();
-    navigate({ to: "/admin/login" });
+    window.location.href = "/admin/login";
   }
 
   return (

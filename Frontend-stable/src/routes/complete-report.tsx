@@ -111,7 +111,7 @@ function CompleteReportPage() {
   if (loading) {
     return (
       <PageLayout showBrand back={backUrl}>
-        <div className="flex items-center justify-center">
+        <div className="flex items-center justify-center h-full">
           <span className="w-8 h-8 border-4 border-primary-container/30 border-t-primary-container rounded-full animate-spin" />
         </div>
       </PageLayout>

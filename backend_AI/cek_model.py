@@ -1,12 +1,13 @@
 # cek_model.py - Analisis Komparasi Model YOLOv8 JalanKita
 import torch
 from pathlib import Path
+from datetime import datetime
 
 # Daftar semua model .pt yang ada
 files = {
-    "best.pt": "Model utama 130 epoch",
-    "best_stable.pt": "Model stable backup",
-    "best-stable (2).pt": "Model stable backup 2",
+    "best.pt": "Model utama 196 epoch",
+    "best_best.pt": "Model stable best",
+    "best-stable.pt": "Model stable backup 2",
     "best-corrupt.pt": "Model corrupt",
     "last-best.pt": "Last checkpoint",
 }
@@ -14,16 +15,30 @@ files = {
 # Filter hanya yang ada
 files = {k: v for k, v in files.items() if Path(k).exists()}
 
-print("=" * 80)
-print("ANALISIS KOMPARASI MODEL JALANKITA".center(80))
-print("=" * 80)
+# Setup output file
+output_file = "model_analysis_report.md"
+output_lines = []
+
+def log(text="", to_console=True, to_file=True):
+    """Print to console and/or save to output list"""
+    if to_console:
+        print(text)
+    if to_file:
+        output_lines.append(text)
+
+# Header
+timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+log("=" * 80)
+log("ANALISIS KOMPARASI MODEL JALANKITA".center(80))
+log(f"Generated: {timestamp}".center(80))
+log("=" * 80)
 
 results = []
 
 for path, desc in files.items():
-    print(f"\n{'='*80}")
-    print(f"  📦 {path} — {desc}")
-    print(f"{'='*80}")
+    log(f"\n{'='*80}")
+    log(f"  📦 {path} — {desc}")
+    log(f"{'='*80}")
     
     try:
         ckpt = torch.load(path, map_location="cpu", weights_only=False)
@@ -32,24 +47,26 @@ for path, desc in files.items():
         epoch = ckpt.get('epoch', '?')
         fitness = ckpt.get('best_fitness', '?')
         
-        print(f"\n🔹 INFORMASI UMUM")
-        print(f"  {'Keys':<20}: {list(ckpt.keys())}")
-        print(f"  {'Epoch':<20}: {epoch}")
-        print(f"  {'Best Fitness':<20}: {fitness}")
+        log(f"\n🔹 INFORMASI UMUM")
+        log(f"  {'Keys':<20}: {list(ckpt.keys())}")
+        log(f"  {'Epoch':<20}: {epoch}")
+        log(f"  {'Best Fitness':<20}: {fitness}")
         
         # Model info
         model = ckpt.get("model")
+        classes_info = None
         if model:
             if hasattr(model, "names"):
-                print(f"  {'Classes':<20}: {model.names}")
+                classes_info = model.names
+                log(f"  {'Classes':<20}: {classes_info}")
             if hasattr(model, "yaml"):
                 yaml_info = model.yaml
                 if isinstance(yaml_info, dict):
-                    print(f"  {'Model Type':<20}: {yaml_info.get('backbone', 'N/A')}")
-                    print(f"  {'NC (num classes)':<20}: {yaml_info.get('nc', 'N/A')}")
+                    log(f"  {'Model Type':<20}: {yaml_info.get('backbone', 'N/A')}")
+                    log(f"  {'NC (num classes)':<20}: {yaml_info.get('nc', 'N/A')}")
         
         # Training arguments
-        print(f"\n🔹 TRAINING PARAMETERS")
+        log(f"\n🔹 TRAINING PARAMETERS")
         args = ckpt.get("train_args", {})
         
         important_params = [
@@ -66,38 +83,38 @@ for path, desc in files.items():
         for k in important_params:
             val = getattr(args, k, None) if hasattr(args, '__dict__') else args.get(k) if isinstance(args, dict) else None
             if val is not None:
-                print(f"  {k:<20}: {val}")
+                log(f"  {k:<20}: {val}")
         
         # Metrics/Results
-        print(f"\n🔹 PERFORMANCE METRICS")
+        log(f"\n🔹 PERFORMANCE METRICS")
         if "metrics" in ckpt:
             metrics = ckpt["metrics"]
-            print(f"  {'Metrics':<20}: {metrics}")
+            log(f"  {'Metrics':<20}: {metrics}")
         
         # Results (mAP, precision, recall, dll)
         if "results" in ckpt:
             res = ckpt["results"]
             if res is not None and len(res) > 0:
                 # Biasanya: [epoch, train_loss, val_loss, mAP50, mAP50-95, precision, recall, ...]
-                print(f"  {'Results (raw)':<20}: {res}")
+                log(f"  {'Results (raw)':<20}: {res}")
         
         # EMA (Exponential Moving Average)
         if "ema" in ckpt:
-            print(f"  {'EMA':<20}: Available")
+            log(f"  {'EMA':<20}: Available")
         
         # Optimizer state
         if "optimizer" in ckpt:
             opt = ckpt["optimizer"]
             if opt is not None:
-                print(f"  {'Optimizer State':<20}: Available ({type(opt).__name__})")
+                log(f"  {'Optimizer State':<20}: Available ({type(opt).__name__})")
         
         # Updates count
         if "updates" in ckpt:
-            print(f"  {'Updates':<20}: {ckpt['updates']}")
+            log(f"  {'Updates':<20}: {ckpt['updates']}")
         
         # Date
         if "date" in ckpt:
-            print(f"  {'Training Date':<20}: {ckpt['date']}")
+            log(f"  {'Training Date':<20}: {ckpt['date']}")
         
         # Simpan untuk komparasi
         results.append({
@@ -105,30 +122,39 @@ for path, desc in files.items():
             'desc': desc,
             'epoch': epoch,
             'fitness': fitness,
-            'args': args
+            'args': args,
+            'classes': classes_info
         })
         
     except Exception as e:
-        print(f"\n❌ Error loading {path}: {e}")
+        log(f"\n❌ Error loading {path}: {e}")
         import traceback
-        traceback.print_exc()
+        error_trace = traceback.format_exc()
+        log(error_trace)
 
 # Tabel komparasi
-print(f"\n\n{'='*80}")
-print("📊 TABEL KOMPARASI".center(80))
-print("="*80)
+log(f"\n\n{'='*80}")
+log("📊 TABEL KOMPARASI".center(80))
+log("="*80)
 
 if results:
-    print(f"{'Model':<30} {'Epoch':<10} {'Fitness':<15} {'Img Size':<10} {'Batch':<10}")
-    print("-" * 80)
+    log(f"{'Model':<30} {'Epoch':<10} {'Fitness':<15} {'Img Size':<10} {'Batch':<10}")
+    log("-" * 80)
     
     for r in results:
         args = r['args']
         imgsz = getattr(args, 'imgsz', None) if hasattr(args, '__dict__') else args.get('imgsz') if isinstance(args, dict) else '?'
         batch = getattr(args, 'batch', None) if hasattr(args, '__dict__') else args.get('batch') if isinstance(args, dict) else '?'
         
-        print(f"{r['path']:<30} {str(r['epoch']):<10} {str(r['fitness']):<15} {str(imgsz):<10} {str(batch):<10}")
+        log(f"{r['path']:<30} {str(r['epoch']):<10} {str(r['fitness']):<15} {str(imgsz):<10} {str(batch):<10}")
 
-print("\n" + "="*80)
-print("✅ Analisis selesai!".center(80))
-print("="*80)
+log("\n" + "="*80)
+log("✅ Analisis selesai!".center(80))
+log("="*80)
+
+# Save to markdown file
+with open(output_file, "w", encoding="utf-8") as f:
+    f.write("\n".join(output_lines))
+
+print(f"\n📄 Report tersimpan di: {output_file}")
+print(f"📁 Path lengkap: {Path(output_file).absolute()}")

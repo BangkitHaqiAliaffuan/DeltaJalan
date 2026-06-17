@@ -19,7 +19,7 @@ class ReportEditedNotification extends Notification implements ShouldQueue
 
     public function via($notifiable): array
     {
-        return ['database', 'webpush'];
+        return ['database', 'webpush', 'fcm'];
     }
 
     public function toWebPush($notifiable): array
@@ -29,6 +29,21 @@ class ReportEditedNotification extends Notification implements ShouldQueue
             'title'   => 'Laporan ' . $action,
             'message' => 'Laporan ' . $this->report->report_code . ' ' . ($this->editAction === 'batal' ? 'batal diedit' : 'diedit') . ' oleh ' . $this->editedBy,
             'url'     => '/detail-report?reportId=' . $this->report->id,
+        ];
+    }
+
+    public function toFcm($notifiable): array
+    {
+        $action = $this->editAction === 'batal' ? 'Dibatalkan' : 'Diedit';
+        return [
+            'title'   => 'Laporan ' . $action,
+            'body'    => 'Laporan ' . $this->report->report_code . ' ' . ($this->editAction === 'batal' ? 'batal diedit' : 'diedit') . ' oleh ' . $this->editedBy,
+            'data'    => [
+                'type'        => 'report_edited',
+                'report_id'   => $this->report->id,
+                'report_code' => $this->report->report_code,
+            ],
+            'android' => ['channel_id' => 'delta_jalan_general'],
         ];
     }
 

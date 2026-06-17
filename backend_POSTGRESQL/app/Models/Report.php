@@ -47,6 +47,7 @@ class Report extends Model
      * Semua kolom yang akan di-set via create() atau fill() harus ada di sini.
      */
     protected $fillable = [
+        'user_id',
         'report_code',
         'reporter_name',
         'road_name',
@@ -132,6 +133,14 @@ class Report extends Model
         'status'           => 'Menunggu Review',
         'priority'         => 'Sedang',
     ];
+
+    /**
+     * Relasi ke user (petugas) yang membuat laporan.
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
 
     /**
      * Relasi ke UPR (tim satgas) yang ditugaskan.

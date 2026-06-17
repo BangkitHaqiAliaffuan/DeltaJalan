@@ -666,6 +666,7 @@ class ReportController extends Controller
                 // ── 5c: Simpan ke database PostgreSQL ────────────────────
                 $defaultPriority = 'Sedang';
                 $report = Report::create([
+                    'user_id'              => auth()->id(),
                     'report_code'          => $reportCode,
                     'reporter_name'        => auth()->user()?->name ?? $validated['reporter_name'],
                     'road_name'            => $validated['road_name'],
@@ -1605,6 +1606,7 @@ class ReportController extends Controller
                     'baik'   => 'Baik',
                 ];
                 $mainReport  = Report::create([
+                    'user_id'          => auth()->id(),
                     'report_code'      => $this->generateReportCode(),
                     'reporter_name'    => auth()->user()->name ?? 'Petugas',
                     'road_name'        => $validated['road_name'],
@@ -2217,7 +2219,7 @@ class ReportController extends Controller
         }
 
         $user = auth()->user();
-        if ($user->role !== 'supervisor') {
+        if (!in_array($user->role, ['supervisor', 'admin'], true)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Hanya supervisor yang dapat menugaskan UPR.',
@@ -2640,7 +2642,7 @@ class ReportController extends Controller
         }
 
         $user = auth()->user();
-        if ($user->role !== 'supervisor') {
+        if (!in_array($user->role, ['supervisor', 'admin'], true)) {
             return response()->json(['success' => false, 'message' => 'Hanya supervisor.'], 403);
         }
         if ($report->status !== 'Menunggu Review') {
@@ -2725,6 +2727,70 @@ class ReportController extends Controller
                 'priority'         => $report->priority,
                 'overall_severity' => $report->overall_severity,
             ],
+        ]);
+    }
+
+    /**
+     * DELETE /api/reports/{id}
+     * Petugas lapangan menghapus laporan miliknya sendiri.
+     */
+    public function destroy(string $id): JsonResponse
+    {
+        $report = Report::find($id);
+        if (!$report) {
+            return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
+        }
+
+        $user = auth()->user();
+
+        // Hanya pemilik laporan yang bisa menghapus
+        if ($report->user_id !== $user->id) {
+            return response()->json(['success' => false, 'message' => 'Anda tidak memiliki akses untuk menghapus laporan ini.'], 403);
+        }
+
+        // Hanya laporan dengan status tertentu yang bisa dihapus
+        if (!in_array($report->status, ['Menunggu Review', 'Ditinjau', 'Diedit'])) {
+            return response()->json([
+                'success' => false,
+                'message' => "Laporan dengan status \"{$report->status}\" tidak dapat dihapus.",
+            ], 422);
+        }
+
+        // Hapus file foto dari storage
+        if ($report->image_original_path && Storage::exists($report->image_original_path)) {
+            Storage::delete($report->image_original_path);
+        }
+        if ($report->image_result_path && Storage::exists($report->image_result_path)) {
+            Storage::delete($report->image_result_path);
+        }
+
+        // Hapus foto-foto terkait di report_photos
+        foreach ($report->photos as $photo) {
+            if ($photo->image_original_path && Storage::exists($photo->image_original_path)) {
+                Storage::delete($photo->image_original_path);
+            }
+            if ($photo->image_result_path && Storage::exists($photo->image_result_path)) {
+                Storage::delete($photo->image_result_path);
+            }
+        }
+
+        // Hapus after photo
+        if ($report->after_photo_path && Storage::exists($report->after_photo_path)) {
+            Storage::delete($report->after_photo_path);
+        }
+
+        // Delete report — cascade akan menghapus report_photos & status_logs
+        $report->delete();
+
+        Log::info('DeltaJalan: Laporan dihapus.', [
+            'report_id'   => $report->id,
+            'report_code' => $report->report_code,
+            'deleted_by'  => $user->name,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Laporan berhasil dihapus.',
         ]);
     }
 
@@ -2824,9 +2890,9 @@ class ReportController extends Controller
      */
     private function aggregateSeverity(array $severities): string
     {
-        $order  = ['berat' => 3, 'sedang' => 2, 'ringan' => 1];
+        $order  = ['berat' => 3, 'sedang' => 2, 'ringan' => 1, 'baik' => 0];
         $max    = 0;
-        $result = 'ringan';
+        $result = 'baik';
 
         foreach ($severities as $s) {
             $val = $order[strtolower((string) $s)] ?? 0;

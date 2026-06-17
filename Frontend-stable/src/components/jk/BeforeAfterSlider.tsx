@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from "react";
+import { useBlobImage } from "@/hooks/useBlobImage";
 
 interface BeforeAfterSliderProps {
   beforeSrc: string;
@@ -14,6 +15,8 @@ export function BeforeAfterSlider({
   afterLabel = "Sesudah",
 }: BeforeAfterSliderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const beforeBlob = useBlobImage(beforeSrc || undefined)
+  const afterBlob = useBlobImage(afterSrc || undefined)
   const [sliderPos, setSliderPos] = useState(50);
   const [aspect, setAspect] = useState<number | null>(null);
   const [imgLoaded, setImgLoaded] = useState(0);
@@ -75,8 +78,9 @@ export function BeforeAfterSlider({
     >
       {/* After image (full width, bottom layer) */}
       <img
-        src={afterSrc}
+        src={afterBlob}
         alt={afterLabel}
+        loading="lazy"
         className="absolute inset-0 w-full h-full object-contain"
         onLoad={(e) => {
           const img = e.currentTarget;
@@ -93,8 +97,9 @@ export function BeforeAfterSlider({
         style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
       >
         <img
-          src={beforeSrc}
+          src={beforeBlob}
           alt={beforeLabel}
+          loading="lazy"
           className="w-full h-full object-contain"
           onLoad={(e) => {
             const img = e.currentTarget;

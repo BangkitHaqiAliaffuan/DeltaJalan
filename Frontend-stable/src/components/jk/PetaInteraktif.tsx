@@ -139,6 +139,19 @@ export function PetaInteraktif({
   const [showStats, setShowStats] = useState(true);
   const [showLegend, setShowLegend] = useState(true);
 
+  // ── Responsive breakpoint ──
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const handler = (e: MediaQueryListEvent | MediaQueryList) => {
+      const desktop = e.matches;
+      setIsDesktop(desktop);
+      if (!desktop) setShowStats(false);
+    };
+    handler(mq);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
   // ── Dynamic Leaflet import (single chunk — leaflet + markercluster in one module) ──
   useEffect(() => {
     let cancelled = false;
@@ -448,45 +461,43 @@ export function PetaInteraktif({
         });
 
         const photoHtml = r.first_photo_url
-          ? `<img src="${r.first_photo_url}" loading="lazy" style="width:100%;height:100px;object-fit:cover;border-radius:8px 8px 0 0;" alt="" />`
-          : `<div style="width:100%;height:100px;background:#F1F5F9;border-radius:8px 8px 0 0;display:flex;align-items:center;justify-content:center;color:#CBD5E1;font-size:24px;">📷</div>`;
+          ? `<img src="${r.first_photo_url}" loading="lazy" style="width:100%;height:80px;object-fit:cover;border-radius:8px 8px 0 0;" alt="" />`
+          : `<div style="width:100%;height:80px;background:#F1F5F9;border-radius:8px 8px 0 0;display:flex;align-items:center;justify-content:center;color:#CBD5E1;font-size:18px;">📷</div>`;
 
         const dimensiHtml =
           r.kerusakan_panjang != null && r.kerusakan_lebar != null
-            ? `<div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#64748B;margin-top:4px;"><span>📐</span><span>${r.kerusakan_panjang}m &times; ${r.kerusakan_lebar}m</span></div>`
+            ? `<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#64748B;margin-top:3px;"><span>📐</span><span>${r.kerusakan_panjang}m × ${r.kerusakan_lebar}m</span></div>`
             : "";
 
         const uprHtml = r.assigned_upr_name
-          ? `<div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#64748B;margin-top:2px;"><span>👥</span><span>${r.assigned_upr_name}</span></div>`
+          ? `<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#64748B;margin-top:2px;"><span>👥</span><span>${r.assigned_upr_name}</span></div>`
           : "";
 
         const marker = L.marker([r.latitude, r.longitude], { icon } as any)
           .bindPopup(
-            `<div style="font-family:'Inter',sans-serif;min-width:220px;border-radius:8px;overflow:hidden;">
-              <button onclick="window.__minimizePopup()" style="position:absolute;top:8px;right:8px;z-index:10;width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);color:white;border:none;border-radius:8px;cursor:pointer;font-size:18px;transition:all .2s ease;" onmouseover="this.style.background='rgba(0,0,0,0.7)'" onmouseout="this.style.background='rgba(0,0,0,0.45)'">
-                <span style="font-size:18px;line-height:1;">&#x2715;</span>
+            `<div style="font-family:'Inter',sans-serif;min-width:190px;border-radius:8px;overflow:hidden;">
+              <button onclick="window.__minimizePopup()" style="position:absolute;top:6px;right:6px;z-index:10;width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;transition:all .2s ease;" onmouseover="this.style.background='rgba(0,0,0,0.7)'" onmouseout="this.style.background='rgba(0,0,0,0.45)'">
+                <span style="font-size:13px;line-height:1;">&#x2715;</span>
               </button>
               ${photoHtml}
-              <div style="padding:10px;">
-                <p style="font-size:11px;color:#475569;margin:0 0 2px;">${r.road_name}</p>
-                <p style="font-weight:600;font-size:14px;color:#0F172A;margin:0 0 2px;">${r.road_name}</p>
-                <div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#64748B;margin-bottom:6px;flex-wrap:wrap;">
+              <div style="padding:8px;">
+                <p style="font-size:10px;color:#475569;margin:0 0 1px;">${r.road_name}</p>
+                <p style="font-weight:600;font-size:13px;color:#0F172A;margin:0 0 2px;">${r.road_name}</p>
+                <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#64748B;margin-bottom:4px;flex-wrap:wrap;">
                   <span>📍 ${r.district ?? "-"}</span>
-                  <span>·</span>
                   <span>⭐ ${r.trust_score ?? "—"}</span>
-                  <span>·</span>
                   <span>🕐 ${formatAge(r.created_at)}</span>
                 </div>
-                <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px;">
-                  <span style="display:inline-block;background:${sevConf.color}15;color:${sevConf.color};border:1px solid ${sevConf.color}30;border-radius:9999px;padding:0 8px;font-size:10px;font-weight:600;">${sevConf.label}</span>
-                  <span style="display:inline-block;background:#F1F5F9;color:#475569;border:1px solid #E2E8F0;border-radius:9999px;padding:0 8px;font-size:10px;font-weight:500;">${status}</span>
+                <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:3px;">
+                  <span style="display:inline-block;background:${sevConf.color}15;color:${sevConf.color};border:1px solid ${sevConf.color}30;border-radius:9999px;padding:0 6px;font-size:9px;font-weight:600;">${sevConf.label}</span>
+                  <span style="display:inline-block;background:#F1F5F9;color:#475569;border:1px solid #E2E8F0;border-radius:9999px;padding:0 6px;font-size:9px;font-weight:500;">${status}</span>
                 </div>
                 ${dimensiHtml}
                 ${uprHtml}
-                ${userRole === 'petugas' ? '' : `<button onclick="window.__mapViewDetail('${r.id}')" style="margin-top:8px;width:100%;padding:6px 0;background:#1A4F8A;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">🔍 Lihat Detail</button>`}
+                ${userRole === 'petugas' ? '' : `<button onclick="window.__mapViewDetail('${r.id}')" style="margin-top:4px;width:100%;padding:5px 0;background:#1A4F8A;color:white;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">🔍 Lihat Detail</button>`}
               </div>
             </div>`,
-            { maxWidth: 280, className: "" },
+            { maxWidth: 250, className: "" },
           );
 
         (marker as any).options.severity = sevKey;
@@ -575,14 +586,14 @@ export function PetaInteraktif({
       <button
         type="button"
         onClick={() => { if (!isDesktop) setMobileFilterOpen(true); else setFilterMinimized(false); }}
-        className={`absolute top-[88px] left-3 z-[1000] w-10 h-10 bg-white rounded-xl shadow-md border border-[#E2E8F0] flex items-center justify-center hover:bg-[#F8FAFC] transition-all duration-200 ease-out ${
+        className={`absolute top-[84px] left-2 z-[1000] w-9 h-9 bg-white rounded-lg shadow-md border border-[#E2E8F0] flex items-center justify-center hover:bg-[#F8FAFC] transition-all duration-200 ease-out ${
           filterPanelVisible ? 'opacity-0 scale-75 pointer-events-none' : 'opacity-100 scale-100'
         }`}
         aria-label="Buka filter"
       >
-        <Icon name="filter_list" className="!text-[20px] text-[#475569]" />
+        <Icon name="filter_list" className="!text-[18px] text-[#475569]" />
         {activeFilterCount > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 bg-[#E11D48] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#E11D48] text-white text-[9px] font-bold rounded-full flex items-center justify-center">
             {activeFilterCount}
           </span>
         )}
@@ -595,7 +606,7 @@ export function PetaInteraktif({
             ? 'opacity-100 translate-y-0'
             : 'opacity-0 -translate-y-2 pointer-events-none'
         }`}
-        style={{ width: 220, maxHeight: "calc(100% - 24px)" }}
+        style={{ width: 200, maxHeight: "calc(100% - 24px)" }}
         aria-hidden={!filterPanelVisible}
       >
         <div className="p-3">
@@ -734,12 +745,12 @@ export function PetaInteraktif({
       <button
         type="button"
         onClick={() => setShowStats(true)}
-        className={`absolute top-3 right-3 z-[1000] w-10 h-10 bg-white rounded-xl shadow-md border border-[#E2E8F0] flex items-center justify-center hover:bg-[#F8FAFC] transition-all duration-200 ease-out ${
+        className={`absolute top-3 right-2 z-[1000] w-9 h-9 bg-white rounded-lg shadow-md border border-[#E2E8F0] flex items-center justify-center hover:bg-[#F8FAFC] transition-all duration-200 ease-out ${
           showStats ? 'opacity-0 scale-75 pointer-events-none' : 'opacity-100 scale-100'
         }`}
         aria-label="Buka ringkasan"
       >
-        <Icon name="bar_chart" className="!text-[20px] text-[#475569]" />
+        <Icon name="bar_chart" className="!text-[18px] text-[#475569]" />
       </button>
 
       {/* Stats Panel (always mounted, animates) */}
@@ -749,7 +760,7 @@ export function PetaInteraktif({
             ? 'opacity-100 translate-y-0'
             : 'opacity-0 -translate-y-2 pointer-events-none'
         }`}
-        style={{ width: 200, maxHeight: "calc(100% - 24px)" }}
+        style={{ width: 176, maxHeight: "calc(100% - 24px)" }}
         aria-hidden={!showStats}
       >
         <div className="bg-white/95 backdrop-blur-sm border border-[#E2E8F0] rounded-xl shadow-lg">
@@ -877,7 +888,7 @@ export function PetaInteraktif({
           }`}
           aria-hidden={!showLegend}
         >
-          <div className="bg-white/90 backdrop-blur-sm border border-[#E2E8F0] rounded-lg px-2.5 py-1.5 flex flex-col gap-1 shadow-sm">
+          <div className="bg-white/90 backdrop-blur-sm border border-[#E2E8F0] rounded-lg px-2 py-1.5 flex flex-col gap-0.5 shadow-sm">
             <div className="flex items-center justify-between mb-0.5">
               <p className="text-[9px] font-semibold text-[#64748B] uppercase tracking-wider">Tingkat Kerusakan</p>
               <button
@@ -923,8 +934,8 @@ export function PetaInteraktif({
           className={`self-end transition-all duration-200 ease-out ${
             showLegend
               ? 'opacity-0 scale-75 pointer-events-none w-0 h-0 overflow-hidden'
-              : 'opacity-100 scale-100 w-10 h-10 bg-white mb-5'
-          } flex items-center justify-center rounded hover:bg-[#F1F5F9] transition-colors`}
+              : 'opacity-100 scale-100 w-8 h-8 bg-white mb-3'
+          } flex items-center justify-center rounded-lg hover:bg-[#F1F5F9] transition-colors shadow-md`}
           aria-label="Buka legend"
         >
           <Icon name="legend_toggle" className="!text-[20px] text-[#64748B]" />

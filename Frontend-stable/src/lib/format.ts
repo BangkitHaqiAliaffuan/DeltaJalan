@@ -83,9 +83,9 @@ export function statusBadgeStyle(status: string): string {
     "Menunggu Review": "bg-amber-50 text-[#F59E0B] border border-amber-200",
     Ditinjau: "bg-amber-50 text-[#F59E0B] border border-amber-200",
     Disetujui: "bg-blue-50 text-[#2563EB] border border-blue-200",
-    Ditolak: "bg-[#E11D48] text-white",
+    Ditolak: "bg-[#E11D48] text-white border border-[#E11D48]",
     "Sedang Diperbaiki": "bg-orange-50 text-[#F97316] border border-orange-200",
-    Selesai: "bg-[#10B981] text-white",
+    Selesai: "bg-[#10B981] text-white border border-[#10B981]",
     Diedit: "bg-slate-50 text-[#64748B] border border-slate-200",
   };
   return map[status] ?? "bg-slate-50 text-[#64748B] border border-slate-200";

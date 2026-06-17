@@ -19,7 +19,7 @@ class UprAssignedNotification extends Notification implements ShouldQueue
 
     public function via($notifiable): array
     {
-        return ['database', 'webpush'];
+        return ['database', 'webpush', 'fcm'];
     }
 
     public function toWebPush($notifiable): array
@@ -28,6 +28,20 @@ class UprAssignedNotification extends Notification implements ShouldQueue
             'title'   => 'Tugas Baru',
             'message' => 'Tugas baru: laporan ' . $this->report->report_code . ' di ' . $this->report->district . ($this->uprName ? ' — ' . $this->uprName : ''),
             'url'     => '/detail-report?reportId=' . $this->report->id,
+        ];
+    }
+
+    public function toFcm($notifiable): array
+    {
+        return [
+            'title'   => 'Tugas Baru',
+            'body'    => 'Tugas baru: laporan ' . $this->report->report_code . ' di ' . $this->report->district . ($this->uprName ? ' — ' . $this->uprName : ''),
+            'data'    => [
+                'type'        => 'upr_assigned',
+                'report_id'   => $this->report->id,
+                'report_code' => $this->report->report_code,
+            ],
+            'android' => ['channel_id' => 'delta_jalan_general'],
         ];
     }
 

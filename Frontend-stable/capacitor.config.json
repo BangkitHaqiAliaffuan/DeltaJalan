@@ -8,6 +8,9 @@
     "hostname": "localhost"
   },
   "plugins": {
-    "PhotoExifGps": {}
+    "PhotoExifGps": {},
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert", "banner", "list"]
+    }
   }
 }

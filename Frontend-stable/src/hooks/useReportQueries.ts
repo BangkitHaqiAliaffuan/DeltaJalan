@@ -2,8 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { API_BASE_URL } from "@/lib/aiStore";
 import type { Laporan, MapStats, DistrictSummary, RingkasanDeadlineResponse } from "@/types/laporan";
 
+import { apiFetch } from "@/lib/api";
+
 export async function authFetch<T>(url: string, token: string): Promise<T> {
-  const res = await fetch(url, {
+  const res = await apiFetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -118,7 +120,7 @@ export function useUprs(token: string) {
   });
 }
 
-export function useAllReports(token: string, limit = 100) {
+export function useAllReports(token: string, limit = 20) {
   return useQuery({
     queryKey: ["reports", "all", limit],
     queryFn: () =>

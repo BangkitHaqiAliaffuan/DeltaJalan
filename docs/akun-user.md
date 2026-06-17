@@ -3,6 +3,12 @@
 **Domain:** `@dispu.binamarga.go.id`
 **Password semua akun:** `password123`
 
+## Admin
+
+| Nama | Email | Dashboard |
+|------|-------|-----------|
+| Admin | admin@dispu.binamarga.go.id | `/admin/dashboard` |
+
 ## Petugas Lapangan
 
 | Nama | Email | Wilayah |

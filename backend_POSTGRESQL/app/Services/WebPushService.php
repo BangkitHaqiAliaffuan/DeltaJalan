@@ -63,7 +63,9 @@ class WebPushService
 
     public function sendToUser(User $user, array $payload): void
     {
-        $subscriptions = PushSubscription::where('user_id', $user->id)->get();
+        $subscriptions = PushSubscription::where('user_id', $user->id)
+            ->where('type', 'webpush')
+            ->get();
         foreach ($subscriptions as $subscription) {
             $this->sendToSubscription($subscription, $payload);
         }
