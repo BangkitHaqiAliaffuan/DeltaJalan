@@ -53,3 +53,6 @@ Frontend-stable/vite.config.ts.backup
 
 # Local-only specs
 .kiro/
+
+# Capacitor EXIF GPS plugin build artifacts
+Frontend-stable/capacitor-exif-gps/android/build/

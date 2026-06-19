@@ -1483,7 +1483,7 @@ function UploadPage() {
 
   return (
     <PageLayout title="Upload & Analisis" back="/home">
-      <main className="px-4 pt-4 pb-6 w-full">
+      <main className="px-4 pt-4 pb-[148px] w-full">
         {/* 
             PENTING: div pembatas lebar ini TIDAK boleh pakai mx-auto langsung
             sebagai flex item. Gunakan block display (default div) di dalam
@@ -1791,7 +1791,7 @@ function UploadPage() {
                   <button
                     type="button"
                     onClick={handleCameraClick}
-                    className="flex-1 max-w-[160px] flex items-center justify-center gap-2 bg-primary text-white rounded-lg px-4 py-3 h-11 font-label-md text-[13px] font-semibold hover:bg-primary/90 active:scale-95 transition-all"
+                    className="flex-1 max-w-[160px] flex items-center justify-center gap-2 bg-primary text-white rounded-lg px-4 py-3 py-3 md:py-3.5 min-h-[44px] font-label-md text-[13px] font-semibold hover:bg-primary/90 active:scale-95 transition-all"
                   >
                     <Icon name="photo_camera" className="!text-[20px]" />
                     Kamera
@@ -1800,7 +1800,7 @@ function UploadPage() {
                 <button
                   type="button"
                   onClick={handleGalleryClick}
-                  className="flex-1 max-w-[160px] flex items-center justify-center gap-2 bg-white border border-[#E2E8F0] text-[#475569] rounded-lg px-4 py-3 h-11 font-label-md text-[13px] font-semibold active:scale-95 transition-all"
+                  className="flex-1 max-w-[160px] flex items-center justify-center gap-2 bg-white border border-[#E2E8F0] text-[#475569] rounded-lg px-4 py-3 py-3 md:py-3.5 min-h-[44px] font-label-md text-[13px] font-semibold active:scale-95 transition-all"
                 >
                   <Icon name="photo_library" className="!text-[20px]" />
                   Galeri
@@ -2229,7 +2229,7 @@ function UploadPage() {
                   type="button"
                   onClick={handleRequestLiveGps}
                   disabled={isRequestingLiveGps}
-                  className="flex items-center justify-center gap-2 w-full h-11 bg-[#1A4F8A] text-white rounded-lg text-[13px] font-semibold hover:bg-[#0F3260] active:scale-95 transition-all disabled:opacity-60 disabled:cursor-wait"
+                  className="flex items-center justify-center gap-2 w-full py-3 md:py-3.5 min-h-[44px] bg-[#1A4F8A] text-white rounded-lg text-[13px] font-semibold hover:bg-[#0F3260] active:scale-95 transition-all disabled:opacity-60 disabled:cursor-wait"
                 >
                   {isRequestingLiveGps ? (
                     <>
@@ -2326,12 +2326,9 @@ function UploadPage() {
         </div>
       </main>
 
-      {/* ── Footer Actions ── */}
-      <div className="bg-white border-t border-[#E2E8F0] w-full">
-        <div
-          style={{ maxWidth: "42rem", marginLeft: "auto", marginRight: "auto" }}
-          className="p-4 flex flex-col gap-3"
-        >
+      {/* ── Action Bar (fixed bottom) ── */}
+      <div className="fixed bottom-0 left-0 right-0 md:left-64 z-30 bg-white border-t border-[#E2E8F0] shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
+        <div className="px-4 md:px-6 py-3 md:py-4 flex flex-col gap-2 md:gap-3">
           {/* Tombol batch — muncul saat ada banyak foto dipilih */}
           {selectedFiles.length > 0 && !isSubmitHidden && (
             <>
@@ -2361,7 +2358,7 @@ function UploadPage() {
                   Object.values(fileExifStatus).some((s) => s.status === "rejected") ||
                   Object.values(fileExifStatus).some((s) => s.status === "checking")
                 }
-                className="w-full h-11 bg-[#1A4F8A] text-white rounded-lg flex items-center justify-center gap-2 font-headline-sm-mobile text-[16px] font-bold active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-3 md:py-3.5 min-h-[44px] bg-[#1A4F8A] text-white rounded-lg flex items-center justify-center gap-2 font-headline-sm-mobile text-[16px] font-bold active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-transparent hover:bg-white hover:text-[#1A4F8A] hover:border-[#1A4F8A] cursor-pointer"
               >
                 {["uploading", "analyzing", "validating"].includes(uploadPhase) ? (
                   <>
@@ -2408,7 +2405,7 @@ function UploadPage() {
                 effectiveLng === null ||
                 isGpsWorking
               }
-              className="w-full h-11 bg-primary text-white rounded-lg flex items-center justify-center gap-2 font-headline-sm-mobile text-[16px] font-bold active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+              className="w-full py-3 md:py-3.5 min-h-[44px] bg-primary text-white rounded-lg flex items-center justify-center gap-2 font-headline-sm-mobile text-[16px] font-bold active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 border border-transparent hover:bg-white hover:text-primary hover:border-primary cursor-pointer"
             >
               {isLoading ? (
                 <>
@@ -2431,7 +2428,7 @@ function UploadPage() {
 
           {/* Info saat tombol submit disembunyikan */}
           {isSubmitHidden && addEvidenceState !== "error" && (
-            <div className="w-full h-11 bg-[#D1FAE5] border border-[#6EE7B7] rounded-lg flex items-center justify-center gap-2 text-[#065F46] text-[14px] font-semibold">
+            <div className="w-full py-3 md:py-3.5 min-h-[44px] bg-[#D1FAE5] border border-[#6EE7B7] rounded-lg flex items-center justify-center gap-2 text-[#065F46] text-[14px] font-semibold">
               <Icon name="check_circle" className="!text-[20px]" filled />
               {addEvidenceState === "success"
                 ? "Bukti foto berhasil dikirim!"
@@ -2444,7 +2441,7 @@ function UploadPage() {
             <button
               type="button"
               onClick={() => setIsSubmitHidden(false)}
-              className="w-full h-11 bg-primary text-white rounded-lg flex items-center justify-center gap-2 font-headline-sm-mobile text-[16px] font-bold active:scale-95 transition-all"
+              className="w-full py-3 md:py-3.5 min-h-[44px] bg-primary text-white rounded-lg flex items-center justify-center gap-2 font-headline-sm-mobile text-[16px] font-bold active:scale-95 transition-all"
             >
               <Icon name="auto_awesome" />
               Buat Laporan Baru
@@ -2455,7 +2452,7 @@ function UploadPage() {
             type="button"
             onClick={handleSaveDraft}
             disabled={isLoading || isGpsWorking}
-            className="w-full h-11 bg-white border border-[#E2E8F0] text-primary rounded-lg flex items-center justify-center gap-2 font-label-md text-[15px] font-bold disabled:opacity-40"
+            className="w-full py-3 md:py-3.5 min-h-[44px] bg-white border border-[#E2E8F0] text-primary rounded-lg flex items-center justify-center gap-2 font-label-md text-[15px] font-bold disabled:opacity-40 hover:bg-[#1A4F8A] hover:text-white hover:border-[#1A4F8A] cursor-pointer"
           >
             <Icon name="cloud_off" />
             Simpan sebagai Draf (Offline)
@@ -2496,7 +2493,7 @@ function UploadPage() {
                 <button
                   type="button"
                   onClick={() => { zeroDamageResolveRef.current?.(true); setShowZeroDamageWarning(false); }}
-                  className="w-full h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-95 transition-all"
+                  className="w-full py-3 md:py-3.5 min-h-[44px] bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-95 transition-all"
                 >
                   <Icon name="check" className="!text-[18px]" />
                   Ya, tetap buat laporan
@@ -2504,7 +2501,7 @@ function UploadPage() {
                 <button
                   type="button"
                   onClick={() => { zeroDamageResolveRef.current?.(false); setShowZeroDamageWarning(false); }}
-                  className="w-full h-11 bg-white border border-[#D0DAE8] text-[#64748B] rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#F8FAFC] hover:text-[#0F172A] active:scale-95 transition-all"
+                  className="w-full py-3 md:py-3.5 min-h-[44px] bg-white border border-[#D0DAE8] text-[#64748B] rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#F8FAFC] hover:text-[#0F172A] active:scale-95 transition-all"
                 >
                   <Icon name="close" className="!text-[18px]" />
                   Batalkan laporan

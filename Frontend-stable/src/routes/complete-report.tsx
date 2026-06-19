@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
+import { Portal } from "@/components/jk/Portal";
 import { API_BASE_URL } from "@/lib/aiStore";
 import { getToken, getCurrentUser } from "@/lib/auth";
 import type { Laporan } from "@/types/laporan";
@@ -95,9 +96,7 @@ function CompleteReportPage() {
       const json = await res.json();
       if (res.ok) {
         setSuccessMsg(json.message ?? "Laporan berhasil diselesaikan!");
-        const backTo =
-          getCurrentUser()?.role === "petugas_eksekusi" ? "/petugas-eksekusi" : "/supervisor";
-        setTimeout(() => navigate({ to: backTo }), 2000);
+        setTimeout(() => navigate({ to: backUrl }), 3000);
       } else {
         setErrorMsg(json.message ?? "Gagal menyelesaikan laporan.");
       }
@@ -127,20 +126,6 @@ function CompleteReportPage() {
           <Link to={backUrl} className="mt-4 text-primary text-sm font-semibold">
             Kembali ke Dashboard
           </Link>
-        </div>
-      </PageLayout>
-    );
-  }
-
-  if (successMsg) {
-    return (
-      <PageLayout showBrand back={backUrl}>
-        <div className="flex flex-col items-center justify-center px-4">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-            <Icon name="check_circle" className="!text-4xl text-green-600" />
-          </div>
-          <p className="text-body-lg font-bold text-on-surface">{successMsg}</p>
-          <p className="text-sm text-on-surface-variant mt-1">Mengalihkan ke dashboard...</p>
         </div>
       </PageLayout>
     );
@@ -267,6 +252,35 @@ function CompleteReportPage() {
         </button>
       </div>
       </div>
+
+      {successMsg && (
+        <Portal>
+          <style>{`
+            @keyframes pop-in {
+              from { opacity: 0; transform: scale(0.9) translateY(10px); }
+              to { opacity: 1; transform: scale(1) translateY(0); }
+            }
+            .popup-anim { animation: pop-in 0.35s ease-out; }
+          `}</style>
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl px-8 py-10 flex flex-col items-center gap-4 popup-anim max-w-sm w-full mx-4">
+              <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
+                <Icon name="verified" className="!text-[48px] text-[#16A34A]" />
+              </div>
+              <p className="text-lg font-bold text-[#0F172A] text-center">{successMsg}</p>
+              <p className="text-sm text-[#475569] text-center leading-relaxed">Mengalihkan ke dashboard…</p>
+              <button
+                type="button"
+                onClick={() => navigate({ to: backUrl })}
+                className="w-full px-4 py-2.5 text-[13px] font-bold text-white bg-[#16A34A] rounded-xl hover:bg-[#15803D] transition-all flex items-center justify-center gap-1.5"
+              >
+                <Icon name="dashboard" className="!text-[14px]" />
+                Ke Dashboard
+              </button>
+            </div>
+          </div>
+        </Portal>
+      )}
     </PageLayout>
   );
 }

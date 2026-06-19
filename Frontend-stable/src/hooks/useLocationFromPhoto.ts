@@ -179,6 +179,7 @@ interface LocationIQAddress {
   house_number?: string;
   neighbourhood?: string;
   suburb?: string;
+  municipality?: string;
   city_district?: string;
   town?: string;
   village?: string;
@@ -283,6 +284,8 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
   const kecamatanRaw =
     addr.city_district ??
     addr.suburb ??
+    addr.municipality ??
+    addr.neighbourhood ??
     addr.town ??
     addr.village ??
     addr.city ??

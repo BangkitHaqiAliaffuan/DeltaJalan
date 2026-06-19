@@ -6,6 +6,8 @@ interface BeforeAfterSliderProps {
   afterSrc: string;
   beforeLabel?: string;
   afterLabel?: string;
+  panjang?: number | null;
+  lebar?: number | null;
 }
 
 export function BeforeAfterSlider({
@@ -13,6 +15,8 @@ export function BeforeAfterSlider({
   afterSrc,
   beforeLabel = "Sebelum",
   afterLabel = "Sesudah",
+  panjang,
+  lebar,
 }: BeforeAfterSliderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const beforeBlob = useBlobImage(beforeSrc || undefined)
@@ -152,6 +156,22 @@ export function BeforeAfterSlider({
           {afterLabel}
         </span>
       </div>
+
+      {/* Dimension overlay */}
+      {bothLoaded && (panjang != null || lebar != null) && (
+        <div className="absolute bottom-3 left-3 z-20 pointer-events-none transition-opacity">
+          <span className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold text-white bg-black/50 rounded-md whitespace-nowrap">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 12h18" />
+              <path d="M9 6l-6 6 6 6" />
+              <path d="M15 6l6 6-6 6" />
+            </svg>
+            {panjang != null && `${panjang}m`}
+            {panjang != null && lebar != null && <span>×</span>}
+            {lebar != null && `${lebar}m`}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

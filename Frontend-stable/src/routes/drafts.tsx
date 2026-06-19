@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
+import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
 import { listDrafts, deleteDraft, type OfflineDraft } from "@/lib/offlineDrafts";
 import { formatDate } from "@/lib/format";
 
@@ -14,6 +15,8 @@ function DraftsPage() {
   const navigate = useNavigate();
   const [drafts, setDrafts] = useState<OfflineDraft[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     listDrafts().then((d) => {
@@ -22,10 +25,17 @@ function DraftsPage() {
     });
   }, []);
 
-  async function handleDelete(id: number) {
-    if (!window.confirm("Hapus draf ini?")) return;
-    await deleteDraft(id);
-    setDrafts((prev) => prev.filter((d) => d.id !== id));
+  function handleDeleteClick(id: number) {
+    setDeleteTarget(id);
+  }
+
+  async function handleDeleteConfirm() {
+    if (deleteTarget == null) return;
+    setDeleteLoading(true);
+    await deleteDraft(deleteTarget);
+    setDrafts((prev) => prev.filter((d) => d.id !== deleteTarget));
+    setDeleteTarget(null);
+    setDeleteLoading(false);
   }
 
   function handleOpen(draft: OfflineDraft) {
@@ -106,7 +116,7 @@ function DraftsPage() {
                   <div className="w-px bg-[#E2E8F0]" />
                   <button
                     type="button"
-                    onClick={() => draft.id !== undefined && handleDelete(draft.id)}
+                    onClick={() => draft.id !== undefined && handleDeleteClick(draft.id)}
                     className="flex-1 py-2.5 text-[11px] text-red-500 font-medium hover:bg-[#FEF2F2] transition-colors"
                   >
                     Hapus
@@ -117,6 +127,17 @@ function DraftsPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Hapus Draf?"
+        message="Draf yang dihapus tidak bisa dikembalikan. Semua foto dan data akan hilang."
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        confirmLoading={deleteLoading}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </PageLayout>
   );
 }
