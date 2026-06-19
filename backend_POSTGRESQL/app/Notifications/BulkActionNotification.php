@@ -37,7 +37,7 @@ class BulkActionNotification extends Notification implements ShouldQueue
         $label = $this->action === 'approve' ? 'disetujui' : 'ditolak';
         return [
             'title'   => 'Aksi Massal',
-            'body'    => 'Laporan ' . $this->report->report_code . ' ' . $label . ' (aksi massal) oleh ' . $this->performedBy,
+            'body'    => 'Laporan ' . $this->report->report_code . ' ' . $label . ' (aksi massal) oleh ' . $this->performedBy . "\n\nKlik buka",
             'data'    => [
                 'type'        => 'bulk_action',
                 'report_id'   => $this->report->id,

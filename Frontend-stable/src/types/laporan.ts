@@ -102,6 +102,7 @@ export interface Laporan {
   after_photo_url?: string | null;
   after_photo_hash?: string | null;
   after_photo_notes?: string | null;
+  after_photos?: { id: number; url: string; sort_order: number }[] | null;
   perbaikan_dimulai_at?: string | null;
   perbaikan_selesai_at?: string | null;
   pelaksana?: string | null;
@@ -122,8 +123,14 @@ export interface Laporan {
   // Deadline & terlambat flags
   deadline_review?: string | null;
   deadline_resolusi?: string | null;
+  status_deadline?: string;
   terlambat_review?: boolean;
   terlambat_resolusi?: boolean;
+
+  // Duplikasi
+  is_duplicate?: boolean;
+  duplicate_score?: number | null;
+  duplicate_of?: DuplicateReport | null;
 
   // Batch grouping — photos di tabel terpisah
   batch_id?: string | null;
@@ -246,6 +253,18 @@ export interface RingkasanDeadlinePerPrioritas {
 export interface RingkasanDeadlineResponse {
   per_priority: Record<string, RingkasanDeadlinePerPrioritas>;
   total: RingkasanDeadlinePerPrioritas;
+}
+
+export interface DuplicateReport {
+  id: string;
+  report_code: string;
+  road_name: string;
+  district: string;
+  latitude: number | null;
+  longitude: number | null;
+  score: number;
+  match_type: string;
+  status: string;
 }
 
 export interface NotificationItem {

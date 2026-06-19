@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Report;
+use App\Models\ReportAfterPhoto;
 use App\Models\ReportPhoto;
+use App\Models\StatusLog;
 use App\Models\User;
 use App\Notifications\ReportApprovedNotification;
 use App\Notifications\ReportRejectedNotification;
@@ -134,30 +136,25 @@ class ReportController extends Controller
 
                 if ($latF >= -11 && $latF <= 6 && $lngF >= 95 && $lngF <= 141) {
                     $row = DB::selectOne("
-                        SELECT id, report_code, road_name, district,
-                               latitude, longitude, status, created_at,
-                               (
-                                   6371000 * acos(
-                                       LEAST(1.0, cos(radians(:lat1)) * cos(radians(latitude::float))
-                                       * cos(radians(longitude::float) - radians(:lng1))
-                                       + sin(radians(:lat2)) * sin(radians(latitude::float)))
-                                   )
-                               ) AS distance_meters
-                        FROM reports
-                        WHERE status != 'Selesai'
-                        HAVING (
-                            6371000 * acos(
-                                LEAST(1.0, cos(radians(:lat3)) * cos(radians(latitude::float))
-                                * cos(radians(longitude::float) - radians(:lng2))
-                                + sin(radians(:lat4)) * sin(radians(latitude::float)))
-                            )
-                        ) <= 15
+                        SELECT * FROM (
+                            SELECT id, report_code, road_name, district,
+                                   latitude, longitude, status, created_at,
+                                   (
+                                       6371000 * acos(
+                                           LEAST(1.0, cos(radians(:lat1)) * cos(radians(latitude::float))
+                                           * cos(radians(longitude::float) - radians(:lng1))
+                                           + sin(radians(:lat2)) * sin(radians(latitude::float)))
+                                       )
+                                   ) AS distance_meters
+                            FROM reports
+                            WHERE status != 'Selesai'
+                        ) sub
+                        WHERE distance_meters <= 15
                         ORDER BY distance_meters ASC
                         LIMIT 1
                     ", [
                         'lat1' => $latF, 'lng1' => $lngF,
-                        'lat2' => $latF, 'lat3' => $latF,
-                        'lng2' => $lngF, 'lat4' => $latF,
+                        'lat2' => $latF,
                     ]);
 
                     if ($row) {
@@ -477,6 +474,8 @@ class ReportController extends Controller
                 'kerusakan_lebar'    => ['required', 'numeric', 'min:0', 'max:999999.99'],
                 // Catatan petugas (opsional)
                 'catatan'            => ['nullable', 'string', 'max:1000'],
+                // Duplikasi — diisi saat user override peringatan duplikat
+                'duplicate_of_id'    => ['nullable', 'string', 'exists:reports,id'],
             ]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -642,10 +641,12 @@ class ReportController extends Controller
             $gpsMismatchNotes,
         ]));
 
+        $duplicateOfId = $request->input('duplicate_of_id');
+
         // ── LANGKAH 5: Simpan ke database (DI DALAM transaction) ─────────
         // Hanya operasi DB — tidak ada HTTP/I/O lambat.
         try {
-            $report = DB::transaction(function () use ($validated, $imageFile, $systemNotes, $imageHash, $roadValidation, $exifGps, $resultPath, $totalDetections, $overallSeverity, $aiRawOutput, $finalSystemNotes, $trustResult) {
+            $report = DB::transaction(function () use ($validated, $imageFile, $systemNotes, $imageHash, $roadValidation, $exifGps, $resultPath, $totalDetections, $overallSeverity, $aiRawOutput, $finalSystemNotes, $trustResult, $duplicateOfId) {
 
                 // ── 5a: Generate kode laporan unik ────────────────────────
                 $reportCode = $this->generateReportCode();
@@ -690,6 +691,16 @@ class ReportController extends Controller
                     'catatan_petugas'      => $validated['catatan'] ?? null,
                     'deadline_review'  => Report::hitungDeadlineReview($defaultPriority),
                 ]);
+
+                // ── 5d: Simpan relasi duplikasi jika ada ────────────────
+                if ($duplicateOfId) {
+                    \App\Models\ReportDuplicate::create([
+                        'report_id'      => $report->id,
+                        'duplicate_of_id' => $duplicateOfId,
+                        'score'          => 0.900,
+                        'match_type'     => 'user_confirmed',
+                    ]);
+                }
 
                 return $report;
             });
@@ -852,12 +863,21 @@ class ReportController extends Controller
         // Hitung total SEBELUM limit untuk akurasi
         $total = (clone $query)->count();
 
-        $reports = $query->orderBy('created_at', 'desc')
+        // Dynamic sorting — default created_at desc, deadline sort asc
+        $allowedSortBy = ['created_at', 'deadline_review', 'deadline_resolusi', 'priority'];
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortBy = in_array($sortBy, $allowedSortBy) ? $sortBy : 'created_at';
+        $defaultOrder = $sortBy === 'created_at' ? 'desc' : 'asc';
+        $order = strtolower($request->input('order', $defaultOrder));
+        $order = in_array($order, ['asc', 'desc']) ? $order : $defaultOrder;
+
+        $reports = $query->orderBy($sortBy, $order)
             ->skip(($page - 1) * $limit)
             ->take($limit)
             ->withCount('photos')
             ->with('firstPhoto')
             ->with('assignedUpr')
+            ->with('duplicateOf.originalReport')
             ->get()
             ->map(function ($report) {
                 return [
@@ -893,6 +913,8 @@ class ReportController extends Controller
                     'deadline_resolusi' => $report->deadline_resolusi?->toIso8601String(),
                     'terlambat_review'      => $report->terlambat_review,
                     'terlambat_resolusi'  => $report->terlambat_resolusi,
+                    'is_duplicate'           => $report->relationLoaded('duplicateOf') && $report->duplicateOf !== null,
+                    'duplicate_score'        => $report->relationLoaded('duplicateOf') && $report->duplicateOf ? (float) $report->duplicateOf->score : null,
                     'created_at'             => $report->created_at?->toIso8601String(),
                 ];
             });
@@ -912,7 +934,7 @@ class ReportController extends Controller
      */
     public function show(string $id): JsonResponse
     {
-        $report = Report::with(['photos', 'statusLogs'])->find($id);
+        $report = Report::with(['photos', 'afterPhotos', 'statusLogs', 'duplicateOf.originalReport'])->find($id);
 
         if (!$report) {
             return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
@@ -947,6 +969,11 @@ class ReportController extends Controller
             'image_result_url'   => $report->image_result_url,
             'after_photo_url'    => $report->after_photo_url,
             'after_photo_notes'  => $report->after_photo_notes,
+            'after_photos'       => $report->afterPhotos->map(fn ($p) => [
+                'id'         => $p->id,
+                'url'        => $p->url,
+                'sort_order' => $p->sort_order,
+            ]),
             'perbaikan_dimulai_at' => $report->perbaikan_dimulai_at?->toIso8601String(),
             'perbaikan_selesai_at' => $report->perbaikan_selesai_at?->toIso8601String(),
             'pelaksana'          => $report->pelaksana,
@@ -979,6 +1006,19 @@ class ReportController extends Controller
                 'sort_order'         => $p->sort_order,
                 'created_at'         => $p->created_at?->toIso8601String(),
             ]),
+            // Duplikasi — informasi jika laporan ini diduga duplikat
+            'duplicate_of'           => $report->duplicateOf ? [
+                'id'          => $report->duplicateOf->originalReport?->id,
+                'report_code' => $report->duplicateOf->originalReport?->report_code,
+                'road_name'   => $report->duplicateOf->originalReport?->road_name,
+                'district'    => $report->duplicateOf->originalReport?->district,
+                'latitude'    => $report->duplicateOf->originalReport?->latitude ? (float) $report->duplicateOf->originalReport->latitude : null,
+                'longitude'   => $report->duplicateOf->originalReport?->longitude ? (float) $report->duplicateOf->originalReport->longitude : null,
+                'score'       => (float) $report->duplicateOf->score,
+                'match_type'  => $report->duplicateOf->match_type,
+                'status'      => $report->duplicateOf->originalReport?->status,
+            ] : null,
+
             // Timeline — urut dari paling lama ke paling baru
             'status_history'     => $report->statusLogs->map(fn ($log) => [
                 'event'      => $this->mapStatusToEvent($log->new_status, $log->notes),
@@ -1501,6 +1541,7 @@ class ReportController extends Controller
                 'kerusakan_lebar'    => ['required', 'array', 'min:1'],
                 'kerusakan_lebar.*'  => ['required', 'numeric', 'min:0', 'max:999999.99'],
                 'catatan'            => ['nullable', 'string', 'max:1000'],
+                'duplicate_of_id'    => ['nullable', 'string', 'exists:reports,id'],
                 'files'              => 'required|array|min:1',
                 'files.*'            => 'required|file|mimes:jpeg,jpg,png|max:5120',
             ]);
@@ -1595,8 +1636,10 @@ class ReportController extends Controller
             ));
         }
 
+        $duplicateOfId = $request->input('duplicate_of_id');
+
         try {
-            $result = DB::transaction(function () use ($validated, $analyses, $request, $trustResult, $roadValidation, $batchNotes, $exifCloneSuspected, $imageHashes, $existingHashes) {
+            $result = DB::transaction(function () use ($validated, $analyses, $request, $trustResult, $roadValidation, $batchNotes, $exifCloneSuspected, $imageHashes, $existingHashes, $duplicateOfId) {
                 $severities  = array_column($analyses, 'severity');
                 $aggSeverity = $this->aggregateSeverity($severities);
                 $severityMap = [
@@ -1724,6 +1767,16 @@ class ReportController extends Controller
 
                 if ($duplicatesSkipped > 0) {
                     $mainReport->update(['system_notes' => ($mainReport->system_notes ? $mainReport->system_notes . ' | ' : '') . '[INFO] ' . $duplicatesSkipped . ' foto dilewati karena sudah digunakan pada laporan lain.']);
+                }
+
+                // Simpan relasi duplikasi jika ada
+                if ($duplicateOfId) {
+                    \App\Models\ReportDuplicate::create([
+                        'report_id'      => $mainReport->id,
+                        'duplicate_of_id' => $duplicateOfId,
+                        'score'          => 0.900,
+                        'match_type'     => 'user_confirmed',
+                    ]);
                 }
 
                 return [
@@ -2144,33 +2197,46 @@ class ReportController extends Controller
         }
 
         $validated = $request->validate([
-            'after_photo' => 'required|image|mimes:jpeg,jpg,png|max:5120',
-            'catatan'     => 'nullable|string|max:1000',
+            'after_photo'   => 'required|array|min:1',
+            'after_photo.*' => 'required|image|mimes:jpeg,jpg,png|max:5120',
+            'catatan'       => 'nullable|string|max:1000',
         ]);
 
         try {
-            $file = $validated['after_photo'];
-            $hash = hash_file('sha256', $file->getRealPath());
+            $folder = 'reports/after';
+            $firstPath = null;
 
-            // Cek duplikasi foto after (bandingkan dengan after_photo_hash di laporan lain)
-            $existingAfter = Report::where('after_photo_hash', $hash)->whereNotNull('after_photo_path')->first();
-            if ($existingAfter) {
-                Log::warning('DeltaJalan: Foto after duplikat.', [
-                    'report_id'    => $report->id,
-                    'existing_id'  => $existingAfter->id,
-                    'hash'         => $hash,
+            foreach ($validated['after_photo'] as $i => $file) {
+                $hash = hash_file('sha256', $file->getRealPath());
+
+                // Cek duplikasi (bandingkan dengan hash di tabel report_after_photos)
+                $existingAfter = ReportAfterPhoto::where('file_hash', $hash)->first();
+                if ($existingAfter) {
+                    Log::warning('DeltaJalan: Foto after duplikat.', [
+                        'report_id'    => $report->id,
+                        'existing_id'  => $existingAfter->report_id,
+                        'hash'         => $hash,
+                    ]);
+                }
+
+                $filename = $report->id . '_after_' . time() . '_' . $i . '.' . $file->getClientOriginalExtension();
+                $path = $file->storeAs($folder, $filename, 'public');
+
+                if ($i === 0) {
+                    $firstPath = $path;
+                }
+
+                $report->afterPhotos()->create([
+                    'file_path'  => $path,
+                    'file_hash'  => $hash,
+                    'sort_order' => $i,
                 ]);
             }
 
-            // Simpan foto ke storage
-            $folder = 'reports/after';
-            $filename = $report->id . '_after_' . time() . '.' . $file->getClientOriginalExtension();
-            $path = $file->storeAs($folder, $filename, 'public');
-
             $report->update([
                 'status'              => 'Selesai',
-                'after_photo_path'    => $path,
-                'after_photo_hash'    => $hash,
+                'after_photo_path'    => $firstPath,
+                'after_photo_hash'    => $hash ?? null,
                 'after_photo_notes'   => $validated['catatan'] ?? null,
                 'perbaikan_selesai_at' => now(),
                 'system_notes'        => $report->system_notes
@@ -2774,7 +2840,14 @@ class ReportController extends Controller
             }
         }
 
-        // Hapus after photo
+        // Hapus after photos
+        foreach ($report->afterPhotos as $afterPhoto) {
+            if ($afterPhoto->file_path && Storage::exists($afterPhoto->file_path)) {
+                Storage::delete($afterPhoto->file_path);
+            }
+        }
+
+        // Hapus after photo lama (legacy single)
         if ($report->after_photo_path && Storage::exists($report->after_photo_path)) {
             Storage::delete($report->after_photo_path);
         }
@@ -2791,6 +2864,39 @@ class ReportController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Laporan berhasil dihapus.',
+        ]);
+    }
+
+    /**
+     * DELETE /api/reports/{id}/duplicate
+     * Supervisor menghapus marking duplikasi dari laporan.
+     */
+    public function destroyDuplicate(string $id): JsonResponse
+    {
+        $report = Report::find($id);
+        if (!$report) {
+            return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
+        }
+
+        $user = auth()->user();
+        if (!$user || $user->role !== 'supervisor') {
+            return response()->json(['success' => false, 'message' => 'Hanya supervisor yang dapat menghapus marking duplikasi.'], 403);
+        }
+
+        $deleted = \App\Models\ReportDuplicate::where('report_id', $id)->delete();
+
+        if (!$deleted) {
+            return response()->json(['success' => false, 'message' => 'Laporan ini tidak memiliki marking duplikasi.'], 404);
+        }
+
+        Log::info('DeltaJalan: Marking duplikasi dihapus oleh supervisor.', [
+            'report_id'  => $id,
+            'deleted_by' => $user->name,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Marking duplikasi berhasil dihapus.',
         ]);
     }
 
@@ -3249,6 +3355,122 @@ class ReportController extends Controller
             'Menunggu Review'   => 'Menunggu Review',
             default             => "Status: {$status}",
         };
+    }
+
+    /**
+     * DELETE /api/admin/reports/{id}
+     * Admin menghapus laporan apapun tanpa batasan kepemilikan.
+     */
+    public function adminDestroy(string $id): JsonResponse
+    {
+        $report = Report::find($id);
+        if (!$report) {
+            return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
+        }
+
+        $user = auth()->user();
+        if ($user->role !== 'admin') {
+            return response()->json(['success' => false, 'message' => 'Hanya admin yang dapat menghapus laporan ini.'], 403);
+        }
+
+        // Hapus file foto dari storage
+        if ($report->image_original_path && Storage::exists($report->image_original_path)) {
+            Storage::delete($report->image_original_path);
+        }
+        if ($report->image_result_path && Storage::exists($report->image_result_path)) {
+            Storage::delete($report->image_result_path);
+        }
+
+        foreach ($report->photos as $photo) {
+            if ($photo->image_original_path && Storage::exists($photo->image_original_path)) {
+                Storage::delete($photo->image_original_path);
+            }
+            if ($photo->image_result_path && Storage::exists($photo->image_result_path)) {
+                Storage::delete($photo->image_result_path);
+            }
+        }
+
+        foreach ($report->afterPhotos as $afterPhoto) {
+            if ($afterPhoto->file_path && Storage::exists($afterPhoto->file_path)) {
+                Storage::delete($afterPhoto->file_path);
+            }
+        }
+
+        if ($report->after_photo_path && Storage::exists($report->after_photo_path)) {
+            Storage::delete($report->after_photo_path);
+        }
+
+        $report_code = $report->report_code;
+        $report->delete();
+
+        Log::info('DeltaJalan: Laporan dihapus oleh admin.', [
+            'report_id'   => $id,
+            'report_code' => $report_code,
+            'deleted_by'  => $user->name,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Laporan berhasil dihapus.',
+        ]);
+    }
+
+    /**
+     * POST /api/admin/reports/{id}/status
+     * Admin mengubah status laporan secara paksa.
+     */
+    public function adminUpdateStatus(Request $request, string $id): JsonResponse
+    {
+        $report = Report::find($id);
+        if (!$report) {
+            return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
+        }
+
+        $user = auth()->user();
+        if ($user->role !== 'admin') {
+            return response()->json(['success' => false, 'message' => 'Hanya admin yang dapat mengubah status ini.'], 403);
+        }
+
+        $validated = $request->validate([
+            'status' => ['required', 'string', 'in:Menunggu Review,Disetujui,Ditolak,Sedang Diperbaiki,Selesai'],
+        ]);
+
+        $old_status = $report->status;
+        $new_status = $validated['status'];
+
+        if ($old_status === $new_status) {
+            return response()->json(['success' => false, 'message' => 'Status tidak berubah.'], 422);
+        }
+
+        $report->status = $new_status;
+        $report->save();
+
+        StatusLog::create([
+            'report_id'  => $report->id,
+            'old_status' => $old_status,
+            'new_status' => $new_status,
+            'actor_name' => $user->name,
+            'actor_role' => 'admin',
+            'notes'      => "[ADMIN] Status diubah oleh admin",
+        ]);
+
+        Log::info('DeltaJalan: Status laporan diubah oleh admin.', [
+            'report_id'   => $id,
+            'report_code' => $report->report_code,
+            'old_status'  => $old_status,
+            'new_status'  => $new_status,
+            'updated_by'  => $user->name,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Status laporan berhasil diubah.',
+            'data'    => [
+                'id'         => $report->id,
+                'status'     => $new_status,
+                'old_status' => $old_status,
+            ],
+        ]);
     }
 }
 

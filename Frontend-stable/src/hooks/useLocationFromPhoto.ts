@@ -260,8 +260,6 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
 
   const data: LocationIQResponse = await res.json();
   const addr = data.address ?? {};
-  console.log("REVERSE_GEO: LocationIQ address =", addr);
-
   // ── Nama Jalan dari LocationIQ ──────────────────────────────────────────
   const road = extractRoadFromLocationIQ(addr);
   let namaJalan = "";
@@ -273,13 +271,6 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
     if (addr.house_number) parts.push(`No. ${addr.house_number}`);
     namaJalan = parts.join(" ");
   }
-  console.log(
-    "REVERSE_GEO: road dari LocationIQ =",
-    JSON.stringify(road),
-    "→ namaJalan =",
-    namaJalan,
-  );
-
   // ── Kecamatan ───────────────────────────────────────────────────────────
   const kecamatanRaw =
     addr.city_district ??
@@ -292,18 +283,13 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
     addr.county ??
     "";
   const kecamatan = matchKecamatan(kecamatanRaw);
-  console.log("REVERSE_GEO: kecamatanRaw =", kecamatanRaw, "→ kecamatan =", kecamatan);
-
   // ── Fallback 1: OSRM Nearest ────────────────────────────────────────────
   if (!namaJalan) {
-    console.log("REVERSE_GEO: LocationIQ kosong — coba OSRM fallback");
     try {
       const osmResult = await snapToRoad(lat, lng);
-      console.log("REVERSE_GEO: OSRM result =", osmResult);
       if (osmResult.roadName) {
         namaJalan = osmResult.roadName;
         roadFound = true;
-        console.log("REVERSE_GEO: pakai nama jalan dari OSRM:", namaJalan);
       }
     } catch (e) {
       console.warn("REVERSE_GEO: OSRM fallback error", e);
@@ -312,7 +298,6 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
 
   // ── Fallback 2: Overpass API (query OSM raw data) ──────────────────────
   if (!namaJalan) {
-    console.log("REVERSE_GEO: OSRM juga kosong — coba Overpass API");
     try {
       const overpassQuery = `[out:json];way(around:100,${lat},${lng})[highway][name];out 1;`;
       const overpassRes = await fetch("https://overpass-api.de/api/interpreter", {
@@ -322,14 +307,10 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
       });
       if (overpassRes.ok) {
         const overpassData = await overpassRes.json();
-        console.log("REVERSE_GEO: Overpass elements =", overpassData.elements);
         const roadName = overpassData.elements?.[0]?.tags?.name;
         if (roadName) {
           namaJalan = roadName;
           roadFound = true;
-          console.log("REVERSE_GEO: pakai nama jalan dari Overpass:", namaJalan);
-        } else {
-          console.log("REVERSE_GEO: Overpass juga gak punya nama jalan");
         }
       }
     } catch (e) {
@@ -337,7 +318,6 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
     }
   }
 
-  console.log("REVERSE_GEO: final result =", { namaJalan, roadFound, kecamatan });
   return { namaJalan, roadFound, kecamatan };
 }
 
@@ -638,9 +618,7 @@ export function useLocationFromPhoto(
 
       try {
         const result = await PhotoExifGps.pickPhotos({ limit });
-        console.log("[DEBUG handleNativePick] raw result:", JSON.stringify(result, null, 2));
         const photosWithSrc: NativePhoto[] = result.photos.map((p) => {
-          console.log("[DEBUG handleNativePick] each photo:", JSON.stringify(p, null, 2));
           return {
             fileName: p.name,
             filePath: p.uri,

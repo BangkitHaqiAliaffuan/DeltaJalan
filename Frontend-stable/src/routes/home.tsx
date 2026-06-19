@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
+import { useQueryClient } from "@tanstack/react-query";
 import { SkeletonCard } from "@/components/jk/Skeleton";
 import { getCurrentUser, getToken } from "@/lib/auth";
 import { listDrafts, type OfflineDraft } from "@/lib/offlineDrafts";
@@ -10,6 +11,7 @@ import { ReportCard } from "@/components/jk/ReportCard";
 import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
 import { formatDateRelative } from "@/lib/format";
 import { API_BASE_URL } from "@/lib/aiStore";
+import type { ActionButton } from "@/components/jk/report-card/types";
 
 export const Route = createFileRoute("/home")({
   component: HomePage,
@@ -39,6 +41,15 @@ function HomePage() {
   }, []);
 
   const loading = !isClient || statsLoading || reportsLoading;
+  const queryClient = useQueryClient();
+
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([
+      refetchReports(),
+      queryClient.invalidateQueries({ queryKey: ["stats"] }),
+      (async () => { setDrafts(await listDrafts()); })(),
+    ]);
+  }, [refetchReports, queryClient]);
 
   function handleDeleteClick(id: string) {
     setDeleteTarget(id);
@@ -81,7 +92,7 @@ function HomePage() {
   }).length;
 
   return (
-    <PageLayout showBrand withBottomNav>
+    <PageLayout showBrand withBottomNav onRefresh={handleRefresh}>
       <main className="pb-4">
         <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] p-6 text-white mb-6">
           <div className="flex items-start justify-between">
@@ -291,9 +302,17 @@ function HomePage() {
                 <p className="text-[13px] text-[#475569]">Upload laporan pertama Anda untuk mulai.</p>
               </div>
             ) : (
-              <div className="flex flex-col gap-3 p-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
                 {recent.slice(0, 5).map((r) => (
-                  <ReportCard key={r.id} variant="home" report={r} extra={{ isClient }} actions={{ onDelete: handleDeleteClick }} />
+                  <ReportCard key={r.id} report={r} options={{ isClient }} actions={(() => {
+                    const ac: ActionButton[] = [];
+                    if (r.status === "Menunggu Review") {
+                      ac.push({ label: "Hapus", icon: "delete", variant: "destructive", onClick: () => handleDeleteClick(r.id) });
+                      ac.push({ label: "Edit", variant: "secondary", onClick: () => { window.location.href = `/edit-report?reportId=${r.id}`; } });
+                    }
+                    ac.push({ label: "Lihat Detail", icon: "arrow_forward", variant: "secondary", to: "/detail-report", search: { reportId: r.id } });
+                    return ac;
+                  })()} />
                 ))}
               </div>
             )}

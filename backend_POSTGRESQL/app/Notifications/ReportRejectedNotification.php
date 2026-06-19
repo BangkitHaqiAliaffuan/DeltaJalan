@@ -35,7 +35,7 @@ class ReportRejectedNotification extends Notification implements ShouldQueue
     {
         return [
             'title'   => 'Laporan Ditolak',
-            'body'    => 'Laporan ' . $this->report->report_code . ' ditolak oleh ' . $this->rejectedBy,
+            'body'    => 'Laporan ' . $this->report->report_code . ' ditolak oleh ' . $this->rejectedBy . "\n\nKlik buka",
             'data'    => [
                 'type'        => 'report_rejected',
                 'report_id'   => $this->report->id,

@@ -13,5 +13,18 @@ class DatabaseSeeder extends Seeder
             ReportSeeder::class,
         ]);
     }
+
+    /**
+     * Restore production backup (di-jalankan manual via --class).
+     *
+     *     php artisan db:seed --class=DatabaseSeeder -- --backup
+     */
+    public function restoreBackup(): void
+    {
+        $this->call([
+            UserSeeder::class,
+            ReportBackupSeeder::class,
+        ]);
+    }
 }
 

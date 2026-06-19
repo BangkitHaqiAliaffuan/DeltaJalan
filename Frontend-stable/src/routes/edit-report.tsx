@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router"
 import { useState, useEffect } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
+import { AdminLayout } from "@/components/jk/AdminLayout";
 import { getCurrentUser, getToken } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/aiStore";
 import type { Laporan } from "@/types/laporan";
@@ -16,6 +17,12 @@ export const Route = createFileRoute("/edit-report")({
 });
 
 type SubmitState = "idle" | "loading" | "success" | "error";
+
+function LayoutWrap({ children }: { children: React.ReactNode }) {
+  const user = getCurrentUser();
+  if (user?.role === "admin") return <AdminLayout>{children}</AdminLayout>;
+  return <PageLayout title="Edit Laporan" withBottomNav>{children}</PageLayout>;
+}
 
 function EditReportPage() {
   const navigate = useNavigate();
@@ -145,24 +152,24 @@ function EditReportPage() {
 
   if (isLoading) {
     return (
-      <PageLayout>
-        <div className="flex items-center justify-center">
+      <LayoutWrap>
+        <div className="flex items-center justify-center min-h-[calc(100dvh-3.5rem)]">
           <span className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
         </div>
-      </PageLayout>
+      </LayoutWrap>
     );
   }
 
   if (errorMsg && !report) {
     return (
-      <PageLayout title="Edit Laporan">
+      <LayoutWrap>
         <div className="p-4 text-center text-red-600 text-sm">{errorMsg}</div>
-      </PageLayout>
+      </LayoutWrap>
     );
   }
 
   return (
-    <PageLayout title="Edit Laporan" withBottomNav>
+    <LayoutWrap>
 
         {submitState === "success" ? (
           <div className="flex flex-col items-center justify-center p-8 gap-4">
@@ -293,6 +300,6 @@ function EditReportPage() {
           </form>
         )}
 
-    </PageLayout>
+    </LayoutWrap>
   );
 }

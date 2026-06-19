@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { getToken } from '@/lib/auth'
+import { navigate } from '@/router'
 
 const isNative =
   typeof window !== 'undefined' &&
@@ -8,9 +9,12 @@ const isNative =
 
 const apiBase = (import.meta.env.VITE_API_BASE_URL ?? 'http://10.0.2.2:8080/api').replace(/\/+$/, '')
 
-async function sendTokenToBackend(fcmToken: string) {
+async function sendTokenToBackend(fcmToken: string): Promise<boolean> {
   const authToken = getToken()
-  if (!authToken) return
+  if (!authToken) {
+    console.warn('[FCM] Skipping token send: user not authenticated yet')
+    return false
+  }
 
   try {
     const res = await fetch(`${apiBase}/push/fcm-token`, {
@@ -24,9 +28,12 @@ async function sendTokenToBackend(fcmToken: string) {
     })
     if (!res.ok) {
       console.warn('[FCM] Failed to save token to backend:', res.status)
+      return false
     }
+    return true
   } catch (err) {
     console.warn('[FCM] Error saving token to backend:', err)
+    return false
   }
 }
 
@@ -50,6 +57,7 @@ async function removeTokenFromBackend(fcmToken: string) {
 
 export function useFcmRegistration() {
   const fcmTokenRef = useRef<string | null>(null)
+  const tokenStoredRef = useRef(false)
 
   useEffect(() => {
     if (!isNative) return
@@ -71,9 +79,10 @@ export function useFcmRegistration() {
           lights: true,
         }).catch(() => {})
 
-        await PushNotifications.addListener('registration', (token) => {
+        await PushNotifications.addListener('registration', async (token) => {
           fcmTokenRef.current = token.value
-          sendTokenToBackend(token.value)
+          const ok = await sendTokenToBackend(token.value)
+          if (ok) tokenStoredRef.current = true
         })
 
         await PushNotifications.addListener('registrationError', (err) => {
@@ -81,10 +90,13 @@ export function useFcmRegistration() {
         })
 
         await PushNotifications.addListener('pushNotificationReceived', (notification) => {
-          console.log('[FCM] Received:', notification)
         })
 
-        await PushNotifications.addListener('pushNotificationActionPerformed', () => {
+        await PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+          const reportId = notification.notification.data?.report_id as string | undefined
+          if (reportId) {
+            navigate('/detail-report', { reportId })
+          }
         })
 
         removeListeners = () => {
@@ -115,14 +127,28 @@ export function useFcmRegistration() {
   useEffect(() => {
     if (!isNative) return
 
+    const handleLogin = () => {
+      const token = fcmTokenRef.current
+      if (token && !tokenStoredRef.current) {
+        sendTokenToBackend(token).then((ok) => {
+          if (ok) tokenStoredRef.current = true
+        })
+      }
+    }
+
     const handleLogout = () => {
+      tokenStoredRef.current = false
       const token = fcmTokenRef.current
       if (token) {
         removeTokenFromBackend(token)
       }
     }
 
+    window.addEventListener('auth:login', handleLogin)
     window.addEventListener('auth:logout', handleLogout)
-    return () => window.removeEventListener('auth:logout', handleLogout)
+    return () => {
+      window.removeEventListener('auth:login', handleLogin)
+      window.removeEventListener('auth:logout', handleLogout)
+    }
   }, [])
 }

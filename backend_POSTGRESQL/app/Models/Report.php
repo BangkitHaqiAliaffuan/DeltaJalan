@@ -267,6 +267,23 @@ public const STATUS_VALUES = [
     }
 
     /**
+     * Foto-foto after (setelah perbaikan) yang terkait dengan laporan ini.
+     */
+    public function afterPhotos(): HasMany
+    {
+        return $this->hasMany(ReportAfterPhoto::class, 'report_id')->orderBy('sort_order');
+    }
+
+    /**
+     * Relasi duplikasi — laporan ini terindikasi duplikat dari laporan lain.
+     */
+    public function duplicateOf(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(\App\Models\ReportDuplicate::class, 'report_id')
+            ->with('originalReport');
+    }
+
+    /**
      * URL gambar pertama — foto utama jika ada, fallback ke sub-photo pertama batch.
      */
     public function getFirstPhotoUrlAttribute(): ?string

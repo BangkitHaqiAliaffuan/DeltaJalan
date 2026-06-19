@@ -6,6 +6,7 @@ import { API_BASE_URL } from "@/lib/aiStore";
 import { ReportCard } from "@/components/jk/ReportCard";
 import { getCurrentUser, getToken } from "@/lib/auth";
 import type { Laporan } from "@/types/laporan";
+import type { ActionButton } from "@/components/jk/report-card/types";
 
 export const Route = createFileRoute("/petugas-eksekusi")({
   component: PetugasEksekusiPage,
@@ -227,7 +228,7 @@ function PetugasEksekusiPage() {
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { icon: "error", label: "Rusak Berat (Prioritas)", value: stats.berat, color: "text-[#DC2626]" },
+                { icon: "error", label: "Rusak Berat", value: stats.berat, color: "text-[#DC2626]" },
                 { icon: "sync", label: "Dalam Proses", value: tugasBerjalan.length, color: "text-[#D97706]" },
                 { icon: "check_circle", label: "Selesai Hari Ini", value: tugasSelesai.length, color: "text-[#059669]" },
                 { icon: "assignment", label: "Total Penugasan", value: stats.total, color: "text-[#1e40af]" },
@@ -301,7 +302,13 @@ function PetugasEksekusiPage() {
                   Sedang Dikerjakan ({tugasBerjalan.length})
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {tugasBerjalan.map((r) => <ReportCard key={r.id} variant="petugas" report={r} extra={{ isClient }} actions={{ onMulai: handleMulai, actionLoading }} />)}
+                  {tugasBerjalan.map((r) => {
+                    const ac: ActionButton[] = [];
+                    if (r.status === "Disetujui") ac.push({ label: "Mulai", icon: "play_arrow", variant: "primary", onClick: () => handleMulai(r.id), disabled: actionLoading === r.id });
+                    if (r.status === "Sedang Diperbaiki") ac.push({ label: "Selesai", icon: "check_circle", variant: "primary", to: "/complete-report", search: { reportId: r.id } });
+                    ac.push({ label: "Lihat Detail", icon: "arrow_forward", variant: "secondary", to: "/detail-report", search: { reportId: r.id } });
+                    return <ReportCard key={r.id} report={r} options={{ showDeadline: true, isClient }} actions={ac} />;
+                  })}
                 </div>
               </div>
             )}
@@ -313,7 +320,13 @@ function PetugasEksekusiPage() {
                   Siap Dikerjakan ({tugasDisetujui.length})
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {tugasDisetujui.map((r) => <ReportCard key={r.id} variant="petugas" report={r} extra={{ isClient }} actions={{ onMulai: handleMulai, actionLoading }} />)}
+                  {tugasDisetujui.map((r) => {
+                    const ac: ActionButton[] = [];
+                    if (r.status === "Disetujui") ac.push({ label: "Mulai", icon: "play_arrow", variant: "primary", onClick: () => handleMulai(r.id), disabled: actionLoading === r.id });
+                    if (r.status === "Sedang Diperbaiki") ac.push({ label: "Selesai", icon: "check_circle", variant: "primary", to: "/complete-report", search: { reportId: r.id } });
+                    ac.push({ label: "Lihat Detail", icon: "arrow_forward", variant: "secondary", to: "/detail-report", search: { reportId: r.id } });
+                    return <ReportCard key={r.id} report={r} options={{ showDeadline: true, isClient }} actions={ac} />;
+                  })}
                 </div>
               </div>
             )}
@@ -337,7 +350,10 @@ function PetugasEksekusiPage() {
                   Riwayat Selesai ({tugasSelesai.length})
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {tugasSelesai.map((r) => <ReportCard key={r.id} variant="petugas" report={r} extra={{ isClient }} />)}
+                  {tugasSelesai.map((r) => {
+                    const ac: ActionButton[] = [{ label: "Lihat Detail", icon: "arrow_forward", variant: "secondary", to: "/detail-report", search: { reportId: r.id } }];
+                    return <ReportCard key={r.id} report={r} options={{ showDeadline: true, isClient }} actions={ac} />;
+                  })}
                 </div>
               </div>
             )}

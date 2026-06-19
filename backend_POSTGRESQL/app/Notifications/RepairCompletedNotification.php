@@ -34,7 +34,7 @@ class RepairCompletedNotification extends Notification implements ShouldQueue
     {
         return [
             'title'   => 'Perbaikan Selesai',
-            'body'    => 'Perbaikan laporan ' . $this->report->report_code . ' selesai oleh ' . $this->completedBy,
+            'body'    => 'Perbaikan laporan ' . $this->report->report_code . ' selesai oleh ' . $this->completedBy . "\n\nKlik buka",
             'data'    => [
                 'type'        => 'repair_completed',
                 'report_id'   => $this->report->id,

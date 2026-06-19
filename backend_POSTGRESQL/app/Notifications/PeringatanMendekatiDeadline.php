@@ -61,7 +61,7 @@ class PeringatanMendekatiDeadline extends Notification implements ShouldQueue
         $label = $this->type === 'review' ? 'Review' : 'Perbaikan';
         return [
             'title'   => 'Peringatan Deadline — ' . $label,
-            'body'    => "Laporan {$this->report->report_code} (prioritas {$this->report->priority}) akan melewati deadline {$label}.",
+            'body'    => "Laporan {$this->report->report_code} (prioritas {$this->report->priority}) akan melewati deadline {$label}." . "\n\nKlik buka",
             'data'    => [
                 'type'          => 'deadline_warning',
                 'report_id'     => $this->report->id,

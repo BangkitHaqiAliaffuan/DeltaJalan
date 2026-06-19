@@ -50,7 +50,29 @@ class ReportSeeder extends Seeder
 
     private const SEVERITIES = ['Rusak Berat', 'Rusak Sedang', 'Rusak Ringan'];
 
+    private const DAMAGE_TYPES = [
+        'Retak Memanjang', 'Retak Melintang', 'Retak Buaya', 'Lubang',
+        'Ambles', 'Tambalan', 'Keriting',
+    ];
+
     private const PRIORITIES = ['Rendah', 'Sedang', 'Tinggi'];
+
+    private function nearbyGps(float $centerLat, float $centerLng, float $maxMeters): array
+    {
+        $latPerMeter = 1.0 / 111320.0;
+        $lngPerMeter = 1.0 / (111320.0 * cos(deg2rad($centerLat)));
+
+        $angle = deg2rad(rand(0, 360));
+        $dist = mt_rand() / mt_getrandmax() * $maxMeters;
+
+        $dLat = cos($angle) * $dist * $latPerMeter;
+        $dLng = sin($angle) * $dist * $lngPerMeter;
+
+        return [
+            round($centerLat + $dLat, 8),
+            round($centerLng + $dLng, 8),
+        ];
+    }
 
     public function run(): void
     {
@@ -84,6 +106,13 @@ class ReportSeeder extends Seeder
 
             $reportCode = 'LP-' . date('Y') . '-' . str_pad($nextNumber++, 5, '0', STR_PAD_LEFT);
 
+            $severityShort = match ($severity) {
+                'Rusak Berat' => 'berat',
+                'Rusak Sedang' => 'sedang',
+                'Rusak Ringan' => 'ringan',
+                default => 'ringan',
+            };
+
             $report = Report::create([
                 'report_code' => $reportCode,
                 'reporter_name' => $reporter,
@@ -96,6 +125,8 @@ class ReportSeeder extends Seeder
                 'image_hash' => hash('sha256', $reportCode . $i . time()),
                 'status' => $status,
                 'overall_severity' => $severity,
+                'ai_jenis_kerusakan' => self::DAMAGE_TYPES[array_rand(self::DAMAGE_TYPES)],
+                'ai_severity' => $severityShort,
                 'trust_score' => rand(50, 100),
                 'trust_label' => ['merah', 'kuning', 'hijau'][rand(0, 2)],
                 'priority' => self::PRIORITIES[array_rand(self::PRIORITIES)],
@@ -127,13 +158,22 @@ class ReportSeeder extends Seeder
             }
 
             // Primary photo
+            [$photoLat, $photoLng] = $i < 10
+                ? $this->nearbyGps($lat, $lng, 5)
+                : [$lat, $lng];
             ReportPhoto::create([
                 'report_id' => $report->id,
                 'image_original_path' => $imagePath,
                 'image_hash' => hash('sha256', $reportCode . $i . time() . '_photo'),
-                'latitude' => $lat,
-                'longitude' => $lng,
+                'latitude' => $photoLat,
+                'longitude' => $photoLng,
                 'koordinat_sumber' => 'exif',
+                'ai_jenis_kerusakan' => self::DAMAGE_TYPES[array_rand(self::DAMAGE_TYPES)],
+                'ai_severity' => $severityShort,
+                'ai_confidence' => round(0.65 + mt_rand() / mt_getrandmax() * 0.34, 3),
+                'total_detections' => rand(1, 5),
+                'kerusakan_panjang' => round(0.5 + mt_rand() / mt_getrandmax() * 7.5, 2),
+                'kerusakan_lebar' => round(0.3 + mt_rand() / mt_getrandmax() * 3.7, 2),
                 'sort_order' => 0,
                 'original_filename' => "report_{$i}.jpg",
                 'created_at' => $createdAt,
@@ -142,17 +182,26 @@ class ReportSeeder extends Seeder
 
             // Batch report: add extra photos (reports 0-9 get 2-4 extra = 3-5 total)
             if ($i < 10) {
+                $report->update(['batch_id' => (string) Str::uuid(), 'image_original_path' => null]);
+
                 $extraCount = rand(2, 4);
                 for ($j = 0; $j < $extraCount; $j++) {
                     $photoDir = self::DATASET_DIRS[($i + $j + 10) % $dirCount];
                     $photoPath = $this->downloadImage($photoDir);
+                    [$extraLat, $extraLng] = $this->nearbyGps($lat, $lng, 5);
                     ReportPhoto::create([
                         'report_id' => $report->id,
                         'image_original_path' => $photoPath,
                         'image_hash' => hash('sha256', $reportCode . $i . time() . '_extra_' . $j),
-                        'latitude' => $lat,
-                        'longitude' => $lng,
+                        'latitude' => $extraLat,
+                        'longitude' => $extraLng,
                         'koordinat_sumber' => 'exif',
+                        'ai_jenis_kerusakan' => self::DAMAGE_TYPES[array_rand(self::DAMAGE_TYPES)],
+                        'ai_severity' => $severityShort,
+                        'ai_confidence' => round(0.65 + mt_rand() / mt_getrandmax() * 0.34, 3),
+                        'total_detections' => rand(1, 5),
+                        'kerusakan_panjang' => round(0.5 + mt_rand() / mt_getrandmax() * 7.5, 2),
+                        'kerusakan_lebar' => round(0.3 + mt_rand() / mt_getrandmax() * 3.7, 2),
                         'sort_order' => $j + 1,
                         'original_filename' => "report_{$i}_extra_{$j}.jpg",
                         'created_at' => $createdAt,

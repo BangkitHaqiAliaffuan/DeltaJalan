@@ -6,6 +6,7 @@ import { getCurrentUser, getToken } from "@/lib/auth";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { authFetch } from "@/hooks/useReportQueries";
+import './admin.css';
 
 export const Route = createFileRoute("/admin/dashboard")({
   component: RouteComponent,
@@ -104,16 +105,16 @@ function AdminDashboard() {
   if (isLoading) {
     return (
       <div>
-        <section className="-m-4 md:-m-6 mb-6 px-4 pt-6 pb-6 bg-[#F1F5F9] rounded-b-lg border-b border-[#E2E8F0]">
-          <div className="h-7 w-60 bg-gray-200 rounded animate-pulse mb-2" />
-          <div className="h-5 w-48 bg-gray-200 rounded animate-pulse" />
+        <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] px-4 md:px-6 py-6 -m-4 md:-m-6 mb-6">
+          <div className="h-7 w-60 bg-white/20 rounded animate-pulse mb-2" />
+          <div className="h-5 w-48 bg-white/20 rounded animate-pulse" />
         </section>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 mb-6">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="bg-white border border-[#E2E8F0] rounded-xl p-4">
-              <div className="h-4 w-20 bg-gray-200 rounded animate-pulse mb-3" />
-              <div className="h-8 w-16 bg-gray-200 rounded animate-pulse mb-1" />
-              <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+            <div key={i} className="bg-gradient-to-br from-[#EEF2FF] to-white border border-[#C7D2FE] rounded-xl p-4 aspect-square flex flex-col items-center justify-center">
+              <div className="w-6 h-6 bg-[#C7D2FE] rounded animate-pulse mb-2" />
+              <div className="h-7 w-16 bg-[#C7D2FE] rounded animate-pulse mb-1" />
+              <div className="h-4 w-20 bg-[#C7D2FE] rounded animate-pulse" />
             </div>
           ))}
         </div>
@@ -139,40 +140,43 @@ function AdminDashboard() {
 
   return (
     <div>
-      <section className="-m-4 md:-m-6 mb-6 px-4 pt-6 pb-6 bg-[#F1F5F9] rounded-b-lg border-b border-[#E2E8F0]">
-        <h1 className="font-headline-lg-mobile text-headline-lg-mobile font-bold text-[#0F172A]">
-          {getGreeting(isClient)}, {user?.name ?? "Admin"}
-        </h1>
-        <div className="flex items-center gap-1.5 mt-1">
-          <Icon name="location_on" className="!text-[16px] text-[#475569]" />
-          <p className="font-body-md text-body-md text-[#475569]">
-            Admin &middot; {formatTanggal(isClient)}
-          </p>
+      <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] px-4 md:px-6 py-6 text-white -m-4 md:-m-6 mb-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">
+              {getGreeting(isClient)}, {user?.name ?? "Admin"}
+            </h1>
+            <p className="text-sm text-blue-200 mt-1">
+              Ringkasan data laporan kerusakan jalan Kab. Sidoarjo
+            </p>
+            <p className="text-xs text-blue-300 mt-0.5">
+              {formatTanggal(isClient)}
+            </p>
+          </div>
+          <span className="px-2.5 py-1 bg-white/15 text-xs font-semibold text-blue-200 uppercase tracking-wide">
+            Admin
+          </span>
         </div>
       </section>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid margin-top grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {[
-          { label: "Total Laporan", value: (stats?.total ?? 0).toLocaleString(), subtitle: "Terlapor", icon: "description", color: "text-[#1e40af]" },
-          { label: "Selesai", value: selesaiBulanIni.toLocaleString(), subtitle: "Bulan Ini", icon: "check_circle", color: "text-[#10B981]" },
-          { label: "Menunggu Review", value: (stats?.menunggu_review ?? 0).toLocaleString(), subtitle: "Perlu Ditinjau", icon: "rate_review", color: "text-[#F97316]" },
-          { label: "Kepatuhan", value: complianceRate !== null ? `${complianceRate}%` : "—", subtitle: "Tepat Waktu", icon: "verified", color: "text-[#8B5CF6]" },
+          { label: "Total Laporan", value: stats?.total ?? 0, icon: "description", color: "text-[#1e40af]" },
+          { label: "Selesai", value: selesaiBulanIni, icon: "check_circle", color: "text-[#059669]" },
+          { label: "Menunggu Review", value: stats?.menunggu_review ?? 0, icon: "rate_review", color: "text-[#D97706]" },
+          { label: "Kepatuhan", value: complianceRate, suffix: "%", icon: "verified", color: "text-[#8B5CF6]" },
         ].map((card) => (
           <div
             key={card.label}
-            className="bg-white border border-[#E2E8F0] rounded-xl p-4"
-            style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+            className="bg-gradient-to-br from-[#EEF2FF] to-white border border-[#C7D2FE] rounded-xl p-4 flex flex-col items-center justify-center gap-1.5 aspect-square group transition-all duration-200 ease-out hover:scale-[1.03] hover:shadow-md hover:border-[#A5B4FC]"
           >
-            <div className="flex items-center justify-between mb-3">
-              <span className="font-label-sm text-label-sm font-semibold uppercase tracking-wider" style={{ color: card.color.replace("text-[", "").replace("]", "") }}>
-                {card.label}
+            <div className="flex items-center justify-center gap-1.5">
+              <Icon name={card.icon} className={`${card.color} !text-2xl group-hover:scale-110 group-hover:-translate-y-0.5 transition-transform duration-200`} />
+              <span className={`text-2xl font-bold ${card.color}`}>
+                {card.value != null ? card.value.toLocaleString() : "—"}{card.suffix ?? ""}
               </span>
-              <Icon name={card.icon} className={`${card.color} !text-[20px]`} filled />
             </div>
-            <p className="font-headline-lg text-headline-lg font-bold text-[#0F172A] leading-none mb-1">
-              {card.value}
-            </p>
-            <p className="font-label-sm text-label-sm text-[#475569]">{card.subtitle}</p>
+            <p className={`text-sm font-medium ${card.color} opacity-80`}>{card.label}</p>
           </div>
         ))}
       </div>

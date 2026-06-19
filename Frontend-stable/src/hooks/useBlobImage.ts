@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Capacitor, CapacitorHttp } from '@capacitor/core'
+import { getToken } from '@/lib/auth'
 
 const isNative = Capacitor.isNativePlatform?.() === true
 
@@ -44,8 +45,10 @@ async function fetchBlobWithRetry(url: string, checkCancelled: () => boolean): P
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (checkCancelled()) return null
     try {
+      const token = getToken()
       const res = await CapacitorHttp.get({
         url,
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         responseType: 'blob',
         connectTimeout: 10_000,
         readTimeout: 30_000,
@@ -65,7 +68,7 @@ async function fetchBlobWithRetry(url: string, checkCancelled: () => boolean): P
 }
 
 export function useBlobImage(src: string | undefined): string | undefined {
-  const [blobUrl, setBlobUrl] = useState<string | undefined>(src)
+  const [blobUrl, setBlobUrl] = useState<string | undefined>(isNative ? undefined : src)
   const prevUrlRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {

@@ -34,7 +34,7 @@ class TriageUpdatedNotification extends Notification implements ShouldQueue
     {
         return [
             'title'   => 'Triage Diperbarui',
-            'body'    => 'Kategori kerusakan laporan ' . $this->report->report_code . ' diperbarui oleh ' . $this->updatedBy,
+            'body'    => 'Kategori kerusakan laporan ' . $this->report->report_code . ' diperbarui oleh ' . $this->updatedBy . "\n\nKlik buka",
             'data'    => [
                 'type'        => 'triage_updated',
                 'report_id'   => $this->report->id,

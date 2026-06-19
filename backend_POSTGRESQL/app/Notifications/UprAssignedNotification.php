@@ -35,7 +35,7 @@ class UprAssignedNotification extends Notification implements ShouldQueue
     {
         return [
             'title'   => 'Tugas Baru',
-            'body'    => 'Tugas baru: laporan ' . $this->report->report_code . ' di ' . $this->report->district . ($this->uprName ? ' — ' . $this->uprName : ''),
+            'body'    => 'Tugas baru: laporan ' . $this->report->report_code . ' di ' . $this->report->district . ($this->uprName ? ' — ' . $this->uprName : '') . "\n\nKlik buka",
             'data'    => [
                 'type'        => 'upr_assigned',
                 'report_id'   => $this->report->id,

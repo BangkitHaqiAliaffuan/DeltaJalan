@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { ReportCard, ReportCardSkeleton } from "@/components/jk/ReportCard";
+import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
 import { API_BASE_URL } from "@/lib/aiStore";
 import { getToken } from "@/lib/auth";
 import type { Laporan } from "@/types/laporan";
@@ -44,6 +45,8 @@ function MyReportsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const token = getToken();
 
   useEffect(() => {
@@ -67,11 +70,41 @@ function MyReportsPage() {
     }
   }
 
+  const handleDeleteClick = useCallback((id: string) => {
+    setDeleteTarget(id);
+  }, []);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/reports/${deleteTarget}`, {
+        method: "DELETE",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        setDeleteTarget(null);
+        loadLaporan();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        alert(json.message ?? "Gagal menghapus laporan.");
+      }
+    } catch {
+      alert("Terjadi kesalahan jaringan.");
+    } finally {
+      setDeleteLoading(false);
+    }
+  }, [deleteTarget, token]);
+
   const filtered = useMemo(() => {
     return laporan.filter(
       (r) => matchFilter(r, activeFilter) && matchSearch(r, searchQuery),
     );
   }, [laporan, activeFilter, searchQuery]);
+
+  const handleRefresh = useCallback(async () => {
+    await loadLaporan();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <PageLayout
@@ -82,6 +115,7 @@ function MyReportsPage() {
         </button>
       }
       withBottomNav
+      onRefresh={handleRefresh}
     >
       <div>
         {/* Search bar */}
@@ -135,7 +169,7 @@ function MyReportsPage() {
         {/* Card list */}
         <main className="px-margin-mobile flex flex-col gap-md pb-28">
           {isLoading ? (
-            <div aria-busy="true" aria-label="Memuat laporan" className="flex flex-col gap-md">
+            <div aria-busy="true" aria-label="Memuat laporan" className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <ReportCardSkeleton />
               <ReportCardSkeleton />
               <ReportCardSkeleton />
@@ -159,10 +193,35 @@ function MyReportsPage() {
               ) : null}
             </div>
           ) : (
-            filtered.map((c) => <ReportCard key={c.id} report={c} />)
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {filtered.map((c) => (
+                <ReportCard
+                  key={c.id}
+                  report={c}
+                  options={{ showTrust: true }}
+                  actions={[
+                    { label: "Lihat Detail", icon: "arrow_forward", variant: "secondary", to: "/detail-report", search: { reportId: c.id } },
+                    ...(c.status === "Menunggu Review"
+                      ? [{ label: "Hapus", icon: "delete", variant: "destructive" as const, onClick: () => handleDeleteClick(c.id) }]
+                      : []),
+                  ]}
+                />
+              ))}
+            </div>
           )}
         </main>
       </div>
+
+      <ConfirmDialog
+        open={deleteTarget != null}
+        title="Hapus Laporan?"
+        message="Laporan yang dihapus tidak dapat dikembalikan. Apakah Anda yakin ingin menghapus laporan ini?"
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        confirmLoading={deleteLoading}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </PageLayout>
   );
 }

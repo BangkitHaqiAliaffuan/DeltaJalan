@@ -42,6 +42,7 @@ export function saveAuth(user: User, token: string): void {
   if (typeof window !== "undefined") {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
+    window.dispatchEvent(new CustomEvent('auth:login'));
   }
 }
 

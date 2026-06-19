@@ -22,6 +22,7 @@ export interface OfflineDraft {
   roadNameSource: string | null;
   photos: DraftPhoto[];
   isBatch: boolean;
+  savedOffline?: boolean;
 }
 
 function openDB(): Promise<IDBDatabase> {

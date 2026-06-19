@@ -33,8 +33,10 @@ class UprController extends Controller
             });
         }
 
-        // Default: hanya aktif — backward compat dengan dropdown report form
-        if ($request->filled('is_active')) {
+        // Filter is_active: tidak dikirim → default aktif; dikirim kosong → semua; dikirim 0/1 → spesifik
+        if ($request->exists('is_active') && !$request->filled('is_active')) {
+            // is_active= (empty) — show all
+        } elseif ($request->filled('is_active')) {
             $query->where('is_active', filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN));
         } else {
             $query->where('is_active', true);

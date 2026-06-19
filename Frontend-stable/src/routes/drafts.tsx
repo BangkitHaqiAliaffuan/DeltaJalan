@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
@@ -38,12 +38,18 @@ function DraftsPage() {
     setDeleteLoading(false);
   }
 
+  const handleRefresh = useCallback(async () => {
+    setLoading(true);
+    setDrafts(await listDrafts());
+    setLoading(false);
+  }, []);
+
   function handleOpen(draft: OfflineDraft) {
     navigate({ to: "/upload", search: { draftId: draft.id } });
   }
 
   return (
-    <PageLayout title="Draf Offline" back="/home">
+    <PageLayout title="Draf Offline" back="/home" onRefresh={handleRefresh}>
       <div className="flex-1 px-4 py-4 max-w-2xl mx-auto">
         {loading ? (
           <div className="flex items-center justify-center py-16">

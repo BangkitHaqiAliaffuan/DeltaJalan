@@ -29,8 +29,8 @@ function CompleteReportPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [afterFile, setAfterFile] = useState<File | null>(null);
-  const [afterPreview, setAfterPreview] = useState<string | null>(null);
+  const [afterFiles, setAfterFiles] = useState<File[]>([]);
+  const [afterPreviews, setAfterPreviews] = useState<string[]>([]);
   const [catatan, setCatatan] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
@@ -65,27 +65,33 @@ function CompleteReportPage() {
   }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setAfterFile(file);
-    const reader = new FileReader();
-    reader.onload = () => setAfterPreview(reader.result as string);
-    reader.readAsDataURL(file);
-  }
-
-  function removeFile() {
-    setAfterFile(null);
-    setAfterPreview(null);
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const newFiles: File[] = [];
+    const newPreviews: string[] = [];
+    for (let i = 0; i < files.length; i++) {
+      newFiles.push(files[i]);
+      newPreviews.push(URL.createObjectURL(files[i]));
+    }
+    setAfterFiles((prev) => [...prev, ...newFiles]);
+    setAfterPreviews((prev) => [...prev, ...newPreviews]);
     if (fileRef.current) fileRef.current.value = "";
   }
 
+  function removeFile(index: number) {
+    setAfterFiles((prev) => prev.filter((_, i) => i !== index));
+    setAfterPreviews((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function handleSubmit() {
-    if (!report || !afterFile) return;
+    if (!report || afterFiles.length === 0) return;
     setSubmitting(true);
     setErrorMsg("");
     try {
       const formData = new FormData();
-      formData.append("after_photo", afterFile);
+      for (const file of afterFiles) {
+        formData.append("after_photo[]", file);
+      }
       if (catatan) formData.append("catatan", catatan);
 
       const res = await fetch(`${API_BASE_URL}/reports/${report.id}/complete`, {
@@ -190,22 +196,37 @@ function CompleteReportPage() {
             type="file"
             accept="image/jpeg,image/jpg,image/png"
             capture="environment"
+            multiple
             onChange={handleFileSelect}
             className="hidden"
           />
-          {afterPreview ? (
-            <div className="relative rounded-lg overflow-hidden border border-[#D0DAE8]">
-              <img
-                src={afterPreview}
-                alt="Preview foto after"
-                className="w-full object-cover max-h-80"
-              />
+
+          {afterPreviews.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {afterPreviews.map((preview, i) => (
+                <div key={i} className="relative rounded-lg overflow-hidden border border-[#D0DAE8] aspect-square">
+                  <img
+                    src={preview}
+                    alt={`Foto after ${i + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeFile(i)}
+                    className="absolute top-1.5 right-1.5 w-7 h-7 bg-black/50 text-white rounded-full flex items-center justify-center"
+                  >
+                    <Icon name="close" className="!text-[14px]" />
+                  </button>
+                </div>
+              ))}
               <button
                 type="button"
-                onClick={removeFile}
-                className="absolute top-2 right-2 w-8 h-8 bg-black/50 text-white rounded-full flex items-center justify-center"
+                onClick={() => fileRef.current?.click()}
+                disabled={!isSedangDiperbaiki}
+                className="aspect-square border-2 border-dashed border-[#D0DAE8] rounded-lg flex flex-col items-center justify-center gap-1 text-on-surface-variant hover:bg-surface-container-low transition-colors disabled:opacity-40"
               >
-                <Icon name="close" className="!text-lg" />
+                <Icon name="add_a_photo" className="!text-2xl" />
+                <span className="text-[11px]">Tambah</span>
               </button>
             </div>
           ) : (
@@ -238,7 +259,7 @@ function CompleteReportPage() {
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={!afterFile || submitting || !isSedangDiperbaiki}
+          disabled={afterFiles.length === 0 || submitting || !isSedangDiperbaiki}
           className="w-full py-3 bg-primary text-white rounded-lg font-semibold text-sm hover:bg-[#163F6E] disabled:opacity-40 transition-all flex items-center justify-center gap-2"
         >
           {submitting ? (

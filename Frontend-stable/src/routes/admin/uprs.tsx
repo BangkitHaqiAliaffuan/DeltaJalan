@@ -36,6 +36,7 @@ function AdminUprs() {
   const params = new URLSearchParams();
   if (search) params.set("q", search);
   params.set("limit", "100");
+  params.set("is_active", "");
 
   const uprsQuery = useQuery({
     queryKey: ["admin-uprs", search],
@@ -44,9 +45,31 @@ function AdminUprs() {
 
   const uprs: { id: number; name: string; wilayah: string | null; leader_name: string | null; phone: string | null; is_active: boolean; anggota: number }[] = uprsQuery.data?.data ?? [];
 
+  const petugasQuery = useQuery({
+    queryKey: ["petugas-eksekusi-list"],
+    queryFn: () =>
+      apiFetch("/api/users?role=petugas_eksekusi&limit=100", { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json()),
+  });
+  const petugasList: { id: number; name: string }[] = petugasQuery.data?.data ?? [];
+
   const toggleMut = useMutation({
-    mutationFn: (id: number) => apiFetch(`/api/uprs/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-uprs"] }),
+    mutationFn: ({ id, currentActive }: { id: number; currentActive: boolean }) =>
+      apiFetch(`/api/uprs/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ is_active: !currentActive }),
+      }),
+    onSuccess: (_data, variables) => {
+      qc.setQueriesData({ queryKey: ["admin-uprs"] }, (old: unknown) => {
+        if (!old || typeof old !== "object") return old;
+        const data = (old as Record<string, unknown>).data;
+        if (!Array.isArray(data)) return old;
+        return { ...(old as Record<string, unknown>), data: data.map((u: Record<string, unknown>) =>
+          u.id === variables.id ? { ...u, is_active: !u.is_active } : u
+        )};
+      });
+    },
   });
 
   function openCreate() { setForm(EMPTY_FORM); setEditId(null); setFormError(""); setModal("create"); }
@@ -136,7 +159,7 @@ function AdminUprs() {
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => openEdit(u)} className="p-1.5 hover:bg-[#F1F5F9] rounded-lg text-[#475569]"><Icon name="edit" className="!text-[18px]" /></button>
-                        <button onClick={() => toggleMut.mutate(u.id)} title="Nonaktifkan" className="p-1.5 hover:bg-[#F1F5F9] rounded-lg text-[#475569]"><Icon name={u.is_active ? "toggle_on" : "toggle_off"} className="!text-[18px]" /></button>
+                        <button onClick={() => toggleMut.mutate({ id: u.id, currentActive: u.is_active })} title={u.is_active ? "Nonaktifkan" : "Aktifkan"} className="p-1.5 hover:bg-[#F1F5F9] rounded-lg text-[#475569]"><Icon name={u.is_active ? "toggle_on" : "toggle_off"} className="!text-[18px]" /></button>
                       </div>
                     </td>
                   </tr>
@@ -156,7 +179,17 @@ function AdminUprs() {
             <div className="space-y-3">
               <Input label="Nama Tim" value={form.name} onChange={(v) => setForm({ ...form, name: v })} required />
               <Input label="Wilayah" value={form.wilayah} onChange={(v) => setForm({ ...form, wilayah: v })} />
-              <Input label="Ketua" value={form.leader_name} onChange={(v) => setForm({ ...form, leader_name: v })} />
+              <div>
+                <label className="block text-[13px] font-semibold text-[#0F172A] mb-1">Ketua</label>
+                <select value={form.leader_name} onChange={(e) => setForm({ ...form, leader_name: e.target.value })}
+                  className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 bg-white appearance-none"
+                  style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center", backgroundSize: "16px" }}>
+                  <option value="">-- Pilih Ketua --</option>
+                  {petugasQuery.isPending ? <option disabled>Memuat...</option> : petugasList.map((p) => (
+                    <option key={p.id} value={p.name}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
               <Input label="Kontak" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
             </div>
             <div className="flex gap-2 mt-6">

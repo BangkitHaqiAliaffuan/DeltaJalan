@@ -98,6 +98,7 @@ function CreateReportPage() {
       if (formData.catatan) fd.append("catatan", formData.catatan);
       // Kirim file foto asli dengan nama file yang benar
       fd.append("image", imageBlob, formData.fileName);
+      if (formData.duplicate_of_id) fd.append("duplicate_of_id", formData.duplicate_of_id);
 
       const token = getToken();
       if (!token) {

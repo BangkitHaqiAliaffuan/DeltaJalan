@@ -5,13 +5,14 @@ import { Icon } from "@/components/jk/Icon";
 import { formatDateRelative, displayStatus } from "@/lib/format";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { API_BASE_URL } from "@/lib/aiStore";
-import { SupervisorMapView } from "@/components/jk/SupervisorMapView";
+
 import { getCurrentUser, getToken } from "@/lib/auth";
 import { DeadlineStatsCards } from "@/components/jk/DeadlineStatsCards";
 import { ReportCard } from "@/components/jk/ReportCard";
 import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
 import { useStats, useUprs, useUprStats, useRingkasanDeadline } from "@/hooks/useReportQueries";
 import type { Laporan, RingkasanDeadlineResponse } from "@/types/laporan";
+import type { ActionButton } from "@/components/jk/report-card/types";
 
 export const Route = createFileRoute("/supervisor")({
   component: SupervisorPage,
@@ -45,12 +46,14 @@ function SupervisorPage() {
   const { data: ringkasanDeadline } = useRingkasanDeadline(token);
   const { data: uprList = [] } = useUprs(token);
 
-  function refetchAll() {
-    queryClient.invalidateQueries({ queryKey: ["stats"] });
-    queryClient.invalidateQueries({ queryKey: ["reports"] });
-    queryClient.invalidateQueries({ queryKey: ["upr-stats"] });
-    queryClient.invalidateQueries({ queryKey: ["ringkasan-deadline"] });
-    queryClient.invalidateQueries({ queryKey: ["uprs"] });
+  async function refetchAll() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["stats"] }),
+      queryClient.invalidateQueries({ queryKey: ["reports"] }),
+      queryClient.invalidateQueries({ queryKey: ["upr-stats"] }),
+      queryClient.invalidateQueries({ queryKey: ["ringkasan-deadline"] }),
+      queryClient.invalidateQueries({ queryKey: ["uprs"] }),
+    ]);
   }
 
   const [tolakTarget, setTolakTarget] = useState<string | null>(null);
@@ -67,7 +70,6 @@ function SupervisorPage() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [showUprStats, setShowUprStats] = useState(false);
 
   const [activeTab, setActiveTab] = useState<
@@ -108,6 +110,11 @@ function SupervisorPage() {
     else if (activeTab === "ditolak") p.set("status", "ditolak");
     p.set("page", String(page));
     p.set("limit", "20");
+
+    // Urutkan berdasarkan deadline terdekat
+    if (activeTab === "menunggu") p.set("sort_by", "deadline_review");
+    else if (activeTab === "disetujui" || activeTab === "sedang_diperbaiki") p.set("sort_by", "deadline_resolusi");
+
     if (searchQuery) p.set("q", searchQuery);
     if (filterStatus) p.set("status", filterStatus);
     if (filterUpr) p.set("upr_id", filterUpr);
@@ -276,7 +283,7 @@ function SupervisorPage() {
   }
 
   return (
-    <PageLayout showBrand withBottomNav>
+    <PageLayout showBrand withBottomNav onRefresh={refetchAll}>
       <main className="pb-4">
         <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] p-6 text-white mb-6">
           <div className="flex items-start justify-between">
@@ -525,37 +532,9 @@ function SupervisorPage() {
                 className="w-full pl-9 pr-3 py-2 border border-[#D0DAE8] rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/25 bg-white"
               />
             </div>
-            <button
-              onClick={() => setViewMode(viewMode === "list" ? "map" : "list")}
-              className={`px-3 py-2 rounded-lg border border-[#D0DAE8] text-sm flex items-center gap-1 ${
-                viewMode === "map" ? "bg-primary text-white" : "bg-white text-[#476788]"
-              }`}
-            >
-              <Icon name={viewMode === "map" ? "list" : "map"} className="!text-lg" />{" "}
-              {viewMode === "map" ? "List" : "Map"}
-            </button>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="text-xs px-2 py-1.5 border border-[#D0DAE8] rounded-lg bg-white outline-none text-[#0F1623]"
-            >
-              <option value="">Semua status</option>
-              {[
-                "Menunggu Review",
-                "Ditinjau",
-                "Disetujui",
-                "Ditolak",
-                "Sedang Diperbaiki",
-                "Selesai",
-                "Diedit",
-              ].map((s) => (
-                <option key={s} value={s}>
-                  {displayStatus(s)}
-                </option>
-              ))}
-            </select>
+
             <select
               value={filterUpr}
               onChange={(e) => setFilterUpr(e.target.value)}
@@ -622,9 +601,7 @@ function SupervisorPage() {
             ))}
           </div>
 
-          {viewMode === "map" ? (
-            <SupervisorMapView reports={reports} />
-          ) : isFetching ? (
+          {isFetching ? (
             <div className="flex flex-col gap-3" aria-busy="true" aria-label="Memuat laporan">
               {Array.from({ length: 4 }).map((_, i) => (
                 <div
@@ -658,20 +635,14 @@ function SupervisorPage() {
           ) : (
             <>
               {/* Card grid */}
-              <div className="flex flex-col gap-3">
-                {reports.map((row) => (
-                  <ReportCard
-                    key={row.id}
-                    report={row}
-                    variant="supervisor"
-                    extra={{ isClient }}
-                    actions={{
-                      onMulai: (id) => setMulaiTarget(id),
-                      onDelete: handleDeleteClick,
-                      actionLoading,
-                    }}
-                  />
-                ))}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {reports.map((row) => {
+                  const ac: ActionButton[] = [];
+                  if (row.status === "Disetujui") ac.push({ label: "Mulai", icon: "play_arrow", variant: "primary", onClick: () => setMulaiTarget(row.id), disabled: !!actionLoading });
+                  if (row.status === "Ditolak") ac.push({ label: "Hapus", icon: "delete", variant: "destructive", onClick: () => handleDeleteClick(row.id) });
+                  ac.push({ label: "Lihat Detail", icon: "arrow_forward", variant: "secondary", to: "/detail-report", search: { reportId: row.id } });
+                  return <ReportCard key={row.id} report={row} options={{ showTrust: true, showDeadline: true, isClient }} actions={ac} />;
+                })}
               </div>
 
               {totalPages > 1 && (

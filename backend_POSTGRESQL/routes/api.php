@@ -228,11 +228,30 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/reports/{id}/update-triage', [ReportController::class, 'updateTriage']);
 
     /**
+     * DELETE /api/reports/{id}/duplicate
+     * Supervisor menghapus marking duplikasi dari laporan.
+     */
+    Route::delete('/reports/{id}/duplicate', [ReportController::class, 'destroyDuplicate']);
+
+    /**
      * DELETE /api/reports/{id}
      * Petugas lapangan menghapus laporan miliknya sendiri.
      * Hanya laporan milik user yang sedang login yang bisa dihapus.
      */
     Route::delete('/reports/{id}', [ReportController::class, 'destroy']);
+
+    /**
+     * DELETE /api/admin/reports/{id}
+     * Admin menghapus laporan APAPUN tanpa batasan kepemilikan.
+     */
+    Route::delete('/admin/reports/{id}', [ReportController::class, 'adminDestroy']);
+
+    /**
+     * POST /api/admin/reports/{id}/status
+     * Admin mengubah status laporan secara paksa ke status apapun.
+     * Body: { status: "Menunggu Review" | "Disetujui" | "Ditolak" | "Sedang Diperbaiki" | "Selesai" }
+     */
+    Route::post('/admin/reports/{id}/status', [ReportController::class, 'adminUpdateStatus']);
 
     // ── Notifikasi ────────────────────────────────────────────────────────
     Route::get('/notifications', [NotificationController::class, 'index']);

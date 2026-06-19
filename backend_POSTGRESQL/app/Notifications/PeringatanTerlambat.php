@@ -61,7 +61,7 @@ class PeringatanTerlambat extends Notification implements ShouldQueue
         $label = $this->type === 'review' ? 'Review' : 'Perbaikan';
         return [
             'title'   => 'Deadline Terlewat — ' . $label,
-            'body'    => "Laporan {$this->report->report_code} (prioritas {$this->report->priority}) telah melewati deadline {$label}.",
+            'body'    => "Laporan {$this->report->report_code} (prioritas {$this->report->priority}) telah melewati deadline {$label}." . "\n\nKlik buka",
             'data'    => [
                 'type'          => 'deadline_terlambat',
                 'report_id'     => $this->report->id,

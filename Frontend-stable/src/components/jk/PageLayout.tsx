@@ -2,6 +2,7 @@ import { AppLayout } from "./AppLayout";
 import { TopBar } from "./TopBar";
 import { BottomNav } from "./BottomNav";
 import { ConnectionBanner } from "./ConnectionBanner";
+import { PullToRefresh } from "./PullToRefresh";
 
 interface PageLayoutProps {
   title?: string;
@@ -10,6 +11,7 @@ interface PageLayoutProps {
   showBrand?: boolean;
   withBottomNav?: boolean;
   fullPage?: boolean;
+  onRefresh?: () => Promise<void>;
   children: React.ReactNode;
 }
 
@@ -20,18 +22,25 @@ export function PageLayout({
   showBrand,
   withBottomNav,
   fullPage,
+  onRefresh,
   children,
 }: PageLayoutProps) {
+  const content = fullPage ? (
+    <div className="flex-1">{children}</div>
+  ) : onRefresh ? (
+    <PullToRefresh onRefresh={onRefresh}>
+      {children}
+    </PullToRefresh>
+  ) : (
+    <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
+  );
+
   return (
     <AppLayout fullPage={fullPage}>
       <div className="flex flex-col flex-1 min-h-0 w-full max-w-full">
         <ConnectionBanner />
         <TopBar {...{ title, back, right, showBrand }} />
-        {fullPage ? (
-          <div className="flex-1">{children}</div>
-        ) : (
-          <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
-        )}
+        {content}
         {withBottomNav && <div className="shrink-0 sticky bottom-0 z-10"><BottomNav /></div>}
       </div>
     </AppLayout>

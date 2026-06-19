@@ -34,7 +34,7 @@ class ReportReopenedNotification extends Notification implements ShouldQueue
     {
         return [
             'title'   => 'Laporan Dibuka Kembali',
-            'body'    => 'Laporan ' . $this->report->report_code . ' dibuka kembali oleh ' . $this->reopenedBy,
+            'body'    => 'Laporan ' . $this->report->report_code . ' dibuka kembali oleh ' . $this->reopenedBy . "\n\nKlik buka",
             'data'    => [
                 'type'        => 'report_reopened',
                 'report_id'   => $this->report->id,

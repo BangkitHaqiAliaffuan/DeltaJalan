@@ -34,7 +34,7 @@ class ReportApprovedNotification extends Notification implements ShouldQueue
     {
         return [
             'title'   => 'Laporan Disetujui',
-            'body'    => 'Laporan ' . $this->report->report_code . ' disetujui oleh ' . $this->approvedBy,
+            'body'    => 'Laporan ' . $this->report->report_code . ' disetujui oleh ' . $this->approvedBy . "\n\nKlik buka",
             'data'    => [
                 'type'        => 'report_approved',
                 'report_id'   => $this->report->id,

@@ -5,7 +5,7 @@ import { SkeletonDetailReport } from "@/components/jk/Skeleton";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { API_BASE_URL, normalizeSeverityKey } from "@/lib/aiStore";
 import { getToken, getCurrentUser } from "@/lib/auth";
-import { formatDate, statusDotStyle, displayStatus } from "@/lib/format";
+import { formatDate, statusDotStyle, displayStatus, haversineDistance, formatDistance } from "@/lib/format";
 import type { Laporan, TimelineEvent, TrustLabel } from "@/types/laporan";
 import { ReportMap, type ReportMapPoint } from "@/components/jk/ReportMap";
 import { TimelineCard } from "@/components/jk/TimelineCard";
@@ -291,7 +291,7 @@ function DetailReportPage() {
     const showBack = (centered?: boolean) => (
       <Link
         to={backPath}
-        className={`${centered ? 'w-[70%] flex bg-[#1A4F8A] text-white shadow-sm hover:bg-[#153d6e]' : 'flex-1 bg-[#F8FAFC] border border-[#CBD5E1] text-[#475569] hover:bg-[#F1F5F9] hover:border-[#94A3B8]'} py-2 md:py-2.5 min-h-[36px] rounded-xl text-[12px] font-semibold items-center justify-center gap-1.5 active:scale-95 transition-all`}
+        className={`${centered ? 'w-[70%] flex bg-[#1A4F8A] text-white shadow-sm hover:bg-[#153d6e]' : 'w-full flex bg-[#F8FAFC] border border-[#CBD5E1] text-[#475569] hover:bg-[#F1F5F9] hover:border-[#94A3B8]'} py-2 md:py-2.5 min-h-[36px] rounded-xl text-[12px] font-semibold items-center justify-center gap-1.5 active:scale-95 transition-all`}
       >
         <Icon name="arrow_back" className="!text-[16px]" />
         Kembali
@@ -328,7 +328,13 @@ function DetailReportPage() {
               <Icon name="close" className="!text-[16px]" />
               Tolak
             </button>
-            {showBack()}
+            <Link
+              to={backPath}
+              className="flex-1 flex py-2 md:py-2.5 min-h-[36px] rounded-xl text-[12px] font-semibold items-center justify-center gap-1.5 bg-[#F8FAFC] border border-[#CBD5E1] text-[#475569] hover:bg-[#F1F5F9] hover:border-[#94A3B8] active:scale-95 transition-all"
+            >
+              <Icon name="arrow_back" className="!text-[16px]" />
+              Kembali
+            </Link>
           </div>
         </FooterWrapper>
       );
@@ -354,10 +360,7 @@ function DetailReportPage() {
               </>
             )}
           </button>
-          <div className="flex gap-3">
-            <div className="flex-1" />
-            {showBack()}
-          </div>
+          {showBack()}
         </FooterWrapper>
       );
     }
@@ -382,10 +385,7 @@ function DetailReportPage() {
               </>
             )}
           </button>
-          <div className="flex gap-3">
-            <div className="flex-1" />
-            {showBack()}
-          </div>
+          {showBack()}
         </FooterWrapper>
       );
     }
@@ -410,10 +410,7 @@ function DetailReportPage() {
               </>
             )}
           </button>
-          <div className="flex gap-3">
-            <div className="flex-1" />
-            {showBack()}
-          </div>
+          {showBack()}
         </FooterWrapper>
       );
     }
@@ -430,10 +427,7 @@ function DetailReportPage() {
             <Icon name="check_circle" className="!text-[20px]" />
             Selesaikan
           </button>
-          <div className="flex gap-3">
-            <div className="flex-1" />
-            {showBack()}
-          </div>
+          {showBack()}
         </FooterWrapper>
       );
     }
@@ -537,8 +531,8 @@ function DetailReportPage() {
               </div>
             ) : null}
 
-            {/* ── Before/After Slider (perbaikan) ── */}
-            <DetailBeforeAfter report={report} />
+            {/* ── After Photo Gallery ── */}
+            <AfterPhotoGallery report={report} />
 
             {/* ── Badges ── */}
             <div className="flex flex-wrap items-center gap-2">
@@ -610,7 +604,63 @@ function DetailReportPage() {
                   )}
                 </div>
                 <div className="h-48" style={{ isolation: "isolate" }}>
-                  <ReportMap points={mapPoints} />
+                  <ReportMap
+                    points={mapPoints}
+                    onPointClick={(pt) => {
+                      navigate({
+                        to: "/map",
+                        search: { highlight: report.id, lat: pt.lat, lng: pt.lng },
+                      });
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* ── Duplikasi ── */}
+            {report.duplicate_of && (
+              <div className="bg-white border border-[#FDE68A] rounded-xl overflow-hidden">
+                <div className="flex items-start gap-3 p-4">
+                  <div className="w-9 h-9 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
+                    <span className="text-[18px]">⚠️</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-[13px] font-bold text-[#92400E] mb-1">Terindikasi Duplikat</h3>
+                    <p className="text-[12px] text-[#92400E]/80 mb-2">
+                      Laporan ini memiliki kemiripan dengan laporan{' '}
+                      <strong>{report.duplicate_of.report_code}</strong>{' '}
+                      ({report.duplicate_of.road_name}, {report.duplicate_of.district}).
+                    </p>
+                    {report.latitude != null && report.longitude != null &&
+                      report.duplicate_of.latitude != null && report.duplicate_of.longitude != null && (
+                      <p className="text-[12px] text-[#92400E]/80 mb-2">
+                        Jarak: {formatDistance(haversineDistance(
+                          report.latitude, report.longitude,
+                          report.duplicate_of.latitude, report.duplicate_of.longitude,
+                        ))} dari laporan tersebut
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2">
+                      {report.duplicate_of.latitude && report.duplicate_of.longitude && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigate({
+                              to: "/map",
+                              search: {
+                                highlight: report.duplicate_of!.id,
+                                lat: report.duplicate_of!.latitude!,
+                                lng: report.duplicate_of!.longitude!,
+                              },
+                            });
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-[11px] font-semibold text-[#92400E] hover:bg-amber-100 transition-colors"
+                        >
+                          Lihat di Peta
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -797,46 +847,105 @@ function InfoRow({ icon, value }: { icon: string; value: string }) {
   );
 }
 
-function DetailBeforeAfter({ report }: { report: Laporan }) {
-  if (!report.after_photo_url) return null;
+function AfterPhotoGallery({ report }: { report: Laporan }) {
+  const photos = (report.after_photos ?? []).length > 0
+    ? report.after_photos!
+    : report.after_photo_url
+      ? [{ id: 0, url: report.after_photo_url, sort_order: 0 }]
+      : [];
 
-  const damagedPhotos = (report.photos ?? []).filter(
-    (p) => (p.total_detections ?? 0) > 0 && p.ai_severity,
-  );
-  const singleBefore = report.image_original_url ?? report.first_photo_url;
-  if (!damagedPhotos.length && !singleBefore) return null;
+  if (photos.length === 0) return null;
+
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+
+  const prev = () => setSelectedIndex((i) => (i != null && i > 0 ? i - 1 : i));
+  const next = () => setSelectedIndex((i) => (i != null && i < photos.length - 1 ? i + 1 : i));
 
   return (
-    <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
-      <div className="p-3 border-b border-[#E2E8F0]">
-        <h3 className="font-label-md text-[13px] font-bold text-on-surface">
-          Perbandingan Sebelum & Sesudah
-        </h3>
+    <>
+      <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
+        <div className="p-3 border-b border-[#E2E8F0]">
+          <h3 className="font-label-md text-[13px] font-bold text-on-surface">
+            Foto Setelah Perbaikan
+          </h3>
+          {report.after_photo_notes && (
+            <p className="text-[12px] text-[#475569] mt-0.5">{report.after_photo_notes}</p>
+          )}
+        </div>
+        <div className="p-3">
+          <div className="flex flex-wrap gap-2.5">
+            {photos.map((p, i) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setSelectedIndex(i)}
+                className="w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border border-[#E2E8F0] hover:border-[#1A4F8A] hover:ring-2 hover:ring-[#1A4F8A]/20 transition-all shrink-0"
+              >
+                <img
+                  src={p.url}
+                  alt={`Foto setelah perbaikan ${i + 1}`}
+                  className="w-full h-full object-cover"
+                />
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
-      <div className="p-3 flex flex-col gap-4">
-        {damagedPhotos.length > 0 ? (
-          damagedPhotos.map((p, i) => (
-            <div key={p.id}>
-              <p className="text-[11px] font-semibold text-slate-500 mb-1.5">
-                Foto #{p.sort_order ?? i + 1} — {p.ai_jenis_kerusakan ?? "Kerusakan"}
-              </p>
-              <BeforeAfterSlider
-                beforeSrc={p.image_original_url ?? ""}
-                afterSrc={report.after_photo_url ?? ""}
-                panjang={p.kerusakan_panjang}
-                lebar={p.kerusakan_lebar}
-              />
-            </div>
-          ))
-        ) : (
-          <BeforeAfterSlider
-            beforeSrc={singleBefore!}
-            afterSrc={report.after_photo_url}
-            panjang={report.kerusakan_panjang}
-            lebar={report.kerusakan_lebar}
-          />
-        )}
-      </div>
-    </div>
+
+      {selectedIndex != null && (
+        <Portal>
+          <style>{`
+            @keyframes gallery-fade {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+            .gallery-fade { animation: gallery-fade 0.2s ease-out; }
+          `}</style>
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm gallery-fade"
+            onClick={() => setSelectedIndex(null)}
+          >
+            <button
+              type="button"
+              onClick={() => setSelectedIndex(null)}
+              className="absolute top-4 right-4 w-10 h-10 bg-black/40 text-white rounded-full flex items-center justify-center hover:bg-black/60 transition-all z-10"
+            >
+              <Icon name="close" className="!text-[24px]" />
+            </button>
+
+            {photos.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); prev(); }}
+                  disabled={selectedIndex === 0}
+                  className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/40 text-white rounded-full flex items-center justify-center hover:bg-black/60 transition-all disabled:opacity-20 z-10"
+                >
+                  <Icon name="chevron_left" className="!text-[28px]" />
+                </button>
+                <span className="absolute top-4 left-4 px-3 py-1 bg-black/40 text-white text-[13px] font-semibold rounded-full z-10">
+                  {selectedIndex + 1} / {photos.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); next(); }}
+                  disabled={selectedIndex === photos.length - 1}
+                  className="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/40 text-white rounded-full flex items-center justify-center hover:bg-black/60 transition-all disabled:opacity-20 z-10"
+                >
+                  <Icon name="chevron_right" className="!text-[28px]" />
+                </button>
+              </>
+            )}
+
+            <img
+              src={photos[selectedIndex].url}
+              alt={`Foto setelah perbaikan ${selectedIndex + 1}`}
+              className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg select-none"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </Portal>
+      )}
+    </>
   );
 }

@@ -84,6 +84,13 @@ function UploadPage() {
     return () => mq.removeEventListener("change", handler);
   }, []);
 
+  const [draftCount, setDraftCount] = useState(0);
+  useEffect(() => {
+    import("@/lib/offlineDrafts").then((m) =>
+      m.getDraftCount().then(setDraftCount),
+    );
+  }, []);
+
   // Form state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -144,6 +151,9 @@ function UploadPage() {
 
   // State untuk menyembunyikan tombol submit utama saat "Dukung Laporan" dipilih
   const [isSubmitHidden, setIsSubmitHidden] = useState(false);
+
+  // Duplikasi — ID laporan yang diduga duplikat (override user)
+  const [duplicateOfId, setDuplicateOfId] = useState<string | null>(null);
 
   // ── State Batch Upload (Task 4A) ─────────────────────────────────────────
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -259,6 +269,11 @@ function UploadPage() {
       if (draft.roadNameSource) {
         setRoadNameSource(draft.roadNameSource as "autocomplete" | "manual");
       }
+      if (draft.savedOffline) {
+        toast.info("Draf disimpan saat offline — nama jalan & kecamatan akan terisi saat koneksi kembali.", {
+          duration: 5000,
+        });
+      }
     })();
   }, [draftId]);
 
@@ -297,7 +312,7 @@ function UploadPage() {
       toast.error("Tambahkan minimal 1 foto sebelum menyimpan draf.");
       return;
     }
-    if (!namaJalan || namaJalan.trim().length === 0) {
+    if (online && (!namaJalan || namaJalan.trim().length === 0)) {
       toast.error("Isi nama jalan sebelum menyimpan draf.");
       return;
     }
@@ -315,8 +330,10 @@ function UploadPage() {
       roadNameSource,
       photos,
       isBatch: selectedFiles.length > 0,
+      savedOffline: !online,
     });
     setShowDraftPopup(true);
+    setDraftCount((c) => c + 1);
     setTimeout(() => navigate({ to: "/home" }), 1800);
   }, [
     selectedFile,
@@ -405,7 +422,6 @@ function UploadPage() {
   const handleFilesSelected = useCallback(
     async (files: FileList | null) => {
       if (!files) return;
-      console.log("HANDLE_FILES_SELECTED called, files.length =", files.length);
       const valid: File[] = [];
       Array.from(files).forEach((file) => {
         if (!["image/jpeg", "image/jpg", "image/png"].includes(file.type)) return;
@@ -480,14 +496,6 @@ function UploadPage() {
 
       // Auto-fill nama jalan & kecamatan dari GPS foto pertama
       const firstGps = gpsResults[0];
-      console.log(
-        "BATCH_GPS: firstGps =",
-        firstGps,
-        "| namaJalan (closure) =",
-        namaJalan,
-        "| kecamatan (closure) =",
-        kecamatan,
-      );
       if (firstGps) {
         setIsBatchGeocoding(true);
         try {
@@ -495,14 +503,11 @@ function UploadPage() {
             firstGps.latitude,
             firstGps.longitude,
           );
-          console.log("BATCH_GPS: reverseGeocode result =", { roadName, kec });
-
           // ── Debug: lihat raw response LocationIQ ──
           try {
             const rawUrl = `https://us1.locationiq.com/v1/reverse?key=${LOCATIONIQ_KEY}&lat=${firstGps.latitude}&lon=${firstGps.longitude}&format=json&addressdetails=1&accept-language=id`;
             const rawRes = await fetch(rawUrl);
             const rawData = await rawRes.json();
-            console.log("BATCH_GPS: LocationIQ raw address =", rawData.address);
           } catch (rawErr) {
             console.warn("BATCH_GPS: raw fetch gagal", rawErr);
           }
@@ -513,25 +518,13 @@ function UploadPage() {
             setRoadNameSource("autocomplete");
           }
           if (kec && ALL_KECAMATAN.includes(kec) && !kecamatan) {
-            console.log("BATCH_GPS: setting kecamatan to", kec);
             setKecamatan(kec);
-          } else {
-            console.log(
-              "BATCH_GPS: NOT setting kecamatan — kec:",
-              kec,
-              "| included:",
-              ALL_KECAMATAN.includes(kec || ""),
-              "| kecamatan state:",
-              kecamatan,
-            );
           }
         } catch (e) {
           console.error("BATCH_GPS: reverse geocode error", e);
         } finally {
           setIsBatchGeocoding(false);
         }
-      } else {
-        console.log("BATCH_GPS: firstGps is null — skipping auto-fill");
       }
 
       // ── Cek duplikasi foto berdasarkan hash (tidak blokir) ──
@@ -630,7 +623,7 @@ function UploadPage() {
 
     if (!online) {
       setBatchError(
-        "Kamu sedang offline. Simpan sebagai draf terlebih dahulu, kirim nanti saat online.",
+        "Kamu sedang offline. Gunakan tombol \"Simpan sebagai Draf\" di bawah, kirim nanti saat online.",
       );
       return;
     }
@@ -745,6 +738,7 @@ function UploadPage() {
       fd2.append("koordinat_sumber", hasExifGps ? "exif" : "manual");
       fd2.append("fake_gps_suspected", gps.fake_gps_suspected ? "1" : "0");
       fd2.append("analyses", JSON.stringify(batchData.analyses));
+      if (duplicateOfId) fd2.append("duplicate_of_id", duplicateOfId);
       // Kirim dimensi per foto sebagai Laravel array (bukan JSON string)
       // agar backend menerima tipe numeric, bukan string.
       // Urutan harus align dengan files[] — jangan skip rejected/duplicate.
@@ -978,6 +972,7 @@ function UploadPage() {
     }
     setErrorMsg("");
     setSelectedFile(file);
+    setDuplicateOfId(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(URL.createObjectURL(file));
     return true;
@@ -1003,12 +998,6 @@ function UploadPage() {
 
   /** Dipanggil saat user memilih foto dari galeri */
   async function handleGalleryChange(e: React.ChangeEvent<HTMLInputElement>) {
-    console.log(
-      "GALLERY_CHANGE triggered, files length =",
-      e.target.files?.length,
-      "selectedFiles.length =",
-      selectedFiles.length,
-    );
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -1345,7 +1334,7 @@ function UploadPage() {
   async function handleAnalyze() {
     if (!online) {
       setErrorMsg(
-        "Kamu sedang offline. Simpan sebagai draf terlebih dahulu, kirim nanti saat online.",
+        "Kamu sedang offline. Gunakan tombol \"Simpan sebagai Draf\" di bawah, kirim nanti saat online.",
       );
       return;
     }
@@ -1461,6 +1450,7 @@ function UploadPage() {
         lng: effectiveLng,
         kerusakanPanjang: kerusakanPanjang || undefined,
         kerusakanLebar: kerusakanLebar || undefined,
+        duplicate_of_id: duplicateOfId ?? undefined,
       });
 
       setAnalysisState("idle");
@@ -2052,11 +2042,13 @@ function UploadPage() {
                   placeholder={
                     isGpsWorking || isBatchGeocoding
                       ? "Mendeteksi lokasi..."
-                      : "Ketik nama jalan untuk mencari..."
+                      : !online
+                        ? "Akan terisi otomatis saat online"
+                        : "Ketik nama jalan untuk mencari..."
                   }
                   disabled={isGpsWorking || isBatchGeocoding}
-                  readOnly={isGpsActive}
-                  className={`w-full pl-10 pr-10 py-3 border border-[#C0CEDF] rounded-lg font-body-md text-body-md bg-surface-container-low focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-60 disabled:cursor-wait ${isGpsActive ? "bg-surface-container cursor-default text-on-surface-variant" : ""}`}
+                  readOnly={isGpsActive || !online}
+                  className={`w-full pl-10 pr-10 py-3 border border-[#C0CEDF] rounded-lg font-body-md text-body-md bg-surface-container-low focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-60 disabled:cursor-wait ${isGpsActive || !online ? "bg-surface-container cursor-default text-on-surface-variant" : ""}`}
                 />
 
                 {/* Indikator kanan: spinner searching / lock GPS / check road selected */}
@@ -2066,13 +2058,14 @@ function UploadPage() {
                 {roadSearch.status === "searching" && !isGpsWorking && (
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-on-surface-variant/30 border-t-on-surface-variant rounded-full animate-spin" />
                 )}
-                {isGpsActive && (
+                {(isGpsActive || !online) && (
                   <Icon
-                    name="lock"
+                    name={!online ? "cloud_off" : "lock"}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant !text-[16px] opacity-50"
                   />
                 )}
                 {!isGpsActive &&
+                  online &&
                   !isGpsWorking &&
                   roadCoords &&
                   roadSearch.status !== "searching" && (
@@ -2142,7 +2135,13 @@ function UploadPage() {
                   Diisi otomatis dari GPS — nama jalan terverifikasi LocationIQ.
                 </p>
               )}
-              {locationState.status === "success" && !locationState.roadNameLocked && (
+                {!online && (
+                  <p className="text-[11px] text-[#92400E] flex items-center gap-1">
+                    <Icon name="cloud_off" className="!text-[13px]" />
+                    Nama jalan & kecamatan akan terisi otomatis saat koneksi tersedia.
+                  </p>
+                )}
+                {locationState.status === "success" && !locationState.roadNameLocked && (
                 <p className="text-[11px] text-[#92400E] flex items-center gap-1">
                   <Icon name="info" className="!text-[13px]" />
                   Nama jalan tidak ditemukan di area ini. Ketik nama jalan atau gang secara manual.
@@ -2166,17 +2165,20 @@ function UploadPage() {
             </div>
 
             {/* Kecamatan */}
-            <div className="flex flex-col gap-1.5">
-              <label className="font-label-md text-label-md text-[#0F172A]">Kecamatan</label>
+              <div className="flex flex-col gap-1.5">
+              <label className="font-label-md text-label-md text-[#0F172A]">
+                Kecamatan
+                {!online && <span className="text-[#92400E] text-[11px] ml-1">(otomatis saat online)</span>}
+              </label>
               <div className="relative">
                 <select
                   value={kecamatan}
                   onChange={(e) => setKecamatan(e.target.value)}
-                  disabled={isGpsWorking || isGpsActive || isBatchGeocoding}
-                  className={`w-full appearance-none px-4 py-3 border border-[#C0CEDF] rounded-lg font-body-md text-body-md bg-surface-container-low focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-60 disabled:cursor-wait ${isGpsActive ? "cursor-default" : ""}`}
+                  disabled={isGpsWorking || isGpsActive || isBatchGeocoding || !online}
+                  className={`w-full appearance-none px-4 py-3 border border-[#C0CEDF] rounded-lg font-body-md text-body-md bg-surface-container-low focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none disabled:opacity-60 disabled:cursor-wait ${isGpsActive || !online ? "cursor-default bg-surface-container text-on-surface-variant" : ""}`}
                 >
                   <option value="" disabled>
-                    Pilih Kecamatan
+                    {!online ? "Akan terisi otomatis" : "Pilih Kecamatan"}
                   </option>
                   {KECAMATAN_LIST.map((g) => (
                     <optgroup key={g.group} label={g.group}>
@@ -2187,7 +2189,7 @@ function UploadPage() {
                   ))}
                 </select>
                 <Icon
-                  name={isGpsActive ? "lock" : "expand_more"}
+                  name={!online ? "cloud_off" : isGpsActive ? "lock" : "expand_more"}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none"
                 />
               </div>
@@ -2320,6 +2322,7 @@ function UploadPage() {
                 hasFile={selectedFile !== null}
                 reporterName={user?.name ?? "Petugas"}
                 onSendEvidence={handleSendEvidence}
+                onOverride={activeReport && !duplicateOfId ? () => setDuplicateOfId(activeReport.id) : undefined}
               />
             </section>
           )}
@@ -2455,7 +2458,9 @@ function UploadPage() {
             className="w-full py-3 md:py-3.5 min-h-[44px] bg-white border border-[#E2E8F0] text-primary rounded-lg flex items-center justify-center gap-2 font-label-md text-[15px] font-bold disabled:opacity-40 hover:bg-[#1A4F8A] hover:text-white hover:border-[#1A4F8A] cursor-pointer"
           >
             <Icon name="cloud_off" />
-            Simpan sebagai Draf (Offline)
+            {draftCount > 0
+              ? `Simpan Draf (${draftCount + 1} total)`
+              : "Simpan sebagai Draf"}
           </button>
         </div>
       </div>
@@ -2565,7 +2570,11 @@ function UploadPage() {
                 <Icon name="check" className="!text-3xl text-green-600 animate-ping [animation-duration:600ms] [animation-iteration-count:1]" />
               </div>
               <p className="text-lg font-bold text-[#0F172A]">Draf tersimpan!</p>
-              <p className="text-sm text-[#475569] text-center">Data disimpan di perangkat Anda.</p>
+              <p className="text-sm text-[#475569] text-center">
+                {!online
+                  ? "Nama jalan & kecamatan akan terisi otomatis saat online."
+                  : "Data disimpan di perangkat Anda."}
+              </p>
             </div>
           </div>
         </>

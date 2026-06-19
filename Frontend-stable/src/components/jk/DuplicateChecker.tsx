@@ -9,6 +9,7 @@ interface DuplicateCheckerProps {
   hasFile: boolean;
   reporterName: string;
   onSendEvidence: (reportId: string) => void;
+  onOverride?: () => void;
 }
 
 const EVIDENCE_ALLOWED_STATUSES = ["Menunggu Review"];
@@ -36,6 +37,7 @@ export function DuplicateChecker({
   hasFile,
   reporterName,
   onSendEvidence,
+  onOverride,
 }: DuplicateCheckerProps) {
   if (checking) {
     return (
@@ -127,6 +129,21 @@ export function DuplicateChecker({
             <p className="text-[11px] text-[#92400E] mt-2 opacity-75">
               Laporan ini sudah diproses (status: {activeReport.status}). Tidak dapat menambahkan bukti foto.
             </p>
+          )}
+
+          {onOverride && (
+            <div className="mt-2 pt-2 border-t border-[#FCD34D]">
+              <p className="text-[11px] text-[#92400E] mb-2">
+                Jika laporan ini berbeda, Anda dapat tetap melanjutkan upload sebagai laporan baru.
+              </p>
+              <button
+                type="button"
+                onClick={onOverride}
+                className="flex items-center justify-center gap-2 bg-[#1A4F8A] hover:bg-[#153d6e] text-white rounded-xl px-4 py-2 text-[13px] font-semibold transition-colors active:scale-95 w-full"
+              >
+                Lanjutkan Upload
+              </button>
+            </div>
           )}
         </div>
       </div>

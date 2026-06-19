@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import { snapToRoadBatch } from "@/lib/geo";
+import { Icon } from "@/components/jk/Icon";
 
 const mapContainerStyle: React.CSSProperties = {
   isolation: "isolate",
@@ -26,6 +27,19 @@ export function BatchMapPreview({ locations }: BatchMapPreviewProps) {
   const locationsRef = useRef(locations);
   locationsRef.current = locations;
   const snappedLocationsRef = useRef<BatchPhotoLocation[] | null>(null);
+  const [online, setOnline] = useState(true);
+
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    setOnline(navigator.onLine);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
 
   function syncMarkers(L: typeof import("leaflet"), map: import("leaflet").Map) {
     const snapped = snappedLocationsRef.current;
@@ -63,19 +77,22 @@ export function BatchMapPreview({ locations }: BatchMapPreviewProps) {
     snappedLocationsRef.current = null;
 
     const canceled = { current: false };
-    snapToRoadBatch(locations.map((l) => ({ lat: l.lat, lng: l.lng }))).then((snapped) => {
-      if (canceled.current) return;
-      const currentLocs = locationsRef.current;
-      if (currentLocs.length !== snapped.length) return;
-      snappedLocationsRef.current = currentLocs.map((l, i) => ({
-        ...l,
-        lat: snapped[i].lat,
-        lng: snapped[i].lng,
-      }));
-      if (mapInstanceRef.current && LRef.current) {
-        syncMarkers(LRef.current, mapInstanceRef.current);
-      }
-    });
+
+    if (online) {
+      snapToRoadBatch(locations.map((l) => ({ lat: l.lat, lng: l.lng }))).then((snapped) => {
+        if (canceled.current) return;
+        const currentLocs = locationsRef.current;
+        if (currentLocs.length !== snapped.length) return;
+        snappedLocationsRef.current = currentLocs.map((l, i) => ({
+          ...l,
+          lat: snapped[i].lat,
+          lng: snapped[i].lng,
+        }));
+        if (mapInstanceRef.current && LRef.current) {
+          syncMarkers(LRef.current, mapInstanceRef.current);
+        }
+      });
+    }
 
     if (mapInstanceRef.current && LRef.current) {
       syncMarkers(LRef.current, mapInstanceRef.current);
@@ -98,14 +115,17 @@ export function BatchMapPreview({ locations }: BatchMapPreviewProps) {
       });
 
       const current = locationsRef.current;
-      const map = L.map(mapRef.current, { zoomControl: false }).setView(
-        [current[0].lat, current[0].lng],
-        14,
-      );
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        maxZoom: 19,
-      }).addTo(map);
+      const map = L.map(mapRef.current, {
+        zoomControl: false,
+        attributionControl: online,
+      }).setView([current[0].lat, current[0].lng], 14);
+
+      if (online) {
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          maxZoom: 19,
+        }).addTo(map);
+      }
 
       mapInstanceRef.current = map;
       syncMarkers(L, map);
@@ -118,13 +138,20 @@ export function BatchMapPreview({ locations }: BatchMapPreviewProps) {
       mapInstanceRef.current = null;
       LRef.current = null;
     };
-  }, [locations]);
+  }, [locations, online]);
 
   return (
-    <div
-      ref={mapRef}
-      className="w-full h-[220px] rounded-xl overflow-hidden border border-border-subtle"
-      style={mapContainerStyle}
-    />
+    <div className="w-full h-[220px] rounded-xl overflow-hidden border border-border-subtle relative" style={mapContainerStyle}>
+      <div ref={mapRef} className="w-full h-full" />
+      {!online && locations.length > 0 && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/40 pointer-events-none">
+          <div className="bg-white/90 rounded-lg px-4 py-3 flex flex-col items-center gap-1 shadow-sm">
+            <Icon name="map" className="text-on-surface-variant !text-[20px]" />
+            <p className="text-[11px] text-on-surface-variant font-medium">Peta tidak tersedia</p>
+            <p className="text-[10px] text-on-surface-variant">Tampilan akan muncul saat online</p>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

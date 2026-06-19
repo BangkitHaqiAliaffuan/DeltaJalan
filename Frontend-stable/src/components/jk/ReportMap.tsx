@@ -16,9 +16,10 @@ export interface ReportMapPoint {
 interface ReportMapProps {
   points: ReportMapPoint[];
   height?: string;
+  onPointClick?: (point: ReportMapPoint) => void;
 }
 
-export function ReportMap({ points, height = "220px" }: ReportMapProps) {
+export function ReportMap({ points, height = "220px", onPointClick }: ReportMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<import("leaflet").Map | null>(null);
   const markersRef = useRef<import("leaflet").Layer[]>([]);
@@ -68,6 +69,10 @@ export function ReportMap({ points, height = "220px" }: ReportMapProps) {
         </div>
       `;
       marker.bindPopup(popupHtml, { closeButton: true, maxWidth: 260 });
+
+      if (onPointClick) {
+        marker.on("click", () => onPointClick(pt));
+      }
 
       marker.addTo(map);
       return marker;

@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useState, useEffect, useCallback } from "react";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { Icon } from "@/components/jk/Icon";
@@ -11,6 +11,16 @@ import { useMapData, useUprs } from "@/hooks/useReportQueries";
 export const Route = createFileRoute("/map")({
   ssr: false,
   component: MapPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    const highlight = search.highlight as string | undefined;
+    const lat = search.lat as string | undefined;
+    const lng = search.lng as string | undefined;
+    return {
+      ...(highlight ? { highlight } : {}),
+      ...(lat ? { lat: parseFloat(lat) } : {}),
+      ...(lng ? { lng: parseFloat(lng) } : {}),
+    };
+  },
   head: () => ({ meta: [{ title: "Peta Interaktif — DeltaJalan" }] }),
 });
 
@@ -26,6 +36,7 @@ const defaultFilters: MapFilters = {
 function MapPage() {
   const token = getToken() ?? "";
   const navigate = useNavigate();
+  const search = useSearch({ from: Route.id });
 
   const [clientUserRole, setClientUserRole] = useState<string | undefined>(undefined);
   useEffect(() => { setClientUserRole(getCurrentUser()?.role); }, []);
@@ -100,6 +111,7 @@ function MapPage() {
             onFilterChange={handleFilterChange}
             onViewDetail={handleViewDetail}
             userRole={clientUserRole}
+            highlightReportId={search.highlight}
           />
         )}
       </main>

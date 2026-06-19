@@ -27,6 +27,7 @@ export interface UploadFormData {
   lng?: number;
   kerusakanPanjang?: string;
   kerusakanLebar?: string;
+  duplicate_of_id?: string; // ID laporan yang diduga duplikat
 }
 
 // ── Batch-specific types ──────────────────────────────────────────────────

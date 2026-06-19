@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { SkeletonNotificationItem } from "@/components/jk/Skeleton";
@@ -104,8 +104,12 @@ function NotificationsPage() {
     { value: "bulk_action", label: "Aksi Massal" },
   ];
 
+  const handleRefresh = useCallback(async () => {
+    await load(1, filterType);
+  }, [filterType]);
+
   return (
-    <PageLayout title="Semua Notifikasi" back="/" right={
+    <PageLayout title="Semua Notifikasi" back="/" onRefresh={handleRefresh} right={
       <div className="flex items-center gap-2">
           <PushSubscriptionManager />
         <button

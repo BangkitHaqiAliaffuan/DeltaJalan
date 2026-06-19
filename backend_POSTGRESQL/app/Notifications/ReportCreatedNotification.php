@@ -33,7 +33,7 @@ class ReportCreatedNotification extends Notification implements ShouldQueue
     {
         return [
             'title'   => 'Laporan Baru',
-            'body'    => 'Laporan ' . $this->report->report_code . ' dari ' . $this->report->reporter_name . ' di ' . $this->report->district,
+            'body'    => 'Laporan ' . $this->report->report_code . ' dari ' . $this->report->reporter_name . ' di ' . $this->report->district . "\n\nKlik buka",
             'data'    => [
                 'type'        => 'report_created',
                 'report_id'   => $this->report->id,

@@ -37,7 +37,7 @@ class ReportEditedNotification extends Notification implements ShouldQueue
         $action = $this->editAction === 'batal' ? 'Dibatalkan' : 'Diedit';
         return [
             'title'   => 'Laporan ' . $action,
-            'body'    => 'Laporan ' . $this->report->report_code . ' ' . ($this->editAction === 'batal' ? 'batal diedit' : 'diedit') . ' oleh ' . $this->editedBy,
+            'body'    => 'Laporan ' . $this->report->report_code . ' ' . ($this->editAction === 'batal' ? 'batal diedit' : 'diedit') . ' oleh ' . $this->editedBy . "\n\nKlik buka",
             'data'    => [
                 'type'        => 'report_edited',
                 'report_id'   => $this->report->id,

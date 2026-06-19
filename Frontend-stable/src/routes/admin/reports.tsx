@@ -1,10 +1,11 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Icon } from "@/components/jk/Icon";
 import { AdminLayout } from "@/components/jk/AdminLayout";
 import { requireAdmin } from "@/lib/adminGuard";
 import { getToken } from "@/lib/auth";
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useRef, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
 import { apiFetch } from "@/lib/api";
 
 export const Route = createFileRoute("/admin/reports")({
@@ -33,10 +34,39 @@ function RouteComponent() {
 
 function AdminReports() {
   const token = getToken() ?? "";
+  const navigate = useNavigate();
+  const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [uprFilter, setUprFilter] = useState("");
   const [page, setPage] = useState(1);
+  const [actionMenuReportId, setActionMenuReportId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [statusModal, setStatusModal] = useState<{ id: string; code: string; current: string } | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setActionMenuReportId(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) =>
+      apiFetch(`/api/admin/reports/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((r) => r.json()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-reports"] });
+      setConfirmDeleteId(null);
+    },
+  });
 
   const params = new URLSearchParams();
   if (search) params.set("q", search);
@@ -141,10 +171,45 @@ function AdminReports() {
                       </td>
                       <td className="py-3 px-4 text-[#64748B]">{r.assigned_upr_name ?? "—"}</td>
                       <td className="py-3 px-4 text-[#64748B]">{r.created_at ? r.created_at.slice(0, 10) : "—"}</td>
-                      <td className="py-3 px-4 text-right">
-                        <Link to="/detail-report" search={{ reportId: r.id }} className="p-1.5 hover:bg-[#F1F5F9] rounded-lg text-[#475569] inline-block">
-                          <Icon name="open_in_new" className="!text-[18px]" />
-                        </Link>
+                      <td className="py-3 px-4 text-right relative">
+                        <div className="flex items-center justify-end gap-1">
+                          <Link to="/detail-report" search={{ reportId: r.id }} className="p-1.5 hover:bg-[#F1F5F9] rounded-lg text-[#475569] inline-block" title="Lihat Detail">
+                            <Icon name="open_in_new" className="!text-[18px]" />
+                          </Link>
+                          <button
+                            onClick={() => setActionMenuReportId(actionMenuReportId === r.id ? null : r.id)}
+                            className="p-1.5 hover:bg-[#F1F5F9] rounded-lg text-[#475569]"
+                            title="Aksi"
+                          >
+                            <Icon name="more_vert" className="!text-[18px]" />
+                          </button>
+                        </div>
+                        {actionMenuReportId === r.id && (
+                          <div ref={menuRef} className="absolute right-2 top-10 z-50 w-44 bg-white rounded-xl border border-[#E2E8F0] shadow-xl py-1 text-[13px]">
+                            <button
+                              onClick={() => { setActionMenuReportId(null); navigate({ to: "/edit-report", search: { reportId: r.id } }); }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-[#0F172A] hover:bg-[#F8FAFC] text-left"
+                            >
+                              <Icon name="edit" className="!text-[16px] text-[#64748B]" />
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => { setActionMenuReportId(null); setStatusModal({ id: r.id, code: r.report_code, current: r.status }); }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-[#0F172A] hover:bg-[#F8FAFC] text-left"
+                            >
+                              <Icon name="swap_horiz" className="!text-[16px] text-[#64748B]" />
+                              Ubah Status
+                            </button>
+                            <hr className="my-1 border-[#E2E8F0]" />
+                            <button
+                              onClick={() => { setActionMenuReportId(null); setConfirmDeleteId(r.id); }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-[#E11D48] hover:bg-[#FFF1F2] text-left"
+                            >
+                              <Icon name="delete" className="!text-[16px]" />
+                              Hapus
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -163,6 +228,98 @@ function AdminReports() {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        title="Hapus Laporan"
+        message={`Yakin ingin menghapus laporan ini? Tindakan ini tidak dapat dibatalkan.`}
+        confirmText="Ya, Hapus"
+        onConfirm={() => { if (confirmDeleteId) deleteMutation.mutate(confirmDeleteId); }}
+        onCancel={() => setConfirmDeleteId(null)}
+        confirmLoading={deleteMutation.isPending}
+      />
+
+      {statusModal && (
+        <StatusChangeModal
+          id={statusModal.id}
+          code={statusModal.code}
+          current={statusModal.current}
+          token={token}
+          loading={statusLoading}
+          onLoading={setStatusLoading}
+          onClose={() => { setStatusModal(null); if (!statusLoading) qc.invalidateQueries({ queryKey: ["admin-reports"] }); }}
+          onDone={() => { setStatusModal(null); qc.invalidateQueries({ queryKey: ["admin-reports"] }); }}
+        />
+      )}
     </div>
+  );
+}
+
+const ALL_STATUSES = [
+  "Menunggu Review",
+  "Disetujui",
+  "Ditolak",
+  "Sedang Diperbaiki",
+  "Selesai",
+];
+
+function StatusChangeModal({
+  id, code, current, token, loading, onLoading, onClose, onDone,
+}: {
+  id: string; code: string; current: string; token: string;
+  loading: boolean; onLoading: (v: boolean) => void; onClose: () => void; onDone: () => void;
+}) {
+  const [selected, setSelected] = useState("");
+  const [error, setError] = useState("");
+
+  async function handleSave() {
+    if (!selected || selected === current) return;
+    onLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/reports/${id}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: selected }),
+      });
+      const j = await res.json();
+      if (!res.ok) { setError(j.message ?? "Gagal mengubah status."); onLoading(false); return; }
+      onDone();
+    } catch {
+      setError("Terjadi kesalahan jaringan.");
+      onLoading(false);
+    }
+  }
+
+  return (
+    <>
+      <style>{`
+        @keyframes modal-in { from { opacity: 0; transform: scale(0.9) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        .status-modal { animation: modal-in 0.25s ease-out; }
+      `}</style>
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl shadow-2xl p-6 status-modal max-w-sm w-full mx-4">
+          <h3 className="text-[15px] font-bold text-[#0F172A] mb-1">Ubah Status Laporan</h3>
+          <p className="text-[12px] text-[#64748B] mb-4">
+            {code} — Status saat ini: <span className="font-semibold text-[#0F172A]">{current}</span>
+          </p>
+          <div className="flex flex-col gap-2 mb-5">
+            {ALL_STATUSES.filter((s) => s !== current).map((s) => (
+              <label key={s} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${selected === s ? "border-[#1A4F8A] bg-[#F0F4FF]" : "border-[#E2E8F0] hover:bg-[#F8FAFC]"}`}>
+                <input type="radio" name="status" value={s} checked={selected === s} onChange={(e) => setSelected(e.target.value)} className="accent-[#1A4F8A]" />
+                <span className="text-[13px] font-medium text-[#0F172A]">{s}</span>
+              </label>
+            ))}
+          </div>
+          {error && <p className="text-[12px] text-[#E11D48] mb-3">{error}</p>}
+          <div className="flex items-center gap-3">
+            <button onClick={onClose} disabled={loading} className="flex-1 px-4 py-2.5 text-[13px] font-bold text-[#475569] bg-[#F1F5F9] rounded-xl hover:bg-[#E2E8F0] disabled:opacity-40 transition-colors">Batal</button>
+            <button onClick={handleSave} disabled={!selected || loading} className="flex-1 px-4 py-2.5 text-[13px] font-bold text-white bg-[#1A4F8A] rounded-xl hover:bg-[#0F3A6A] disabled:opacity-40 transition-all flex items-center justify-center gap-1.5">
+              {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "Simpan"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

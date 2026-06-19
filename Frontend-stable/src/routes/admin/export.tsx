@@ -42,23 +42,40 @@ function AdminExport() {
 
   const d = stats?.data;
 
-  function doDownload(format: "excel" | "pdf") {
+  async function doDownload(format: "excel" | "pdf") {
     const m = parseInt(month, 10);
     setDlBusy(format);
     const url = `/api/reports/export/monthly-${format}?month=${m}&year=${year}`;
-    const fullUrl = `${window.location.origin}${url}`;
 
-    if ((window as Record<string, unknown>).Capacitor?.isNativePlatform?.() === true) {
-      window.open(fullUrl, "_system");
-    } else {
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `rekap-bulanan-${year}-${month}.${format === "excel" ? "xlsx" : "pdf"}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+    try {
+      const res = await apiFetch(url, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.message ?? `Gagal mengunduh (${res.status})`);
+      }
+
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+
+      if ((window as Record<string, unknown>).Capacitor?.isNativePlatform?.() === true) {
+        window.open(blobUrl, "_system");
+      } else {
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = `rekap-bulanan-${year}-${month}.${format === "excel" ? "xlsx" : "pdf"}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Gagal mengunduh file.");
     }
-    setTimeout(() => setDlBusy(null), 2000);
+    setDlBusy(null);
   }
 
   return (

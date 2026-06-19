@@ -108,6 +108,7 @@ interface PetaInteraktifProps {
   onFilterChange: (filters: MapFilters) => void;
   onViewDetail?: (id: string) => void;
   userRole?: string;
+  highlightReportId?: string;
 }
 
 export function PetaInteraktif({
@@ -119,6 +120,7 @@ export function PetaInteraktif({
   onFilterChange,
   onViewDetail,
   userRole,
+  highlightReportId,
 }: PetaInteraktifProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const LRef = useRef<any>(null);
@@ -520,7 +522,21 @@ export function PetaInteraktif({
           }
         }
       }
-  }, [mapReports, mapReady, onViewDetail]);
+
+      // ── Highlight report — fly to marker + open popup ──
+      if (highlightReportId && mapReports.length > 0) {
+        const map = mapRef.current;
+        if (map && markers.length > 0) {
+          const idx = mapReports.findIndex((r) => r.id === highlightReportId);
+          if (idx !== -1 && markers[idx] && typeof (markers[idx] as any).getLatLng === 'function') {
+            const marker = markers[idx];
+            const latlng = (marker as any).getLatLng();
+            map.setView([latlng.lat, latlng.lng], 16, { animate: true });
+            setTimeout(() => marker.openPopup?.(), 400);
+          }
+        }
+      }
+  }, [mapReports, mapReady, onViewDetail, highlightReportId]);
 
   // ── Filter callbacks ──
   const updateFilter = useCallback(

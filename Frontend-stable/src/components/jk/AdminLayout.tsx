@@ -37,7 +37,7 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex">
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#1e40af] transform transition-transform md:translate-x-0 md:static md:z-auto ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#1e40af] transform transition-transform md:translate-x-0 md:sticky md:top-0 md:h-screen md:z-auto ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex items-center justify-between px-5 h-[68px] border-b border-white/15">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0 border border-white/30">
