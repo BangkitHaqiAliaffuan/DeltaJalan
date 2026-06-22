@@ -21,12 +21,12 @@ class ReportExportController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['supervisor', 'admin'], true)) {
+        if (! in_array($user->role, ['supervisor', 'admin'], true)) {
             abort(403, 'Hanya supervisor yang dapat mengunduh laporan rekap bulanan.');
         }
 
         $month = (int) $request->query('month', now()->month);
-        $year  = (int) $request->query('year', now()->year);
+        $year = (int) $request->query('year', now()->year);
 
         if ($month < 1 || $month > 12) {
             abort(400, 'Bulan tidak valid. Gunakan 1–12.');
@@ -35,8 +35,8 @@ class ReportExportController extends Controller
             abort(400, 'Tahun tidak valid.');
         }
 
-        $bulanNama   = self::BULAN_INDONESIA[$month] ?? "Bulan {$month}";
-        $bulanTahun  = "{$bulanNama} {$year}";
+        $bulanNama = self::BULAN_INDONESIA[$month] ?? "Bulan {$month}";
+        $bulanTahun = "{$bulanNama} {$year}";
         $tanggalCetak = now()->locale('id')->isoFormat('D MMMM Y');
 
         $query = Report::whereYear('created_at', $year)
@@ -45,10 +45,10 @@ class ReportExportController extends Controller
         $totalLaporan = (clone $query)->count();
 
         $ringkasanStatus = $this->buildRingkasanStatus(clone $query);
-        $trustBreakdown  = $this->buildTrustBreakdown(clone $query);
-        $uprBreakdown    = $this->buildUprBreakdown(clone $query);
-        $severityBreakdown  = $this->buildSeverityBreakdown(clone $query);
-        $districtBreakdown  = $this->buildDistrictBreakdown(clone $query);
+        $trustBreakdown = $this->buildTrustBreakdown(clone $query);
+        $uprBreakdown = $this->buildUprBreakdown(clone $query);
+        $severityBreakdown = $this->buildSeverityBreakdown(clone $query);
+        $districtBreakdown = $this->buildDistrictBreakdown(clone $query);
 
         $pdf = Pdf::loadView('pdf.rekap-bulanan', compact(
             'bulanTahun',
@@ -75,12 +75,12 @@ class ReportExportController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['supervisor', 'admin'], true)) {
+        if (! in_array($user->role, ['supervisor', 'admin'], true)) {
             abort(403, 'Hanya supervisor yang dapat mengunduh laporan rekap bulanan.');
         }
 
         $month = (int) $request->query('month', now()->month);
-        $year  = (int) $request->query('year', now()->year);
+        $year = (int) $request->query('year', now()->year);
 
         if ($month < 1 || $month > 12) {
             abort(400, 'Bulan tidak valid. Gunakan 1–12.');
@@ -89,25 +89,25 @@ class ReportExportController extends Controller
             abort(400, 'Tahun tidak valid.');
         }
 
-        $bulanNama  = self::BULAN_INDONESIA[$month] ?? "Bulan {$month}";
+        $bulanNama = self::BULAN_INDONESIA[$month] ?? "Bulan {$month}";
         $bulanTahun = "{$bulanNama} {$year}";
 
         $query = Report::whereYear('created_at', $year)
             ->whereMonth('created_at', $month);
 
-        $totalLaporan       = (clone $query)->count();
-        $ringkasanStatus    = $this->buildRingkasanStatus(clone $query);
-        $trustBreakdown     = $this->buildTrustBreakdown(clone $query);
-        $uprBreakdown       = $this->buildUprBreakdown(clone $query);
-        $severityBreakdown  = $this->buildSeverityBreakdown(clone $query);
-        $districtBreakdown  = $this->buildDistrictBreakdown(clone $query);
+        $totalLaporan = (clone $query)->count();
+        $ringkasanStatus = $this->buildRingkasanStatus(clone $query);
+        $trustBreakdown = $this->buildTrustBreakdown(clone $query);
+        $uprBreakdown = $this->buildUprBreakdown(clone $query);
+        $severityBreakdown = $this->buildSeverityBreakdown(clone $query);
+        $districtBreakdown = $this->buildDistrictBreakdown(clone $query);
 
-        $spreadsheet = new Spreadsheet();
+        $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle("Rekap {$bulanNama} {$year}");
 
         // ── Header ──
-        $sheet->setCellValue('A1', "Rekap Bulanan Laporan Kerusakan Jalan");
+        $sheet->setCellValue('A1', 'Rekap Bulanan Laporan Kerusakan Jalan');
         $sheet->mergeCells('A1:D1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
         $sheet->setCellValue('A2', "Periode: {$bulanTahun}");
@@ -245,9 +245,9 @@ class ReportExportController extends Controller
         foreach ($allStatuses as $status) {
             $jumlah = (int) ($rows[$status]->jumlah ?? 0);
             $result[] = [
-                'label'  => $status,
+                'label' => $status,
                 'jumlah' => $jumlah,
-                'persen' => $total > 0 ? number_format(($jumlah / $total) * 100, 1) . '%' : '0%',
+                'persen' => $total > 0 ? number_format(($jumlah / $total) * 100, 1).'%' : '0%',
             ];
         }
 
@@ -266,16 +266,16 @@ class ReportExportController extends Controller
         $labels = [
             'hijau' => 'Kredibel',
             'kuning' => 'Perlu Review',
-            'merah'  => 'Diragukan',
+            'merah' => 'Diragukan',
         ];
         $result = [];
 
         foreach ($labels as $key => $label) {
             $jumlah = (int) ($rows[$key]->jumlah ?? 0);
             $result[] = [
-                'label'  => $label,
+                'label' => $label,
                 'jumlah' => $jumlah,
-                'persen' => $total > 0 ? number_format(($jumlah / $total) * 100, 1) . '%' : '0%',
+                'persen' => $total > 0 ? number_format(($jumlah / $total) * 100, 1).'%' : '0%',
             ];
         }
 
@@ -304,13 +304,13 @@ class ReportExportController extends Controller
         foreach ($uprs as $upr) {
             $r = $rows[$upr->id] ?? null;
             $result[] = [
-                'upr_id'            => $upr->id,
-                'upr_name'          => $upr->name,
-                'total'             => (int) ($r->total ?? 0),
+                'upr_id' => $upr->id,
+                'upr_name' => $upr->name,
+                'total' => (int) ($r->total ?? 0),
                 'sedang_diperbaiki' => (int) ($r->sedang_diperbaiki ?? 0),
-                'selesai'           => (int) ($r->selesai ?? 0),
-                'total_panjang_m'   => round((float) ($r->total_panjang ?? 0), 1),
-                'total_luas_m2'     => round((float) ($r->total_luas ?? 0), 1),
+                'selesai' => (int) ($r->selesai ?? 0),
+                'total_panjang_m' => round((float) ($r->total_panjang ?? 0), 1),
+                'total_luas_m2' => round((float) ($r->total_luas ?? 0), 1),
             ];
         }
 
@@ -332,9 +332,9 @@ class ReportExportController extends Controller
         foreach ($levels as $level) {
             $jumlah = (int) ($rows[$level]->jumlah ?? 0);
             $result[] = [
-                'label'  => $level,
+                'label' => $level,
                 'jumlah' => $jumlah,
-                'persen' => $total > 0 ? number_format(($jumlah / $total) * 100, 1) . '%' : '0%',
+                'persen' => $total > 0 ? number_format(($jumlah / $total) * 100, 1).'%' : '0%',
             ];
         }
 
@@ -355,8 +355,8 @@ class ReportExportController extends Controller
         foreach ($rows as $row) {
             $result[] = [
                 'kecamatan' => $row->district,
-                'jumlah'    => (int) $row->jumlah,
-                'persen'    => $total > 0 ? number_format(((int) $row->jumlah / $total) * 100, 1) . '%' : '0%',
+                'jumlah' => (int) $row->jumlah,
+                'persen' => $total > 0 ? number_format(((int) $row->jumlah / $total) * 100, 1).'%' : '0%',
             ];
         }
 

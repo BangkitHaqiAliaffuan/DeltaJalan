@@ -23,7 +23,7 @@ class Setting extends Model
     {
         $setting = self::where('key', $key)->first();
 
-        if (!$setting) {
+        if (! $setting) {
             return $default;
         }
 
@@ -32,18 +32,18 @@ class Setting extends Model
         return match ($setting->type) {
             'integer' => (int) $value,
             'boolean' => filter_var($value, FILTER_VALIDATE_BOOLEAN),
-            'json'    => json_decode($value, true),
-            default   => $value,
+            'json' => json_decode($value, true),
+            default => $value,
         };
     }
 
     public static function setValue(string $key, mixed $value, ?string $type = null, ?string $description = null): void
     {
         $type ??= match (true) {
-            is_int($value)    => 'integer',
-            is_bool($value)   => 'boolean',
-            is_array($value)  => 'json',
-            default           => 'string',
+            is_int($value) => 'integer',
+            is_bool($value) => 'boolean',
+            is_array($value) => 'json',
+            default => 'string',
         };
 
         if (is_bool($value)) {

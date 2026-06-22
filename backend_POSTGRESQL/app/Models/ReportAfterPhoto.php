@@ -23,9 +23,10 @@ class ReportAfterPhoto extends Model
 
     public function getUrlAttribute(): ?string
     {
-        if (!$this->file_path) {
+        if (! $this->file_path) {
             return null;
         }
-        return asset('storage/' . $this->file_path);
+
+        return asset('storage/'.$this->file_path);
     }
 }

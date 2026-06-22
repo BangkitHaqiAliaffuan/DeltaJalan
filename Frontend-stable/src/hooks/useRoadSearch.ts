@@ -118,6 +118,10 @@ function matchKecamatan(raw: string): string | null {
 
 interface LocationIQAddress {
   road?: string;
+  path?: string;
+  pedestrian?: string;
+  cycleway?: string;
+  footway?: string;
   house_number?: string;
   neighbourhood?: string;
   suburb?: string;
@@ -126,6 +130,7 @@ interface LocationIQAddress {
   village?: string;
   county?: string;
   city?: string;
+  state_district?: string;
   [key: string]: string | undefined;
 }
 
@@ -135,6 +140,7 @@ interface LocationIQResult {
   lon: string;
   display_name: string;
   display_place?: string;
+  addresstype?: string;
   address: LocationIQAddress;
 }
 
@@ -156,37 +162,76 @@ async function searchLocationIQ(query: string): Promise<RoadSuggestion[]> {
   if (!res.ok) throw new Error(`LocationIQ error: ${res.status}`);
 
   const data: LocationIQResult[] = await res.json();
+  console.log(`[useRoadSearch] Raw API results: ${data.length}`, data.map((d) => ({ display_name: d.display_name, addresstype: d.addresstype, lat: d.lat, lon: d.lon, address: d.address })));
   const suggestions: RoadSuggestion[] = [];
+
+  // ── Tipe addresstype yang dianggap sebagai jalan ──────────────────────
+  const ROAD_ADDRESSTYPES = new Set([
+    "road", "highway", "street", "residential", "tertiary", "secondary",
+    "primary", "unclassified", "service", "track", "path",
+    "living_street", "pedestrian", "cycleway", "footway",
+  ]);
 
   for (const item of data) {
     const lat = parseFloat(item.lat);
     const lng = parseFloat(item.lon);
 
-    // ── Filter client-side layer 1: koordinat di luar Sidoarjo ──────────
-    if (!isInSidoarjoBbox(lat, lng)) continue;
+    // ── Lapis 1: koordinat di luar Sidoarjo ───────────────────────────
+    if (!isInSidoarjoBbox(lat, lng)) { console.log(`[useRoadSearch] REJECTED layer 1 (bbox): ${item.display_name} (${lat},${lng})`); continue; }
 
     const addr = item.address ?? {};
 
-    // ── Filter client-side layer 2: nama kota/kabupaten bukan Sidoarjo ──
-    // Tangkap kasus di mana koordinat borderline tapi jelas bukan Sidoarjo
-    const cityRaw = (addr.city ?? addr.county ?? addr.town ?? "").toLowerCase();
-    if (cityRaw && !cityRaw.includes("sidoarjo")) continue;
-    const road = addr.road?.trim() ?? "";
-    const roadName = road || item.display_place?.trim() || "";
-    if (!roadName) continue;
+    // ── Lapis 2: display_name wajib mengandung "Sidoarjo" ─────────────
+    const displayName = (item.display_name ?? "").toLowerCase();
+    if (!displayName.includes("sidoarjo")) { console.log(`[useRoadSearch] REJECTED layer 2 (display_name): ${item.display_name}`); continue; }
 
-    const kecRaw =
-      addr.city_district ??
-      addr.suburb ??
-      addr.town ??
-      addr.village ??
-      addr.city ??
-      addr.county ??
-      "";
-    const kecamatan = matchKecamatan(kecRaw);
+    // ── Lapis 3: hanya hasil bertipe road ─────────────────────────────
+    if (item.addresstype && !ROAD_ADDRESSTYPES.has(item.addresstype)) { console.log(`[useRoadSearch] REJECTED layer 3 (addresstype): ${item.display_name} (addresstype=${item.addresstype})`); continue; }
+
+    // ── Lapis 4: pastikan salah satu field kota menyebut Sidoarjo ─────
+    // LocationIQ sering menaruh kelurahan di addr.city, tapi kabupaten
+    // di addr.county atau addr.state_district. Pakai any-match.
+    const cityFields = [addr.city, addr.county, addr.town, addr.state_district, addr.village];
+    const hasSidoarjoCity = cityFields.some((f) => f && f.toLowerCase().includes("sidoarjo"));
+    if (!hasSidoarjoCity) { console.log(`[useRoadSearch] REJECTED layer 4 (city): ${item.display_name} (cityFields=${JSON.stringify(cityFields)})`); continue; }
+
+    // ── Lapis 5: ekstrak nama jalan ───────────────────────────────────
+    // Fallback chain: road → path → pedestrian → cycleway → footway
+    // Jika semua null, ekstrak dari display_name (ambil sebelum koma pertama).
+    const roadCandidates = [addr.road, addr.path, addr.pedestrian, addr.cycleway, addr.footway];
+    let roadName = "";
+    for (const c of roadCandidates) {
+      if (typeof c === "string" && c.trim()) {
+        roadName = c.trim();
+        break;
+      }
+    }
+    if (!roadName) {
+      // Fallback: parse display_name — ambil bagian jalan sebelum koma pertama
+      const firstPart = (item.display_name ?? "").split(",")[0]?.trim() ?? "";
+      if (firstPart && !firstPart.toLowerCase().includes("sidoarjo")) {
+        roadName = firstPart;
+      }
+    }
+    if (!roadName) { console.log(`[useRoadSearch] REJECTED layer 5 (road name): ${item.display_name} (candidates=${JSON.stringify(roadCandidates)})`); continue; }
+
+    // ── Lapis 6: kecamatan wajib terdeteksi sebagai 1 dari 18 Sidoarjo ─
+    // LocationIQ sering menaruh kelurahan di city_district/suburb,
+    // tapi kecamatan di town/city/county. Cari di SEMUA field.
+    const kecCandidates = [addr.city_district, addr.suburb, addr.town, addr.village, addr.city, addr.county];
+    let kecamatan: string | null = null;
+    for (const kf of kecCandidates) {
+      if (kf) {
+        kecamatan = matchKecamatan(kf);
+        if (kecamatan) break;
+      }
+    }
+    if (!kecamatan) { console.log(`[useRoadSearch] REJECTED layer 6 (kecamatan): ${item.display_name} (kecCandidates=${JSON.stringify(kecCandidates)})`); continue; }
+
+    console.log(`[useRoadSearch] PASSED all layers: ${item.display_name} → roadName=${roadName} kecamatan=${kecamatan}`);
 
     const labelParts = [roadName];
-    if (kecamatan) labelParts.push(`Kec. ${kecamatan}`);
+    labelParts.push(`Kec. ${kecamatan}`);
     labelParts.push("Sidoarjo");
 
     suggestions.push({
@@ -199,14 +244,18 @@ async function searchLocationIQ(query: string): Promise<RoadSuggestion[]> {
     });
   }
 
+  console.log(`[useRoadSearch] After all filters: ${suggestions.length} suggestions`, suggestions);
+
   // Deduplikasi berdasarkan roadName + kecamatan
   const seen = new Set<string>();
-  return suggestions.filter((s) => {
+  const deduped = suggestions.filter((s) => {
     const key = `${s.roadName.toLowerCase()}|${s.kecamatan ?? ""}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+  console.log(`[useRoadSearch] After dedup: ${deduped.length} suggestions`, deduped);
+  return deduped;
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────

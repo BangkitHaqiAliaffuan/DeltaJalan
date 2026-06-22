@@ -82,8 +82,8 @@ return new class extends Migration
         ");
 
         // Tambahkan index untuk kolom ENUM setelah kolom dibuat
-        DB::statement("CREATE INDEX reports_overall_severity_index ON reports (overall_severity)");
-        DB::statement("CREATE INDEX reports_status_index ON reports (status)");
+        DB::statement('CREATE INDEX reports_overall_severity_index ON reports (overall_severity)');
+        DB::statement('CREATE INDEX reports_status_index ON reports (status)');
     }
 
     /**

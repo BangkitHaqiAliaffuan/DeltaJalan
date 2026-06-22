@@ -2,12 +2,12 @@ import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router"
 import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { FraudWarningModal } from "@/components/jk/FraudWarningModal";
-import { Portal } from "@/components/jk/Portal";
+import { ModalBase } from "@/components/jk/ModalBase";
 import { DuplicateChecker } from "@/components/jk/DuplicateChecker";
 import { GpsBanner } from "@/components/jk/GpsBanner";
 import { useRef, useState, useCallback, useEffect } from "react";
 import { toast } from "sonner";
-import { setAiResult, setFormData, setBatchResult, API_BASE_URL } from "@/lib/aiStore";
+import { setAiResult, setFormData, setBatchResult, setPendingBatchFiles, API_BASE_URL } from "@/lib/aiStore";
 import {
   useLocationFromPhoto,
   readExifGps,
@@ -27,7 +27,7 @@ import {
   type PhotoDateValidationStatus,
 } from "@/lib/validatePhotoDate";
 import { getCurrentUser, getToken } from "@/lib/auth";
-import type { BatchAnalysisResponse, BatchStoreResponse } from "@/types/laporan";
+import type { BatchAnalysisResponse } from "@/types/laporan";
 import { BatchMapPreview, type BatchPhotoLocation } from "@/components/jk/BatchMapPreview";
 import { snapToRoad } from "@/lib/geo";
 import { saveDraft, getDraft, deleteDraft } from "@/lib/offlineDrafts";
@@ -724,58 +724,22 @@ function UploadPage() {
         }
       }
 
-      // ── Fase 2: Simpan laporan ke database ────────────────────────────
-      setUploadPhase("validating");
-      const fd2 = new FormData();
-      fd2.append("batch_id", batchData.batch_id);
-      fd2.append("road_name", namaJalan);
-      fd2.append("district", kecamatan);
-      fd2.append("latitude", String(batchLat));
-      fd2.append("longitude", String(batchLng));
-      const hasExifGps = Object.values(fileExifGps).some(
-        (gps) => gps !== null && gps !== undefined,
-      );
-      fd2.append("koordinat_sumber", hasExifGps ? "exif" : "manual");
-      fd2.append("fake_gps_suspected", gps.fake_gps_suspected ? "1" : "0");
-      fd2.append("analyses", JSON.stringify(batchData.analyses));
-      if (duplicateOfId) fd2.append("duplicate_of_id", duplicateOfId);
-      // Kirim dimensi per foto sebagai Laravel array (bukan JSON string)
-      // agar backend menerima tipe numeric, bukan string.
-      // Urutan harus align dengan files[] — jangan skip rejected/duplicate.
-      selectedFiles.forEach((_, idx) => {
-        const p = fileKerusakanPanjang[idx];
-        const l = fileKerusakanLebar[idx];
-        fd2.append("kerusakan_panjang[]", p ? String(parseFloat(p)) : "0");
-        fd2.append("kerusakan_lebar[]", l ? String(parseFloat(l)) : "0");
-      });
-      // Gunakan key "files[]" agar Laravel parse sebagai array
-      selectedFiles.forEach((f) => fd2.append("files[]", f));
-
-      const r2 = await fetch(`${API_BASE_URL}/reports/batch`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: fd2,
-      });
-
-      if (!r2.ok) {
-        const errData = await r2.json().catch(() => ({}));
-        const detail = errData.errors
-          ? Object.values(errData.errors as Record<string, string[]>)
-              .flat()
-              .join(" | ")
-          : null;
-        throw new Error(detail ?? errData.message ?? `Simpan laporan gagal (HTTP ${r2.status})`);
-      }
-
-      const reportData: BatchStoreResponse = await r2.json();
-
-      // ── Simpan ke aiStore SEBELUM navigate ────────────────────────────
+      // ── Simpan hasil analisis ke aiStore ────────────────────────────────
+      // Save akan dilakukan di halaman ai-result setelah user konfirmasi
       const batchAnalyses = batchData.analyses;
 
       const normSev = (s: string) =>
         s === "berat" ? "Rusak Berat" : s === "sedang" ? "Rusak Sedang" : s === "ringan" ? "Rusak Ringan" : "Baik";
 
-      const overallSev = normSev(reportData.overall_severity ?? "baik");
+      const overallSev = (() => {
+        const rank = ["Baik", "Rusak Ringan", "Rusak Sedang", "Rusak Berat"];
+        let worst = 0;
+        for (const a of batchAnalyses) {
+          const idx = rank.indexOf(normSev(a.severity));
+          if (idx > worst) worst = idx;
+        }
+        return rank[worst];
+      })();
 
       const allDetections = batchAnalyses.flatMap((a) =>
         a.detections.map((d) => ({
@@ -786,7 +750,6 @@ function UploadPage() {
         })),
       );
 
-      // Synthetic single result — agar guard di ai-result tidak redirect
       setAiResult({
         detections: allDetections,
         total: allDetections.length,
@@ -795,8 +758,11 @@ function UploadPage() {
         status: "success",
       });
 
-      // Data batch lengkap per foto — untuk tampilan carousel di ai-result
-      const dupIndexes = new Set((reportData.duplicate_photos ?? []).map((d) => d.file_index));
+      const dupIndexes = new Set(
+        (batchData as any).duplicate_photos
+          ? (batchData as any).duplicate_photos.map((d: any) => d.file_index)
+          : [],
+      );
 
       setBatchResult({
         photos: batchAnalyses.map((a, idx) => ({
@@ -824,14 +790,13 @@ function UploadPage() {
         })),
         totalDetections: allDetections.length,
         overallSeverity: overallSev,
-        reportCode: reportData.main_report_code ?? "",
-        trustScore: reportData.trust_score ?? 0,
-        trustLabel: reportData.trust_label ?? "merah",
-        duplicatePhotos: (reportData.duplicate_photos ?? []).map((d) => ({
-          fileIndex: d.file_index,
-          fileName: d.file_name,
-        })),
+        reportCode: "",
+        trustScore: 0,
+        trustLabel: "hijau",
+        batchId: batchData.batch_id,
       });
+
+      setPendingBatchFiles(selectedFiles);
 
       setFormData({
         namaJalan,
@@ -846,15 +811,6 @@ function UploadPage() {
 
       setUploadPhase("done");
 
-      console.info("DeltaJalan: Batch upload berhasil.", {
-        batchId: batchData.batch_id,
-        mainReportCode: reportData.main_report_code,
-        photosCount: reportData.photos_count,
-        trustScore: reportData.trust_score,
-        trustLabel: reportData.trust_label,
-      });
-
-      // Navigate setelah store terisi
       navigate({ to: "/ai-result" });
     } catch (err) {
       setUploadPhase("error");
@@ -2477,44 +2433,36 @@ function UploadPage() {
 
       {/* ── Zero-Damage Warning Modal ── */}
       {showZeroDamageWarning && (
-        <Portal>
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0, 0, 0, 0.55)" }} aria-hidden="true">
-            <div className="w-full max-w-sm bg-white rounded-xl border border-[#D0DAE8] shadow-lg" role="alertdialog" aria-modal="true">
-              <div className="bg-amber-500 border-b border-amber-600 px-5 py-4 flex items-start gap-3">
-                <div className="w-10 h-10 rounded-lg bg-white/60 flex items-center justify-center shrink-0">
-                  <Icon name="warning" className="text-white !text-[24px]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-amber-600 text-white border border-black/10 mb-1.5" style={{ fontFamily: "'JetBrains Mono', monospace" }}>AI TIDAK MENDETEKSI KERUSAKAN</span>
-                  <h2 className="text-[16px] font-bold text-white leading-tight">Tidak Ada Kerusakan Terdeteksi</h2>
-                </div>
-              </div>
-              <div className="px-5 py-4">
-                <p className="text-[13px] text-[#0F172A] leading-relaxed">
-                  AI tidak mendeteksi adanya kerusakan jalan pada foto yang diunggah. Apakah Anda yakin ingin tetap membuat laporan?
-                </p>
-              </div>
-              <div className="px-5 pb-5 flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={() => { zeroDamageResolveRef.current?.(true); setShowZeroDamageWarning(false); }}
-                  className="w-full py-3 md:py-3.5 min-h-[44px] bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-95 transition-all"
-                >
-                  <Icon name="check" className="!text-[18px]" />
-                  Ya, tetap buat laporan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { zeroDamageResolveRef.current?.(false); setShowZeroDamageWarning(false); }}
-                  className="w-full py-3 md:py-3.5 min-h-[44px] bg-white border border-[#D0DAE8] text-[#64748B] rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#F8FAFC] hover:text-[#0F172A] active:scale-95 transition-all"
-                >
-                  <Icon name="close" className="!text-[18px]" />
-                  Batalkan laporan
-                </button>
-              </div>
-            </div>
-          </div>
-        </Portal>
+        <ModalBase
+          onClose={() => { zeroDamageResolveRef.current?.(false); setShowZeroDamageWarning(false); }}
+          icon="warning"
+          badge="AI TIDAK MENDETEKSI KERUSAKAN"
+          title="Tidak Ada Kerusakan Terdeteksi"
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => { zeroDamageResolveRef.current?.(true); setShowZeroDamageWarning(false); }}
+                className="w-full py-3 md:py-3.5 min-h-[44px] bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-95 transition-all"
+              >
+                <Icon name="check" className="!text-[18px]" />
+                Ya, tetap buat laporan
+              </button>
+              <button
+                type="button"
+                onClick={() => { zeroDamageResolveRef.current?.(false); setShowZeroDamageWarning(false); }}
+                className="w-full py-3 md:py-3.5 min-h-[44px] bg-white border border-[#D0DAE8] text-[#64748B] rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#F8FAFC] hover:text-[#0F172A] active:scale-95 transition-all"
+              >
+                <Icon name="close" className="!text-[18px]" />
+                Batalkan laporan
+              </button>
+            </>
+          }
+        >
+          <p className="text-[13px] text-[#0F172A] leading-relaxed">
+            AI tidak mendeteksi adanya kerusakan jalan pada foto yang diunggah. Apakah Anda yakin ingin tetap membuat laporan?
+          </p>
+        </ModalBase>
       )}
 
       {/* ── Loading Overlay Batch Upload (Task 4F) ── */}

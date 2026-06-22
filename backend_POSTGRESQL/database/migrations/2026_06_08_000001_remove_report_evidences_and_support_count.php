@@ -17,7 +17,7 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::hasColumn('report_photos', 'reporter_name')) {
+        if (! Schema::hasColumn('report_photos', 'reporter_name')) {
             Schema::table('report_photos', function (Blueprint $table) {
                 $table->string('reporter_name', 100)->nullable()->after('report_id');
             });
@@ -26,19 +26,19 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (!Schema::hasColumn('report_photos', 'reporter_name')) {
+        if (! Schema::hasColumn('report_photos', 'reporter_name')) {
             Schema::table('report_photos', function (Blueprint $table) {
                 $table->dropColumn('reporter_name');
             });
         }
 
-        if (!Schema::hasColumn('reports', 'support_count')) {
+        if (! Schema::hasColumn('reports', 'support_count')) {
             Schema::table('reports', function (Blueprint $table) {
                 $table->integer('support_count')->default(0);
             });
         }
 
-        DB::statement("
+        DB::statement('
             CREATE TABLE report_evidences (
                 id UUID PRIMARY KEY,
                 report_id UUID NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
@@ -49,6 +49,6 @@ return new class extends Migration
                 created_at TIMESTAMP NULL,
                 updated_at TIMESTAMP NULL
             )
-        ");
+        ');
     }
 };

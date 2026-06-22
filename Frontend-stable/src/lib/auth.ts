@@ -11,6 +11,7 @@ export interface User {
   upr_id: number | null;
   upr_name: string | null;
   initials: string;
+  team_id: string | null;
 }
 
 const TOKEN_KEY = "jalankita_token";

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 const PETUGAS_ITEMS = [
   { to: "/home", icon: "home", label: "Beranda" },
+  { to: "/tugas-survei", icon: "assignment", label: "Tugas" },
   { to: "/map", icon: "map", label: "Peta" },
   { to: "/upload", icon: "cloud_upload", label: "Upload" },
   { to: "/my-reports", icon: "description", label: "Laporan Saya" },
@@ -12,6 +13,7 @@ const PETUGAS_ITEMS = [
 
 const SUPERVISOR_ITEMS = [
   { to: "/supervisor", icon: "dashboard", label: "Dashboard" },
+  { to: "/kelola-survei", icon: "assignment", label: "Survei" },
   { to: "/map", icon: "map", label: "Peta" },
   { to: "/stats", icon: "bar_chart", label: "Statistik" },
 ] as const;

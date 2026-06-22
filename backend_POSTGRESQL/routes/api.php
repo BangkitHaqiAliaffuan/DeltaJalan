@@ -8,8 +8,11 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReportExportController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\StatusLogController;
+use App\Http\Controllers\SurveyTaskController;
+use App\Http\Controllers\TeamController;
 use App\Http\Controllers\UprController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WorkerLocationController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -188,7 +191,7 @@ Route::middleware('auth:sanctum')->group(function () {
      * Export PDF rekap bulanan (supervisor only).
      * Query params: ?month=5&year=2026
      */
-     Route::get('/reports/export/monthly-pdf', [ReportExportController::class, 'exportMonthlyPdf']);
+    Route::get('/reports/export/monthly-pdf', [ReportExportController::class, 'exportMonthlyPdf']);
 
     /**
      * GET /api/reports/export/monthly-excel
@@ -279,6 +282,31 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/uprs/{id}', [UprController::class, 'show']);
     Route::put('/uprs/{id}', [UprController::class, 'update']);
     Route::delete('/uprs/{id}', [UprController::class, 'destroy']);
+
+    // ── Survey Tasks (Ruas Jalan) ────────────────────────────────────────────
+    Route::get('/survei', [SurveyTaskController::class, 'index']);
+    Route::get('/survei/stats', [SurveyTaskController::class, 'stats']);
+    Route::post('/survei', [SurveyTaskController::class, 'store']);
+    Route::get('/survei/{id}', [SurveyTaskController::class, 'show']);
+    Route::put('/survei/{id}', [SurveyTaskController::class, 'update']);
+    Route::delete('/survei/{id}', [SurveyTaskController::class, 'destroy']);
+
+    // ── Teams ────────────────────────────────────────────────────────────────
+    Route::get('/teams', [TeamController::class, 'index']);
+    Route::post('/teams', [TeamController::class, 'store']);
+    Route::get('/teams/{id}', [TeamController::class, 'show']);
+    Route::put('/teams/{id}', [TeamController::class, 'update']);
+    Route::delete('/teams/{id}', [TeamController::class, 'destroy']);
+    Route::post('/teams/{id}/members', [TeamController::class, 'assignMembers']);
+    Route::delete('/teams/{id}/members/{userId}', [TeamController::class, 'removeMember']);
+    Route::get('/teams/{id}/roads', [TeamController::class, 'roads']);
+    Route::post('/teams/{id}/roads', [TeamController::class, 'assignRoads']);
+    Route::delete('/teams/{id}/roads/{taskId}', [TeamController::class, 'unassignRoad']);
+
+    // ── Worker Location Tracking ────────────────────────────────────────────
+    Route::post('/worker/location', [WorkerLocationController::class, 'store']);
+    Route::get('/worker/uprs/nearest', [WorkerLocationController::class, 'nearest']);
+    Route::get('/worker/uprs/{id}/locations', [WorkerLocationController::class, 'teamLocations']);
 
     // ── Users CRUD ─────────────────────────────────────────────────────────
     Route::get('/users', [UserController::class, 'index']);

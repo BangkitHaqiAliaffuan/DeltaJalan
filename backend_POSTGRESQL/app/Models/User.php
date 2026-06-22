@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -31,7 +30,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'password'          => 'hashed',
+            'password' => 'hashed',
         ];
     }
 
@@ -40,22 +39,38 @@ class User extends Authenticatable
         return $this->belongsTo(Upr::class);
     }
 
+    public function team()
+    {
+        return $this->belongsTo(Team::class, 'team_id');
+    }
+
+    public function ledTeam()
+    {
+        return $this->hasOne(Upr::class, 'leader_user_id');
+    }
+
+    public function locations()
+    {
+        return $this->hasMany(WorkerLocation::class, 'user_id');
+    }
+
     public function getInitialsAttribute(): string
     {
         $words = explode(' ', trim($this->name));
         if (count($words) >= 2) {
-            return strtoupper(substr($words[0], 0, 1) . substr($words[1], 0, 1));
+            return strtoupper(substr($words[0], 0, 1).substr($words[1], 0, 1));
         }
+
         return strtoupper(substr($this->name, 0, 2));
     }
 
     public function getRoleLabelAttribute(): string
     {
         return match ($this->role) {
-            'admin'              => 'Administrator',
-            'supervisor'         => 'Supervisor',
-            'petugas_eksekusi'   => 'Petugas Eksekusi',
-            default              => 'Petugas Lapangan',
+            'admin' => 'Administrator',
+            'supervisor' => 'Supervisor',
+            'petugas_eksekusi' => 'Petugas Eksekusi',
+            default => 'Petugas Lapangan',
         };
     }
 }

@@ -7,13 +7,13 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check");
+        DB::statement('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check');
         DB::statement("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role::text IN ('petugas', 'supervisor', 'petugas_eksekusi', 'admin'))");
     }
 
     public function down(): void
     {
-        DB::statement("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check");
+        DB::statement('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check');
         DB::statement("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role::text IN ('petugas', 'supervisor', 'petugas_eksekusi'))");
     }
 };

@@ -132,6 +132,9 @@ export interface Laporan {
   duplicate_score?: number | null;
   duplicate_of?: DuplicateReport | null;
 
+  // Survey task relation
+  survey_task_id?: string | null;
+
   // Batch grouping — photos di tabel terpisah
   batch_id?: string | null;
   photos_count?: number;

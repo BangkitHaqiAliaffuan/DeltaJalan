@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Icon } from "@/components/jk/Icon";
 import { AdminLayout } from "@/components/jk/AdminLayout";
+import { ModalBase } from "@/components/jk/ModalBase";
 import { requireAdmin } from "@/lib/adminGuard";
 import { getToken } from "@/lib/auth";
 import { useState, useRef, useEffect } from "react";
@@ -292,34 +293,32 @@ function StatusChangeModal({
   }
 
   return (
-    <>
-      <style>{`
-        @keyframes modal-in { from { opacity: 0; transform: scale(0.9) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
-        .status-modal { animation: modal-in 0.25s ease-out; }
-      `}</style>
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30 backdrop-blur-sm">
-        <div className="bg-white rounded-2xl shadow-2xl p-6 status-modal max-w-sm w-full mx-4">
-          <h3 className="text-[15px] font-bold text-[#0F172A] mb-1">Ubah Status Laporan</h3>
-          <p className="text-[12px] text-[#64748B] mb-4">
-            {code} — Status saat ini: <span className="font-semibold text-[#0F172A]">{current}</span>
-          </p>
-          <div className="flex flex-col gap-2 mb-5">
-            {ALL_STATUSES.filter((s) => s !== current).map((s) => (
-              <label key={s} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${selected === s ? "border-[#1A4F8A] bg-[#F0F4FF]" : "border-[#E2E8F0] hover:bg-[#F8FAFC]"}`}>
-                <input type="radio" name="status" value={s} checked={selected === s} onChange={(e) => setSelected(e.target.value)} className="accent-[#1A4F8A]" />
-                <span className="text-[13px] font-medium text-[#0F172A]">{s}</span>
-              </label>
-            ))}
-          </div>
-          {error && <p className="text-[12px] text-[#E11D48] mb-3">{error}</p>}
-          <div className="flex items-center gap-3">
-            <button onClick={onClose} disabled={loading} className="flex-1 px-4 py-2.5 text-[13px] font-bold text-[#475569] bg-[#F1F5F9] rounded-xl hover:bg-[#E2E8F0] disabled:opacity-40 transition-colors">Batal</button>
-            <button onClick={handleSave} disabled={!selected || loading} className="flex-1 px-4 py-2.5 text-[13px] font-bold text-white bg-[#1A4F8A] rounded-xl hover:bg-[#0F3A6A] disabled:opacity-40 transition-all flex items-center justify-center gap-1.5">
-              {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "Simpan"}
-            </button>
-          </div>
+    <ModalBase
+      onClose={onClose}
+      icon="swap_horiz"
+      badge="UBAH STATUS"
+      title="Ubah Status Laporan"
+      footer={
+        <div className="flex items-center gap-3 w-full">
+          <button onClick={onClose} disabled={loading} className="flex-1 h-11 border border-[#E2E8F0] rounded-lg text-[13px] font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40 transition-colors">Batal</button>
+          <button onClick={handleSave} disabled={!selected || loading} className="flex-1 h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold hover:bg-[#0F3A6A] disabled:opacity-40 transition-all flex items-center justify-center gap-1">
+            {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "Simpan"}
+          </button>
         </div>
+      }
+    >
+      <p className="text-[13px] text-[#64748B] mb-1">
+        {code} — Status saat ini: <span className="font-semibold text-[#0F172A]">{current}</span>
+      </p>
+      <div className="flex flex-col gap-2">
+        {ALL_STATUSES.filter((s) => s !== current).map((s) => (
+          <label key={s} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${selected === s ? "border-[#1A4F8A] bg-[#F0F4FF]" : "border-[#E2E8F0] hover:bg-[#F8FAFC]"}`}>
+            <input type="radio" name="status" value={s} checked={selected === s} onChange={(e) => setSelected(e.target.value)} className="accent-[#1A4F8A]" />
+            <span className="text-[13px] font-medium text-[#0F172A]">{s}</span>
+          </label>
+        ))}
       </div>
-    </>
+      {error && <p className="text-[12px] text-[#E11D48]">{error}</p>}
+    </ModalBase>
   );
 }

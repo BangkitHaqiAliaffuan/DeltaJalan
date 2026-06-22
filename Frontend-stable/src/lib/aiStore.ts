@@ -54,18 +54,41 @@ export interface BatchResultData {
   trustScore: number;
   trustLabel: string;
   duplicatePhotos?: { fileIndex: number; fileName: string }[];
+  batchId?: string;
+}
+
+export function updateBatchPhoto(index: number, data: Partial<BatchPhotoResult>): void {
+  const current = store.batchResult;
+  if (!current) return;
+  const photos = [...current.photos];
+  photos[index] = { ...photos[index], ...data };
+  const totalDetections = photos.reduce((sum, p) => sum + p.detections.length, 0);
+  const rankOrder = ["Baik", "Rusak Ringan", "Rusak Sedang", "Rusak Berat"];
+  let worstIdx = 0;
+  for (const p of photos) {
+    const idx = rankOrder.indexOf(p.severity);
+    if (idx > worstIdx) worstIdx = idx;
+  }
+  store.batchResult = {
+    ...current,
+    photos,
+    totalDetections,
+    overallSeverity: rankOrder[worstIdx],
+  };
 }
 
 interface AiStore {
   result: AiAnalysisResult | null;
   formData: UploadFormData | null;
   batchResult: BatchResultData | null;
+  pendingBatchFiles: File[];
 }
 
 const store: AiStore = {
   result: null,
   formData: null,
   batchResult: null,
+  pendingBatchFiles: [],
 };
 
 export function setAiResult(result: AiAnalysisResult) {
@@ -96,6 +119,15 @@ export function clearAiStore() {
   store.result = null;
   store.formData = null;
   store.batchResult = null;
+  store.pendingBatchFiles = [];
+}
+
+export function setPendingBatchFiles(files: File[]): void {
+  store.pendingBatchFiles = files;
+}
+
+export function getPendingBatchFiles(): File[] {
+  return store.pendingBatchFiles;
 }
 
 const SEVERITY_FULL_MAP: Record<string, string> = {

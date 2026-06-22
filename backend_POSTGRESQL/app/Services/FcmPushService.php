@@ -5,27 +5,31 @@ namespace App\Services;
 use App\Models\PushSubscription;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
+use Kreait\Firebase\Contract\Messaging;
+use Kreait\Firebase\Exception\Messaging\NotFound;
+use Kreait\Firebase\Exception\MessagingException;
 use Kreait\Firebase\Factory;
-use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\AndroidConfig;
+use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\Notification;
 
 class FcmPushService
 {
-    private ?\Kreait\Firebase\Contract\Messaging $messaging = null;
+    private ?Messaging $messaging = null;
 
-    private function messaging(): \Kreait\Firebase\Contract\Messaging
+    private function messaging(): Messaging
     {
         if ($this->messaging === null) {
             $credPath = config('firebase.credentials');
-            if (!$credPath || !file_exists($credPath)) {
-                throw new \RuntimeException('Firebase service account not found at: ' . ($credPath ?? 'null'));
+            if (! $credPath || ! file_exists($credPath)) {
+                throw new \RuntimeException('Firebase service account not found at: '.($credPath ?? 'null'));
             }
 
             $this->messaging = (new Factory)
                 ->withServiceAccount($credPath)
                 ->createMessaging();
         }
+
         return $this->messaging;
     }
 
@@ -50,21 +54,25 @@ class FcmPushService
                 );
 
             $this->messaging()->send($message);
+
             return true;
-        } catch (\Kreait\Firebase\Exception\Messaging\NotFound $e) {
-            Log::warning('FCM: Token not found (unregistered), deleting.', ['token' => substr($token, 0, 20) . '...']);
+        } catch (NotFound $e) {
+            Log::warning('FCM: Token not found (unregistered), deleting.', ['token' => substr($token, 0, 20).'...']);
             PushSubscription::where('fcm_token', $token)->delete();
+
             return false;
-        } catch (\Kreait\Firebase\Exception\MessagingException $e) {
+        } catch (MessagingException $e) {
             Log::warning('FCM: Send failed.', [
-                'token' => substr($token, 0, 20) . '...',
+                'token' => substr($token, 0, 20).'...',
                 'error' => $e->getMessage(),
             ]);
+
             return false;
         } catch (\Throwable $e) {
             Log::error('FCM: Unexpected error.', [
                 'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }

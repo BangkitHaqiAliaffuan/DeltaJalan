@@ -76,7 +76,9 @@ return new class extends Migration
         $photos = DB::table('report_photos')->get();
         foreach ($photos as $photo) {
             $mainReport = DB::table('reports')->find($photo->report_id);
-            if (!$mainReport) continue;
+            if (! $mainReport) {
+                continue;
+            }
 
             $reportCode = $this->generateReportCode();
             DB::table('reports')->insert([
@@ -119,6 +121,7 @@ return new class extends Migration
             ->orderBy('report_code', 'desc')
             ->first();
         $next = $last ? ((int) substr($last->report_code, -5)) + 1 : 1;
+
         return sprintf('LP-%s-%05d', $year, $next);
     }
 };

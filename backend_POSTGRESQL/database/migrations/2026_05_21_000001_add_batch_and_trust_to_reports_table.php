@@ -42,13 +42,13 @@ return new class extends Migration
         DB::statement("ALTER TABLE reports ADD COLUMN trust_label VARCHAR(10) NOT NULL DEFAULT 'merah'");
 
         // Foreign key untuk parent_report_id (self-referencing UUID → UUID)
-        DB::statement("
+        DB::statement('
             ALTER TABLE reports
             ADD CONSTRAINT reports_parent_report_id_foreign
             FOREIGN KEY (parent_report_id)
             REFERENCES reports(id)
             ON DELETE SET NULL
-        ");
+        ');
     }
 
     public function down(): void
@@ -71,6 +71,6 @@ return new class extends Migration
             ]);
         });
 
-        DB::statement("ALTER TABLE reports DROP COLUMN IF EXISTS trust_label");
+        DB::statement('ALTER TABLE reports DROP COLUMN IF EXISTS trust_label');
     }
 };

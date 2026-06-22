@@ -4,6 +4,7 @@ import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { SkeletonNotificationItem } from "@/components/jk/Skeleton";
 import { PushSubscriptionManager } from "@/components/jk/PushSubscriptionManager";
+import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
 import { fetchNotifications, markNotificationRead, markAllNotificationsRead, deleteAllNotifications } from "@/lib/notifications";
 import { formatDate } from "@/lib/format";
 import type { NotificationItem } from "@/types/laporan";
@@ -30,6 +31,7 @@ function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [filterType, setFilterType] = useState("");
   const [isClient, setIsClient] = useState(false);
   useEffect(() => { setIsClient(true); }, []);
@@ -71,7 +73,6 @@ function NotificationsPage() {
   }
 
   async function handleDeleteAll() {
-    if (!window.confirm("Hapus semua notifikasi?")) return;
     await deleteAllNotifications();
     setNotifications([]);
     setPage(1);
@@ -121,7 +122,7 @@ function NotificationsPage() {
         </button>
         <button
           type="button"
-          onClick={handleDeleteAll}
+          onClick={() => setConfirmDelete(true)}
           className="text-[11px] text-red-500 font-medium hover:underline"
         >
           Hapus semua
@@ -201,6 +202,14 @@ function NotificationsPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Hapus Semua Notifikasi?"
+        message="Semua notifikasi akan dihapus permanen. Tindakan ini tidak dapat dibatalkan."
+        onConfirm={() => { setConfirmDelete(false); handleDeleteAll(); }}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </PageLayout>
   );
 }

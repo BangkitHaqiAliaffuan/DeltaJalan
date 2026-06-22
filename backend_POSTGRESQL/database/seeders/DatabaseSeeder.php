@@ -10,6 +10,8 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             UserSeeder::class,
+            TeamSeeder::class,
+            TeamRoadSeeder::class,
             ReportSeeder::class,
         ]);
     }
@@ -27,4 +29,3 @@ class DatabaseSeeder extends Seeder
         ]);
     }
 }
-

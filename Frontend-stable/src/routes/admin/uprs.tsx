@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Icon } from "@/components/jk/Icon";
 import { AdminLayout } from "@/components/jk/AdminLayout";
+import { ModalBase } from "@/components/jk/ModalBase";
 import { requireAdmin } from "@/lib/adminGuard";
 import { getToken } from "@/lib/auth";
 import { useState } from "react";
@@ -171,36 +172,37 @@ function AdminUprs() {
       </div>
 
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => !formBusy && setModal(null)}>
-          <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-[18px] font-bold text-[#0F172A] mb-1">{modal === "create" ? "Tambah UPR" : "Edit UPR"}</h2>
-            <p className="text-[13px] text-[#64748B] mb-4">{modal === "create" ? "Buat tim satgas baru." : "Perbarui data UPR."}</p>
-            {formError && <div className="mb-4 text-[13px] text-[#E11D48] bg-red-50 border border-red-200 rounded-lg px-4 py-2">{formError}</div>}
-            <div className="space-y-3">
-              <Input label="Nama Tim" value={form.name} onChange={(v) => setForm({ ...form, name: v })} required />
-              <Input label="Wilayah" value={form.wilayah} onChange={(v) => setForm({ ...form, wilayah: v })} />
-              <div>
-                <label className="block text-[13px] font-semibold text-[#0F172A] mb-1">Ketua</label>
-                <select value={form.leader_name} onChange={(e) => setForm({ ...form, leader_name: e.target.value })}
-                  className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 bg-white appearance-none"
-                  style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center", backgroundSize: "16px" }}>
-                  <option value="">-- Pilih Ketua --</option>
-                  {petugasQuery.isPending ? <option disabled>Memuat...</option> : petugasList.map((p) => (
-                    <option key={p.id} value={p.name}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-              <Input label="Kontak" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
-            </div>
-            <div className="flex gap-2 mt-6">
-              <button onClick={() => setModal(null)} disabled={formBusy} className="flex-1 h-9 border border-[#E2E8F0] rounded-lg text-[13px] font-semibold text-[#475569] hover:bg-[#F8FAFC] disabled:opacity-50">Batal</button>
-              <button onClick={handleSubmit} disabled={formBusy} className="flex-1 h-9 bg-[#1A4F8A] text-white rounded-lg text-[13px] font-semibold hover:bg-[#15407A] disabled:opacity-50 flex items-center justify-center gap-1">
+        <ModalBase
+          onClose={() => !formBusy && setModal(null)}
+          icon={modal === "create" ? "group_add" : "group"}
+          badge={modal === "create" ? "UPR BARU" : "EDIT UPR"}
+          title={modal === "create" ? "Tambah UPR" : "Edit UPR"}
+          footer={
+            <div className="flex gap-2 w-full">
+              <button onClick={() => setModal(null)} disabled={formBusy} className="flex-1 h-11 border border-[#E2E8F0] rounded-lg text-[13px] font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50">Batal</button>
+              <button onClick={handleSubmit} disabled={formBusy} className="flex-1 h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold hover:bg-[#15407A] disabled:opacity-50 flex items-center justify-center gap-1">
                 {formBusy && <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                 {modal === "create" ? "Simpan" : "Perbarui"}
               </button>
             </div>
+          }
+        >
+          {formError && <div className="text-[13px] text-[#E11D48] bg-red-50 border border-red-200 rounded-lg px-4 py-2">{formError}</div>}
+          <Input label="Nama Tim" value={form.name} onChange={(v) => setForm({ ...form, name: v })} required />
+          <Input label="Wilayah" value={form.wilayah} onChange={(v) => setForm({ ...form, wilayah: v })} />
+          <div>
+            <label className="block text-[13px] font-semibold text-[#0F172A] mb-1">Ketua</label>
+            <select value={form.leader_name} onChange={(e) => setForm({ ...form, leader_name: e.target.value })}
+              className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 bg-white appearance-none"
+              style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center", backgroundSize: "16px" }}>
+              <option value="">-- Pilih Ketua --</option>
+              {petugasQuery.isPending ? <option disabled>Memuat...</option> : petugasList.map((p) => (
+                <option key={p.id} value={p.name}>{p.name}</option>
+              ))}
+            </select>
           </div>
-        </div>
+          <Input label="Kontak" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
+        </ModalBase>
       )}
     </div>
   );

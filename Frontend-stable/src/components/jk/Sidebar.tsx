@@ -16,12 +16,14 @@ const PETUGAS_MENU: MenuItem[] = [
   { icon: "map", label: "Peta", to: "/map" },
   { icon: "cloud_upload", label: "Upload & Analisis", to: "/upload" },
   { icon: "description", label: "Laporan Saya", to: "/my-reports" },
+  { icon: "assignment", label: "Tugas Survei", to: "/tugas-survei" },
 ];
 
 const SUPERVISOR_MENU: MenuItem[] = [
   { icon: "dashboard", label: "Dashboard", to: "/supervisor" },
   { icon: "map", label: "Peta", to: "/map" },
   { icon: "bar_chart", label: "Statistik", to: "/stats" },
+  { icon: "assignment", label: "Survei", to: "/kelola-survei" },
 ];
 
 const EKSEKUSI_MENU: MenuItem[] = [

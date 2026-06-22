@@ -4,8 +4,6 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Notifications\DatabaseNotification;
-use Illuminate\Support\Facades\Log;
 
 class NotificationController extends Controller
 {
@@ -23,11 +21,11 @@ class NotificationController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $notifications->items(),
-            'meta'    => [
+            'data' => $notifications->items(),
+            'meta' => [
                 'current_page' => $notifications->currentPage(),
-                'last_page'    => $notifications->lastPage(),
-                'total'        => $notifications->total(),
+                'last_page' => $notifications->lastPage(),
+                'total' => $notifications->total(),
             ],
         ]);
     }
@@ -42,7 +40,7 @@ class NotificationController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => ['unread' => $count],
+            'data' => ['unread' => $count],
         ]);
     }
 
@@ -53,7 +51,7 @@ class NotificationController extends Controller
     public function markRead(Request $request, string $id): JsonResponse
     {
         $notification = $request->user()->notifications()->find($id);
-        if (!$notification) {
+        if (! $notification) {
             return response()->json(['success' => false, 'message' => 'Notifikasi tidak ditemukan.'], 404);
         }
 

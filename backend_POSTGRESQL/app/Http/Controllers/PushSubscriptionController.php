@@ -13,16 +13,16 @@ class PushSubscriptionController extends Controller
     {
         return response()->json([
             'success' => true,
-            'data'    => ['public_key' => config('webpush.vapid.publicKey')],
+            'data' => ['public_key' => config('webpush.vapid.publicKey')],
         ]);
     }
 
     public function subscribe(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'endpoint'  => 'required|string',
+            'endpoint' => 'required|string',
             'p256dh_key' => 'required|string',
-            'auth_key'  => 'required|string',
+            'auth_key' => 'required|string',
         ]);
 
         $user = $request->user();
@@ -30,9 +30,9 @@ class PushSubscriptionController extends Controller
         PushSubscription::updateOrCreate(
             ['endpoint' => $validated['endpoint']],
             [
-                'user_id'   => $user->id,
+                'user_id' => $user->id,
                 'p256dh_key' => $validated['p256dh_key'],
-                'auth_key'  => $validated['auth_key'],
+                'auth_key' => $validated['auth_key'],
                 'user_agent' => $request->header('User-Agent'),
             ]
         );
@@ -62,7 +62,7 @@ class PushSubscriptionController extends Controller
     public function storeFcmToken(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'fcm_token'  => 'required|string',
+            'fcm_token' => 'required|string',
             'device_info' => 'nullable|array',
         ]);
 
@@ -85,12 +85,12 @@ class PushSubscriptionController extends Controller
         PushSubscription::updateOrCreate(
             ['fcm_token' => $validated['fcm_token']],
             [
-                'user_id'    => $user->id,
-                'type'       => 'fcm',
+                'user_id' => $user->id,
+                'type' => 'fcm',
                 'device_info' => isset($validated['device_info']) ? json_encode($validated['device_info']) : null,
-                'endpoint'   => null,
+                'endpoint' => null,
                 'p256dh_key' => '',
-                'auth_key'   => '',
+                'auth_key' => '',
             ]
         );
 

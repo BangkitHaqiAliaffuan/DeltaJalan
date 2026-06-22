@@ -35,14 +35,14 @@ class ReportPhoto extends Model
     ];
 
     protected $casts = [
-        'ai_raw_output'      => 'array',
-        'latitude'           => 'decimal:8',
-        'longitude'          => 'decimal:8',
-        'ai_confidence'      => 'decimal:3',
-        'total_detections'   => 'integer',
-        'kerusakan_panjang'  => 'decimal:2',
-        'kerusakan_lebar'    => 'decimal:2',
-        'sort_order'         => 'integer',
+        'ai_raw_output' => 'array',
+        'latitude' => 'decimal:8',
+        'longitude' => 'decimal:8',
+        'ai_confidence' => 'decimal:3',
+        'total_detections' => 'integer',
+        'kerusakan_panjang' => 'decimal:2',
+        'kerusakan_lebar' => 'decimal:2',
+        'sort_order' => 'integer',
     ];
 
     public function report(): BelongsTo
@@ -52,13 +52,19 @@ class ReportPhoto extends Model
 
     public function getImageOriginalUrlAttribute(): ?string
     {
-        if (!$this->image_original_path) return null;
-        return asset('storage/' . $this->image_original_path);
+        if (! $this->image_original_path) {
+            return null;
+        }
+
+        return asset('storage/'.$this->image_original_path);
     }
 
     public function getImageResultUrlAttribute(): ?string
     {
-        if (!$this->image_result_path) return null;
-        return asset('storage/' . $this->image_result_path);
+        if (! $this->image_result_path) {
+            return null;
+        }
+
+        return asset('storage/'.$this->image_result_path);
     }
 }

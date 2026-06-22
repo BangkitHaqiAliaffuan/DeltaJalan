@@ -8,6 +8,7 @@ import { createRoot } from 'react-dom/client'
 import { RouterProvider } from '@tanstack/react-router'
 import { getRouter } from './router'
 import { useFcmRegistration } from '@/hooks/useFcmRegistration'
+import { useWorkerTracking } from '@/hooks/useWorkerTracking'
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null }
@@ -46,8 +47,9 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   }
 }
 
-function FcmInit() {
+function AppInit() {
   useFcmRegistration()
+  useWorkerTracking()
   return null
 }
 
@@ -59,7 +61,7 @@ if (!rootEl) throw new Error('#root element not found. App cannot mount.')
 createRoot(rootEl).render(
   
     <ErrorBoundary>
-      <FcmInit />
+      <AppInit />
       <RouterProvider router={router} />
     </ErrorBoundary>
   

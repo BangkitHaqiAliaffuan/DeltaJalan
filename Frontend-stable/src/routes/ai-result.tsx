@@ -1,16 +1,29 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
+import { Portal } from "@/components/jk/Portal";
+import { FraudWarningModal } from "@/components/jk/FraudWarningModal";
 import {
   getAiResult,
   getFormData,
   getBatchResult,
+  setAiResult,
+  setFormData,
+  setBatchResult,
+  updateBatchPhoto,
+  clearAiStore,
+  getPendingBatchFiles,
   SEVERITY_CONFIG,
   getSeverityConfig,
   type Detection,
   type BatchPhotoResult,
 } from "@/lib/aiStore";
 import { useEffect, useState, useRef } from "react";
+import { toast } from "sonner";
+import { getCurrentUser, getToken } from "@/lib/auth";
+import { validatePhotoDate, isExifBlocking, type PhotoDateValidationStatus } from "@/lib/validatePhotoDate";
+import { readExifGps } from "@/hooks/useLocationFromPhoto";
+import { snapToRoad } from "@/lib/geo";
 
 export const Route = createFileRoute("/ai-result")({
   component: AiResultPage,
@@ -258,8 +271,43 @@ function DeteksiFoto({
 
 // ── Halaman utama ──────────────────────────────────────────────────────────
 
+type SubmitState = "idle" | "loading" | "success" | "error";
+
+function normSev(s: string): string {
+  const lower = s.toLowerCase();
+  if (lower === "berat" || lower === "rusak berat") return "Rusak Berat";
+  if (lower === "sedang" || lower === "rusak sedang") return "Rusak Sedang";
+  if (lower === "ringan" || lower === "rusak ringan") return "Rusak Ringan";
+  return "Baik";
+}
+
+async function computeFileHash(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function reconstructAnalyses(photos: BatchPhotoResult[]): string {
+  const analyses = photos.map((p) => ({
+    file_index: p.fileIndex,
+    file_name: p.fileName,
+    detections: p.detections.map((d) => ({
+      type: d.class,
+      confidence: d.confidence,
+      bbox: [d.bbox.x1, d.bbox.y1, d.bbox.x2, d.bbox.y2],
+    })),
+    severity: p.severity,
+    confidence: p.confidence,
+    image_result: p.imageResult,
+    ...(p.hasError ? { error: "error" } : {}),
+  }));
+  return JSON.stringify(analyses);
+}
+
 function AiResultPage() {
   const navigate = useNavigate();
+  const user = getCurrentUser();
   const result = getAiResult();
   const formData = getFormData();
   const batchResult = getBatchResult();
@@ -279,6 +327,271 @@ function AiResultPage() {
     if (!result) navigate({ to: "/upload" });
   }, [result, navigate]);
 
+  // ── Editable Dimensions ─────────────────────────────────────────────────
+  const [editPanjang, setEditPanjang] = useState(formData?.kerusakanPanjang ?? "");
+  const [editLebar, setEditLebar] = useState(formData?.kerusakanLebar ?? "");
+  const [batchEditDimensi, setBatchEditDimensi] = useState<Record<number, { panjang: string; lebar: string }>>(() => {
+    if (!batchResult) return {};
+    const dims: Record<number, { panjang: string; lebar: string }> = {};
+    batchResult.photos.forEach((p, i) => {
+      dims[i] = { panjang: p.kerusakanPanjang ?? "", lebar: p.kerusakanLebar ?? "" };
+    });
+    return dims;
+  });
+
+  // ── 2-detik Timer ───────────────────────────────────────────────────────
+  const [confirmEnabled, setConfirmEnabled] = useState(false);
+  const [countdown, setCountdown] = useState(2);
+
+  useEffect(() => {
+    setConfirmEnabled(false);
+    setCountdown(2);
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setConfirmEnabled(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // ── Submit State ────────────────────────────────────────────────────────
+  const [submitState, setSubmitState] = useState<SubmitState>("idle");
+  const [submitError, setSubmitError] = useState("");
+  const [savedCode, setSavedCode] = useState<string | null>(null);
+
+  // ── Ganti Foto ──────────────────────────────────────────────────────────
+  const [gantiFotoLoading, setGantiFotoLoading] = useState(false);
+  const [fraudModal, setFraudModal] = useState<{
+    isOpen: boolean;
+    status: PhotoDateValidationStatus;
+    title: string;
+    message: string;
+    isWarningOnly: boolean;
+  }>({ isOpen: false, status: "no_exif_date", title: "", message: "", isWarningOnly: false });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const gantiFotoTargetRef = useRef<number | null>(null);
+
+  function closeFraudModal() {
+    setFraudModal((s) => ({ ...s, isOpen: false }));
+  }
+
+  async function handleReplacePhoto(index: number | null) {
+    if (gantiFotoLoading) return;
+    gantiFotoTargetRef.current = index;
+    fileInputRef.current?.click();
+  }
+
+  async function handleFileReplace(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+
+    // Guard 1: File type & size
+    if (!["image/jpeg", "image/jpg", "image/png"].includes(file.type)) {
+      toast.error("Format file tidak didukung. Gunakan JPEG atau PNG.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Ukuran file maksimal 5MB.");
+      return;
+    }
+
+    // Guard 2: EXIF Date validation
+    const dateValidation = await validatePhotoDate(file);
+    if (dateValidation.status !== "valid") {
+      if (isExifBlocking(dateValidation.status)) {
+        setFraudModal({ isOpen: true, status: dateValidation.status, title: dateValidation.title, message: dateValidation.message, isWarningOnly: false });
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+      setFraudModal({ isOpen: true, status: dateValidation.status, title: dateValidation.title, message: dateValidation.message, isWarningOnly: true });
+    }
+
+    // Guard 3: EXIF GPS (non-blocking)
+    await readExifGps(file);
+
+    // Guard 4: Duplication check (non-blocking)
+    try {
+      const hash = await computeFileHash(file);
+      const token = getToken() ?? "";
+      const url = new URL(`${window.location.origin}${import.meta.env.VITE_API_BASE_URL ?? "/api"}/v1/reports/check-duplicate`);
+      url.searchParams.set("file_hash", hash);
+      const res = await fetch(url.toString(), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.has_active_report && data.report) {
+          toast.warning(`Foto sudah pernah digunakan untuk laporan ${data.report.report_code}.`);
+        }
+      }
+    } catch {
+      // Non-blocking
+    }
+
+    // Re-analyze with AI
+    setGantiFotoLoading(true);
+    try {
+      const token = getToken() ?? "";
+      const fd = new FormData();
+      fd.append("file", file);
+      const response = await fetch(`${formData ? (import.meta.env.VITE_API_BASE_URL ?? "/api") : "/api"}/analyze`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (!response.ok) throw new Error(`Analisis gagal (HTTP ${response.status})`);
+      const aiResultData = await response.json();
+
+      const mappedDets = (aiResultData.detections ?? []).map((d: any) => ({
+        class: d.type ?? d.class,
+        severity: normSev(d.severity ?? aiResultData.overall_severity),
+        confidence: d.confidence,
+        bbox: d.bbox
+          ? { x1: d.bbox[0] ?? 0, y1: d.bbox[1] ?? 0, x2: d.bbox[2] ?? 0, y2: d.bbox[3] ?? 0 }
+          : { x1: 0, y1: 0, x2: 0, y2: 0 },
+      }));
+
+      if (gantiFotoTargetRef.current !== null) {
+        // Batch mode: update one photo
+        updateBatchPhoto(gantiFotoTargetRef.current, {
+          fileName: file.name,
+          previewUrl: URL.createObjectURL(file),
+          imageResult: aiResultData.image_result ?? "",
+          detections: mappedDets,
+          severity: normSev(aiResultData.overall_severity),
+          confidence: aiResultData.detections?.[0]?.confidence ?? aiResultData.confidence ?? 0,
+          hasError: false,
+        });
+      } else {
+        // Single mode: update result
+        const newResult = {
+          detections: mappedDets,
+          total: aiResultData.total ?? mappedDets.length,
+          overall_severity: normSev(aiResultData.overall_severity),
+          image_result: aiResultData.image_result ?? "",
+          status: "success",
+        };
+        setAiResult(newResult);
+        if (formData) {
+          URL.revokeObjectURL(formData.previewUrl);
+          setFormData({ ...formData, previewUrl: URL.createObjectURL(file), fileName: file.name });
+        }
+      }
+
+      // Reset timer
+      setConfirmEnabled(false);
+      setCountdown(2);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menganalisis foto baru");
+    } finally {
+      setGantiFotoLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  // ── Confirm & Submit ────────────────────────────────────────────────────
+
+  async function handleConfirm() {
+    if (!formData) return;
+    setSubmitState("loading");
+    setSubmitError("");
+
+    try {
+      if (isBatch) {
+        // ── Batch mode submit ──────────────────────────────────────────────
+        const pendingFiles = getPendingBatchFiles();
+        if (!pendingFiles || pendingFiles.length === 0) {
+          throw new Error("File foto tidak tersedia. Silakan upload ulang.");
+        }
+        for (let i = 0; i < pendingFiles.length; i++) {
+          const dims = batchEditDimensi[i];
+          if (!dims?.panjang?.trim() || !dims?.lebar?.trim()) {
+            throw new Error(`Dimensi kerusakan untuk foto ${i + 1} wajib diisi.`);
+          }
+        }
+        if (!batchResult?.batchId) throw new Error("Batch ID tidak ditemukan.");
+
+        const token = getToken() ?? "";
+        const fd = new FormData();
+        fd.append("batch_id", batchResult.batchId);
+        fd.append("road_name", formData.namaJalan);
+        fd.append("district", formData.kecamatan);
+        fd.append("latitude", String(formData.lat ?? 0));
+        fd.append("longitude", String(formData.lng ?? 0));
+        fd.append("koordinat_sumber", "exif");
+        fd.append("analyses", reconstructAnalyses(batchResult.photos));
+        if (formData.duplicate_of_id) fd.append("duplicate_of_id", formData.duplicate_of_id);
+        pendingFiles.forEach((_, idx) => {
+          fd.append("kerusakan_panjang[]", batchEditDimensi[idx]?.panjang ?? "0");
+          fd.append("kerusakan_lebar[]", batchEditDimensi[idx]?.lebar ?? "0");
+        });
+        pendingFiles.forEach((f) => fd.append("files[]", f));
+
+        const r2 = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? "/api"}/reports/batch`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd,
+        });
+        if (!r2.ok) {
+          const errData = await r2.json().catch(() => ({}));
+          throw new Error(errData.message ?? `Gagal menyimpan batch (HTTP ${r2.status})`);
+        }
+        const reportData = await r2.json();
+        setSavedCode(reportData.main_report_code ?? "");
+      } else {
+        // ── Single mode submit ─────────────────────────────────────────────
+        if (!editPanjang?.trim() || !editLebar?.trim()) {
+          throw new Error("Dimensi kerusakan (panjang × lebar) wajib diisi.");
+        }
+        if (!formData.lat || !formData.lng) {
+          throw new Error("Koordinat GPS tidak tersedia.");
+        }
+
+        const imageBlob = await fetch(formData.previewUrl).then((r) => r.blob());
+        const snapped = await snapToRoad(formData.lat, formData.lng);
+
+        const token = getToken() ?? "";
+        const fd = new FormData();
+        fd.append("reporter_name", user?.name ?? formData.namaJalan);
+        fd.append("road_name", formData.namaJalan);
+        fd.append("district", formData.kecamatan);
+        fd.append("latitude", String(snapped.lat));
+        fd.append("longitude", String(snapped.lng));
+        fd.append("kerusakan_panjang", editPanjang);
+        fd.append("kerusakan_lebar", editLebar);
+        if (formData.catatan) fd.append("catatan", formData.catatan);
+        fd.append("image", imageBlob, formData.fileName);
+        if (formData.duplicate_of_id) fd.append("duplicate_of_id", formData.duplicate_of_id);
+
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? "/api"}/reports`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd,
+        });
+        const resultData = await response.json();
+        if (!response.ok) {
+          throw new Error(resultData.message ?? "Gagal menyimpan laporan");
+        }
+        setSavedCode(resultData.data?.report_code ?? null);
+      }
+
+      setSubmitState("success");
+      clearAiStore();
+      setTimeout(() => navigate({ to: "/home" }), 2500);
+    } catch (err) {
+      setSubmitState("error");
+      setSubmitError(err instanceof Error ? err.message : "Terjadi kesalahan");
+    }
+  }
+
+  // ── Guard render ────────────────────────────────────────────────────────
+
   if (!result || !formData) {
     return (
       <PageLayout>
@@ -287,19 +600,19 @@ function AiResultPage() {
           <p className="font-body-md text-body-md text-on-surface-variant text-center">
             Tidak ada hasil analisis. Silakan upload foto terlebih dahulu.
           </p>
-          <Link
-            to="/upload"
+          <button
+            onClick={() => navigate({ to: "/upload" })}
             className="h-11 px-6 bg-primary text-white rounded-lg flex items-center gap-2 font-label-md text-[14px] font-bold"
           >
             <Icon name="arrow_back" className="!text-[18px]" />
             Kembali ke Upload
-          </Link>
+          </button>
         </div>
       </PageLayout>
     );
   }
 
-  // Data yang ditampilkan — batch pakai foto aktif, single pakai result langsung
+  // ── Data display ────────────────────────────────────────────────────────
   const activePhoto = isBatch ? batchResult!.photos[activeIdx] : null;
   const displayImage = isBatch ? activePhoto!.imageResult || "" : result.image_result;
   const displayDets = isBatch ? activePhoto!.detections : result.detections;
@@ -310,16 +623,59 @@ function AiResultPage() {
   const activeSevCfg = getSeverityConfig(displaySev);
   const previewSrc = isBatch ? (activePhoto?.previewUrl ?? "") : (formData?.previewUrl ?? "");
 
+  // Current dimensions for the active photo
+  const currPanjang = isBatch ? (batchEditDimensi[activeIdx]?.panjang ?? "") : editPanjang;
+  const currLebar = isBatch ? (batchEditDimensi[activeIdx]?.lebar ?? "") : editLebar;
+
+  function setCurrPanjang(v: string) {
+    if (isBatch) {
+      setBatchEditDimensi((prev) => ({ ...prev, [activeIdx]: { ...prev[activeIdx], panjang: v } }));
+    } else {
+      setEditPanjang(v);
+    }
+  }
+
+  function setCurrLebar(v: string) {
+    if (isBatch) {
+      setBatchEditDimensi((prev) => ({ ...prev, [activeIdx]: { ...prev[activeIdx], lebar: v } }));
+    } else {
+      setEditLebar(v);
+    }
+  }
+
   return (
     <PageLayout
-      title={isBatch ? `Hasil Batch (${batchResult!.photos.length} Foto)` : "Hasil Deteksi AI"}
-      back="/upload"
-      right={
-        <button className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-low">
-          <Icon name="share" className="text-on-surface-variant" />
-        </button>
+      title={
+        submitState === "success"
+          ? "Laporan Berhasil!"
+          : isBatch
+            ? `Hasil Batch (${batchResult!.photos.length} Foto)`
+            : "Hasil Deteksi AI"
       }
+      back={submitState === "success" ? undefined : "/upload"}
     >
+      {submitState === "success" ? (
+        /* ── Success screen ── */
+        <main className="px-4 pt-4 pb-6 w-full">
+          <div style={{ maxWidth: "42rem", marginLeft: "auto", marginRight: "auto" }}
+               className="flex flex-col items-center gap-4 pt-12">
+            <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
+              <Icon name="check_circle" className="!text-5xl text-green-600" filled />
+            </div>
+            <h2 className="text-xl font-bold text-on-surface text-center">
+              Laporan Berhasil Dikirim!
+            </h2>
+            {savedCode && (
+              <span className="font-id-code text-sm bg-surface-container px-4 py-2 rounded-lg border border-border-subtle">
+                {savedCode}
+              </span>
+            )}
+            <p className="text-sm text-on-surface-variant text-center">
+              Mengarahkan ke halaman utama...
+            </p>
+          </div>
+        </main>
+      ) : (
         <main className="px-4 pt-4 pb-6 w-full">
           <div
             style={{ maxWidth: "42rem", marginLeft: "auto", marginRight: "auto" }}
@@ -335,11 +691,6 @@ function AiResultPage() {
                       Ringkasan Batch
                     </h3>
                   </div>
-                  {batchResult!.reportCode && (
-                    <span className="font-id-code text-[11px] text-on-surface-variant bg-surface-container px-2 py-0.5 rounded">
-                      {batchResult!.reportCode}
-                    </span>
-                  )}
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="text-center">
@@ -357,40 +708,6 @@ function AiResultPage() {
                     <p className="text-[11px] text-on-surface-variant">Terparah</p>
                   </div>
                 </div>
-
-                {/* Trust score */}
-                {batchResult!.trustScore > 0 && (
-                  <div className="mt-3 pt-3 border-t border-border-subtle flex items-center justify-between">
-                    <span className="text-[12px] text-on-surface-variant">Trust Score</span>
-                    <span
-                      className={`text-[12px] font-bold px-2 py-0.5 rounded-lg border ${
-                        batchResult!.trustLabel === "hijau"
-                          ? "bg-green-50 text-green-700 border-green-200"
-                          : batchResult!.trustLabel === "kuning"
-                            ? "bg-yellow-50 text-yellow-700 border-yellow-200"
-                            : "bg-red-50 text-red-700 border-red-200"
-                      }`}
-                    >
-                      {batchResult!.trustLabel === "hijau"
-                        ? "🟢"
-                        : batchResult!.trustLabel === "kuning"
-                          ? "🟡"
-                          : "🔴"}{" "}
-                      {batchResult!.trustScore}/100
-                    </span>
-                  </div>
-                )}
-
-                {/* Duplicate photos warning */}
-                {batchResult!.duplicatePhotos && batchResult!.duplicatePhotos.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-border-subtle flex items-start gap-2 bg-amber-50/50 rounded-lg px-2.5 py-2">
-                    <Icon name="content_copy" className="text-amber-600 !text-[14px] shrink-0 mt-0.5" />
-                    <p className="text-[11px] text-amber-800">
-                      {batchResult!.duplicatePhotos.length} foto dilewati karena sudah pernah
-                      digunakan pada laporan lain.
-                    </p>
-                  </div>
-                )}
               </section>
             )}
 
@@ -398,13 +715,22 @@ function AiResultPage() {
             {isBatch && (
               <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
                 {batchResult!.photos.map((photo, idx) => (
-                  <BatchPhotoCard
-                    key={idx}
-                    photo={photo}
-                    index={idx}
-                    isActive={activeIdx === idx}
-                    onClick={() => setActiveIdx(idx)}
-                  />
+                  <div key={idx} className="flex flex-col items-center gap-1">
+                    <BatchPhotoCard
+                      photo={photo}
+                      index={idx}
+                      isActive={activeIdx === idx}
+                      onClick={() => setActiveIdx(idx)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleReplacePhoto(idx)}
+                      disabled={gantiFotoLoading}
+                      className="text-[10px] font-bold text-primary hover:text-primary-container disabled:opacity-40"
+                    >
+                      Ganti
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -416,9 +742,19 @@ function AiResultPage() {
                   <span className="font-label-md text-[12px] font-semibold text-on-surface">
                     Foto {activeIdx + 1} dari {batchResult!.photos.length}
                   </span>
-                  <span className="font-id-code text-[11px] text-on-surface-variant truncate max-w-[160px]">
-                    {activePhoto!.fileName}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-id-code text-[11px] text-on-surface-variant truncate max-w-[120px]">
+                      {activePhoto!.fileName}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleReplacePhoto(activeIdx)}
+                      disabled={gantiFotoLoading}
+                      className="text-[11px] font-bold text-primary hover:text-primary-container border border-primary-container rounded px-2 py-0.5 disabled:opacity-40"
+                    >
+                      {gantiFotoLoading ? "..." : "Ganti Foto"}
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -476,19 +812,6 @@ function AiResultPage() {
                   </div>
                 </div>
               )}
-              {isBatch && activePhoto && (activePhoto.kerusakanPanjang || activePhoto.kerusakanLebar) && (
-                <div className="px-4 py-3 border-t border-border-subtle flex items-center gap-3">
-                  <span className="font-label-sm text-[11px] text-on-surface-variant">Dimensi:</span>
-                  <span className="font-label-md text-[13px] font-semibold text-on-surface">
-                    {activePhoto.kerusakanPanjang || "?"}m × {activePhoto.kerusakanLebar || "?"}m
-                  </span>
-                  {activePhoto.kerusakanPanjang && activePhoto.kerusakanLebar && (
-                    <span className="text-[11px] text-on-surface-variant">
-                      ({(parseFloat(activePhoto.kerusakanPanjang) * parseFloat(activePhoto.kerusakanLebar)).toFixed(2)} m²)
-                    </span>
-                  )}
-                </div>
-              )}
             </section>
 
             {/* ── Daftar deteksi foto aktif ── */}
@@ -535,6 +858,47 @@ function AiResultPage() {
                 </div>
               </section>
             )}
+
+            {/* ── Dimensi Kerusakan (editable) ── */}
+            <section className="bg-white border border-[#D0DAE8] rounded-lg p-4 flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <Icon name="straighten" className="text-primary !text-[20px]" />
+                <h3 className="font-headline-sm text-[14px] font-bold text-on-surface">
+                  Dimensi Kerusakan
+                  {isBatch && <span className="font-label-sm text-[11px] text-on-surface-variant ml-1">— Foto {activeIdx + 1}</span>}
+                </h3>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-label-sm text-[11px] text-on-surface-variant mb-1 block">
+                    Panjang (m)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={currPanjang}
+                    onChange={(e) => setCurrPanjang(e.target.value)}
+                    placeholder="0.0"
+                    className="w-full px-3 py-2.5 border border-[#D0DAE8] rounded-lg font-body-md text-[14px] bg-white text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="font-label-sm text-[11px] text-on-surface-variant mb-1 block">
+                    Lebar (m)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={currLebar}
+                    onChange={(e) => setCurrLebar(e.target.value)}
+                    placeholder="0.0"
+                    className="w-full px-3 py-2.5 border border-[#D0DAE8] rounded-lg font-body-md text-[14px] bg-white text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </section>
 
             {/* ── Informasi Lokasi ── */}
             <section className="bg-white border border-[#D0DAE8] rounded-lg p-4 flex flex-col gap-2">
@@ -588,6 +952,19 @@ function AiResultPage() {
               )}
             </section>
 
+            {/* ── Ganti Foto button (single mode) ── */}
+            {!isBatch && (
+              <button
+                type="button"
+                onClick={() => handleReplacePhoto(null)}
+                disabled={gantiFotoLoading}
+                className="w-full h-11 border border-primary-container text-primary-container rounded-lg flex items-center justify-center gap-2 font-label-md text-[14px] font-bold hover:bg-primary-container/5 transition-colors disabled:opacity-40"
+              >
+                <Icon name="photo_camera" className="!text-[20px]" />
+                {gantiFotoLoading ? "Menganalisis ulang..." : "Ganti Foto"}
+              </button>
+            )}
+
             {/* ── Disclaimer ── */}
             <div className="flex items-start gap-2 bg-[#FEF3C7] border border-[#FCD34D] rounded-lg px-4 py-3">
               <Icon name="warning" className="text-[#92400E] !text-[20px] shrink-0 mt-0.5" />
@@ -597,29 +974,43 @@ function AiResultPage() {
               </p>
             </div>
 
-            {/* ── Action Buttons ── */}
+            {/* ── Error banner ── */}
+            {submitState === "error" && submitError && (
+              <div className="flex items-start gap-2 bg-[#FEE2E2] border border-[#FCA5A5] rounded-xl px-4 py-3">
+                <Icon name="error" className="text-[#991B1B] !text-[20px] shrink-0 mt-0.5" />
+                <p className="font-label-md text-[12px] text-[#991B1B] leading-relaxed">{submitError}</p>
+              </div>
+            )}
+
+            {/* ── Confirm Button ── */}
             <div className="flex flex-col gap-3 pb-4">
-              {isBatch ? (
-                /* Batch sudah tersimpan — tombol ke laporan saya */
-                <Link
-                  to="/my-reports"
-                  className="w-full h-11 bg-primary text-white rounded-lg flex items-center justify-center gap-2 font-headline-sm text-[15px] font-bold active:scale-[0.98] transition-transform"
-                >
-                  <Icon name="check_circle" className="!text-[20px]" />
-                  Lihat Laporan Tersimpan
-                </Link>
-              ) : (
-                <Link
-                  to="/create-report"
-                  className="w-full h-11 bg-primary text-white rounded-lg flex items-center justify-center gap-2 font-headline-sm text-[15px] font-bold active:scale-[0.98] transition-transform"
-                >
-                  <Icon name="check_circle" className="!text-[20px]" />
-                  Konfirmasi & Buat Laporan
-                </Link>
-              )}
+              <button
+                type="button"
+                onClick={handleConfirm}
+                disabled={!confirmEnabled || submitState === "loading"}
+                className="w-full h-11 bg-primary text-white rounded-lg flex items-center justify-center gap-2 font-headline-sm text-[15px] font-bold active:scale-[0.98] transition-transform disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {submitState === "loading" ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Menyimpan...
+                  </>
+                ) : !confirmEnabled ? (
+                  <>
+                    <Icon name="timer" className="!text-[20px]" />
+                    Konfirmasi dalam {countdown} detik...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="check_circle" className="!text-[20px]" />
+                    Konfirmasi & Buat Laporan
+                  </>
+                )}
+              </button>
               <button
                 type="button"
                 onClick={() => navigate({ to: "/upload" })}
+                disabled={submitState === "loading"}
                 className="w-full h-11 border border-primary-container text-primary-container rounded-lg flex items-center justify-center gap-2 font-label-md text-[14px] font-bold hover:bg-primary-container/5 transition-colors"
               >
                 <Icon name="refresh" className="!text-[20px]" />
@@ -628,6 +1019,26 @@ function AiResultPage() {
             </div>
           </div>
         </main>
+      )}
+
+      {/* ── Hidden file input for Ganti Foto ── */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/jpg"
+        className="hidden"
+        onChange={handleFileReplace}
+      />
+
+      {/* ── Fraud Warning Modal ── */}
+      <FraudWarningModal
+        isOpen={fraudModal.isOpen}
+        status={fraudModal.status}
+        title={fraudModal.title}
+        message={fraudModal.message}
+        onClose={closeFraudModal}
+        isWarningOnly={fraudModal.isWarningOnly}
+      />
     </PageLayout>
   );
 }

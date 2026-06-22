@@ -5,9 +5,8 @@ namespace App\Services;
 use App\Models\PushSubscription;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
-use Minishlink\WebPush\WebPush;
-use Minishlink\WebPush\Notification;
 use Minishlink\WebPush\Subscription;
+use Minishlink\WebPush\WebPush;
 
 class WebPushService
 {
@@ -18,12 +17,13 @@ class WebPushService
         if ($this->webPush === null) {
             $this->webPush = new WebPush([
                 'VAPID' => [
-                    'subject'    => config('webpush.vapid.subject'),
-                    'publicKey'  => config('webpush.vapid.publicKey'),
+                    'subject' => config('webpush.vapid.subject'),
+                    'publicKey' => config('webpush.vapid.publicKey'),
                     'privateKey' => config('webpush.vapid.privateKey'),
                 ],
             ]);
         }
+
         return $this->webPush;
     }
 
@@ -40,23 +40,26 @@ class WebPushService
             );
 
             foreach ($this->client()->flush() as $report) {
-                if (!$report->isSuccess()) {
+                if (! $report->isSuccess()) {
                     if ($report->isSubscriptionExpired()) {
                         $subscription->delete();
                         Log::info('WebPush: Subscription expired, deleted.', [
                             'endpoint' => $subscription->endpoint,
-                            'user_id'  => $subscription->user_id,
+                            'user_id' => $subscription->user_id,
                         ]);
                     }
+
                     return false;
                 }
             }
+
             return true;
         } catch (\Throwable $e) {
-            Log::warning('WebPush gagal: ' . $e->getMessage(), [
+            Log::warning('WebPush gagal: '.$e->getMessage(), [
                 'endpoint' => $subscription->endpoint,
-                'user_id'  => $subscription->user_id,
+                'user_id' => $subscription->user_id,
             ]);
+
             return false;
         }
     }

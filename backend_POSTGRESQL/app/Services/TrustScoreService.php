@@ -33,11 +33,11 @@ class TrustScoreService
      */
     public function calculate(array $data): array
     {
-        $score     = 0;
+        $score = 0;
         $breakdown = [];
 
         // ── GPS EXIF tersedia (+30) ───────────────────────────────────────
-        if (!empty($data['exif_lat']) && !empty($data['exif_lng'])) {
+        if (! empty($data['exif_lat']) && ! empty($data['exif_lng'])) {
             $score += 30;
             $breakdown['exif_gps'] = ['nilai' => 30, 'status' => 'ada'];
         } else {
@@ -45,7 +45,7 @@ class TrustScoreService
         }
 
         // ── Nama jalan cocok dengan reverse geocode (+20) ─────────────────
-        if (!empty($data['road_name_matched'])) {
+        if (! empty($data['road_name_matched'])) {
             $score += 20;
             $breakdown['nama_jalan'] = ['nilai' => 20, 'status' => 'cocok'];
         } else {
@@ -53,7 +53,7 @@ class TrustScoreService
         }
 
         // ── AI deteksi kerusakan berhasil (+20) ───────────────────────────
-        if (!empty($data['ai_detections']) && count($data['ai_detections']) > 0) {
+        if (! empty($data['ai_detections']) && count($data['ai_detections']) > 0) {
             $score += 20;
             $breakdown['ai_deteksi'] = ['nilai' => 20, 'status' => 'berhasil'];
         } else {
@@ -61,7 +61,7 @@ class TrustScoreService
         }
 
         // ── Konteks visual valid — ada elemen jalan di foto (+15) ─────────
-        if (!empty($data['ai_context_valid'])) {
+        if (! empty($data['ai_context_valid'])) {
             $score += 15;
             $breakdown['konteks_visual'] = ['nilai' => 15, 'status' => 'valid'];
         } else {
@@ -77,15 +77,15 @@ class TrustScoreService
         }
 
         // ── Tentukan label ────────────────────────────────────────────────
-        $label = match(true) {
+        $label = match (true) {
             $score >= 75 => 'hijau',
             $score >= 45 => 'kuning',
-            default      => 'merah',
+            default => 'merah',
         };
 
         return [
-            'score'     => $score,
-            'label'     => $label,
+            'score' => $score,
+            'label' => $label,
             'breakdown' => $breakdown,
         ];
     }

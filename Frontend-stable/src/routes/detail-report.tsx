@@ -12,6 +12,7 @@ import { TimelineCard } from "@/components/jk/TimelineCard";
 import { BeforeAfterSlider } from "@/components/jk/BeforeAfterSlider";
 import { SafeImage } from "@/components/jk/SafeImage";
 import { Portal } from "@/components/jk/Portal";
+import { ModalBase } from "@/components/jk/ModalBase";
 import { TrustBadge } from "@/components/jk/TrustBadge";
 
 export const Route = createFileRoute("/detail-report")({
@@ -61,7 +62,7 @@ function DetailReportPage() {
   const [showSatgasPicker, setShowSatgasPicker] = useState(false);
   const [satgasUprId, setSatgasUprId] = useState("");
   const [satgasCatatan, setSatgasCatatan] = useState("");
-  const [uprList, setUprList] = useState<{ id: number; name: string }[]>([]);
+  const [uprList, setUprList] = useState<{ id: number; name: string; distance_label?: string }[]>([]);
 
   useEffect(() => {
     if (!reportId) {
@@ -104,13 +105,46 @@ function DetailReportPage() {
     } catch {}
   }
 
-  // Fetch UPR list for satgas picker
+  // Fetch UPR list for satgas picker — sorted by nearest if coordinates available
   async function fetchUprList() {
     try {
-      const res = await fetch(`${API_BASE_URL}/uprs`, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) {
-        const json = await res.json();
-        setUprList(json.data ?? json ?? []);
+      const [uprRes, nearestRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/uprs`, { headers: { Authorization: `Bearer ${token}` } }),
+        report?.latitude && report?.longitude
+          ? fetch(`${API_BASE_URL}/worker/uprs/nearest?lat=${report.latitude}&lng=${report.longitude}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }).then((r) => r.ok ? r.json() : null)
+          : Promise.resolve(null),
+      ]);
+
+      if (uprRes.ok) {
+        const json = await uprRes.json();
+        const baseList: { id: number; name: string }[] = json.data ?? json ?? [];
+        const nearestMap = new Map<number, string>();
+        if (nearestRes?.data) {
+          for (const item of nearestRes.data) {
+            if (item.distance_label) {
+              nearestMap.set(item.id, item.distance_label);
+            }
+          }
+          // Sort: teams with distance first (nearest first), then teams without distance
+          baseList.sort((a, b) => {
+            const aDist = nearestMap.has(a.id);
+            const bDist = nearestMap.has(b.id);
+            if (aDist && bDist) {
+              const aIdx = nearestRes.data.findIndex((x: any) => x.id === a.id);
+              const bIdx = nearestRes.data.findIndex((x: any) => x.id === b.id);
+              return aIdx - bIdx;
+            }
+            if (aDist) return -1;
+            if (bDist) return 1;
+            return 0;
+          });
+        }
+        setUprList(baseList.map((u) => ({
+          ...u,
+          distance_label: nearestMap.get(u.id),
+        })));
       }
     } catch {}
   }
@@ -672,154 +706,136 @@ function DetailReportPage() {
 
         {/* ── Tolak Modal ── */}
         {showTolak && (
-          <Portal>
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0, 0, 0, 0.55)" }} onClick={() => setShowTolak(false)} aria-hidden="true">
-              <div className="w-full max-w-sm bg-white rounded-xl border border-[#D0DAE8] shadow-lg" onClick={(e) => e.stopPropagation()} role="alertdialog" aria-modal="true">
-                <div className="bg-[#E11D48] border-b border-red-700 px-5 py-4 flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-white/60 flex items-center justify-center shrink-0">
-                    <Icon name="block" className="text-white !text-[24px]" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-red-600 text-white border border-black/10 mb-1.5" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                      TOLAK LAPORAN
-                    </span>
-                    <h2 className="text-[16px] font-bold text-white leading-tight">Tolak Laporan</h2>
-                  </div>
-                </div>
-                <div className="px-5 py-4 space-y-3">
-                  <div>
-                    <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Alasan Penolakan <span className="text-[#E11D48]">*</span></label>
-                    <textarea
-                      value={tolakAlasan}
-                      onChange={(e) => setTolakAlasan(e.target.value)}
-                      className="w-full h-24 px-3 py-2 rounded-lg border border-[#D0DAE8] resize-none text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
-                      placeholder="Jelaskan alasan mengapa laporan ini ditolak…"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Catatan (opsional)</label>
-                    <input
-                      value={catatan}
-                      onChange={(e) => setCatatan(e.target.value)}
-                      className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
-                      placeholder="Catatan tambahan…"
-                    />
-                  </div>
-                </div>
-                <div className="px-5 pb-5 flex flex-col gap-2">
-                  <button
-                    type="button"
-                    disabled={actionLoading || !tolakAlasan.trim()}
-                    onClick={handleTolak}
-                    className="w-full h-11 bg-[#E11D48] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#BE123C] active:scale-95 transition-all disabled:opacity-50"
-                  >
-                    {actionLoading ? "Memproses…" : (
-                      <>
-                        <Icon name="close" className="!text-[18px]" />
-                        Tolak Laporan
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowTolak(false)}
-                    className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
-                  >
-                    Batal
-                  </button>
-                </div>
-              </div>
+          <ModalBase
+            onClose={() => setShowTolak(false)}
+            icon="block"
+            badge="TOLAK LAPORAN"
+            title="Tolak Laporan"
+            footer={
+              <>
+                <button
+                  type="button"
+                  disabled={actionLoading || !tolakAlasan.trim()}
+                  onClick={handleTolak}
+                  className="w-full h-11 bg-[#E11D48] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#BE123C] active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {actionLoading ? "Memproses…" : (
+                    <>
+                      <Icon name="close" className="!text-[18px]" />
+                      Tolak Laporan
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowTolak(false)}
+                  className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
+                >
+                  Batal
+                </button>
+              </>
+            }
+          >
+            <div>
+              <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Alasan Penolakan <span className="text-[#E11D48]">*</span></label>
+              <textarea
+                value={tolakAlasan}
+                onChange={(e) => setTolakAlasan(e.target.value)}
+                className="w-full h-24 px-3 py-2 rounded-lg border border-[#D0DAE8] resize-none text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+                placeholder="Jelaskan alasan mengapa laporan ini ditolak…"
+              />
             </div>
-          </Portal>
+            <div>
+              <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Catatan (opsional)</label>
+              <input
+                value={catatan}
+                onChange={(e) => setCatatan(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+                placeholder="Catatan tambahan…"
+              />
+            </div>
+          </ModalBase>
         )}
 
         {/* ── Satgas Picker Modal ── */}
         {showSatgasPicker && (
-          <Portal>
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ backgroundColor: "rgba(0, 0, 0, 0.55)" }} onClick={() => setShowSatgasPicker(false)} aria-hidden="true">
-              <div className="w-full max-w-sm bg-white rounded-xl border border-[#D0DAE8] shadow-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-                <div className="bg-[#1A4F8A] border-b border-[#153d6e] px-5 py-4 flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-white/60 flex items-center justify-center shrink-0">
-                    <Icon name="assignment" className="text-white !text-[24px]" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-[#153d6e] text-white border border-black/10 mb-1.5" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                      {(userRole === "supervisor" && (report?.status === "Menunggu Review" || report?.status === "Ditinjau")) ? "SETUJUI & TUGASKAN" : "TUGASKAN SATGAS"}
-                    </span>
-                    <h2 className="text-[16px] font-bold text-white leading-tight">Setujui & Tugaskan</h2>
-                  </div>
-                </div>
-                <div className="px-5 py-4 space-y-3">
-                  <div>
-                    <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Prioritas</label>
-                    <select
-                      value={priority}
-                      onChange={(e) => setPriority(e.target.value as "Rendah" | "Sedang" | "Tinggi")}
-                      className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
-                    >
-                      <option value="Rendah">Rendah</option>
-                      <option value="Sedang">Sedang</option>
-                      <option value="Tinggi">Tinggi</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Tugaskan ke UPR/Satgas <span className="text-[#E11D48]">*</span></label>
-                    <select
-                      value={satgasUprId}
-                      onChange={(e) => setSatgasUprId(e.target.value)}
-                      className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
-                      onClick={() => { if (uprList.length === 0) fetchUprList(); }}
-                    >
-                      <option value="">Pilih UPR/Satgas…</option>
-                      {uprList.map((u) => (
-                        <option key={u.id} value={String(u.id)}>{u.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Catatan (opsional)</label>
-                    <input
-                      value={satgasCatatan}
-                      onChange={(e) => setSatgasCatatan(e.target.value)}
-                      className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
-                      placeholder="Instruksi untuk satgas…"
-                    />
-                  </div>
-                </div>
-                <div className="px-5 pb-5 flex flex-col gap-2">
-                  <button
-                    type="button"
-                    disabled={actionLoading || !satgasUprId}
-                    onClick={() => {
-                      const needApprove = userRole === "supervisor" && (report?.status === "Menunggu Review" || report?.status === "Ditinjau");
-                      if (needApprove) {
-                        handleSetujui().then(() => {
-                          handleMulaiWithSatgas();
-                        });
-                      } else {
+          <ModalBase
+            onClose={() => setShowSatgasPicker(false)}
+            icon="assignment"
+            badge={(userRole === "supervisor" && (report?.status === "Menunggu Review" || report?.status === "Ditinjau")) ? "SETUJUI & TUGASKAN" : "TUGASKAN SATGAS"}
+            title="Setujui & Tugaskan"
+            footer={
+              <>
+                <button
+                  type="button"
+                  disabled={actionLoading || !satgasUprId}
+                  onClick={() => {
+                    const needApprove = userRole === "supervisor" && (report?.status === "Menunggu Review" || report?.status === "Ditinjau");
+                    if (needApprove) {
+                      handleSetujui().then(() => {
                         handleMulaiWithSatgas();
-                      }
-                    }}
-                    className="w-full h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-95 transition-all disabled:opacity-50"
-                  >
-                    {actionLoading ? "Memproses…" : (
-                      <>
-                        <Icon name="check" className="!text-[18px]" />
-                        {(userRole === "supervisor" && (report?.status === "Menunggu Review" || report?.status === "Ditinjau")) ? "Setujui & Tugaskan" : "Tugaskan"}
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowSatgasPicker(false)}
-                    className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
-                  >
-                    Batal
-                  </button>
-                </div>
-              </div>
+                      });
+                    } else {
+                      handleMulaiWithSatgas();
+                    }
+                  }}
+                  className="w-full h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {actionLoading ? "Memproses…" : (
+                    <>
+                      <Icon name="check" className="!text-[18px]" />
+                      {(userRole === "supervisor" && (report?.status === "Menunggu Review" || report?.status === "Ditinjau")) ? "Setujui & Tugaskan" : "Tugaskan"}
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSatgasPicker(false)}
+                  className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
+                >
+                  Batal
+                </button>
+              </>
+            }
+          >
+            <div>
+              <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Prioritas</label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as "Rendah" | "Sedang" | "Tinggi")}
+                className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+              >
+                <option value="Rendah">Rendah</option>
+                <option value="Sedang">Sedang</option>
+                <option value="Tinggi">Tinggi</option>
+              </select>
             </div>
-          </Portal>
+            <div>
+              <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Tugaskan ke UPR/Satgas <span className="text-[#E11D48]">*</span></label>
+              <select
+                value={satgasUprId}
+                onChange={(e) => setSatgasUprId(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+                onClick={() => { if (uprList.length === 0) fetchUprList(); }}
+              >
+                <option value="">Pilih UPR/Satgas…</option>
+                {uprList.map((u) => (
+                  <option key={u.id} value={String(u.id)}>
+                    {u.name}{u.distance_label ? ` (${u.distance_label})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Catatan (opsional)</label>
+              <input
+                value={satgasCatatan}
+                onChange={(e) => setSatgasCatatan(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+                placeholder="Instruksi untuk satgas…"
+              />
+            </div>
+          </ModalBase>
         )}
 
     </PageLayout>

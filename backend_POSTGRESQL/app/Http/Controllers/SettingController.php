@@ -17,21 +17,21 @@ class SettingController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['supervisor', 'admin'], true)) {
+        if (! in_array($user->role, ['supervisor', 'admin'], true)) {
             return response()->json(['success' => false, 'message' => 'Hanya supervisor yang dapat melihat pengaturan sistem.'], 403);
         }
 
         $settings = Setting::all()->map(fn ($s) => [
-            'key'         => $s->key,
-            'value'       => Setting::getValue($s->key),
-            'type'        => $s->type,
+            'key' => $s->key,
+            'value' => Setting::getValue($s->key),
+            'type' => $s->type,
             'description' => $s->description,
-            'updated_at'  => $s->updated_at?->toIso8601String(),
+            'updated_at' => $s->updated_at?->toIso8601String(),
         ]);
 
         return response()->json([
             'success' => true,
-            'data'    => $settings,
+            'data' => $settings,
         ]);
     }
 
@@ -45,7 +45,7 @@ class SettingController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['supervisor', 'admin'], true)) {
+        if (! in_array($user->role, ['supervisor', 'admin'], true)) {
             return response()->json(['success' => false, 'message' => 'Hanya supervisor yang dapat mengubah pengaturan sistem.'], 403);
         }
 
@@ -58,7 +58,7 @@ class SettingController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Data yang dikirim tidak valid.',
-                'errors'  => $e->errors(),
+                'errors' => $e->errors(),
             ], 422);
         }
 
@@ -67,7 +67,7 @@ class SettingController extends Controller
         foreach ($validated['settings'] as $key => $value) {
             $setting = Setting::where('key', $key)->first();
 
-            if (!$setting) {
+            if (! $setting) {
                 continue;
             }
 
@@ -77,13 +77,13 @@ class SettingController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => count($updated) . ' pengaturan berhasil diperbarui.',
-            'data'    => [
+            'message' => count($updated).' pengaturan berhasil diperbarui.',
+            'data' => [
                 'updated' => $updated,
                 'settings' => Setting::all()->map(fn ($s) => [
-                    'key'         => $s->key,
-                    'value'       => Setting::getValue($s->key),
-                    'type'        => $s->type,
+                    'key' => $s->key,
+                    'value' => Setting::getValue($s->key),
+                    'type' => $s->type,
                     'description' => $s->description,
                 ])->values(),
             ],

@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Upr;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class UprController extends Controller
@@ -18,7 +17,7 @@ class UprController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['supervisor', 'petugas_eksekusi', 'admin'], true)) {
+        if (! in_array($user->role, ['supervisor', 'petugas_eksekusi', 'admin'], true)) {
             return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
         }
 
@@ -28,13 +27,13 @@ class UprController extends Controller
             $q = $request->input('q');
             $query->where(function ($sub) use ($q) {
                 $sub->where('name', 'ilike', "%{$q}%")
-                     ->orWhere('wilayah', 'ilike', "%{$q}%")
-                     ->orWhere('leader_name', 'ilike', "%{$q}%");
+                    ->orWhere('wilayah', 'ilike', "%{$q}%")
+                    ->orWhere('leader_name', 'ilike', "%{$q}%");
             });
         }
 
         // Filter is_active: tidak dikirim → default aktif; dikirim kosong → semua; dikirim 0/1 → spesifik
-        if ($request->exists('is_active') && !$request->filled('is_active')) {
+        if ($request->exists('is_active') && ! $request->filled('is_active')) {
             // is_active= (empty) — show all
         } elseif ($request->filled('is_active')) {
             $query->where('is_active', filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN));
@@ -43,7 +42,7 @@ class UprController extends Controller
         }
 
         $limit = min((int) $request->input('limit', 50), 100);
-        $page  = max(1, (int) $request->input('page', 1));
+        $page = max(1, (int) $request->input('page', 1));
 
         $total = (clone $query)->count();
 
@@ -52,21 +51,21 @@ class UprController extends Controller
             ->take($limit)
             ->get()
             ->map(fn ($u) => [
-                'id'          => $u->id,
-                'name'        => $u->name,
-                'wilayah'     => $u->wilayah,
+                'id' => $u->id,
+                'name' => $u->name,
+                'wilayah' => $u->wilayah,
                 'leader_name' => $u->leader_name,
-                'phone'       => $u->phone,
-                'is_active'   => $u->is_active,
-                'anggota'     => $u->anggota_count ?? 0,
-                'created_at'  => $u->created_at?->toIso8601String(),
+                'phone' => $u->phone,
+                'is_active' => $u->is_active,
+                'anggota' => $u->anggota_count ?? 0,
+                'created_at' => $u->created_at?->toIso8601String(),
             ]);
 
         return response()->json([
-            'success'   => true,
-            'data'      => $uprs,
-            'total'     => $total,
-            'page'      => $page,
+            'success' => true,
+            'data' => $uprs,
+            'total' => $total,
+            'page' => $page,
             'last_page' => max(1, (int) ceil($total / $limit)),
         ]);
     }
@@ -79,44 +78,44 @@ class UprController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['supervisor', 'admin'], true)) {
+        if (! in_array($user->role, ['supervisor', 'admin'], true)) {
             return response()->json(['success' => false, 'message' => 'Hanya supervisor yang dapat menambah UPR.'], 403);
         }
 
         try {
             $validated = $request->validate([
-                'name'        => ['required', 'string', 'max:100'],
-                'wilayah'     => ['nullable', 'string', 'max:100'],
+                'name' => ['required', 'string', 'max:100'],
+                'wilayah' => ['nullable', 'string', 'max:100'],
                 'leader_name' => ['nullable', 'string', 'max:100'],
-                'phone'       => ['nullable', 'string', 'max:20'],
-                'is_active'   => ['nullable', 'boolean'],
+                'phone' => ['nullable', 'string', 'max:20'],
+                'is_active' => ['nullable', 'boolean'],
             ]);
         } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Data yang dikirim tidak valid.',
-                'errors'  => $e->errors(),
+                'errors' => $e->errors(),
             ], 422);
         }
 
         $upr = Upr::create([
-            'name'        => $validated['name'],
-            'wilayah'     => $validated['wilayah'] ?? null,
+            'name' => $validated['name'],
+            'wilayah' => $validated['wilayah'] ?? null,
             'leader_name' => $validated['leader_name'] ?? null,
-            'phone'       => $validated['phone'] ?? null,
-            'is_active'   => $validated['is_active'] ?? true,
+            'phone' => $validated['phone'] ?? null,
+            'is_active' => $validated['is_active'] ?? true,
         ]);
 
         return response()->json([
             'success' => true,
             'message' => 'UPR berhasil ditambahkan.',
-            'data'    => [
-                'id'          => $upr->id,
-                'name'        => $upr->name,
-                'wilayah'     => $upr->wilayah,
+            'data' => [
+                'id' => $upr->id,
+                'name' => $upr->name,
+                'wilayah' => $upr->wilayah,
                 'leader_name' => $upr->leader_name,
-                'phone'       => $upr->phone,
-                'is_active'   => $upr->is_active,
+                'phone' => $upr->phone,
+                'is_active' => $upr->is_active,
             ],
         ], 201);
     }
@@ -129,27 +128,27 @@ class UprController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['supervisor', 'petugas_eksekusi', 'admin'], true)) {
+        if (! in_array($user->role, ['supervisor', 'petugas_eksekusi', 'admin'], true)) {
             return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
         }
 
         $upr = Upr::find($id);
 
-        if (!$upr) {
+        if (! $upr) {
             return response()->json(['success' => false, 'message' => 'UPR tidak ditemukan.'], 404);
         }
 
         return response()->json([
             'success' => true,
-            'data'    => [
-                'id'          => $upr->id,
-                'name'        => $upr->name,
-                'wilayah'     => $upr->wilayah,
+            'data' => [
+                'id' => $upr->id,
+                'name' => $upr->name,
+                'wilayah' => $upr->wilayah,
                 'leader_name' => $upr->leader_name,
-                'phone'       => $upr->phone,
-                'is_active'   => $upr->is_active,
-                'created_at'  => $upr->created_at?->toIso8601String(),
-                'updated_at'  => $upr->updated_at?->toIso8601String(),
+                'phone' => $upr->phone,
+                'is_active' => $upr->is_active,
+                'created_at' => $upr->created_at?->toIso8601String(),
+                'updated_at' => $upr->updated_at?->toIso8601String(),
             ],
         ]);
     }
@@ -162,29 +161,29 @@ class UprController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['supervisor', 'admin'], true)) {
+        if (! in_array($user->role, ['supervisor', 'admin'], true)) {
             return response()->json(['success' => false, 'message' => 'Hanya supervisor yang dapat mengubah UPR.'], 403);
         }
 
         $upr = Upr::find($id);
 
-        if (!$upr) {
+        if (! $upr) {
             return response()->json(['success' => false, 'message' => 'UPR tidak ditemukan.'], 404);
         }
 
         try {
             $validated = $request->validate([
-                'name'        => ['sometimes', 'required', 'string', 'max:100'],
-                'wilayah'     => ['nullable', 'string', 'max:100'],
+                'name' => ['sometimes', 'required', 'string', 'max:100'],
+                'wilayah' => ['nullable', 'string', 'max:100'],
                 'leader_name' => ['nullable', 'string', 'max:100'],
-                'phone'       => ['nullable', 'string', 'max:20'],
-                'is_active'   => ['nullable', 'boolean'],
+                'phone' => ['nullable', 'string', 'max:20'],
+                'is_active' => ['nullable', 'boolean'],
             ]);
         } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Data yang dikirim tidak valid.',
-                'errors'  => $e->errors(),
+                'errors' => $e->errors(),
             ], 422);
         }
 
@@ -193,13 +192,13 @@ class UprController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'UPR berhasil diperbarui.',
-            'data'    => [
-                'id'          => $upr->id,
-                'name'        => $upr->name,
-                'wilayah'     => $upr->wilayah,
+            'data' => [
+                'id' => $upr->id,
+                'name' => $upr->name,
+                'wilayah' => $upr->wilayah,
                 'leader_name' => $upr->leader_name,
-                'phone'       => $upr->phone,
-                'is_active'   => $upr->is_active,
+                'phone' => $upr->phone,
+                'is_active' => $upr->is_active,
             ],
         ]);
     }
@@ -212,13 +211,13 @@ class UprController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['supervisor', 'admin'], true)) {
+        if (! in_array($user->role, ['supervisor', 'admin'], true)) {
             return response()->json(['success' => false, 'message' => 'Hanya supervisor yang dapat menghapus UPR.'], 403);
         }
 
         $upr = Upr::find($id);
 
-        if (!$upr) {
+        if (! $upr) {
             return response()->json(['success' => false, 'message' => 'UPR tidak ditemukan.'], 404);
         }
 

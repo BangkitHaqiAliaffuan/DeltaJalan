@@ -24,9 +24,9 @@ return new class extends Migration
             // nullable = laporan lama & fallback jika hashing gagal
             // unique = tidak boleh ada dua laporan dengan foto identik
             $table->string('image_hash', 32)
-                  ->nullable()
-                  ->unique()
-                  ->after('image_result_path');
+                ->nullable()
+                ->unique()
+                ->after('image_result_path');
 
             // Index eksplisit untuk query pengecekan hash (meskipun unique sudah buat index)
             // Ini memastikan query WHERE image_hash = ? berjalan cepat
@@ -35,8 +35,8 @@ return new class extends Migration
             // Kolom support_count: jumlah petugas yang mendukung laporan ini
             // (Requirement 10: Add Evidence API)
             $table->unsignedInteger('support_count')
-                  ->default(0)
-                  ->after('image_hash');
+                ->default(0)
+                ->after('image_hash');
         });
     }
 

@@ -6,6 +6,7 @@ import { fetchNotifications, fetchUnreadCount, markNotificationRead, markAllNoti
 import { getToken } from "@/lib/auth";
 import type { NotificationItem } from "@/types/laporan";
 import { Icon } from "./Icon";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 export function NotificationBell() {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isClient, setIsClient] = useState(false);
   useEffect(() => { setIsClient(true); }, []);
@@ -102,7 +104,6 @@ export function NotificationBell() {
   }
 
   async function handleDeleteAll() {
-    if (!window.confirm("Hapus semua notifikasi?")) return;
     await deleteAllNotifications();
     setNotifications([]);
     setPage(1);
@@ -155,7 +156,7 @@ export function NotificationBell() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={handleDeleteAll}
+                onClick={() => setConfirmDelete(true)}
                 className="text-[11px] text-red-500 font-medium hover:underline"
               >
                 Hapus
@@ -229,6 +230,14 @@ export function NotificationBell() {
           </button>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Hapus Semua Notifikasi?"
+        message="Semua notifikasi akan dihapus permanen. Tindakan ini tidak dapat dibatalkan."
+        onConfirm={() => { setConfirmDelete(false); handleDeleteAll(); }}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </div>
   );
 }

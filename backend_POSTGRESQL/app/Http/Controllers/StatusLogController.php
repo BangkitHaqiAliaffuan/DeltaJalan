@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\StatusLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class StatusLogController extends Controller
 {
@@ -17,7 +16,7 @@ class StatusLogController extends Controller
     {
         $user = $request->user();
 
-        if (!in_array($user->role, ['supervisor', 'petugas_eksekusi'], true)) {
+        if (! in_array($user->role, ['supervisor', 'petugas_eksekusi'], true)) {
             return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
         }
 
@@ -28,7 +27,7 @@ class StatusLogController extends Controller
         }
 
         if ($request->filled('actor_name')) {
-            $query->where('actor_name', 'ilike', '%' . $request->input('actor_name') . '%');
+            $query->where('actor_name', 'ilike', '%'.$request->input('actor_name').'%');
         }
 
         if ($request->filled('status')) {
@@ -40,11 +39,11 @@ class StatusLogController extends Controller
         }
 
         if ($request->filled('to')) {
-            $query->where('created_at', '<=', $request->input('to') . ' 23:59:59');
+            $query->where('created_at', '<=', $request->input('to').' 23:59:59');
         }
 
         $limit = min((int) $request->input('limit', 50), 100);
-        $page  = max(1, (int) $request->input('page', 1));
+        $page = max(1, (int) $request->input('page', 1));
 
         $total = (clone $query)->count();
 
@@ -53,24 +52,24 @@ class StatusLogController extends Controller
             ->take($limit)
             ->get()
             ->map(fn ($log) => [
-                'id'          => $log->id,
-                'report_id'   => $log->report_id,
+                'id' => $log->id,
+                'report_id' => $log->report_id,
                 'report_code' => $log->report?->report_code,
-                'road_name'   => $log->report?->road_name,
-                'district'    => $log->report?->district,
-                'old_status'  => $log->old_status,
-                'new_status'  => $log->new_status,
-                'actor_name'  => $log->actor_name,
-                'actor_role'  => $log->actor_role,
-                'notes'       => $log->notes,
-                'created_at'  => $log->created_at?->toIso8601String(),
+                'road_name' => $log->report?->road_name,
+                'district' => $log->report?->district,
+                'old_status' => $log->old_status,
+                'new_status' => $log->new_status,
+                'actor_name' => $log->actor_name,
+                'actor_role' => $log->actor_role,
+                'notes' => $log->notes,
+                'created_at' => $log->created_at?->toIso8601String(),
             ]);
 
         return response()->json([
-            'success'   => true,
-            'data'      => $logs,
-            'total'     => $total,
-            'page'      => $page,
+            'success' => true,
+            'data' => $logs,
+            'total' => $total,
+            'page' => $page,
             'last_page' => max(1, (int) ceil($total / $limit)),
         ]);
     }

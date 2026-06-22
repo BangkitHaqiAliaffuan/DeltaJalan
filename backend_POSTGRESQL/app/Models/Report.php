@@ -2,13 +2,12 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use App\Models\ReportPhoto;
 
 /**
  * Model Eloquent untuk tabel 'reports'.
@@ -16,21 +15,21 @@ use App\Models\ReportPhoto;
  * Merepresentasikan satu laporan kerusakan jalan yang dikirimkan
  * oleh petugas lapangan Dinas Perhubungan Kabupaten Sidoarjo.
  *
- * @property string $id                  UUID primary key
- * @property string $report_code         Kode unik laporan (LP-2026-XXXXX)
- * @property string $reporter_name       Nama petugas lapangan
- * @property string $road_name           Nama ruas jalan
- * @property string $district            Kecamatan di Sidoarjo
- * @property float  $latitude            Koordinat GPS lintang
- * @property float  $longitude           Koordinat GPS bujur
- * @property string|null $image_original_path  Path foto asli di storage
- * @property string|null $image_result_path    Path foto hasil AI di storage
- * @property int    $total_detections    Jumlah objek kerusakan terdeteksi
- * @property string $overall_severity    Tingkat keparahan terparah
- * @property array|null $ai_raw_output   Payload deteksi lengkap dari FastAPI
- * @property string $status              Status workflow laporan
- * @property string|null $system_notes   Catatan internal sistem
- * @property string|null $image_hash     MD5 hash foto asli (anti-duplikasi)
+ * @property string $id UUID primary key
+ * @property string $report_code Kode unik laporan (LP-2026-XXXXX)
+ * @property string $reporter_name Nama petugas lapangan
+ * @property string $road_name Nama ruas jalan
+ * @property string $district Kecamatan di Sidoarjo
+ * @property float $latitude Koordinat GPS lintang
+ * @property float $longitude Koordinat GPS bujur
+ * @property string|null $image_original_path Path foto asli di storage
+ * @property string|null $image_result_path Path foto hasil AI di storage
+ * @property int $total_detections Jumlah objek kerusakan terdeteksi
+ * @property string $overall_severity Tingkat keparahan terparah
+ * @property array|null $ai_raw_output Payload deteksi lengkap dari FastAPI
+ * @property string $status Status workflow laporan
+ * @property string|null $system_notes Catatan internal sistem
+ * @property string|null $image_hash MD5 hash foto asli (anti-duplikasi)
  */
 class Report extends Model
 {
@@ -95,6 +94,8 @@ class Report extends Model
         'deadline_resolusi',
         'terlambat_review',
         'terlambat_resolusi',
+        // Survey task link
+        'survey_task_id',
     ];
 
     /**
@@ -106,20 +107,20 @@ class Report extends Model
      * - 'integer' → pastikan total_detections selalu integer
      */
     protected $casts = [
-        'ai_raw_output'    => 'array',      // JSONB ↔ PHP array
-        'trust_breakdown'  => 'array',      // JSONB ↔ PHP array
-        'latitude'         => 'decimal:8',  // Presisi 8 desimal
-        'longitude'        => 'decimal:8',  // Presisi 8 desimal
+        'ai_raw_output' => 'array',      // JSONB ↔ PHP array
+        'trust_breakdown' => 'array',      // JSONB ↔ PHP array
+        'latitude' => 'decimal:8',  // Presisi 8 desimal
+        'longitude' => 'decimal:8',  // Presisi 8 desimal
         'total_detections' => 'integer',
-        'trust_score'      => 'integer',
+        'trust_score' => 'integer',
 
-        'ai_confidence'         => 'decimal:3',
-        'perbaikan_dimulai_at'  => 'datetime',
-        'perbaikan_selesai_at'  => 'datetime',
-        'assigned_at'           => 'datetime',
-        'deadline_review'   => 'datetime',
+        'ai_confidence' => 'decimal:3',
+        'perbaikan_dimulai_at' => 'datetime',
+        'perbaikan_selesai_at' => 'datetime',
+        'assigned_at' => 'datetime',
+        'deadline_review' => 'datetime',
         'deadline_resolusi' => 'datetime',
-        'terlambat_review'     => 'boolean',
+        'terlambat_review' => 'boolean',
         'terlambat_resolusi' => 'boolean',
     ];
 
@@ -130,8 +131,8 @@ class Report extends Model
     protected $attributes = [
         'total_detections' => 0,
         'overall_severity' => 'Baik',
-        'status'           => 'Menunggu Review',
-        'priority'         => 'Sedang',
+        'status' => 'Menunggu Review',
+        'priority' => 'Sedang',
     ];
 
     /**
@@ -147,7 +148,7 @@ class Report extends Model
      */
     public function assignedUpr()
     {
-        return $this->belongsTo(\App\Models\Upr::class, 'assigned_upr_id');
+        return $this->belongsTo(Upr::class, 'assigned_upr_id');
     }
 
     /**
@@ -155,10 +156,11 @@ class Report extends Model
      */
     public function getAfterPhotoUrlAttribute(): ?string
     {
-        if (!$this->after_photo_path) {
+        if (! $this->after_photo_path) {
             return null;
         }
-        return asset('storage/' . $this->after_photo_path);
+
+        return asset('storage/'.$this->after_photo_path);
     }
 
     // ── Konstanta Enum ────────────────────────────────────────────────────
@@ -188,15 +190,15 @@ class Report extends Model
      * Daftar nilai valid untuk kolom 'status'.
      * Harus sinkron dengan tipe ENUM di migration.
      */
-public const STATUS_VALUES = [
-    'Menunggu Review',
-    'Disetujui',
-    'Ditolak',
-    'Sedang Diperbaiki',
-    'Selesai',
-    'Ditinjau',
-    'Diedit',
-];
+    public const STATUS_VALUES = [
+        'Menunggu Review',
+        'Disetujui',
+        'Ditolak',
+        'Sedang Diperbaiki',
+        'Selesai',
+        'Ditinjau',
+        'Diedit',
+    ];
 
     // ── Accessor (Getter Tambahan) ────────────────────────────────────────
 
@@ -210,7 +212,7 @@ public const STATUS_VALUES = [
             return null;
         }
 
-        return asset('storage/' . $this->image_original_path);
+        return asset('storage/'.$this->image_original_path);
     }
 
     /**
@@ -223,7 +225,7 @@ public const STATUS_VALUES = [
             return null;
         }
 
-        return asset('storage/' . $this->image_result_path);
+        return asset('storage/'.$this->image_result_path);
     }
 
     /**
@@ -233,10 +235,10 @@ public const STATUS_VALUES = [
     public function getSeverityColorAttribute(): string
     {
         return match ($this->overall_severity) {
-            'Rusak Berat'  => '#EF4444',
+            'Rusak Berat' => '#EF4444',
             'Rusak Sedang' => '#F97316',
             'Rusak Ringan' => '#F59E0B',
-            default        => '#10B981', // Baik
+            default => '#10B981', // Baik
         };
     }
 
@@ -277,9 +279,9 @@ public const STATUS_VALUES = [
     /**
      * Relasi duplikasi — laporan ini terindikasi duplikat dari laporan lain.
      */
-    public function duplicateOf(): \Illuminate\Database\Eloquent\Relations\HasOne
+    public function duplicateOf(): HasOne
     {
-        return $this->hasOne(\App\Models\ReportDuplicate::class, 'report_id')
+        return $this->hasOne(ReportDuplicate::class, 'report_id')
             ->with('originalReport');
     }
 
@@ -294,24 +296,27 @@ public const STATUS_VALUES = [
         if ($this->relationLoaded('firstPhoto') && $this->firstPhoto) {
             return $this->firstPhoto->image_original_url;
         }
+
         return null;
     }
 
     /**
      * Hitung deadline review berdasarkan priority.
      */
-    public static function hitungDeadlineReview(string $priority): \Carbon\Carbon
+    public static function hitungDeadlineReview(string $priority): Carbon
     {
         $hours = config("deadline.{$priority}.review_hours", 72);
+
         return now()->addHours((int) $hours);
     }
 
     /**
      * Hitung deadline resolusi berdasarkan priority.
      */
-    public static function hitungDeadlineResolusi(string $priority): \Carbon\Carbon
+    public static function hitungDeadlineResolusi(string $priority): Carbon
     {
         $hours = config("deadline.{$priority}.resolution_hours", 168);
+
         return now()->addHours((int) $hours);
     }
 
@@ -326,7 +331,7 @@ public const STATUS_VALUES = [
         // Resolution deadline hanya relevan jika sudah disetujui
         if (in_array($this->status, ['Disetujui', 'Sedang Diperbaiki', 'Selesai'])) {
             $approvedAt = $this->perbaikan_dimulai_at ?? $this->updated_at ?? $this->created_at;
-            $this->deadline_resolusi = \Carbon\Carbon::parse($approvedAt)
+            $this->deadline_resolusi = Carbon::parse($approvedAt)
                 ->addHours((int) config("deadline.{$priority}.resolution_hours", 168));
         }
     }

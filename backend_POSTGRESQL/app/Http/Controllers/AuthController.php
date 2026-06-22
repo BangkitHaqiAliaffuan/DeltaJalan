@@ -31,23 +31,20 @@ class AuthController extends Controller
      * Menerima email dan password, memvalidasi kredensial,
      * dan mengembalikan data user beserta role-nya.
      * Frontend akan redirect ke halaman yang sesuai berdasarkan role.
-     *
-     * @param  Request  $request
-     * @return JsonResponse
      */
     public function login(Request $request): JsonResponse
     {
         // ── Validasi input ────────────────────────────────────────────────
         try {
             $request->validate([
-                'email'    => ['required', 'email'],
+                'email' => ['required', 'email'],
                 'password' => ['required', 'string', 'min:6'],
             ]);
         } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Format email atau password tidak valid.',
-                'errors'  => $e->errors(),
+                'errors' => $e->errors(),
             ], 422);
         }
 
@@ -72,18 +69,18 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Login berhasil.',
-            'token'   => $token,
-            'user'    => [
-                'id'         => $user->id,
-                'name'       => $user->name,
-                'email'      => $user->email,
-                'role'       => $user->role,
+            'token' => $token,
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
                 'role_label' => $user->role_label,
-                'wilayah'    => $user->wilayah,
-                'nip'        => $user->nip,
-                'upr_id'     => $user->upr_id,
-                'upr_name'   => $user->upr?->name,
-                'initials'   => $user->initials,
+                'wilayah' => $user->wilayah,
+                'nip' => $user->nip,
+                'upr_id' => $user->upr_id,
+                'upr_name' => $user->upr?->name,
+                'initials' => $user->initials,
             ],
         ], 200);
     }
@@ -104,17 +101,17 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'user'    => [
-                'id'         => $user->id,
-                'name'       => $user->name,
-                'email'      => $user->email,
-                'role'       => $user->role,
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
                 'role_label' => $user->role_label,
-                'wilayah'    => $user->wilayah,
-                'nip'        => $user->nip,
-                'upr_id'     => $user->upr_id,
-                'upr_name'   => $user->upr?->name,
-                'initials'   => $user->initials,
+                'wilayah' => $user->wilayah,
+                'nip' => $user->nip,
+                'upr_id' => $user->upr_id,
+                'upr_name' => $user->upr?->name,
+                'initials' => $user->initials,
             ],
         ], 200);
     }

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Icon } from "@/components/jk/Icon";
 import { AdminLayout } from "@/components/jk/AdminLayout";
+import { ModalBase } from "@/components/jk/ModalBase";
 import { requireAdmin } from "@/lib/adminGuard";
 import { getToken } from "@/lib/auth";
 import { useState } from "react";
@@ -183,56 +184,61 @@ function AdminUsers() {
       </div>
 
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => !formBusy && setModal(null)}>
-          <div className="bg-white rounded-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-[18px] font-bold text-[#0F172A] mb-1">{modal === "create" ? "Tambah User" : "Edit User"}</h2>
-            <p className="text-[13px] text-[#64748B] mb-4">{modal === "create" ? "Buat akun pengguna baru." : "Perbarui data pengguna."}</p>
-            {formError && <div className="mb-4 text-[13px] text-[#E11D48] bg-red-50 border border-red-200 rounded-lg px-4 py-2">{formError}</div>}
-            <div className="space-y-3">
-              <Input label="Nama" value={form.name} onChange={(v) => setForm({ ...form, name: v })} required />
-              <Input label="Email" type="email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} required />
-              <Input label={modal === "create" ? "Password" : "Password (kosongkan jika tidak diubah)"} type="password" value={form.password} onChange={(v) => setForm({ ...form, password: v })} required={modal === "create"} />
-              <div>
-                <label className="block text-[13px] font-semibold text-[#0F172A] mb-1">Role</label>
-                <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20">
-                  {Object.entries(ROLE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                </select>
-              </div>
-              <Input label="Wilayah" value={form.wilayah} onChange={(v) => setForm({ ...form, wilayah: v })} />
-              <Input label="NIP" value={form.nip} onChange={(v) => setForm({ ...form, nip: v })} />
-              <div>
-                <label className="block text-[13px] font-semibold text-[#0F172A] mb-1">UPR</label>
-                <select value={form.upr_id} onChange={(e) => setForm({ ...form, upr_id: e.target.value })} className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20">
-                  <option value="">Tidak ada</option>
-                  {uprs.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="flex gap-2 mt-6">
-              <button onClick={() => setModal(null)} disabled={formBusy} className="flex-1 h-9 border border-[#E2E8F0] rounded-lg text-[13px] font-semibold text-[#475569] hover:bg-[#F8FAFC] disabled:opacity-50">Batal</button>
-              <button onClick={handleSubmit} disabled={formBusy} className="flex-1 h-9 bg-[#1A4F8A] text-white rounded-lg text-[13px] font-semibold hover:bg-[#15407A] disabled:opacity-50 flex items-center justify-center gap-1">
+        <ModalBase
+          onClose={() => !formBusy && setModal(null)}
+          icon={modal === "create" ? "person_add" : "person_edit"}
+          badge={modal === "create" ? "USER BARU" : "EDIT USER"}
+          title={modal === "create" ? "Tambah User" : "Edit User"}
+          footer={
+            <div className="flex gap-2 w-full">
+              <button onClick={() => setModal(null)} disabled={formBusy} className="flex-1 h-11 border border-[#E2E8F0] rounded-lg text-[13px] font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50">Batal</button>
+              <button onClick={handleSubmit} disabled={formBusy} className="flex-1 h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold hover:bg-[#15407A] disabled:opacity-50 flex items-center justify-center gap-1">
                 {formBusy && <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                 {modal === "create" ? "Simpan" : "Perbarui"}
               </button>
             </div>
+          }
+        >
+          {formError && <div className="text-[13px] text-[#E11D48] bg-red-50 border border-red-200 rounded-lg px-4 py-2">{formError}</div>}
+          <Input label="Nama" value={form.name} onChange={(v) => setForm({ ...form, name: v })} required />
+          <Input label="Email" type="email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} required />
+          <Input label={modal === "create" ? "Password" : "Password (kosongkan jika tidak diubah)"} type="password" value={form.password} onChange={(v) => setForm({ ...form, password: v })} required={modal === "create"} />
+          <div>
+            <label className="block text-[13px] font-semibold text-[#0F172A] mb-1">Role</label>
+            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20">
+              {Object.entries(ROLE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
           </div>
-        </div>
+          <Input label="Wilayah" value={form.wilayah} onChange={(v) => setForm({ ...form, wilayah: v })} />
+          <Input label="NIP" value={form.nip} onChange={(v) => setForm({ ...form, nip: v })} />
+          <div>
+            <label className="block text-[13px] font-semibold text-[#0F172A] mb-1">UPR</label>
+            <select value={form.upr_id} onChange={(e) => setForm({ ...form, upr_id: e.target.value })} className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20">
+              <option value="">Tidak ada</option>
+              {uprs.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </div>
+        </ModalBase>
       )}
 
       {deleteId !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" onClick={() => !deleteMut.isPending && setDeleteId(null)}>
-          <div className="bg-white rounded-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-[18px] font-bold text-[#0F172A] mb-1">Hapus User</h2>
-            <p className="text-[13px] text-[#64748B] mb-4">Yakin ingin menghapus user ini? Tindakan ini tidak dapat dibatalkan.</p>
-            <div className="flex gap-2">
-              <button onClick={() => setDeleteId(null)} disabled={deleteMut.isPending} className="flex-1 h-9 border border-[#E2E8F0] rounded-lg text-[13px] font-semibold text-[#475569] hover:bg-[#F8FAFC] disabled:opacity-50">Batal</button>
-              <button onClick={() => deleteMut.mutate(deleteId)} disabled={deleteMut.isPending} className="flex-1 h-9 bg-[#E11D48] text-white rounded-lg text-[13px] font-semibold hover:bg-[#C11A3E] disabled:opacity-50 flex items-center justify-center gap-1">
+        <ModalBase
+          onClose={() => !deleteMut.isPending && setDeleteId(null)}
+          icon="delete"
+          badge="KONFIRMASI"
+          title="Hapus User"
+          footer={
+            <div className="flex gap-2 w-full">
+              <button onClick={() => setDeleteId(null)} disabled={deleteMut.isPending} className="flex-1 h-11 border border-[#E2E8F0] rounded-lg text-[13px] font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50">Batal</button>
+              <button onClick={() => deleteMut.mutate(deleteId)} disabled={deleteMut.isPending} className="flex-1 h-11 bg-[#E11D48] text-white rounded-lg text-[14px] font-semibold hover:bg-[#C11A3E] disabled:opacity-50 flex items-center justify-center gap-1">
                 {deleteMut.isPending && <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                 Hapus
               </button>
             </div>
-          </div>
-        </div>
+          }
+        >
+          <p className="text-[13px] text-[#475569] leading-relaxed">Yakin ingin menghapus user ini? Tindakan ini tidak dapat dibatalkan.</p>
+        </ModalBase>
       )}
     </div>
   );

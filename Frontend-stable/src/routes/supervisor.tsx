@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Icon } from "@/components/jk/Icon";
 import { formatDateRelative, displayStatus } from "@/lib/format";
 import { PageLayout } from "@/components/jk/PageLayout";
+import { ModalBase } from "@/components/jk/ModalBase";
 import { API_BASE_URL } from "@/lib/aiStore";
 
 import { getCurrentUser, getToken } from "@/lib/auth";
@@ -674,35 +675,21 @@ function SupervisorPage() {
 
       {/* Mulai Pengerjaan modal */}
       {mulaiTarget && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-sm space-y-4 shadow-lg border border-[#D0DAE8]">
-            <h3 className="font-semibold text-gray-900">Mulai Pengerjaan</h3>
-            <p className="text-xs text-gray-500">
-              Tetapkan tim satgas untuk mengerjakan perbaikan.
-            </p>
-            <select
-              value={mulaiUprId}
-              onChange={(e) => setMulaiUprId(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none"
-            >
-              <option value="">-- Pilih tim satgas --</option>
-              {uprList.map((upr) => (
-                <option key={upr.id} value={upr.id}>
-                  {upr.name} {upr.wilayah ? `(${upr.wilayah})` : ""}
-                </option>
-              ))}
-            </select>
-            <textarea
-              value={mulaiCatatan}
-              onChange={(e) => setMulaiCatatan(e.target.value)}
-              placeholder="Catatan untuk tim (opsional)"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none h-20 focus:ring-2 focus:ring-blue-400 outline-none"
-            />
-            <div className="flex gap-2">
+        <ModalBase
+          onClose={() => {
+            setMulaiTarget(null);
+            setMulaiUprId("");
+            setMulaiCatatan("");
+          }}
+          icon="engineering"
+          badge="PENGERJAAN BARU"
+          title="Mulai Pengerjaan"
+          footer={
+            <div className="flex gap-2 w-full">
               <button
                 onClick={() => handleMulai(mulaiTarget, mulaiUprId, mulaiCatatan)}
                 disabled={actionLoading}
-                className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-40 transition-colors"
+                className="flex-1 h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] disabled:opacity-40 transition-all"
               >
                 {actionLoading ? "Memproses..." : "Mulai Pengerjaan"}
               </button>
@@ -712,13 +699,35 @@ function SupervisorPage() {
                   setMulaiUprId("");
                   setMulaiCatatan("");
                 }}
-                className="flex-1 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+                className="flex-1 h-11 bg-white border border-[#D0DAE8] text-[#64748B] rounded-lg text-[14px] font-semibold hover:bg-[#F8FAFC] hover:text-[#0F172A] transition-all"
               >
                 Batal
               </button>
             </div>
-          </div>
-        </div>
+          }
+        >
+          <p className="text-[13px] text-[#475569] leading-relaxed">
+            Tetapkan tim satgas untuk mengerjakan perbaikan.
+          </p>
+          <select
+            value={mulaiUprId}
+            onChange={(e) => setMulaiUprId(e.target.value)}
+            className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+          >
+            <option value="">-- Pilih tim satgas --</option>
+            {uprList.map((upr) => (
+              <option key={upr.id} value={upr.id}>
+                {upr.name} {upr.wilayah ? `(${upr.wilayah})` : ""}
+              </option>
+            ))}
+          </select>
+          <textarea
+            value={mulaiCatatan}
+            onChange={(e) => setMulaiCatatan(e.target.value)}
+            placeholder="Catatan untuk tim (opsional)"
+            className="w-full h-20 px-3 py-2 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A] resize-none"
+          />
+        </ModalBase>
       )}
 
       <ConfirmDialog

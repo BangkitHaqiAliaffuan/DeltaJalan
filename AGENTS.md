@@ -2,6 +2,10 @@
 
 This file provides guidance to AI coding agents (Claude Code, Cursor, Copilot, Antigravity, etc.) when working with code in this repository.
 
+## MANDATORY RULE: No Automatic Server Start
+
+The agent MUST NEVER run `php artisan serve`, `npm run dev`, `vite`, or any command that starts a development server. The user handles server startup themselves. After making backend changes, simply run lint (`php vendor/bin/pint`) and inform the user if a server restart is needed.
+
 ## MANDATORY RULE: No Automatic Mobile Builds
 
 The agent MUST NEVER run `npm run build:mobile`, `npx cap`, `python build.py`, `gradlew`, `gradlew.bat`, or any Android/iOS build commands directly — even if the user says "implement your fix perfectly" or "eksekusi plan anda". This includes `npx cap copy`, `npx cap sync`, `gradlew.bat assembleDebug`, and any APK/asset deployment step.

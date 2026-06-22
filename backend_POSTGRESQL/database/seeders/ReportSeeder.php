@@ -78,7 +78,7 @@ class ReportSeeder extends Seeder
     {
         $uprs = Upr::all()->pluck('id')->toArray();
         $reporters = ['Agus Setiawan', 'Rizky Firmansyah', 'Dewi Rahayu', 'Bambang Eko'];
-        $sequence = Report::where('report_code', 'like', 'LP-' . date('Y') . '-%')
+        $sequence = Report::where('report_code', 'like', 'LP-'.date('Y').'-%')
             ->orderBy('report_code', 'desc')
             ->value('report_code');
         $nextNumber = $sequence ? ((int) substr($sequence, -5)) + 1 : 1;
@@ -104,7 +104,7 @@ class ReportSeeder extends Seeder
             $dirName = self::DATASET_DIRS[$i % $dirCount];
             $imagePath = $this->downloadImage($dirName);
 
-            $reportCode = 'LP-' . date('Y') . '-' . str_pad($nextNumber++, 5, '0', STR_PAD_LEFT);
+            $reportCode = 'LP-'.date('Y').'-'.str_pad($nextNumber++, 5, '0', STR_PAD_LEFT);
 
             $severityShort = match ($severity) {
                 'Rusak Berat' => 'berat',
@@ -122,7 +122,7 @@ class ReportSeeder extends Seeder
                 'longitude' => $lng,
                 'koordinat_sumber' => 'browser_gps',
                 'image_original_path' => $imagePath,
-                'image_hash' => hash('sha256', $reportCode . $i . time()),
+                'image_hash' => hash('sha256', $reportCode.$i.time()),
                 'status' => $status,
                 'overall_severity' => $severity,
                 'ai_jenis_kerusakan' => self::DAMAGE_TYPES[array_rand(self::DAMAGE_TYPES)],
@@ -136,7 +136,7 @@ class ReportSeeder extends Seeder
                 'updated_at' => $createdAt,
             ]);
 
-            if (in_array($status, ['Disetujui', 'Sedang Diperbaiki', 'Selesai']) && !empty($uprs)) {
+            if (in_array($status, ['Disetujui', 'Sedang Diperbaiki', 'Selesai']) && ! empty($uprs)) {
                 $uprId = $uprs[array_rand($uprs)];
                 $report->update([
                     'assigned_upr_id' => $uprId,
@@ -164,7 +164,7 @@ class ReportSeeder extends Seeder
             ReportPhoto::create([
                 'report_id' => $report->id,
                 'image_original_path' => $imagePath,
-                'image_hash' => hash('sha256', $reportCode . $i . time() . '_photo'),
+                'image_hash' => hash('sha256', $reportCode.$i.time().'_photo'),
                 'latitude' => $photoLat,
                 'longitude' => $photoLng,
                 'koordinat_sumber' => 'exif',
@@ -192,7 +192,7 @@ class ReportSeeder extends Seeder
                     ReportPhoto::create([
                         'report_id' => $report->id,
                         'image_original_path' => $photoPath,
-                        'image_hash' => hash('sha256', $reportCode . $i . time() . '_extra_' . $j),
+                        'image_hash' => hash('sha256', $reportCode.$i.time().'_extra_'.$j),
                         'latitude' => $extraLat,
                         'longitude' => $extraLng,
                         'koordinat_sumber' => 'exif',
@@ -219,8 +219,8 @@ class ReportSeeder extends Seeder
 
     private function downloadImage(string $dirName): string
     {
-        $filename = Str::uuid() . '.jpg';
-        $path = 'reports/' . $filename;
+        $filename = Str::uuid().'.jpg';
+        $path = 'reports/'.$filename;
 
         $url = "https://raw.githubusercontent.com/biankatpas/Cracks-and-Potholes-in-Road-Images-Dataset/master/Dataset/{$dirName}/{$dirName}_RAW.jpg";
         $context = stream_context_create([

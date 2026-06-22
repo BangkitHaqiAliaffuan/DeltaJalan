@@ -14,24 +14,24 @@ return new class extends Migration
             $table->foreignId('upr_id')->nullable()->constrained('uprs')->nullOnDelete()->after('nip');
         });
 
-        DB::statement("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check");
+        DB::statement('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check');
         DB::statement("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role::text IN ('petugas', 'supervisor', 'petugas_eksekusi'))");
 
         $uprs = DB::table('uprs')->get();
 
         foreach ($uprs as $upr) {
             $wilayah = $upr->wilayah ? explode(', ', $upr->wilayah)[0] : 'Sidoarjo';
-            $email = 'eksekusi.' . strtolower(str_replace(' ', '', $upr->name)) . '@jalankita.test';
-            $name = 'Tim ' . $upr->name;
+            $email = 'eksekusi.'.strtolower(str_replace(' ', '', $upr->name)).'@jalankita.test';
+            $name = 'Tim '.$upr->name;
 
             DB::table('users')->insert([
-                'name'     => $name,
-                'email'    => $email,
+                'name' => $name,
+                'email' => $email,
                 'password' => Hash::make('password'),
-                'role'     => 'petugas_eksekusi',
-                'wilayah'  => $wilayah,
-                'nip'      => null,
-                'upr_id'   => $upr->id,
+                'role' => 'petugas_eksekusi',
+                'wilayah' => $wilayah,
+                'nip' => null,
+                'upr_id' => $upr->id,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
@@ -42,7 +42,7 @@ return new class extends Migration
     {
         DB::table('users')->where('role', 'petugas_eksekusi')->delete();
 
-        DB::statement("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check");
+        DB::statement('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check');
         DB::statement("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role::text IN ('petugas', 'supervisor'))");
 
         Schema::table('users', function (Blueprint $table) {

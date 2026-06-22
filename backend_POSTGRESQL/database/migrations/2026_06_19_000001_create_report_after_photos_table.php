@@ -17,9 +17,9 @@ return new class extends Migration
             $table->timestamps();
 
             $table->foreign('report_id')
-                  ->references('id')
-                  ->on('reports')
-                  ->onDelete('cascade');
+                ->references('id')
+                ->on('reports')
+                ->onDelete('cascade');
 
             $table->index('report_id');
         });
