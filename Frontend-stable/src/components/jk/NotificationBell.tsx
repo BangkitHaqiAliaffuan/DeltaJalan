@@ -95,7 +95,15 @@ export function NotificationBell() {
       setUnread((u) => Math.max(0, u - 1));
     }
     setOpen(false);
-    navigate({ to: "/detail-report", search: { reportId: item.data.report_id } });
+    if (
+      item.data.type === "patrol_task_generated" ||
+      item.data.type === "patrol_morning_reminder" ||
+      item.data.type === "patrol_evening_reminder"
+    ) {
+      navigate({ to: "/tugas-saya" });
+    } else if (item.data.report_id) {
+      navigate({ to: "/detail-report", search: { reportId: item.data.report_id } });
+    }
   }
 
   async function handleMarkAll() {

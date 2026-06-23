@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Upr;
+use App\Models\Team;
 use App\Models\WorkerLocation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -11,14 +11,14 @@ class WorkerLocationController extends Controller
 {
     /**
      * POST /api/worker/location
-     * Kirim lokasi terkini petugas eksekusi.
+     * Kirim lokasi terkini petugas.
      */
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
 
-        if ($user->role !== 'petugas_eksekusi') {
-            return response()->json(['success' => false, 'message' => 'Hanya petugas eksekusi yang dapat mengirim lokasi.'], 403);
+        if ($user->role !== 'petugas') {
+            return response()->json(['success' => false, 'message' => 'Hanya petugas yang dapat mengirim lokasi.'], 403);
         }
 
         $validated = $request->validate([
@@ -46,8 +46,8 @@ class WorkerLocationController extends Controller
     }
 
     /**
-     * GET /api/worker/uprs/nearest?lat=X&lng=Y
-     * Daftar UPR/tim satgas diurutkan berdasarkan jarak ke lokasi laporan.
+     * GET /api/worker/teams/nearest?lat=X&lng=Y
+     * Daftar tim satgas diurutkan berdasarkan jarak ke lokasi laporan.
      * Jarak dihitung dari lokasi terakhir anggota tim yang aktif (tracked_at < 1 jam).
      */
     public function nearest(Request $request): JsonResponse
@@ -60,26 +60,25 @@ class WorkerLocationController extends Controller
         $targetLat = (float) $request->input('lat');
         $targetLng = (float) $request->input('lng');
 
-        // Ambil UPR aktif beserta lokasi terakhir anggota-anggotanya (max 1 jam)
-        $uprs = Upr::where('is_active', true)
-            ->with(['members' => function ($q) {
-                $q->whereHas('locations', function ($q2) {
-                    $q2->where('tracked_at', '>=', now()->subHour());
-                })->with(['locations' => function ($q3) {
-                    $q3->where('tracked_at', '>=', now()->subHour())
-                        ->orderBy('tracked_at', 'desc');
-                }]);
-            }])
+        // Ambil tim aktif beserta lokasi terakhir anggota-anggotanya (max 1 jam)
+        $teams = Team::with(['members' => function ($q) {
+            $q->whereHas('locations', function ($q2) {
+                $q2->where('tracked_at', '>=', now()->subHour());
+            })->with(['locations' => function ($q3) {
+                $q3->where('tracked_at', '>=', now()->subHour())
+                    ->orderBy('tracked_at', 'desc');
+            }]);
+        }])
             ->get()
-            ->map(function ($upr) use ($targetLat, $targetLng) {
-                $locations = $upr->members->pluck('locations')->flatten();
+            ->map(function ($team) use ($targetLat, $targetLng) {
+                $locations = $team->members->pluck('locations')->flatten();
 
                 if ($locations->isEmpty()) {
                     return [
-                        'id' => $upr->id,
-                        'name' => $upr->name,
-                        'leader_name' => $upr->leader_name,
-                        'anggota_count' => $upr->members->count(),
+                        'id' => $team->id,
+                        'name' => $team->name,
+                        'leader_name' => $team->leader_name,
+                        'anggota_count' => $team->members->count(),
                         'lat' => null,
                         'lng' => null,
                         'distance_m' => null,
@@ -94,10 +93,10 @@ class WorkerLocationController extends Controller
                 $distance = $this->haversine($targetLat, $targetLng, $avgLat, $avgLng);
 
                 return [
-                    'id' => $upr->id,
-                    'name' => $upr->name,
-                    'leader_name' => $upr->leader_name,
-                    'anggota_count' => $upr->members->count(),
+                    'id' => $team->id,
+                    'name' => $team->name,
+                    'leader_name' => $team->leader_name,
+                    'anggota_count' => $team->members->count(),
                     'lat' => round($avgLat, 7),
                     'lng' => round($avgLng, 7),
                     'distance_m' => round($distance),
@@ -111,27 +110,27 @@ class WorkerLocationController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $uprs,
+            'data' => $teams,
         ]);
     }
 
     /**
-     * GET /api/worker/uprs/{id}/locations?since=...
-     * Riwayat lokasi anggota suatu UPR (untuk peta).
+     * GET /api/worker/teams/{id}/locations?since=...
+     * Riwayat lokasi anggota suatu tim (untuk peta).
      */
     public function teamLocations(Request $request, int $id): JsonResponse
     {
-        $upr = Upr::find($id);
+        $team = Team::find($id);
 
-        if (! $upr) {
-            return response()->json(['success' => false, 'message' => 'UPR tidak ditemukan.'], 404);
+        if (! $team) {
+            return response()->json(['success' => false, 'message' => 'Tim tidak ditemukan.'], 404);
         }
 
         $since = $request->input('since', now()->subHour()->toIso8601String());
 
         $locations = WorkerLocation::with('user')
             ->whereIn('user_id', function ($q) use ($id) {
-                $q->select('id')->from('users')->where('upr_id', $id);
+                $q->select('id')->from('users')->where('team_id', $id);
             })
             ->where('tracked_at', '>=', $since)
             ->orderBy('tracked_at', 'desc')

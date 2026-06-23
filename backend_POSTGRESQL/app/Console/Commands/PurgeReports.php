@@ -2,7 +2,6 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Report;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -10,12 +9,14 @@ use Illuminate\Support\Facades\Storage;
 class PurgeReports extends Command
 {
     protected $signature = 'jalan-kita:purge-reports';
+
     protected $description = 'Hapus semua data laporan (reports, photos, status_logs, notifications) dan file storage';
 
     public function handle(): int
     {
-        if (!$this->confirm('⚠️  Yakin ingin menghapus SEMUA data laporan? Tindakan ini TIDAK bisa dibatalkan.')) {
+        if (! $this->confirm('⚠️  Yakin ingin menghapus SEMUA data laporan? Tindakan ini TIDAK bisa dibatalkan.')) {
             $this->info('Dibatalkan.');
+
             return Command::SUCCESS;
         }
 
@@ -37,13 +38,23 @@ class PurgeReports extends Command
         $photos = DB::table('report_photos')->get();
 
         foreach ($reports as $r) {
-            if ($r->image_original_path) $paths[] = $r->image_original_path;
-            if ($r->image_result_path) $paths[] = $r->image_result_path;
-            if ($r->after_photo_path) $paths[] = $r->after_photo_path;
+            if ($r->image_original_path) {
+                $paths[] = $r->image_original_path;
+            }
+            if ($r->image_result_path) {
+                $paths[] = $r->image_result_path;
+            }
+            if ($r->after_photo_path) {
+                $paths[] = $r->after_photo_path;
+            }
         }
         foreach ($photos as $p) {
-            if ($p->image_original_path) $paths[] = $p->image_original_path;
-            if ($p->image_result_path) $paths[] = $p->image_result_path;
+            if ($p->image_original_path) {
+                $paths[] = $p->image_original_path;
+            }
+            if ($p->image_result_path) {
+                $paths[] = $p->image_result_path;
+            }
         }
         $paths = array_unique(array_filter($paths));
 
@@ -58,7 +69,7 @@ class PurgeReports extends Command
         DB::table('reports')->delete();
 
         // ── 5. Delete files from storage ───────────────────────────────────
-        $this->info('   Deleting ' . count($paths) . ' files from storage...');
+        $this->info('   Deleting '.count($paths).' files from storage...');
         $publicDisk = Storage::disk('public');
         $deleted = 0;
         foreach ($paths as $path) {
@@ -82,7 +93,7 @@ class PurgeReports extends Command
         $this->info("   Photos:        {$photoCount} → {$remainingPhotos}");
         $this->info("   Status Logs:   {$logCount} → {$remainingLogs}");
         $this->info("   Notifications: {$notifCount} → {$remainingNotifs}");
-        $this->info("   Files deleted: {$deleted}/" . count($paths));
+        $this->info("   Files deleted: {$deleted}/".count($paths));
 
         return Command::SUCCESS;
     }

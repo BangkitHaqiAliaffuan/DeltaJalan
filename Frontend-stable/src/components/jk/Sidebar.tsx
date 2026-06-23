@@ -15,20 +15,15 @@ const PETUGAS_MENU: MenuItem[] = [
   { icon: "home", label: "Beranda", to: "/home" },
   { icon: "map", label: "Peta", to: "/map" },
   { icon: "cloud_upload", label: "Upload & Analisis", to: "/upload" },
+  { icon: "assignment", label: "Tugas Saya", to: "/tugas-saya" },
   { icon: "description", label: "Laporan Saya", to: "/my-reports" },
-  { icon: "assignment", label: "Tugas Survei", to: "/tugas-survei" },
 ];
 
 const SUPERVISOR_MENU: MenuItem[] = [
   { icon: "dashboard", label: "Dashboard", to: "/supervisor" },
   { icon: "map", label: "Peta", to: "/map" },
   { icon: "bar_chart", label: "Statistik", to: "/stats" },
-  { icon: "assignment", label: "Survei", to: "/kelola-survei" },
-];
-
-const EKSEKUSI_MENU: MenuItem[] = [
-  { icon: "assignment", label: "Tugas Saya", to: "/petugas-eksekusi" },
-  { icon: "map", label: "Peta", to: "/map" },
+  { icon: "calendar_month", label: "Jadwal Patroli", to: "/supervisor/patrol-schedule" },
 ];
 
 export function Sidebar() {
@@ -38,9 +33,7 @@ export function Sidebar() {
   const menuItems =
     user?.role === "supervisor"
       ? SUPERVISOR_MENU
-      : user?.role === "petugas_eksekusi"
-        ? EKSEKUSI_MENU
-        : PETUGAS_MENU;
+      : PETUGAS_MENU;
 
   useEffect(() => {
     setUser(getCurrentUser());
@@ -73,7 +66,7 @@ export function Sidebar() {
   const { canInstall, install } = usePwaInstall();
 
   return (
-    <aside className="hidden md:flex flex-col w-64 shrink-0 min-h-screen bg-[#1A4F8A] sticky top-0 h-screen overflow-y-auto">
+    <aside className="hidden md:flex flex-col w-64 shrink-0 min-h-screen bg-gradient-to-br from-[#1e40af] to-[#2e68d8] sticky top-0 h-screen overflow-y-auto">
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-white/15">
         <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
@@ -121,7 +114,10 @@ export function Sidebar() {
               }`}
             >
               {!active && (
-                <span className="absolute inset-y-0 left-0 w-full bg-white rounded-lg transition-transform duration-300 ease-out -translate-x-full group-hover:translate-x-0" />
+                <>
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-px h-5 bg-white z-10" />
+                  <span className="absolute inset-y-0 left-0 w-full bg-white rounded-lg transition-transform duration-300 ease-out -translate-x-full group-hover:translate-x-0" />
+                </>
               )}
               <Icon
                 name={item.icon}
@@ -165,9 +161,7 @@ export function Sidebar() {
               >
                 {displayUser.role === "supervisor"
                   ? "Supervisor"
-                  : displayUser.role === "petugas_eksekusi"
-                    ? "Petugas Eksekusi"
-                    : "Petugas Lapangan"}
+                  : "Petugas Lapangan"}
               </span>
             )}
           </div>

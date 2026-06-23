@@ -78,9 +78,9 @@ class AuthController extends Controller
                 'role_label' => $user->role_label,
                 'wilayah' => $user->wilayah,
                 'nip' => $user->nip,
-                'upr_id' => $user->upr_id,
-                'upr_name' => $user->upr?->name,
                 'initials' => $user->initials,
+                'team_id' => $user->team_id,
+                'team_name' => $user->team?->name,
             ],
         ], 200);
     }
@@ -97,7 +97,7 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
-        $user = $request->user()->load('upr');
+        $user = $request->user()->load('team');
 
         return response()->json([
             'success' => true,
@@ -109,9 +109,9 @@ class AuthController extends Controller
                 'role_label' => $user->role_label,
                 'wilayah' => $user->wilayah,
                 'nip' => $user->nip,
-                'upr_id' => $user->upr_id,
-                'upr_name' => $user->upr?->name,
                 'initials' => $user->initials,
+                'team_id' => $user->team_id,
+                'team_name' => $user->team?->name,
             ],
         ], 200);
     }

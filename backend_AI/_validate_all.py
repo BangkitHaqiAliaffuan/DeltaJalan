@@ -5,7 +5,7 @@ data_yaml = r'C:\jalankita dataset\dataset_balanced_clean\data.yaml'
 models = {
     'best_stable.pt': 'best_stable (70 epoch, no flipud, no copy_paste)',
     'best_corrupt.pt': 'best_corrupt',
-    'best_best.pt': 'best_best',
+    'best-thebest.pt': 'best_best',
 }
 
 for fname, label in models.items():

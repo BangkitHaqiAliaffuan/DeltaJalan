@@ -26,8 +26,8 @@ class SetReportsInProgress extends Command
         $count = 0;
         foreach ($reports as $report) {
             $report->update([
-                'status'               => 'Sedang Diperbaiki',
-                'perbaikan_dimulai_at'  => now(),
+                'status' => 'Sedang Diperbaiki',
+                'perbaikan_dimulai_at' => now(),
             ]);
             $count++;
         }

@@ -28,6 +28,7 @@ export interface UploadFormData {
   kerusakanPanjang?: string;
   kerusakanLebar?: string;
   duplicate_of_id?: string; // ID laporan yang diduga duplikat
+  survey_task_id?: string; // ID task/shift tempat laporan ini akan disimpan
 }
 
 // ── Batch-specific types ──────────────────────────────────────────────────

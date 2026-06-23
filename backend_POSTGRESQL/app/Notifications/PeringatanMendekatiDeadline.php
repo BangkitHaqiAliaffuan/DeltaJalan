@@ -11,6 +11,7 @@ use Illuminate\Notifications\Notification;
 class PeringatanMendekatiDeadline extends Notification implements ShouldQueue
 {
     use Queueable;
+
     public function __construct(
         public Report $report,
         public string $type // 'review' atau 'resolution'
@@ -25,8 +26,8 @@ class PeringatanMendekatiDeadline extends Notification implements ShouldQueue
     {
         $isReview = $this->type === 'review';
         $subject = $isReview
-            ? '⚠️ Peringatan Deadline — Review Laporan ' . $this->report->report_code
-            : '⚠️ Peringatan Deadline — Perbaikan Laporan ' . $this->report->report_code;
+            ? '⚠️ Peringatan Deadline — Review Laporan '.$this->report->report_code
+            : '⚠️ Peringatan Deadline — Perbaikan Laporan '.$this->report->report_code;
 
         $deadlineLabel = $isReview ? 'Batas Review' : 'Batas Perbaikan';
         $deadline = $isReview
@@ -35,7 +36,7 @@ class PeringatanMendekatiDeadline extends Notification implements ShouldQueue
 
         return (new MailMessage)
             ->subject($subject)
-            ->greeting('Yth. ' . $notifiable->name)
+            ->greeting('Yth. '.$notifiable->name)
             ->line('Deadline untuk laporan berikut akan segera tiba:')
             ->line("Kode Laporan: **{$this->report->report_code}**")
             ->line("Lokasi: {$this->report->road_name}, {$this->report->district}")
@@ -49,23 +50,25 @@ class PeringatanMendekatiDeadline extends Notification implements ShouldQueue
     public function toWebPush($notifiable): array
     {
         $label = $this->type === 'review' ? 'Review' : 'Perbaikan';
+
         return [
-            'title'   => "⚠️ Peringatan Deadline — {$label}",
+            'title' => "⚠️ Peringatan Deadline — {$label}",
             'message' => "Laporan {$this->report->report_code} (prioritas {$this->report->priority}) akan melewati deadline {$label}.",
-            'url'     => '/review?reportId=' . $this->report->id,
+            'url' => '/review?reportId='.$this->report->id,
         ];
     }
 
     public function toFcm($notifiable): array
     {
         $label = $this->type === 'review' ? 'Review' : 'Perbaikan';
+
         return [
-            'title'   => 'Peringatan Deadline — ' . $label,
-            'body'    => "Laporan {$this->report->report_code} (prioritas {$this->report->priority}) akan melewati deadline {$label}." . "\n\nKlik buka",
-            'data'    => [
-                'type'          => 'deadline_warning',
-                'report_id'     => $this->report->id,
-                'report_code'   => $this->report->report_code,
+            'title' => 'Peringatan Deadline — '.$label,
+            'body' => "Laporan {$this->report->report_code} (prioritas {$this->report->priority}) akan melewati deadline {$label}."."\n\nKlik buka",
+            'data' => [
+                'type' => 'deadline_warning',
+                'report_id' => $this->report->id,
+                'report_code' => $this->report->report_code,
                 'deadline_type' => $this->type,
             ],
             'android' => ['channel_id' => 'delta_jalan_general'],
@@ -75,13 +78,13 @@ class PeringatanMendekatiDeadline extends Notification implements ShouldQueue
     public function toDatabase($notifiable): array
     {
         return [
-            'type'        => 'deadline_warning',
-            'message'     => "Peringatan Deadline: Laporan {$this->report->report_code} (prioritas {$this->report->priority}) mendekati deadline " . ($this->type === 'review' ? 'review' : 'perbaikan') . ".",
-            'report_id'   => $this->report->id,
+            'type' => 'deadline_warning',
+            'message' => "Peringatan Deadline: Laporan {$this->report->report_code} (prioritas {$this->report->priority}) mendekati deadline ".($this->type === 'review' ? 'review' : 'perbaikan').'.',
+            'report_id' => $this->report->id,
             'report_code' => $this->report->report_code,
-            'deadline_type'    => $this->type,
-            'actor_name'  => 'Sistem',
-            'actor_role'  => 'system',
+            'deadline_type' => $this->type,
+            'actor_name' => 'Sistem',
+            'actor_role' => 'system',
         ];
     }
 }

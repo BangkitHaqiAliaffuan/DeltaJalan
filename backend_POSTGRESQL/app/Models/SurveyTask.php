@@ -18,15 +18,22 @@ class SurveyTask extends Model
         'kecamatan',
         'road_geometry',
         'road_length_m',
+        'jam_mulai',
+        'jam_selesai',
         'priority',
         'catatan',
         'status',
         'team_id',
+        'tanggal_patroli',
+        'alasan_tugas',
+        'selesai_at',
     ];
 
     protected $casts = [
         'road_geometry' => 'array',
         'road_length_m' => 'decimal:2',
+        'tanggal_patroli' => 'date',
+        'selesai_at' => 'datetime',
     ];
 
     public function reports(): HasMany

@@ -18,6 +18,14 @@ bash scripts/start-android.sh --rebuild
 ```
 Do NOT attempt to run any part of the build pipeline yourself.
 
+## MANDATORY RULE: No Destructive Database Operations Without Asking
+
+The agent MUST NEVER run `php artisan migrate:fresh`, `php artisan migrate:reset`, `php artisan migrate:rollback`, `php artisan db:wipe`, `DROP TABLE`, `DROP TYPE`, `DROP DATABASE`, `TRUNCATE`, or any destructive database command without first asking the user for explicit permission.
+
+This rule exists because `migrate:fresh` drops ALL tables, including existing production-adjacent data.
+
+Allowed without asking: `php artisan migrate` (non-fresh, just runs pending migrations), `php artisan db:seed` (insert-only), `php artisan cache:clear`, `php artisan config:clear`.
+
 ## MANDATORY RULE: No Automatic Git Commits or Pushes
 
 The agent MUST NOT commit or push any changes unless the user explicitly says "commit", "push", or "commit dan push". This includes both individual file commits and bulk commits. The agent may stage files in preparation, but the commit and push actions themselves require a direct user command.

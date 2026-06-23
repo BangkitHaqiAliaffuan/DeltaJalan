@@ -28,6 +28,7 @@ export function useSurveyList(params?: {
   q?: string;
   page?: number;
   per_page?: number;
+  tanggal_patroli?: string;
 }) {
   const token = getToken();
   const searchParams = new URLSearchParams();
@@ -36,6 +37,7 @@ export function useSurveyList(params?: {
   if (params?.q) searchParams.set("q", params.q);
   if (params?.page) searchParams.set("page", String(params.page));
   if (params?.per_page) searchParams.set("per_page", String(params.per_page));
+  if (params?.tanggal_patroli) searchParams.set("tanggal_patroli", params.tanggal_patroli);
   const qs = searchParams.toString();
 
   return useQuery({

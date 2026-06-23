@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Storage;
 class ExportReportsToSeeder extends Command
 {
     protected $signature = 'jalan-kita:export-reports';
+
     protected $description = 'Export all report data to database/seeders/ReportBackupSeeder.php with file backup';
 
     public function handle(): int
@@ -25,20 +26,26 @@ class ExportReportsToSeeder extends Command
             ->get()
             ->toArray();
 
-        $this->info("   Found: " . count($reports) . " reports, " . count($photos) . " photos, " . count($statusLogs) . " status_logs, " . count($notifications) . " notifications");
+        $this->info('   Found: '.count($reports).' reports, '.count($photos).' photos, '.count($statusLogs).' status_logs, '.count($notifications).' notifications');
 
         // ── 2. Collect file paths ────────────────────────────────────────────
         $paths = [];
         $extractPath = function ($record, ...$fields) use (&$paths) {
             foreach ($fields as $f) {
-                if (!empty($record->$f)) $paths[] = $record->$f;
+                if (! empty($record->$f)) {
+                    $paths[] = $record->$f;
+                }
             }
         };
-        foreach ($reports as $r) $extractPath($r, 'image_original_path', 'image_result_path', 'after_photo_path');
-        foreach ($photos as $p) $extractPath($p, 'image_original_path', 'image_result_path');
+        foreach ($reports as $r) {
+            $extractPath($r, 'image_original_path', 'image_result_path', 'after_photo_path');
+        }
+        foreach ($photos as $p) {
+            $extractPath($p, 'image_original_path', 'image_result_path');
+        }
         $paths = array_values(array_unique(array_filter($paths)));
 
-        $this->info("   Unique file paths in DB: " . count($paths));
+        $this->info('   Unique file paths in DB: '.count($paths));
 
         // ── 3. Backup files ─────────────────────────────────────────────────
         $publicDisk = Storage::disk('public');
@@ -52,9 +59,9 @@ class ExportReportsToSeeder extends Command
 
         foreach ($paths as $path) {
             if ($publicDisk->exists($path)) {
-                $destPath = $backupRoot . '/' . $path;
+                $destPath = $backupRoot.'/'.$path;
                 $destDir = dirname($destPath);
-                if (!is_dir($destDir)) {
+                if (! is_dir($destDir)) {
                     mkdir($destDir, 0755, true);
                 }
                 copy($publicDisk->path($path), $destPath);
@@ -79,15 +86,15 @@ class ExportReportsToSeeder extends Command
         // ── 5. Summary ──────────────────────────────────────────────────────
         $this->newLine();
         $this->info('✅ Export complete!');
-        $this->info("   📄 Reports:       " . count($reports));
-        $this->info("   🖼  Photos:        " . count($photos));
-        $this->info("   📋 Status Logs:   " . count($statusLogs));
-        $this->info("   🔔 Notifications:  " . count($notifications));
+        $this->info('   📄 Reports:       '.count($reports));
+        $this->info('   🖼  Photos:        '.count($photos));
+        $this->info('   📋 Status Logs:   '.count($statusLogs));
+        $this->info('   🔔 Notifications:  '.count($notifications));
         $this->info("   💾 Files backed up: {$copied}");
         if ($failed) {
             $this->warn("   ⚠️  Files missing on disk: {$failed}");
         }
-        $this->info("   ✅ Seeder: database/seeders/ReportBackupSeeder.php");
+        $this->info('   ✅ Seeder: database/seeders/ReportBackupSeeder.php');
 
         return Command::SUCCESS;
     }
@@ -105,63 +112,63 @@ class ExportReportsToSeeder extends Command
         $notifCount = count($notifications);
         $now = now()->toDateTimeString();
 
-        return '<?php' . "\n\n"
-            . 'namespace Database\Seeders;' . "\n\n"
-            . 'use Illuminate\Database\Seeder;' . "\n"
-            . 'use Illuminate\Support\Facades\DB;' . "\n"
-            . 'use Illuminate\Support\Facades\Storage;' . "\n\n"
-            . '/**' . "\n"
-            . ' * Auto-generated backup seeder — created ' . $now . ' by jalan-kita:export-reports.' . "\n"
-            . ' *' . "\n"
-            . ' * Contains ' . $reportCount . ' reports, ' . $photoCount . ' photos, ' . $logCount . ' status_logs, ' . $notifCount . ' notifications.' . "\n"
-            . ' */' . "\n"
-            . 'class ReportBackupSeeder extends Seeder' . "\n"
-            . '{' . "\n"
-            . '    public function run(): void' . "\n"
-            . '    {' . "\n"
-            . "        \$this->command?->info('Restoring backup files...');" . "\n"
-            . '        $this->restoreFiles();' . "\n"
-            . "\n"
-            . "        \$this->command?->info('Inserting reports...');" . "\n"
-            . '        DB::table(\'reports\')->insert(' . $reportsCode . ');' . "\n"
-            . "\n"
-            . "        \$this->command?->info('Inserting report_photos...');" . "\n"
-            . '        DB::table(\'report_photos\')->insert(' . $photosCode . ');' . "\n"
-            . "\n"
-            . "        \$this->command?->info('Inserting status_logs...');" . "\n"
-            . '        DB::table(\'status_logs\')->insert(' . $logsCode . ');' . "\n"
-            . "\n"
-            . "        \$this->command?->info('Inserting notifications...');" . "\n"
-            . '        DB::table(\'notifications\')->insert(' . $notifCode . ');' . "\n"
-            . "\n"
-            . "        \$this->command?->info('Backup restored: {$reportCount} reports, {$photoCount} photos, {$logCount} status_logs, {$notifCount} notifications.');" . "\n"
-            . '    }' . "\n"
-            . "\n"
-            . '    private function restoreFiles(): void' . "\n"
-            . '    {' . "\n"
-            . '        $backupRoot = storage_path(\'backups/reports\');' . "\n"
-            . '        if (!is_dir($backupRoot)) {' . "\n"
-            . "            \$this->command?->warn('   Backup directory not found: ' . \$backupRoot);" . "\n"
-            . '            return;' . "\n"
-            . '        }' . "\n"
-            . "\n"
-            . '        $publicDisk = Storage::disk(\'public\');' . "\n"
-            . '        $iterator = new \RecursiveIteratorIterator(' . "\n"
-            . '            new \RecursiveDirectoryIterator($backupRoot, \RecursiveDirectoryIterator::SKIP_DOTS)' . "\n"
-            . '        );' . "\n"
-            . "\n"
-            . '        $count = 0;' . "\n"
-            . '        foreach ($iterator as $file) {' . "\n"
-            . '            if ($file->isFile()) {' . "\n"
-            . '                $relativePath = ltrim(substr($file->getPathname(), strlen($backupRoot)), \'\\\\/\');' . "\n"
-            . '                $publicDisk->put($relativePath, file_get_contents($file->getPathname()));' . "\n"
-            . '                $count++;' . "\n"
-            . '            }' . "\n"
-            . '        }' . "\n"
-            . "\n"
-            . '        $this->command?->info("   Restored {$count} files to storage/app/public/");' . "\n"
-            . '    }' . "\n"
-            . '}' . "\n";
+        return '<?php'."\n\n"
+            .'namespace Database\Seeders;'."\n\n"
+            .'use Illuminate\Database\Seeder;'."\n"
+            .'use Illuminate\Support\Facades\DB;'."\n"
+            .'use Illuminate\Support\Facades\Storage;'."\n\n"
+            .'/**'."\n"
+            .' * Auto-generated backup seeder — created '.$now.' by jalan-kita:export-reports.'."\n"
+            .' *'."\n"
+            .' * Contains '.$reportCount.' reports, '.$photoCount.' photos, '.$logCount.' status_logs, '.$notifCount.' notifications.'."\n"
+            .' */'."\n"
+            .'class ReportBackupSeeder extends Seeder'."\n"
+            .'{'."\n"
+            .'    public function run(): void'."\n"
+            .'    {'."\n"
+            ."        \$this->command?->info('Restoring backup files...');"."\n"
+            .'        $this->restoreFiles();'."\n"
+            ."\n"
+            ."        \$this->command?->info('Inserting reports...');"."\n"
+            .'        DB::table(\'reports\')->insert('.$reportsCode.');'."\n"
+            ."\n"
+            ."        \$this->command?->info('Inserting report_photos...');"."\n"
+            .'        DB::table(\'report_photos\')->insert('.$photosCode.');'."\n"
+            ."\n"
+            ."        \$this->command?->info('Inserting status_logs...');"."\n"
+            .'        DB::table(\'status_logs\')->insert('.$logsCode.');'."\n"
+            ."\n"
+            ."        \$this->command?->info('Inserting notifications...');"."\n"
+            .'        DB::table(\'notifications\')->insert('.$notifCode.');'."\n"
+            ."\n"
+            ."        \$this->command?->info('Backup restored: {$reportCount} reports, {$photoCount} photos, {$logCount} status_logs, {$notifCount} notifications.');"."\n"
+            .'    }'."\n"
+            ."\n"
+            .'    private function restoreFiles(): void'."\n"
+            .'    {'."\n"
+            .'        $backupRoot = storage_path(\'backups/reports\');'."\n"
+            .'        if (!is_dir($backupRoot)) {'."\n"
+            ."            \$this->command?->warn('   Backup directory not found: ' . \$backupRoot);"."\n"
+            .'            return;'."\n"
+            .'        }'."\n"
+            ."\n"
+            .'        $publicDisk = Storage::disk(\'public\');'."\n"
+            .'        $iterator = new \RecursiveIteratorIterator('."\n"
+            .'            new \RecursiveDirectoryIterator($backupRoot, \RecursiveDirectoryIterator::SKIP_DOTS)'."\n"
+            .'        );'."\n"
+            ."\n"
+            .'        $count = 0;'."\n"
+            .'        foreach ($iterator as $file) {'."\n"
+            .'            if ($file->isFile()) {'."\n"
+            .'                $relativePath = ltrim(substr($file->getPathname(), strlen($backupRoot)), \'\\\\/\');'."\n"
+            .'                $publicDisk->put($relativePath, file_get_contents($file->getPathname()));'."\n"
+            .'                $count++;'."\n"
+            .'            }'."\n"
+            .'        }'."\n"
+            ."\n"
+            .'        $this->command?->info("   Restored {$count} files to storage/app/public/");'."\n"
+            .'    }'."\n"
+            .'}'."\n";
     }
 
     private function arrayToPHP(array $records, int $indent = 2): string
@@ -176,7 +183,7 @@ class ExportReportsToSeeder extends Command
         }
 
         $pad = str_repeat(' ', $indent);
-        $inner = "[\n" . implode(",\n", $parts) . ",\n" . $pad . ']';
+        $inner = "[\n".implode(",\n", $parts).",\n".$pad.']';
 
         return $inner;
     }
@@ -187,14 +194,14 @@ class ExportReportsToSeeder extends Command
         $innerPad = str_repeat(' ', $indent + 1);
 
         $lines = [];
-        $lines[] = $pad . '[';
+        $lines[] = $pad.'[';
 
         foreach ($data as $key => $value) {
             $formatted = $this->valueToPHP($value);
-            $lines[] = $innerPad . var_export((string) $key, true) . ' => ' . $formatted . ',';
+            $lines[] = $innerPad.var_export((string) $key, true).' => '.$formatted.',';
         }
 
-        $lines[] = $pad . ']';
+        $lines[] = $pad.']';
 
         return implode("\n", $lines);
     }
@@ -220,9 +227,10 @@ class ExportReportsToSeeder extends Command
         if (is_array($value)) {
             $parts = [];
             foreach ($value as $k => $v) {
-                $parts[] = var_export($k, true) . ' => ' . $this->valueToPHP($v);
+                $parts[] = var_export($k, true).' => '.$this->valueToPHP($v);
             }
-            return '[' . implode(', ', $parts) . ']';
+
+            return '['.implode(', ', $parts).']';
         }
 
         return 'null';

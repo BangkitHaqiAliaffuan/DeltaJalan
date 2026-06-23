@@ -36,6 +36,13 @@ class SurveyTaskController extends Controller
                     ->orWhere('kecamatan', 'ilike', "%{$q}%");
             });
         }
+        if ($request->filled('tanggal_patroli')) {
+            $tanggal = $request->tanggal_patroli;
+            if ($tanggal === 'today') {
+                $tanggal = now()->format('Y-m-d');
+            }
+            $query->where('tanggal_patroli', $tanggal);
+        }
 
         $perPage = min((int) $request->get('per_page', 20), 100);
         $tasks = $query->paginate($perPage);
@@ -78,18 +85,26 @@ class SurveyTaskController extends Controller
         }
 
         $validated = $request->validate([
-            'road_name' => 'required|string|max:255',
-            'kecamatan' => 'nullable|string|max:100',
+            'road_name' => 'nullable|string|max:255',
+            'kecamatan' => 'required|string|max:100',
             'road_geometry' => 'nullable|array',
             'road_geometry.*' => 'array|size:2',
             'road_length_m' => 'nullable|numeric|min:0',
             'team_id' => 'required|exists:teams,id',
             'priority' => 'nullable|in:Tinggi,Sedang,Rendah',
             'catatan' => 'nullable|string|max:1000',
+            'tanggal_patroli' => 'nullable|date',
+            'alasan_tugas' => 'nullable|string|in:rutin,tindak_lanjut,pengaduan',
         ]);
 
         $validated['status'] = 'aktif';
         $validated['road_geometry'] = $request->input('road_geometry', []);
+        if (! isset($validated['tanggal_patroli'])) {
+            $validated['tanggal_patroli'] = now()->format('Y-m-d');
+        }
+        if (! isset($validated['alasan_tugas'])) {
+            $validated['alasan_tugas'] = 'rutin';
+        }
 
         $task = DB::transaction(function () use ($validated) {
             return SurveyTask::create($validated);
@@ -99,7 +114,7 @@ class SurveyTaskController extends Controller
 
         return response()->json([
             'data' => $task,
-            'message' => 'Ruas jalan berhasil ditambahkan.',
+            'message' => 'Shift patroli berhasil dibuat.',
         ], 201);
     }
 
@@ -115,7 +130,7 @@ class SurveyTaskController extends Controller
         ])->withCount('reports')->find($id);
 
         if (! $task) {
-            return response()->json(['message' => 'Ruas jalan tidak ditemukan.'], 404);
+            return response()->json(['message' => 'Shift tidak ditemukan.'], 404);
         }
 
         if ($user->role !== 'supervisor' && $user->role !== 'admin') {
@@ -136,17 +151,19 @@ class SurveyTaskController extends Controller
 
         $task = SurveyTask::find($id);
         if (! $task) {
-            return response()->json(['message' => 'Ruas jalan tidak ditemukan.'], 404);
+            return response()->json(['message' => 'Shift tidak ditemukan.'], 404);
         }
 
         $validated = $request->validate([
-            'road_name' => 'sometimes|string|max:255',
-            'kecamatan' => 'nullable|string|max:100',
+            'road_name' => 'nullable|string|max:255',
+            'kecamatan' => 'sometimes|string|max:100',
             'road_geometry' => 'nullable|array',
             'road_length_m' => 'nullable|numeric|min:0',
             'team_id' => 'sometimes|exists:teams,id',
             'priority' => 'sometimes|in:Tinggi,Sedang,Rendah',
             'catatan' => 'nullable|string|max:1000',
+            'tanggal_patroli' => 'sometimes|date',
+            'alasan_tugas' => 'sometimes|string|in:rutin,tindak_lanjut,pengaduan',
         ]);
 
         $task->update($validated);
@@ -154,7 +171,7 @@ class SurveyTaskController extends Controller
 
         return response()->json([
             'data' => $task,
-            'message' => 'Ruas jalan berhasil diperbarui.',
+            'message' => 'Shift berhasil diperbarui.',
         ]);
     }
 
@@ -167,14 +184,49 @@ class SurveyTaskController extends Controller
 
         $task = SurveyTask::find($id);
         if (! $task) {
-            return response()->json(['message' => 'Ruas jalan tidak ditemukan.'], 404);
+            return response()->json(['message' => 'Shift tidak ditemukan.'], 404);
         }
         if ($task->reports()->exists()) {
-            return response()->json(['message' => 'Ruas dengan laporan tidak bisa dihapus.'], 422);
+            return response()->json(['message' => 'Shift dengan laporan tidak bisa dihapus.'], 422);
         }
 
         $task->delete();
 
-        return response()->json(['message' => 'Ruas jalan berhasil dihapus.']);
+        return response()->json(['message' => 'Shift berhasil dihapus.']);
+    }
+
+    public function selesai(string $id): JsonResponse
+    {
+        $task = SurveyTask::find($id);
+        if (! $task) {
+            return response()->json(['message' => 'Shift tidak ditemukan.'], 404);
+        }
+        if ($task->status !== 'aktif') {
+            return response()->json(['message' => 'Hanya shift aktif yang bisa diselesaikan.'], 422);
+        }
+
+        $task->update([
+            'status' => 'selesai',
+            'selesai_at' => now(),
+        ]);
+
+        return response()->json(['message' => 'Shift berhasil diselesaikan.']);
+    }
+
+    public function batalkan(string $id): JsonResponse
+    {
+        $user = request()->user();
+        if ($user->role !== 'supervisor' && $user->role !== 'admin') {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $task = SurveyTask::find($id);
+        if (! $task) {
+            return response()->json(['message' => 'Shift tidak ditemukan.'], 404);
+        }
+
+        $task->update(['status' => 'dibatalkan']);
+
+        return response()->json(['message' => 'Shift berhasil dibatalkan.']);
     }
 }

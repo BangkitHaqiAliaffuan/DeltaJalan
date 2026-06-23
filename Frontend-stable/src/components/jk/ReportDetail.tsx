@@ -342,8 +342,8 @@ export function ReportDetail({
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
             <InfoRow icon="location_on" value={`Kec. ${report.district}`} />
-            {report.assigned_upr_name && (
-              <InfoRow icon="group" value={`UPR: ${report.assigned_upr_name}`} />
+            {report.assigned_team_name && (
+              <InfoRow icon="group" value={`Tim: ${report.assigned_team_name}`} />
             )}
             {report.kerusakan_panjang != null && (
               <InfoRow
@@ -445,8 +445,8 @@ export function ReportDetail({
               <h3 className="font-label-md font-bold text-[#0F172A]">Informasi Penugasan</h3>
             </div>
             <div className="space-y-2 text-xs text-slate-700">
-              {report.assigned_upr_name && (
-                <div className="flex items-center gap-2"><span className="font-semibold">UPR:</span><span>{report.assigned_upr_name}</span></div>
+              {report.assigned_team_name && (
+                <div className="flex items-center gap-2"><span className="font-semibold">Tim:</span><span>{report.assigned_team_name}</span></div>
               )}
               {(report as any).assigned_at && (
                 <div className="flex items-center gap-2">

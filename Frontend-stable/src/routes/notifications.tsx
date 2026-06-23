@@ -103,6 +103,9 @@ function NotificationsPage() {
     { value: "triage_updated", label: "Triage" },
     { value: "report_reopened", label: "Dibuka Kembali" },
     { value: "bulk_action", label: "Aksi Massal" },
+    { value: "patrol_task_generated", label: "Patroli Baru" },
+    { value: "patrol_morning_reminder", label: "Pengingat Patroli" },
+    { value: "patrol_evening_reminder", label: "Patroli Selesai" },
   ];
 
   const handleRefresh = useCallback(async () => {

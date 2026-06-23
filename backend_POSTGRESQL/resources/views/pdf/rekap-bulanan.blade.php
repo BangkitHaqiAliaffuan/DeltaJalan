@@ -211,13 +211,13 @@
     </tbody>
   </table>
 
-  {{-- SECTION 3: PER-UPR --}}
-  <div class="section-title">C. Rekapitulasi per Unit Pelaksana Rutin (UPR)</div>
+  {{-- SECTION 3: PER-TIM --}}
+  <div class="section-title">C. Rekapitulasi per Tim Satgas</div>
   <table>
     <thead>
       <tr>
         <th style="width: 5%;">No</th>
-        <th style="width: 25%;">UPR / Satgas</th>
+        <th style="width: 25%;">Tim / Satgas</th>
         <th style="width: 10%;">Total</th>
         <th style="width: 12%;">Sedang Diperbaiki</th>
         <th style="width: 10%;">Selesai</th>
@@ -226,10 +226,10 @@
       </tr>
     </thead>
     <tbody>
-      @forelse ($uprBreakdown as $i => $item)
+      @forelse ($teamBreakdown as $i => $item)
         <tr>
           <td class="angka">{{ $i + 1 }}</td>
-          <td>{{ $item['upr_name'] }}</td>
+          <td>{{ $item['team_name'] }}</td>
           <td class="angka">{{ $item['total'] }}</td>
           <td class="angka">{{ $item['sedang_diperbaiki'] }}</td>
           <td class="angka">{{ $item['selesai'] }}</td>
@@ -241,11 +241,11 @@
       @endforelse
       <tr class="total-row">
         <td colspan="2">Total</td>
-        <td class="angka">{{ collect($uprBreakdown)->sum('total') }}</td>
-        <td class="angka">{{ collect($uprBreakdown)->sum('sedang_diperbaiki') }}</td>
-        <td class="angka">{{ collect($uprBreakdown)->sum('selesai') }}</td>
-        <td class="kanan">{{ number_format(collect($uprBreakdown)->sum('total_panjang_m'), 1, ',', '.') }}</td>
-        <td class="kanan">{{ number_format(collect($uprBreakdown)->sum('total_luas_m2'), 1, ',', '.') }}</td>
+        <td class="angka">{{ collect($teamBreakdown)->sum('total') }}</td>
+        <td class="angka">{{ collect($teamBreakdown)->sum('sedang_diperbaiki') }}</td>
+        <td class="angka">{{ collect($teamBreakdown)->sum('selesai') }}</td>
+        <td class="kanan">{{ number_format(collect($teamBreakdown)->sum('total_panjang_m'), 1, ',', '.') }}</td>
+        <td class="kanan">{{ number_format(collect($teamBreakdown)->sum('total_luas_m2'), 1, ',', '.') }}</td>
       </tr>
     </tbody>
   </table>

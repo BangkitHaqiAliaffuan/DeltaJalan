@@ -16,20 +16,20 @@ return [
     */
 
     'Tinggi' => [
-        'review_hours'           => 24,
-        'resolution_hours'       => 72,
-        'warning_hours_before'   => 8,
+        'review_hours' => 24,
+        'resolution_hours' => 72,
+        'warning_hours_before' => 8,
     ],
 
     'Sedang' => [
-        'review_hours'           => 72,
-        'resolution_hours'       => 168, // 7 hari
-        'warning_hours_before'   => 24,
+        'review_hours' => 72,
+        'resolution_hours' => 168, // 7 hari
+        'warning_hours_before' => 24,
     ],
 
     'Rendah' => [
-        'review_hours'           => 168, // 7 hari
-        'resolution_hours'       => 336, // 14 hari
-        'warning_hours_before'   => 48,
+        'review_hours' => 168, // 7 hari
+        'resolution_hours' => 336, // 14 hari
+        'warning_hours_before' => 48,
     ],
 ];

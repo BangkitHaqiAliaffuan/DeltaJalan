@@ -13,7 +13,7 @@ class WebPushChannel
 
     public function send(object $notifiable, Notification $notification): void
     {
-        if (!method_exists($notification, 'toWebPush')) {
+        if (! method_exists($notification, 'toWebPush')) {
             return;
         }
 

@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Migration: Perlebar kolom image_hash dari VARCHAR(32) ke VARCHAR(64).
@@ -21,7 +22,10 @@ return new class extends Migration
         DB::statement('ALTER TABLE reports ADD CONSTRAINT reports_image_hash_unique UNIQUE (image_hash)');
 
         // Tabel report_evidences — tidak ada unique constraint, cukup ubah tipe
-        DB::statement('ALTER TABLE report_evidences ALTER COLUMN image_hash TYPE VARCHAR(64)');
+        // report_evidences sudah dihapus di migration 2026_06_08, jadi cek dulu
+        if (Schema::hasTable('report_evidences')) {
+            DB::statement('ALTER TABLE report_evidences ALTER COLUMN image_hash TYPE VARCHAR(64)');
+        }
     }
 
     public function down(): void
@@ -32,7 +36,9 @@ return new class extends Migration
         DB::statement('ALTER TABLE reports ALTER COLUMN image_hash TYPE VARCHAR(32)');
         DB::statement('ALTER TABLE reports ADD CONSTRAINT reports_image_hash_unique UNIQUE (image_hash)');
 
-        DB::statement('UPDATE report_evidences SET image_hash = LEFT(image_hash, 32) WHERE LENGTH(image_hash) > 32');
-        DB::statement('ALTER TABLE report_evidences ALTER COLUMN image_hash TYPE VARCHAR(32)');
+        if (Schema::hasTable('report_evidences')) {
+            DB::statement('UPDATE report_evidences SET image_hash = LEFT(image_hash, 32) WHERE LENGTH(image_hash) > 32');
+            DB::statement('ALTER TABLE report_evidences ALTER COLUMN image_hash TYPE VARCHAR(32)');
+        }
     }
 };

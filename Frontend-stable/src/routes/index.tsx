@@ -33,9 +33,7 @@ function LoginPage() {
           ? "/admin/dashboard"
           : user?.role === "supervisor"
             ? "/supervisor"
-            : user?.role === "petugas_eksekusi"
-              ? "/petugas-eksekusi"
-              : "/home";
+            : "/home";
       navigate({ to: path });
     }
   }, [navigate]);
@@ -66,9 +64,7 @@ function LoginPage() {
           ? "/admin/dashboard"
           : data.user.role === "supervisor"
             ? "/supervisor"
-            : data.user.role === "petugas_eksekusi"
-              ? "/petugas-eksekusi"
-              : "/home";
+            : "/home";
       navigate({ to: path });
     } catch {
       setError("Tidak dapat terhubung ke server. Pastikan server berjalan.");

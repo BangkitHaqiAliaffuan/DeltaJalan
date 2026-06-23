@@ -25,22 +25,24 @@ class BulkActionNotification extends Notification implements ShouldQueue
     public function toWebPush($notifiable): array
     {
         $label = $this->action === 'approve' ? 'disetujui' : 'ditolak';
+
         return [
-            'title'   => 'Aksi Massal',
-            'message' => 'Laporan ' . $this->report->report_code . ' ' . $label . ' (aksi massal) oleh ' . $this->performedBy,
-            'url'     => '/detail-report?reportId=' . $this->report->id,
+            'title' => 'Aksi Massal',
+            'message' => 'Laporan '.$this->report->report_code.' '.$label.' (aksi massal) oleh '.$this->performedBy,
+            'url' => '/detail-report?reportId='.$this->report->id,
         ];
     }
 
     public function toFcm($notifiable): array
     {
         $label = $this->action === 'approve' ? 'disetujui' : 'ditolak';
+
         return [
-            'title'   => 'Aksi Massal',
-            'body'    => 'Laporan ' . $this->report->report_code . ' ' . $label . ' (aksi massal) oleh ' . $this->performedBy . "\n\nKlik buka",
-            'data'    => [
-                'type'        => 'bulk_action',
-                'report_id'   => $this->report->id,
+            'title' => 'Aksi Massal',
+            'body' => 'Laporan '.$this->report->report_code.' '.$label.' (aksi massal) oleh '.$this->performedBy."\n\nKlik buka",
+            'data' => [
+                'type' => 'bulk_action',
+                'report_id' => $this->report->id,
                 'report_code' => $this->report->report_code,
             ],
             'android' => ['channel_id' => 'delta_jalan_general'],
@@ -50,13 +52,14 @@ class BulkActionNotification extends Notification implements ShouldQueue
     public function toDatabase($notifiable): array
     {
         $label = $this->action === 'approve' ? 'disetujui' : 'ditolak';
+
         return [
-            'type'        => 'bulk_action',
-            'message'     => 'Laporan ' . $this->report->report_code . ' ' . $label . ' (aksi massal) oleh ' . $this->performedBy,
-            'report_id'   => $this->report->id,
+            'type' => 'bulk_action',
+            'message' => 'Laporan '.$this->report->report_code.' '.$label.' (aksi massal) oleh '.$this->performedBy,
+            'report_id' => $this->report->id,
             'report_code' => $this->report->report_code,
-            'actor_name'  => $this->performedBy,
-            'actor_role'  => 'supervisor',
+            'actor_name' => $this->performedBy,
+            'actor_role' => 'supervisor',
         ];
     }
 }

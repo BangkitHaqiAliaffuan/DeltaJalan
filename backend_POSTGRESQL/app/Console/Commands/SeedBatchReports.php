@@ -23,8 +23,8 @@ class SeedBatchReports extends Command
 
         $reports = Report::withCount('photos')->orderBy('report_code')->get();
 
-        $multiPhoto = $reports->filter(fn($r) => $r->photos_count > 1 && !$r->batch_id);
-        $single = $reports->filter(fn($r) => $r->photos_count == 1);
+        $multiPhoto = $reports->filter(fn ($r) => $r->photos_count > 1 && ! $r->batch_id);
+        $single = $reports->filter(fn ($r) => $r->photos_count == 1);
 
         $targetTotal = (int) ceil($reports->count() * 0.5);
         $this->info("Total reports: {$reports->count()}, target batch: {$targetTotal}");
@@ -44,16 +44,18 @@ class SeedBatchReports extends Command
 
         $needed = $targetTotal - $processed;
         if ($needed <= 0) {
-            $this->info("Target already reached. No single reports need conversion.");
+            $this->info('Target already reached. No single reports need conversion.');
+
             return Command::SUCCESS;
         }
 
         $toConvert = $single->shuffle()->take($needed);
         $disk = Storage::disk('public');
-        $existingFiles = collect($disk->files('reports'))->filter(fn($f) => str_ends_with($f, '.jpg'));
+        $existingFiles = collect($disk->files('reports'))->filter(fn ($f) => str_ends_with($f, '.jpg'));
 
         if ($existingFiles->isEmpty()) {
-            $this->error("No existing images found in storage/app/public/reports/");
+            $this->error('No existing images found in storage/app/public/reports/');
+
             return Command::FAILURE;
         }
 
@@ -76,8 +78,8 @@ class SeedBatchReports extends Command
             for ($j = 0; $j < $extraCount; $j++) {
                 $sourceFile = $existingFiles->random();
                 $sourcePath = $disk->path($sourceFile);
-                $newFilename = Str::uuid() . '.jpg';
-                $newPath = 'reports/' . $newFilename;
+                $newFilename = Str::uuid().'.jpg';
+                $newPath = 'reports/'.$newFilename;
 
                 if (file_exists($sourcePath)) {
                     $disk->put($newPath, file_get_contents($sourcePath));
@@ -100,7 +102,7 @@ class SeedBatchReports extends Command
                 ReportPhoto::create([
                     'report_id' => $report->id,
                     'image_original_path' => $newPath,
-                    'image_hash' => hash('sha256', $batchId . $j . Str::random(8)),
+                    'image_hash' => hash('sha256', $batchId.$j.Str::random(8)),
                     'latitude' => $photoLat,
                     'longitude' => $photoLng,
                     'koordinat_sumber' => 'exif',

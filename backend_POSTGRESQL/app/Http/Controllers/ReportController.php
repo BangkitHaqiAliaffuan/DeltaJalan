@@ -7,7 +7,7 @@ use App\Models\ReportAfterPhoto;
 use App\Models\ReportDuplicate;
 use App\Models\ReportPhoto;
 use App\Models\StatusLog;
-use App\Models\Upr;
+use App\Models\Team;
 use App\Models\User;
 use App\Notifications\BulkActionNotification;
 use App\Notifications\RepairCompletedNotification;
@@ -15,8 +15,8 @@ use App\Notifications\ReportApprovedNotification;
 use App\Notifications\ReportEditedNotification;
 use App\Notifications\ReportRejectedNotification;
 use App\Notifications\ReportReopenedNotification;
+use App\Notifications\TeamAssignedNotification;
 use App\Notifications\TriageUpdatedNotification;
-use App\Notifications\UprAssignedNotification;
 use App\Services\TrustScoreService;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
@@ -475,6 +475,7 @@ class ReportController extends Controller
                 'catatan' => ['nullable', 'string', 'max:1000'],
                 // Duplikasi — diisi saat user override peringatan duplikat
                 'duplicate_of_id' => ['nullable', 'string', 'exists:reports,id'],
+                'survey_task_id' => ['nullable', 'string', 'exists:survey_tasks,id'],
             ]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -641,11 +642,12 @@ class ReportController extends Controller
         ]));
 
         $duplicateOfId = $request->input('duplicate_of_id');
+        $surveyTaskId = $request->input('survey_task_id');
 
         // ── LANGKAH 5: Simpan ke database (DI DALAM transaction) ─────────
         // Hanya operasi DB — tidak ada HTTP/I/O lambat.
         try {
-            $report = DB::transaction(function () use ($validated, $imageFile, $imageHash, $resultPath, $totalDetections, $overallSeverity, $aiRawOutput, $finalSystemNotes, $trustResult, $duplicateOfId) {
+            $report = DB::transaction(function () use ($validated, $imageFile, $imageHash, $resultPath, $totalDetections, $overallSeverity, $aiRawOutput, $finalSystemNotes, $trustResult, $duplicateOfId, $surveyTaskId) {
 
                 // ── 5a: Generate kode laporan unik ────────────────────────
                 $reportCode = $this->generateReportCode();
@@ -688,6 +690,7 @@ class ReportController extends Controller
                     'kerusakan_panjang' => $validated['kerusakan_panjang'] ?? null,
                     'kerusakan_lebar' => $validated['kerusakan_lebar'] ?? null,
                     'catatan_petugas' => $validated['catatan'] ?? null,
+                    'survey_task_id' => $surveyTaskId,
                     'deadline_review' => Report::hitungDeadlineReview($defaultPriority),
                 ]);
 
@@ -790,10 +793,10 @@ class ReportController extends Controller
             $query->where('reporter_name', $user->name);
         }
 
-        // Petugas eksekusi hanya melihat laporan yang ditugaskan ke UPR-nya
-        if ($user->role === 'petugas_eksekusi') {
-            $query->when($user->upr_id, fn ($q) => $q->where('assigned_upr_id', $user->upr_id))
-                ->unless($user->upr_id, fn ($q) => $q->whereRaw('1 = 0'));
+        // Petugas hanya melihat laporan yang ditugaskan ke tim-nya
+        if ($user->role === 'petugas') {
+            $query->when($user->team_id, fn ($q) => $q->where('assigned_team_id', $user->team_id))
+                ->unless($user->team_id, fn ($q) => $q->whereRaw('1 = 0'));
             $query->whereNotIn('status', ['Diedit']);
         }
 
@@ -823,9 +826,9 @@ class ReportController extends Controller
             });
         }
 
-        // Filter by UPR
+        // Filter by Tim
         if ($request->filled('upr_id')) {
-            $query->where('assigned_upr_id', (int) $request->input('upr_id'));
+            $query->where('assigned_team_id', (int) $request->input('upr_id'));
         }
 
         // Filter by severity
@@ -875,7 +878,7 @@ class ReportController extends Controller
             ->take($limit)
             ->withCount('photos')
             ->with('firstPhoto')
-            ->with('assignedUpr')
+            ->with('assignedTeam')
             ->with('duplicateOf.originalReport')
             ->get()
             ->map(function ($report) {
@@ -897,8 +900,8 @@ class ReportController extends Controller
                     'image_result_url' => $report->image_result_url,
                     'after_photo_url' => $report->after_photo_url,
                     'first_photo_url' => $report->first_photo_url,
-                    'assigned_upr_id' => $report->assigned_upr_id,
-                    'assigned_upr_name' => $report->assignedUpr?->name,
+                    'assigned_team_id' => $report->assigned_team_id,
+                    'assigned_team_name' => $report->assignedTeam?->name,
                     'perbaikan_dimulai_at' => $report->perbaikan_dimulai_at?->toIso8601String(),
                     'perbaikan_selesai_at' => $report->perbaikan_selesai_at?->toIso8601String(),
                     'pelaksana' => $report->pelaksana,
@@ -976,8 +979,8 @@ class ReportController extends Controller
             'perbaikan_dimulai_at' => $report->perbaikan_dimulai_at?->toIso8601String(),
             'perbaikan_selesai_at' => $report->perbaikan_selesai_at?->toIso8601String(),
             'pelaksana' => $report->pelaksana,
-            'assigned_upr_id' => $report->assigned_upr_id,
-            'assigned_upr_name' => $report->assignedUpr?->name,
+            'assigned_team_id' => $report->assigned_team_id,
+            'assigned_team_name' => $report->assignedTeam?->name,
             'assigned_at' => $report->assigned_at?->toIso8601String(),
             'catatan_petugas' => $report->catatan_petugas,
             'priority' => $report->priority,
@@ -1106,8 +1109,8 @@ class ReportController extends Controller
             'id', 'latitude', 'longitude', 'status',
             'overall_severity', 'ai_severity', 'road_name', 'district',
             'image_original_path', 'kerusakan_panjang', 'kerusakan_lebar',
-            'trust_score', 'created_at', 'assigned_upr_id',
-        ])->with(['firstPhoto', 'assignedUpr'])->whereNotNull('latitude')->whereNotNull('longitude');
+            'trust_score', 'created_at', 'assigned_team_id',
+        ])->with(['firstPhoto', 'assignedTeam'])->whereNotNull('latitude')->whereNotNull('longitude');
 
         // Filter query params
         if ($request->filled('status')) {
@@ -1142,7 +1145,7 @@ class ReportController extends Controller
         }
 
         if ($request->filled('upr_id')) {
-            $query->where('assigned_upr_id', (int) $request->input('upr_id'));
+            $query->where('assigned_team_id', (int) $request->input('upr_id'));
         }
 
         // Deadline filter: tampilkan laporan yang sudah > N hari tanpa selesai/ditolak
@@ -1153,7 +1156,7 @@ class ReportController extends Controller
         }
 
         $reports = $query->orderBy('created_at', 'desc')->limit(1000)->get()
-            ->each(fn ($r) => $r->append('first_photo_url')->setAttribute('assigned_upr_name', $r->assignedUpr?->name));
+            ->each(fn ($r) => $r->append('first_photo_url')->setAttribute('assigned_team_name', $r->assignedTeam?->name));
 
         // 3. Statistik global — single grouped query + cache
         $cacheKey = 'map_global_stats';
@@ -1859,9 +1862,9 @@ class ReportController extends Controller
                 $query->where('reporter_name', $user->name);
             }
 
-            if ($user->role === 'petugas_eksekusi') {
-                $query->when($user->upr_id, fn ($q) => $q->where('assigned_upr_id', $user->upr_id))
-                    ->unless($user->upr_id, fn ($q) => $q->whereRaw('1 = 0'));
+            if ($user->role === 'petugas') {
+                $query->when($user->team_id, fn ($q) => $q->where('assigned_team_id', $user->team_id))
+                    ->unless($user->team_id, fn ($q) => $q->whereRaw('1 = 0'));
             }
 
             // Single grouped query replacing 12 individual COUNTs
@@ -1896,9 +1899,9 @@ class ReportController extends Controller
             if ($user->role === 'petugas') {
                 $monthlyQuery->where('reporter_name', $user->name);
             }
-            if ($user->role === 'petugas_eksekusi') {
-                $monthlyQuery->when($user->upr_id, fn ($q) => $q->where('assigned_upr_id', $user->upr_id))
-                    ->unless($user->upr_id, fn ($q) => $q->whereRaw('1 = 0'));
+            if ($user->role === 'petugas') {
+                $monthlyQuery->when($user->team_id, fn ($q) => $q->where('assigned_team_id', $user->team_id))
+                    ->unless($user->team_id, fn ($q) => $q->whereRaw('1 = 0'));
             }
 
             $monthlyTrend = $monthlyQuery
@@ -2090,11 +2093,11 @@ class ReportController extends Controller
 
     /**
      * GET /api/uprs
-     * Daftar UPR/tim satgas yang aktif.
+     * Daftar tim satgas yang aktif.
      */
-    public function getUprs(): JsonResponse
+    public function getTeams(): JsonResponse
     {
-        $uprs = Upr::where('is_active', true)->get(['id', 'name', 'wilayah', 'leader_name', 'phone']);
+        $teams = Team::where('is_active', true)->get(['id', 'name', 'wilayah', 'leader_name', 'phone']);
 
         return response()->json(['success' => true, 'data' => $uprs]);
     }
@@ -2118,8 +2121,8 @@ class ReportController extends Controller
         }
 
         $user = auth()->user();
-        if ($user->role === 'petugas_eksekusi') {
-            if (! $user->upr_id || $report->assigned_upr_id !== $user->upr_id) {
+        if ($user->role === 'petugas') {
+            if (! $user->team_id || $report->assigned_team_id !== $user->team_id) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Anda tidak memiliki akses untuk memulai laporan ini.',
@@ -2128,14 +2131,14 @@ class ReportController extends Controller
         }
 
         $validated = $request->validate([
-            'assigned_upr_id' => 'nullable|integer|exists:uprs,id',
+            'assigned_team_id' => 'nullable|integer|exists:uprs,id',
             'pelaksana' => 'nullable|string|max:100',
             'catatan' => 'nullable|string|max:500',
         ]);
 
         $report->update([
             'status' => 'Sedang Diperbaiki',
-            'assigned_upr_id' => $validated['assigned_upr_id'] ?? $report->assigned_upr_id,
+            'assigned_team_id' => $validated['assigned_team_id'] ?? $report->assigned_team_id,
             'pelaksana' => $validated['pelaksana'] ?? $report->pelaksana,
             'assigned_at' => now(),
             'perbaikan_dimulai_at' => now(),
@@ -2152,15 +2155,15 @@ class ReportController extends Controller
             'pelaksana' => $report->pelaksana,
         ]);
 
-        // Notifikasi ke petugas eksekusi jika ada assigned_upr_id
-        if ($report->assigned_upr_id) {
+        // Notifikasi ke petugas jika ada assigned_team_id
+        if ($report->assigned_team_id) {
             try {
-                $upr = Upr::find($report->assigned_upr_id);
-                $eksekusiUsers = User::where('role', 'petugas_eksekusi')
-                    ->where('upr_id', $report->assigned_upr_id)
+                $team = Team::find($report->assigned_team_id);
+                $eksekusiUsers = User::where('role', 'petugas')
+                    ->where('team_id', $report->assigned_team_id)
                     ->get();
                 foreach ($eksekusiUsers as $eksekusi) {
-                    $eksekusi->notify(new UprAssignedNotification($report, auth()->user()->name, $upr?->name));
+                    $eksekusi->notify(new TeamAssignedNotification($report, auth()->user()->name, $team?->name));
                 }
             } catch (\Throwable $e) {
                 Log::warning('Gagal mengirim notifikasi mulai: '.$e->getMessage());
@@ -2193,8 +2196,8 @@ class ReportController extends Controller
         }
 
         $user = auth()->user();
-        if ($user->role === 'petugas_eksekusi') {
-            if (! $user->upr_id || $report->assigned_upr_id !== $user->upr_id) {
+        if ($user->role === 'petugas') {
+            if (! $user->team_id || $report->assigned_team_id !== $user->team_id) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Anda tidak memiliki akses untuk menyelesaikan laporan ini.',
@@ -2282,7 +2285,7 @@ class ReportController extends Controller
 
     /**
      * POST /api/reports/{id}/assign
-     * Supervisor menetapkan UPR/tim satgas ke laporan.
+     * Supervisor menetapkan tim satgas ke laporan.
      */
     public function assign(Request $request, string $id): JsonResponse
     {
@@ -2295,45 +2298,45 @@ class ReportController extends Controller
         if (! in_array($user->role, ['supervisor', 'admin'], true)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Hanya supervisor yang dapat menugaskan UPR.',
+                'message' => 'Hanya supervisor yang dapat menugaskan tim.',
             ], 403);
         }
 
         $validated = $request->validate([
-            'assigned_upr_id' => 'required|integer|exists:uprs,id',
+            'assigned_team_id' => 'required|integer|exists:uprs,id',
         ]);
 
-        $upr = Upr::find($validated['assigned_upr_id']);
+        $team = Team::find($validated['assigned_team_id']);
 
         $report->update([
-            'assigned_upr_id' => $upr->id,
+            'assigned_team_id' => $team->id,
             'assigned_at' => now(),
-            'pelaksana' => $report->pelaksana ?? $upr->name,
+            'pelaksana' => $report->pelaksana ?? $team->name,
             'system_notes' => $report->system_notes
-                ? $report->system_notes." | [ASSIGN] Ditugaskan ke {$upr->name} oleh ".auth()->user()->name
-                : "[ASSIGN] Ditugaskan ke {$upr->name} oleh ".auth()->user()->name,
+                ? $report->system_notes." | [ASSIGN] Ditugaskan ke {$team->name} oleh ".auth()->user()->name
+                : "[ASSIGN] Ditugaskan ke {$team->name} oleh ".auth()->user()->name,
         ]);
 
-        Log::info('DeltaJalan: UPR ditugaskan.', [
+        Log::info('DeltaJalan: tim ditugaskan.', [
             'report_id' => $report->id,
             'report_code' => $report->report_code,
-            'upr_id' => $upr->id,
-            'upr_name' => $upr->name,
+            'team_id' => $team->id,
+            'team_name' => $team->name,
             'assigned_by' => auth()->user()->name,
         ]);
 
-        // Notifikasi ke petugas eksekusi di UPR tersebut
-        $eksekusiUsers = User::where('role', 'petugas_eksekusi')
-            ->where('upr_id', $upr->id)
+        // Notifikasi ke petugas di tim tersebut
+        $eksekusiUsers = User::where('role', 'petugas')
+            ->where('team_id', $team->id)
             ->get();
         foreach ($eksekusiUsers as $eksekusi) {
-            $eksekusi->notify(new UprAssignedNotification($report, auth()->user()->name, $upr->name));
+            $eksekusi->notify(new TeamAssignedNotification($report, auth()->user()->name, $team->name));
         }
 
         return response()->json([
             'success' => true,
-            'message' => "Laporan ditugaskan ke {$upr->name}.",
-            'data' => ['assigned_upr_id' => $upr->id, 'assigned_upr_name' => $upr->name],
+            'message' => "Laporan ditugaskan ke {$team->name}.",
+            'data' => ['assigned_team_id' => $team->id, 'assigned_team_name' => $team->name],
         ]);
     }
 
@@ -2422,35 +2425,34 @@ class ReportController extends Controller
     }
 
     /**
-     * GET /api/reports/stats-by-upr
-     * Statistik per UPR (total, sedang diperbaiki, selesai, total panjang).
+     * GET /api/reports/stats-by-team
+     * Statistik per Tim (total, sedang diperbaiki, selesai, total panjang).
      */
-    public function statsByUpr(Request $request): JsonResponse
+    public function statsByTeam(Request $request): JsonResponse
     {
-        $stats = Cache::remember('stats_by_upr', 120, function () {
-            $uprs = Upr::where('is_active', true)->get();
+        $stats = Cache::remember('stats_by_team', 120, function () {
+            $teams = Team::all();
 
             // Single grouped query — replaces N*5 individual queries
             $grouped = Report::selectRaw("
-                assigned_upr_id,
+                assigned_team_id,
                 COUNT(*) as total,
                 SUM(CASE WHEN status = 'Sedang Diperbaiki' THEN 1 ELSE 0 END) as sedang_diperbaiki,
                 SUM(CASE WHEN status = 'Selesai' THEN 1 ELSE 0 END) as selesai,
                 COALESCE(SUM(NULLIF(kerusakan_panjang, 0)), 0) as total_panjang,
                 COALESCE(SUM(NULLIF(kerusakan_panjang, 0) * NULLIF(kerusakan_lebar, 0)), 0) as total_luas
             ")
-                ->whereNotNull('assigned_upr_id')
-                ->groupBy('assigned_upr_id')
+                ->whereNotNull('assigned_team_id')
+                ->groupBy('assigned_team_id')
                 ->get()
-                ->keyBy('assigned_upr_id');
+                ->keyBy('assigned_team_id');
 
             $stats = [];
-            foreach ($uprs as $upr) {
-                $g = $grouped->get($upr->id);
+            foreach ($teams as $team) {
+                $g = $grouped->get($team->id);
                 $stats[] = [
-                    'upr_id' => $upr->id,
-                    'upr_name' => $upr->name,
-                    'wilayah' => $upr->wilayah,
+                    'team_id' => $team->id,
+                    'team_name' => $team->name,
                     'total' => (int) ($g->total ?? 0),
                     'sedang_diperbaiki' => (int) ($g->sedang_diperbaiki ?? 0),
                     'selesai' => (int) ($g->selesai ?? 0),
@@ -2553,7 +2555,7 @@ class ReportController extends Controller
         ]);
 
         try {
-            $eksekusiUsers = User::whereIn('role', ['petugas_eksekusi', 'eksekusi'])->get();
+            $eksekusiUsers = User::where('role', 'petugas')->get();
             foreach ($eksekusiUsers as $eksekusi) {
                 $eksekusi->notify(new ReportReopenedNotification($report, $user->name));
             }
@@ -2734,7 +2736,7 @@ class ReportController extends Controller
 
     /**
      * POST /api/reports/{id}/update-triage
-     * Petugas eksekusi memperbarui kategori kerusakan (overall_severity) dan/atau prioritas.
+     * Petugas memperbarui kategori kerusakan (overall_severity) dan/atau prioritas.
      */
     public function updateTriage(Request $request, string $id): JsonResponse
     {
@@ -2744,10 +2746,10 @@ class ReportController extends Controller
         }
 
         $user = auth()->user();
-        if ($user->role !== 'petugas_eksekusi') {
-            return response()->json(['success' => false, 'message' => 'Hanya petugas eksekusi.'], 403);
+        if ($user->role !== 'petugas') {
+            return response()->json(['success' => false, 'message' => 'Hanya petugas yang dapat mengubah triase.'], 403);
         }
-        if (! $user->upr_id || $report->assigned_upr_id !== $user->upr_id) {
+        if (! $user->team_id || $report->assigned_team_id !== $user->team_id) {
             return response()->json(['success' => false, 'message' => 'Anda tidak memiliki akses ke laporan ini.'], 403);
         }
         if (! in_array($report->status, ['Disetujui', 'Sedang Diperbaiki'])) {
@@ -3415,7 +3417,7 @@ class ReportController extends Controller
             return 'Ditolak Supervisor';
         }
         if ($notes && str_contains($notes, '[DISPOSISI]')) {
-            return 'Disposisi UPR';
+            return 'Disposisi Tim';
         }
         if ($notes && str_contains($notes, '[MULAI]')) {
             return 'Perbaikan Dimulai';
@@ -3427,7 +3429,7 @@ class ReportController extends Controller
             return 'Laporan Dibuka Kembali';
         }
         if ($notes && str_contains($notes, '[ASSIGN]')) {
-            return 'Penugasan UPR';
+            return 'Penugasan Tim';
         }
         if ($notes && str_contains($notes, '[TRIAGE]')) {
             return 'Diperbarui';

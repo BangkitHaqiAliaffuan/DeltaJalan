@@ -1,4 +1,4 @@
-export type UserRole = "petugas" | "supervisor" | "petugas_eksekusi" | "admin";
+export type UserRole = "petugas" | "supervisor" | "admin";
 
 export interface User {
   id: number;
@@ -8,10 +8,9 @@ export interface User {
   role_label: string;
   wilayah: string | null;
   nip: string | null;
-  upr_id: number | null;
-  upr_name: string | null;
   initials: string;
   team_id: string | null;
+  team_name: string | null;
 }
 
 const TOKEN_KEY = "jalankita_token";

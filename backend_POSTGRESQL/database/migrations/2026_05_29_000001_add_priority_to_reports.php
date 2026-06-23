@@ -8,6 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
+        DB::statement('DROP TYPE IF EXISTS priority_enum CASCADE');
         DB::statement("CREATE TYPE priority_enum AS ENUM ('Rendah', 'Sedang', 'Tinggi')");
 
         DB::statement("

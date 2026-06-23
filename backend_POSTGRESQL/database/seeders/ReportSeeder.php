@@ -4,7 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Report;
 use App\Models\ReportPhoto;
-use App\Models\Upr;
+use App\Models\Team;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -76,7 +76,7 @@ class ReportSeeder extends Seeder
 
     public function run(): void
     {
-        $uprs = Upr::all()->pluck('id')->toArray();
+        $teams = Team::all()->pluck('id')->toArray();
         $reporters = ['Agus Setiawan', 'Rizky Firmansyah', 'Dewi Rahayu', 'Bambang Eko'];
         $sequence = Report::where('report_code', 'like', 'LP-'.date('Y').'-%')
             ->orderBy('report_code', 'desc')
@@ -136,10 +136,10 @@ class ReportSeeder extends Seeder
                 'updated_at' => $createdAt,
             ]);
 
-            if (in_array($status, ['Disetujui', 'Sedang Diperbaiki', 'Selesai']) && ! empty($uprs)) {
-                $uprId = $uprs[array_rand($uprs)];
+            if (in_array($status, ['Disetujui', 'Sedang Diperbaiki', 'Selesai']) && ! empty($teams)) {
+                $teamId = $teams[array_rand($teams)];
                 $report->update([
-                    'assigned_upr_id' => $uprId,
+                    'assigned_team_id' => $teamId,
                     'assigned_at' => $createdAt->copy()->addHours(rand(1, 48)),
                 ]);
             }
@@ -147,13 +147,13 @@ class ReportSeeder extends Seeder
             if ($status === 'Sedang Diperbaiki') {
                 $report->update([
                     'perbaikan_dimulai_at' => $createdAt->copy()->addDays(rand(1, 5)),
-                    'pelaksana' => 'Petugas Eksekusi',
+                    'pelaksana' => 'Petugas',
                 ]);
             } elseif ($status === 'Selesai') {
                 $report->update([
                     'perbaikan_dimulai_at' => $createdAt->copy()->addDays(rand(1, 5)),
                     'perbaikan_selesai_at' => $createdAt->copy()->addDays(rand(6, 14)),
-                    'pelaksana' => 'Petugas Eksekusi',
+                    'pelaksana' => 'Petugas',
                 ]);
             }
 

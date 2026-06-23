@@ -23,20 +23,20 @@ class ReportCreatedNotification extends Notification implements ShouldQueue
     public function toWebPush($notifiable): array
     {
         return [
-            'title'       => 'Laporan Baru',
-            'message'     => 'Laporan ' . $this->report->report_code . ' dari ' . $this->report->reporter_name . ' di ' . $this->report->district,
-            'url'         => '/detail-report?reportId=' . $this->report->id,
+            'title' => 'Laporan Baru',
+            'message' => 'Laporan '.$this->report->report_code.' dari '.$this->report->reporter_name.' di '.$this->report->district,
+            'url' => '/detail-report?reportId='.$this->report->id,
         ];
     }
 
     public function toFcm($notifiable): array
     {
         return [
-            'title'   => 'Laporan Baru',
-            'body'    => 'Laporan ' . $this->report->report_code . ' dari ' . $this->report->reporter_name . ' di ' . $this->report->district . "\n\nKlik buka",
-            'data'    => [
-                'type'        => 'report_created',
-                'report_id'   => $this->report->id,
+            'title' => 'Laporan Baru',
+            'body' => 'Laporan '.$this->report->report_code.' dari '.$this->report->reporter_name.' di '.$this->report->district."\n\nKlik buka",
+            'data' => [
+                'type' => 'report_created',
+                'report_id' => $this->report->id,
                 'report_code' => $this->report->report_code,
             ],
             'android' => ['channel_id' => 'delta_jalan_general'],
@@ -46,12 +46,12 @@ class ReportCreatedNotification extends Notification implements ShouldQueue
     public function toDatabase($notifiable): array
     {
         return [
-            'type'        => 'report_created',
-            'message'     => 'Laporan baru ' . $this->report->report_code . ' dari ' . $this->report->reporter_name . ' di ' . $this->report->district,
-            'report_id'   => $this->report->id,
+            'type' => 'report_created',
+            'message' => 'Laporan baru '.$this->report->report_code.' dari '.$this->report->reporter_name.' di '.$this->report->district,
+            'report_id' => $this->report->id,
             'report_code' => $this->report->report_code,
-            'actor_name'  => $this->report->reporter_name,
-            'actor_role'  => 'petugas',
+            'actor_name' => $this->report->reporter_name,
+            'actor_role' => 'petugas',
         ];
     }
 }

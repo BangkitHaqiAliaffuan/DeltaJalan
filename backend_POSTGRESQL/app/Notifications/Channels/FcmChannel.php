@@ -13,7 +13,7 @@ class FcmChannel
 
     public function send(object $notifiable, Notification $notification): void
     {
-        if (!method_exists($notification, 'toFcm')) {
+        if (! method_exists($notification, 'toFcm')) {
             return;
         }
 

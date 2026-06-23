@@ -18,7 +18,6 @@ class User extends Authenticatable
         'role',
         'wilayah',
         'nip',
-        'upr_id',
     ];
 
     protected $hidden = [
@@ -32,11 +31,6 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
-    }
-
-    public function upr()
-    {
-        return $this->belongsTo(Upr::class);
     }
 
     public function team()
@@ -69,7 +63,7 @@ class User extends Authenticatable
         return match ($this->role) {
             'admin' => 'Administrator',
             'supervisor' => 'Supervisor',
-            'petugas_eksekusi' => 'Petugas Eksekusi',
+            'petugas' => 'Petugas',
             default => 'Petugas Lapangan',
         };
     }

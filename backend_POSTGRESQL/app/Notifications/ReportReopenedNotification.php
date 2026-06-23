@@ -24,20 +24,20 @@ class ReportReopenedNotification extends Notification implements ShouldQueue
     public function toWebPush($notifiable): array
     {
         return [
-            'title'   => 'Laporan Dibuka Kembali',
-            'message' => 'Laporan ' . $this->report->report_code . ' dibuka kembali oleh ' . $this->reopenedBy,
-            'url'     => '/detail-report?reportId=' . $this->report->id,
+            'title' => 'Laporan Dibuka Kembali',
+            'message' => 'Laporan '.$this->report->report_code.' dibuka kembali oleh '.$this->reopenedBy,
+            'url' => '/detail-report?reportId='.$this->report->id,
         ];
     }
 
     public function toFcm($notifiable): array
     {
         return [
-            'title'   => 'Laporan Dibuka Kembali',
-            'body'    => 'Laporan ' . $this->report->report_code . ' dibuka kembali oleh ' . $this->reopenedBy . "\n\nKlik buka",
-            'data'    => [
-                'type'        => 'report_reopened',
-                'report_id'   => $this->report->id,
+            'title' => 'Laporan Dibuka Kembali',
+            'body' => 'Laporan '.$this->report->report_code.' dibuka kembali oleh '.$this->reopenedBy."\n\nKlik buka",
+            'data' => [
+                'type' => 'report_reopened',
+                'report_id' => $this->report->id,
                 'report_code' => $this->report->report_code,
             ],
             'android' => ['channel_id' => 'delta_jalan_general'],
@@ -47,12 +47,12 @@ class ReportReopenedNotification extends Notification implements ShouldQueue
     public function toDatabase($notifiable): array
     {
         return [
-            'type'        => 'report_reopened',
-            'message'     => 'Laporan ' . $this->report->report_code . ' dibuka kembali oleh ' . $this->reopenedBy,
-            'report_id'   => $this->report->id,
+            'type' => 'report_reopened',
+            'message' => 'Laporan '.$this->report->report_code.' dibuka kembali oleh '.$this->reopenedBy,
+            'report_id' => $this->report->id,
             'report_code' => $this->report->report_code,
-            'actor_name'  => $this->reopenedBy,
-            'actor_role'  => 'supervisor',
+            'actor_name' => $this->reopenedBy,
+            'actor_role' => 'supervisor',
         ];
     }
 }

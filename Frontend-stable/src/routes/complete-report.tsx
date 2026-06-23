@@ -22,7 +22,7 @@ function CompleteReportPage() {
   const token = getToken() ?? "";
   const [backUrl, setBackUrl] = useState("/supervisor");
   useEffect(() => {
-    setBackUrl(getCurrentUser()?.role === "petugas_eksekusi" ? "/petugas-eksekusi" : "/supervisor");
+    setBackUrl(getCurrentUser()?.role === "petugas" ? "/tugas-saya" : "/supervisor");
   }, []);
 
   const [report, setReport] = useState<Laporan | null>(null);

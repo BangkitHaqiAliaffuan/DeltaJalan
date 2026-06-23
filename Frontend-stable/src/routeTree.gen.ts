@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UploadRouteImport } from './routes/upload'
 import { Route as TugasSurveiRouteImport } from './routes/tugas-survei'
+import { Route as TugasSayaRouteImport } from './routes/tugas-saya'
 import { Route as SupervisorRouteImport } from './routes/supervisor'
 import { Route as StatsRouteImport } from './routes/stats'
 import { Route as ReviewRouteImport } from './routes/review'
@@ -19,7 +20,6 @@ import { Route as PetugasEksekusiRouteImport } from './routes/petugas-eksekusi'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as MyReportsRouteImport } from './routes/my-reports'
 import { Route as MapRouteImport } from './routes/map'
-import { Route as KelolaSurveiRouteImport } from './routes/kelola-survei'
 import { Route as HomeRouteImport } from './routes/home'
 import { Route as EditReportRouteImport } from './routes/edit-report'
 import { Route as DraftsRouteImport } from './routes/drafts'
@@ -28,9 +28,10 @@ import { Route as DetailReportRouteImport } from './routes/detail-report'
 import { Route as CompleteReportRouteImport } from './routes/complete-report'
 import { Route as AiResultRouteImport } from './routes/ai-result'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SupervisorIndexRouteImport } from './routes/supervisor/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as SupervisorPatrolScheduleRouteImport } from './routes/supervisor/patrol-schedule'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
-import { Route as AdminUprsRouteImport } from './routes/admin/uprs'
 import { Route as AdminTeamsRouteImport } from './routes/admin/teams'
 import { Route as AdminReportsRouteImport } from './routes/admin/reports'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
@@ -47,6 +48,11 @@ const UploadRoute = UploadRouteImport.update({
 const TugasSurveiRoute = TugasSurveiRouteImport.update({
   id: '/tugas-survei',
   path: '/tugas-survei',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TugasSayaRoute = TugasSayaRouteImport.update({
+  id: '/tugas-saya',
+  path: '/tugas-saya',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SupervisorRoute = SupervisorRouteImport.update({
@@ -89,11 +95,6 @@ const MapRoute = MapRouteImport.update({
   path: '/map',
   getParentRoute: () => rootRouteImport,
 } as any)
-const KelolaSurveiRoute = KelolaSurveiRouteImport.update({
-  id: '/kelola-survei',
-  path: '/kelola-survei',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const HomeRoute = HomeRouteImport.update({
   id: '/home',
   path: '/home',
@@ -134,19 +135,25 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SupervisorIndexRoute = SupervisorIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SupervisorRoute,
+} as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/admin/',
   path: '/admin/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SupervisorPatrolScheduleRoute =
+  SupervisorPatrolScheduleRouteImport.update({
+    id: '/patrol-schedule',
+    path: '/patrol-schedule',
+    getParentRoute: () => SupervisorRoute,
+  } as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/admin/users',
   path: '/admin/users',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminUprsRoute = AdminUprsRouteImport.update({
-  id: '/admin/uprs',
-  path: '/admin/uprs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminTeamsRoute = AdminTeamsRouteImport.update({
@@ -194,7 +201,6 @@ export interface FileRoutesByFullPath {
   '/drafts': typeof DraftsRoute
   '/edit-report': typeof EditReportRoute
   '/home': typeof HomeRoute
-  '/kelola-survei': typeof KelolaSurveiRoute
   '/map': typeof MapRoute
   '/my-reports': typeof MyReportsRoute
   '/notifications': typeof NotificationsRoute
@@ -202,7 +208,8 @@ export interface FileRoutesByFullPath {
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
   '/stats': typeof StatsRoute
-  '/supervisor': typeof SupervisorRoute
+  '/supervisor': typeof SupervisorRouteWithChildren
+  '/tugas-saya': typeof TugasSayaRoute
   '/tugas-survei': typeof TugasSurveiRoute
   '/upload': typeof UploadRoute
   '/admin/activity': typeof AdminActivityRoute
@@ -212,9 +219,10 @@ export interface FileRoutesByFullPath {
   '/admin/login': typeof AdminLoginRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/teams': typeof AdminTeamsRoute
-  '/admin/uprs': typeof AdminUprsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/supervisor/patrol-schedule': typeof SupervisorPatrolScheduleRoute
   '/admin/': typeof AdminIndexRoute
+  '/supervisor/': typeof SupervisorIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -225,7 +233,6 @@ export interface FileRoutesByTo {
   '/drafts': typeof DraftsRoute
   '/edit-report': typeof EditReportRoute
   '/home': typeof HomeRoute
-  '/kelola-survei': typeof KelolaSurveiRoute
   '/map': typeof MapRoute
   '/my-reports': typeof MyReportsRoute
   '/notifications': typeof NotificationsRoute
@@ -233,7 +240,7 @@ export interface FileRoutesByTo {
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
   '/stats': typeof StatsRoute
-  '/supervisor': typeof SupervisorRoute
+  '/tugas-saya': typeof TugasSayaRoute
   '/tugas-survei': typeof TugasSurveiRoute
   '/upload': typeof UploadRoute
   '/admin/activity': typeof AdminActivityRoute
@@ -243,9 +250,10 @@ export interface FileRoutesByTo {
   '/admin/login': typeof AdminLoginRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/teams': typeof AdminTeamsRoute
-  '/admin/uprs': typeof AdminUprsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/supervisor/patrol-schedule': typeof SupervisorPatrolScheduleRoute
   '/admin': typeof AdminIndexRoute
+  '/supervisor': typeof SupervisorIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -257,7 +265,6 @@ export interface FileRoutesById {
   '/drafts': typeof DraftsRoute
   '/edit-report': typeof EditReportRoute
   '/home': typeof HomeRoute
-  '/kelola-survei': typeof KelolaSurveiRoute
   '/map': typeof MapRoute
   '/my-reports': typeof MyReportsRoute
   '/notifications': typeof NotificationsRoute
@@ -265,7 +272,8 @@ export interface FileRoutesById {
   '/reports': typeof ReportsRoute
   '/review': typeof ReviewRoute
   '/stats': typeof StatsRoute
-  '/supervisor': typeof SupervisorRoute
+  '/supervisor': typeof SupervisorRouteWithChildren
+  '/tugas-saya': typeof TugasSayaRoute
   '/tugas-survei': typeof TugasSurveiRoute
   '/upload': typeof UploadRoute
   '/admin/activity': typeof AdminActivityRoute
@@ -275,9 +283,10 @@ export interface FileRoutesById {
   '/admin/login': typeof AdminLoginRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/teams': typeof AdminTeamsRoute
-  '/admin/uprs': typeof AdminUprsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/supervisor/patrol-schedule': typeof SupervisorPatrolScheduleRoute
   '/admin/': typeof AdminIndexRoute
+  '/supervisor/': typeof SupervisorIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -290,7 +299,6 @@ export interface FileRouteTypes {
     | '/drafts'
     | '/edit-report'
     | '/home'
-    | '/kelola-survei'
     | '/map'
     | '/my-reports'
     | '/notifications'
@@ -299,6 +307,7 @@ export interface FileRouteTypes {
     | '/review'
     | '/stats'
     | '/supervisor'
+    | '/tugas-saya'
     | '/tugas-survei'
     | '/upload'
     | '/admin/activity'
@@ -308,9 +317,10 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/reports'
     | '/admin/teams'
-    | '/admin/uprs'
     | '/admin/users'
+    | '/supervisor/patrol-schedule'
     | '/admin/'
+    | '/supervisor/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -321,7 +331,6 @@ export interface FileRouteTypes {
     | '/drafts'
     | '/edit-report'
     | '/home'
-    | '/kelola-survei'
     | '/map'
     | '/my-reports'
     | '/notifications'
@@ -329,7 +338,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/review'
     | '/stats'
-    | '/supervisor'
+    | '/tugas-saya'
     | '/tugas-survei'
     | '/upload'
     | '/admin/activity'
@@ -339,9 +348,10 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/reports'
     | '/admin/teams'
-    | '/admin/uprs'
     | '/admin/users'
+    | '/supervisor/patrol-schedule'
     | '/admin'
+    | '/supervisor'
   id:
     | '__root__'
     | '/'
@@ -352,7 +362,6 @@ export interface FileRouteTypes {
     | '/drafts'
     | '/edit-report'
     | '/home'
-    | '/kelola-survei'
     | '/map'
     | '/my-reports'
     | '/notifications'
@@ -361,6 +370,7 @@ export interface FileRouteTypes {
     | '/review'
     | '/stats'
     | '/supervisor'
+    | '/tugas-saya'
     | '/tugas-survei'
     | '/upload'
     | '/admin/activity'
@@ -370,9 +380,10 @@ export interface FileRouteTypes {
     | '/admin/login'
     | '/admin/reports'
     | '/admin/teams'
-    | '/admin/uprs'
     | '/admin/users'
+    | '/supervisor/patrol-schedule'
     | '/admin/'
+    | '/supervisor/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -384,7 +395,6 @@ export interface RootRouteChildren {
   DraftsRoute: typeof DraftsRoute
   EditReportRoute: typeof EditReportRoute
   HomeRoute: typeof HomeRoute
-  KelolaSurveiRoute: typeof KelolaSurveiRoute
   MapRoute: typeof MapRoute
   MyReportsRoute: typeof MyReportsRoute
   NotificationsRoute: typeof NotificationsRoute
@@ -392,7 +402,8 @@ export interface RootRouteChildren {
   ReportsRoute: typeof ReportsRoute
   ReviewRoute: typeof ReviewRoute
   StatsRoute: typeof StatsRoute
-  SupervisorRoute: typeof SupervisorRoute
+  SupervisorRoute: typeof SupervisorRouteWithChildren
+  TugasSayaRoute: typeof TugasSayaRoute
   TugasSurveiRoute: typeof TugasSurveiRoute
   UploadRoute: typeof UploadRoute
   AdminActivityRoute: typeof AdminActivityRoute
@@ -402,7 +413,6 @@ export interface RootRouteChildren {
   AdminLoginRoute: typeof AdminLoginRoute
   AdminReportsRoute: typeof AdminReportsRoute
   AdminTeamsRoute: typeof AdminTeamsRoute
-  AdminUprsRoute: typeof AdminUprsRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
@@ -421,6 +431,13 @@ declare module '@tanstack/react-router' {
       path: '/tugas-survei'
       fullPath: '/tugas-survei'
       preLoaderRoute: typeof TugasSurveiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tugas-saya': {
+      id: '/tugas-saya'
+      path: '/tugas-saya'
+      fullPath: '/tugas-saya'
+      preLoaderRoute: typeof TugasSayaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/supervisor': {
@@ -479,13 +496,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MapRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/kelola-survei': {
-      id: '/kelola-survei'
-      path: '/kelola-survei'
-      fullPath: '/kelola-survei'
-      preLoaderRoute: typeof KelolaSurveiRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/home': {
       id: '/home'
       path: '/home'
@@ -542,6 +552,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/supervisor/': {
+      id: '/supervisor/'
+      path: '/'
+      fullPath: '/supervisor/'
+      preLoaderRoute: typeof SupervisorIndexRouteImport
+      parentRoute: typeof SupervisorRoute
+    }
     '/admin/': {
       id: '/admin/'
       path: '/admin'
@@ -549,18 +566,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/supervisor/patrol-schedule': {
+      id: '/supervisor/patrol-schedule'
+      path: '/patrol-schedule'
+      fullPath: '/supervisor/patrol-schedule'
+      preLoaderRoute: typeof SupervisorPatrolScheduleRouteImport
+      parentRoute: typeof SupervisorRoute
+    }
     '/admin/users': {
       id: '/admin/users'
       path: '/admin/users'
       fullPath: '/admin/users'
       preLoaderRoute: typeof AdminUsersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin/uprs': {
-      id: '/admin/uprs'
-      path: '/admin/uprs'
-      fullPath: '/admin/uprs'
-      preLoaderRoute: typeof AdminUprsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/teams': {
@@ -615,6 +632,20 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface SupervisorRouteChildren {
+  SupervisorPatrolScheduleRoute: typeof SupervisorPatrolScheduleRoute
+  SupervisorIndexRoute: typeof SupervisorIndexRoute
+}
+
+const SupervisorRouteChildren: SupervisorRouteChildren = {
+  SupervisorPatrolScheduleRoute: SupervisorPatrolScheduleRoute,
+  SupervisorIndexRoute: SupervisorIndexRoute,
+}
+
+const SupervisorRouteWithChildren = SupervisorRoute._addFileChildren(
+  SupervisorRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AiResultRoute: AiResultRoute,
@@ -624,7 +655,6 @@ const rootRouteChildren: RootRouteChildren = {
   DraftsRoute: DraftsRoute,
   EditReportRoute: EditReportRoute,
   HomeRoute: HomeRoute,
-  KelolaSurveiRoute: KelolaSurveiRoute,
   MapRoute: MapRoute,
   MyReportsRoute: MyReportsRoute,
   NotificationsRoute: NotificationsRoute,
@@ -632,7 +662,8 @@ const rootRouteChildren: RootRouteChildren = {
   ReportsRoute: ReportsRoute,
   ReviewRoute: ReviewRoute,
   StatsRoute: StatsRoute,
-  SupervisorRoute: SupervisorRoute,
+  SupervisorRoute: SupervisorRouteWithChildren,
+  TugasSayaRoute: TugasSayaRoute,
   TugasSurveiRoute: TugasSurveiRoute,
   UploadRoute: UploadRoute,
   AdminActivityRoute: AdminActivityRoute,
@@ -642,7 +673,6 @@ const rootRouteChildren: RootRouteChildren = {
   AdminLoginRoute: AdminLoginRoute,
   AdminReportsRoute: AdminReportsRoute,
   AdminTeamsRoute: AdminTeamsRoute,
-  AdminUprsRoute: AdminUprsRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
 }

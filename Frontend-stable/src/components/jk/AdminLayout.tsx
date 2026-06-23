@@ -8,6 +8,7 @@ const ADMIN_MENU = [
     { icon: "dashboard", label: "Dashboard", to: "/admin/dashboard" },
     { icon: "people", label: "User", to: "/admin/users" },
     { icon: "group_work", label: "Tim", to: "/admin/teams" },
+
     { icon: "groups", label: "UPR", to: "/admin/uprs" },
     { icon: "description", label: "Laporan", to: "/admin/reports" },
   ]},

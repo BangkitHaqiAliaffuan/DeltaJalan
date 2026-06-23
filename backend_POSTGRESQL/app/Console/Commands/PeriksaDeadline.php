@@ -4,15 +4,15 @@ namespace App\Console\Commands;
 
 use App\Models\Report;
 use App\Models\User;
-use App\Notifications\PeringatanTerlambat;
 use App\Notifications\PeringatanMendekatiDeadline;
-use Carbon\Carbon;
+use App\Notifications\PeringatanTerlambat;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
 class PeriksaDeadline extends Command
 {
     protected $signature = 'deadline:check';
+
     protected $description = 'Check deadlines and mark terlambat flags, send notifications';
 
     public function handle(): void
@@ -57,9 +57,9 @@ class PeriksaDeadline extends Command
             foreach ($supervisors as $supervisor) {
                 $supervisor->notify(new PeringatanTerlambat($report, 'resolution'));
             }
-            if ($report->assigned_upr_id) {
-                $eksekusi = User::where('role', 'petugas_eksekusi')
-                    ->where('upr_id', $report->assigned_upr_id)
+            if ($report->assigned_team_id) {
+                $eksekusi = User::where('role', 'petugas')
+                    ->where('team_id', $report->assigned_team_id)
                     ->get();
                 foreach ($eksekusi as $user) {
                     $user->notify(new PeringatanTerlambat($report, 'resolution'));
@@ -94,9 +94,9 @@ class PeriksaDeadline extends Command
         }
 
         Log::info('DeltaJalan Deadline Check selesai.', [
-            'terlambat_review'     => $terlambatReview,
+            'terlambat_review' => $terlambatReview,
             'terlambat_resolusi' => $terlambatResolusi,
-            'warnings_sent'     => $warningsSent,
+            'warnings_sent' => $warningsSent,
         ]);
 
         $this->info("Deadline Check selesai. Review terlambat: {$terlambatReview}, Resolusi terlambat: {$terlambatResolusi}, Warnings: {$warningsSent}");

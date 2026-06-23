@@ -64,7 +64,7 @@ class BackfillPhotoData extends Command
                 $changes['total_detections'] = rand(1, 5);
             }
 
-            if (!empty($changes)) {
+            if (! empty($changes)) {
                 $photo->update($changes);
                 $updated++;
             }
@@ -88,7 +88,7 @@ class BackfillPhotoData extends Command
             if (empty($report->ai_severity)) {
                 $rChanges['ai_severity'] = self::SEVERITY_MAP[$report->overall_severity] ?? 'ringan';
             }
-            if (!empty($rChanges)) {
+            if (! empty($rChanges)) {
                 $report->update($rChanges);
                 $reportUpdated++;
             }

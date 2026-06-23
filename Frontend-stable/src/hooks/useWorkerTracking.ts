@@ -23,7 +23,7 @@ function isWorkHours(): boolean {
 async function sendLocation(): Promise<boolean> {
   const user = getCurrentUser()
   const token = getToken()
-  if (!user || !token || user.role !== 'petugas_eksekusi') return false
+  if (!user || !token || user.role !== 'petugas') return false
   if (!isWorkHours()) return false
 
   try {
@@ -85,7 +85,7 @@ export function useWorkerTracking() {
     if (!isNative) return
 
     const user = getCurrentUser()
-    if (user?.role !== 'petugas_eksekusi') return
+    if (user?.role !== 'petugas') return
 
     let removeListeners: (() => void) | null = null
 

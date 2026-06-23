@@ -38,10 +38,6 @@ class UserController extends Controller
             });
         }
 
-        if ($request->filled('upr_id')) {
-            $query->where('upr_id', (int) $request->input('upr_id'));
-        }
-
         if ($request->filled('team_id')) {
             if ($request->team_id === 'null') {
                 $query->whereNull('team_id');
@@ -58,7 +54,7 @@ class UserController extends Controller
         $users = $query->orderBy('created_at', 'desc')
             ->skip(($page - 1) * $limit)
             ->take($limit)
-            ->with(['upr', 'team'])
+            ->with(['team'])
             ->get()
             ->map(fn ($u) => [
                 'id' => $u->id,
@@ -68,8 +64,6 @@ class UserController extends Controller
                 'role_label' => $u->role_label,
                 'wilayah' => $u->wilayah,
                 'nip' => $u->nip,
-                'upr_id' => $u->upr_id,
-                'upr_name' => $u->upr?->name,
                 'team_id' => $u->team_id,
                 'team_name' => $u->team?->name,
                 'initials' => $u->initials,
@@ -102,10 +96,9 @@ class UserController extends Controller
                 'name' => ['required', 'string', 'max:255'],
                 'email' => ['required', 'email', 'max:255', Rule::unique('users')],
                 'password' => ['required', 'string', 'min:8'],
-                'role' => ['required', Rule::in(['petugas', 'supervisor', 'petugas_eksekusi', 'admin'])],
+                'role' => ['required', Rule::in(['petugas', 'supervisor', 'admin'])],
                 'wilayah' => ['nullable', 'string', 'max:100'],
                 'nip' => ['nullable', 'string', 'max:20'],
-                'upr_id' => ['nullable', 'integer', 'exists:uprs,id'],
             ]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -122,7 +115,6 @@ class UserController extends Controller
             'role' => $validated['role'],
             'wilayah' => $validated['wilayah'] ?? null,
             'nip' => $validated['nip'] ?? null,
-            'upr_id' => $validated['upr_id'] ?? null,
         ]);
 
         return response()->json([
@@ -136,7 +128,6 @@ class UserController extends Controller
                 'role_label' => $user->role_label,
                 'wilayah' => $user->wilayah,
                 'nip' => $user->nip,
-                'upr_id' => $user->upr_id,
                 'initials' => $user->initials,
             ],
         ], 201);
@@ -154,7 +145,7 @@ class UserController extends Controller
             return response()->json(['success' => false, 'message' => 'Anda hanya dapat melihat detail akun Anda sendiri.'], 403);
         }
 
-        $target = User::with('upr')->find($id);
+        $target = User::find($id);
 
         if (! $target) {
             return response()->json(['success' => false, 'message' => 'Pengguna tidak ditemukan.'], 404);
@@ -170,8 +161,6 @@ class UserController extends Controller
                 'role_label' => $target->role_label,
                 'wilayah' => $target->wilayah,
                 'nip' => $target->nip,
-                'upr_id' => $target->upr_id,
-                'upr_name' => $target->upr?->name,
                 'initials' => $target->initials,
                 'created_at' => $target->created_at?->toIso8601String(),
                 'updated_at' => $target->updated_at?->toIso8601String(),
@@ -201,21 +190,15 @@ class UserController extends Controller
             $rules = [
                 'name' => ['sometimes', 'required', 'string', 'max:255'],
                 'email' => ['sometimes', 'required', 'email', 'max:255', Rule::unique('users')->ignore($id)],
-                'role' => ['sometimes', 'required', Rule::in(['petugas', 'supervisor', 'petugas_eksekusi', 'admin'])],
+                'role' => ['sometimes', 'required', Rule::in(['petugas', 'supervisor', 'admin'])],
                 'wilayah' => ['nullable', 'string', 'max:100'],
                 'nip' => ['nullable', 'string', 'max:20'],
-                'upr_id' => ['nullable', 'integer', 'exists:uprs,id'],
                 'team_id' => ['nullable', 'string', 'exists:teams,id'],
             ];
 
             // Only supervisor/admin can change role
             if (! in_array($authUser->role, ['supervisor', 'admin'], true)) {
                 unset($rules['role']);
-            }
-
-            // Only supervisor can change upr_id for other users
-            if ($authUser->id === $id && $request->has('upr_id')) {
-                unset($rules['upr_id']);
             }
 
             $validated = $request->validate($rules);
@@ -227,14 +210,7 @@ class UserController extends Controller
             ], 422);
         }
 
-        // Hanya supervisor yang bisa mengganti upr_id ke nilai berbeda
-        if (isset($validated['upr_id'])) {
-            $validated['upr_id'] = $validated['upr_id'] ? (int) $validated['upr_id'] : null;
-        }
-
         $target->update($validated);
-
-        $target->load('upr');
 
         return response()->json([
             'success' => true,
@@ -247,8 +223,6 @@ class UserController extends Controller
                 'role_label' => $target->role_label,
                 'wilayah' => $target->wilayah,
                 'nip' => $target->nip,
-                'upr_id' => $target->upr_id,
-                'upr_name' => $target->upr?->name,
                 'initials' => $target->initials,
             ],
         ]);

@@ -82,7 +82,7 @@ function StatsPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!user || (user.role !== "supervisor" && user.role !== "petugas_eksekusi")) {
+    if (!user || user.role !== "supervisor") {
       return;
     }
     loadData();
@@ -547,16 +547,7 @@ function StatsPage() {
                 </section>
               )}
 
-              {/* Back link for petugas_eksekusi */}
-              {user?.role === "petugas_eksekusi" && uprStats.length > 0 && (
-                <Link
-                  to="/petugas-eksekusi"
-                  className="flex items-center justify-center gap-2 h-11 bg-white border border-[#E2E8F0] text-[#1e40af] rounded-xl text-sm font-semibold hover:bg-[#F8FAFC] transition-all"
-                >
-                  <Icon name="arrow_back" className="!text-lg" />
-                  Kembali ke Tugas Saya
-                </Link>
-              )}
+
             </>
           ) : null}
         </div>

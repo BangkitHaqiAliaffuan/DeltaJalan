@@ -144,11 +144,11 @@ class Report extends Model
     }
 
     /**
-     * Relasi ke UPR (tim satgas) yang ditugaskan.
+     * Relasi ke tim satgas yang ditugaskan.
      */
-    public function assignedUpr()
+    public function assignedTeam()
     {
-        return $this->belongsTo(Upr::class, 'assigned_upr_id');
+        return $this->belongsTo(Team::class, 'assigned_team_id');
     }
 
     /**

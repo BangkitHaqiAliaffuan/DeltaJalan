@@ -91,7 +91,7 @@ function AdminReports() {
     success?: boolean; data?: {
       id: string; report_code: string; reporter_name: string; road_name: string;
       district: string; overall_severity: string; status: string;
-      assigned_upr_name: string | null; created_at: string;
+      assigned_team_name: string | null; created_at: string;
     }[]; total?: number; page?: number; last_page?: number;
   } | undefined;
 
@@ -170,7 +170,7 @@ function AdminReports() {
                           {r.status}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-[#64748B]">{r.assigned_upr_name ?? "—"}</td>
+                      <td className="py-3 px-4 text-[#64748B]">{r.assigned_team_name ?? "—"}</td>
                       <td className="py-3 px-4 text-[#64748B]">{r.created_at ? r.created_at.slice(0, 10) : "—"}</td>
                       <td className="py-3 px-4 text-right relative">
                         <div className="flex items-center justify-end gap-1">

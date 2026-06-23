@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 const PETUGAS_ITEMS = [
   { to: "/home", icon: "home", label: "Beranda" },
-  { to: "/tugas-survei", icon: "assignment", label: "Tugas" },
+  { to: "/tugas-saya", icon: "assignment", label: "Tugas Saya" },
   { to: "/map", icon: "map", label: "Peta" },
   { to: "/upload", icon: "cloud_upload", label: "Upload" },
   { to: "/my-reports", icon: "description", label: "Laporan Saya" },
@@ -13,14 +13,9 @@ const PETUGAS_ITEMS = [
 
 const SUPERVISOR_ITEMS = [
   { to: "/supervisor", icon: "dashboard", label: "Dashboard" },
-  { to: "/kelola-survei", icon: "assignment", label: "Survei" },
+  { to: "/supervisor/patrol-schedule", icon: "calendar_month", label: "Jadwal" },
   { to: "/map", icon: "map", label: "Peta" },
   { to: "/stats", icon: "bar_chart", label: "Statistik" },
-] as const;
-
-const EKSEKUSI_ITEMS = [
-  { to: "/petugas-eksekusi", icon: "assignment", label: "Tugas Saya" },
-  { to: "/map", icon: "map", label: "Peta" },
 ] as const;
 
 export function BottomNav() {
@@ -51,9 +46,7 @@ export function BottomNav() {
   const items =
     user?.role === "supervisor"
       ? SUPERVISOR_ITEMS
-      : user?.role === "petugas_eksekusi"
-        ? EKSEKUSI_ITEMS
-        : PETUGAS_ITEMS;
+      : PETUGAS_ITEMS;
 
   return (
     <nav className="shrink-0 md:hidden w-full max-w-[430px] flex justify-around items-center px-2 bg-white h-16 border-t border-[#D0DAE8]" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>

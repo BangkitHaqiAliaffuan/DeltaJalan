@@ -27,6 +27,9 @@ return new class extends Migration
     public function up(): void
     {
         // ── Langkah 1: Buat tipe ENUM PostgreSQL native ───────────────────
+        // migrate:fresh hanya drop tables, bukan custom types, jadi drop type dulu
+        DB::statement('DROP TYPE IF EXISTS severity_enum CASCADE');
+        DB::statement('DROP TYPE IF EXISTS status_enum CASCADE');
         DB::statement("CREATE TYPE severity_enum AS ENUM ('Baik', 'Rusak Ringan', 'Rusak Sedang', 'Rusak Berat')");
         DB::statement("CREATE TYPE status_enum AS ENUM ('Menunggu Review', 'Sedang Diperbaiki', 'Selesai')");
 

@@ -3,13 +3,9 @@
 **Domain:** `@dispu.binamarga.go.id`
 **Password semua akun:** `password123`
 
-## Admin
-
-| Nama | Email | Dashboard |
-|------|-------|-----------|
-| Admin | admin@dispu.binamarga.go.id | `/admin/dashboard` |
-
 ## Petugas Lapangan
+
+ admin@dispu.binamarga.go.id
 
 | Nama | Email | Wilayah |
 |------|-------|---------|
@@ -35,3 +31,8 @@
 | Rudi Hartono | rudi.hartono@dispu.binamarga.go.id | Porong, Krembung, Tulangan, Tanggulangin, Jabon | Satgas Wilayah Selatan |
 | Slamet Riyadi | slamet.riyadi@dispu.binamarga.go.id | Taman, Krian, Balongbendo, Wonoayu, Sukodono | Satgas Wilayah Barat |
 | Dodi Kurniawan | dodi.kurniawan@dispu.binamarga.go.id | Candi, Sidoarjo, Tarik, Prambon | Satgas Wilayah Timur |
+
+Uncaught Error: Minified React error #418; visit
+= for the full https://react.dev/errors/418?args[]=HTML&args[] message or use the non-minified dev environment for full errors and additional helpful warnings
+
+

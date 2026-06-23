@@ -322,10 +322,10 @@ function AiResultPage() {
     setImgError(false);
   }, [activeIdx]);
 
-  // Guard: redirect ke upload jika tidak ada data
+  // Guard: redirect ke upload jika tidak ada data (single maupun batch)
   useEffect(() => {
-    if (!result) navigate({ to: "/upload" });
-  }, [result, navigate]);
+    if (!result && !batchResult) navigate({ to: "/upload" });
+  }, [result, batchResult, navigate]);
 
   // ── Editable Dimensions ─────────────────────────────────────────────────
   const [editPanjang, setEditPanjang] = useState(formData?.kerusakanPanjang ?? "");
@@ -338,6 +338,24 @@ function AiResultPage() {
     });
     return dims;
   });
+
+  // ── Editable Lokasi ─────────────────────────────────────────────────────
+  const [editNamaJalan, setEditNamaJalan] = useState(formData?.namaJalan ?? "");
+  const [editKecamatan, setEditKecamatan] = useState(formData?.kecamatan ?? "");
+  const [editCatatan, setEditCatatan] = useState(formData?.catatan ?? "");
+  const [gpsRoadLoading, setGpsRoadLoading] = useState(false);
+
+  // Auto-fill nama jalan dari reverse geocode GPS
+  useEffect(() => {
+    if (!formData?.lat || !formData?.lng) return;
+    if (editNamaJalan && editNamaJalan !== formData.namaJalan) return; // already edited by user
+    setGpsRoadLoading(true);
+    import("@/hooks/useReverseGeocode").then(({ getRoadNameFromGps }) => {
+      getRoadNameFromGps(formData.lat!, formData.lng!).then((name) => {
+        if (name) setEditNamaJalan(name);
+      }).finally(() => setGpsRoadLoading(false));
+    }).catch(() => setGpsRoadLoading(false));
+  }, []);
 
   // ── 2-detik Timer ───────────────────────────────────────────────────────
   const [confirmEnabled, setConfirmEnabled] = useState(false);
@@ -520,13 +538,15 @@ function AiResultPage() {
         const token = getToken() ?? "";
         const fd = new FormData();
         fd.append("batch_id", batchResult.batchId);
-        fd.append("road_name", formData.namaJalan);
-        fd.append("district", formData.kecamatan);
+        fd.append("road_name", editNamaJalan);
+        fd.append("district", editKecamatan);
         fd.append("latitude", String(formData.lat ?? 0));
         fd.append("longitude", String(formData.lng ?? 0));
         fd.append("koordinat_sumber", "exif");
         fd.append("analyses", reconstructAnalyses(batchResult.photos));
+        if (editCatatan) fd.append("catatan", editCatatan);
         if (formData.duplicate_of_id) fd.append("duplicate_of_id", formData.duplicate_of_id);
+        if (formData.survey_task_id) fd.append("survey_task_id", formData.survey_task_id);
         pendingFiles.forEach((_, idx) => {
           fd.append("kerusakan_panjang[]", batchEditDimensi[idx]?.panjang ?? "0");
           fd.append("kerusakan_lebar[]", batchEditDimensi[idx]?.lebar ?? "0");
@@ -558,16 +578,17 @@ function AiResultPage() {
 
         const token = getToken() ?? "";
         const fd = new FormData();
-        fd.append("reporter_name", user?.name ?? formData.namaJalan);
-        fd.append("road_name", formData.namaJalan);
-        fd.append("district", formData.kecamatan);
+        fd.append("reporter_name", user?.name ?? editNamaJalan);
+        fd.append("road_name", editNamaJalan);
+        fd.append("district", editKecamatan);
         fd.append("latitude", String(snapped.lat));
         fd.append("longitude", String(snapped.lng));
         fd.append("kerusakan_panjang", editPanjang);
         fd.append("kerusakan_lebar", editLebar);
-        if (formData.catatan) fd.append("catatan", formData.catatan);
+        if (editCatatan) fd.append("catatan", editCatatan);
         fd.append("image", imageBlob, formData.fileName);
         if (formData.duplicate_of_id) fd.append("duplicate_of_id", formData.duplicate_of_id);
+        if (formData.survey_task_id) fd.append("survey_task_id", formData.survey_task_id);
 
         const response = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? "/api"}/reports`, {
           method: "POST",
@@ -582,8 +603,15 @@ function AiResultPage() {
       }
 
       setSubmitState("success");
+      const redirectTaskId = formData?.survey_task_id;
       clearAiStore();
-      setTimeout(() => navigate({ to: "/home" }), 2500);
+      setTimeout(() => {
+        if (redirectTaskId) {
+          navigate({ to: "/detail-survei", search: { taskId: redirectTaskId } });
+        } else {
+          navigate({ to: "/upload" });
+        }
+      }, 2500);
     } catch (err) {
       setSubmitState("error");
       setSubmitError(err instanceof Error ? err.message : "Terjadi kesalahan");
@@ -592,7 +620,7 @@ function AiResultPage() {
 
   // ── Guard render ────────────────────────────────────────────────────────
 
-  if (!result || !formData) {
+  if ((!result && !batchResult) || !formData) {
     return (
       <PageLayout>
         <div className="flex flex-col flex-1 w-full items-center justify-center gap-4 p-8">
@@ -909,21 +937,27 @@ function AiResultPage() {
                 </h3>
               </div>
               <div className="grid grid-cols-2 gap-3 mt-1">
-                <div>
+                <div className="col-span-2">
                   <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
                     Nama Jalan
                   </p>
-                  <p className="font-label-md text-[13px] font-semibold text-on-surface">
-                    {formData.namaJalan}
-                  </p>
+                  <input
+                    value={editNamaJalan}
+                    onChange={(e) => setEditNamaJalan(e.target.value)}
+                    placeholder="Nama jalan..."
+                    className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-[13px] text-on-surface focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
                 </div>
                 <div>
                   <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
                     Kecamatan
                   </p>
-                  <p className="font-label-md text-[13px] font-semibold text-on-surface">
-                    Kec. {formData.kecamatan}
-                  </p>
+                  <input
+                    value={editKecamatan}
+                    onChange={(e) => setEditKecamatan(e.target.value)}
+                    placeholder="Kecamatan..."
+                    className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-[13px] text-on-surface focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
                 </div>
                 <div>
                   <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
@@ -941,15 +975,32 @@ function AiResultPage() {
                     {formData.fileName}
                   </p>
                 </div>
-              </div>
-              {formData.catatan && (
-                <div className="mt-1 pt-3 border-t border-border-subtle">
+                <div>
                   <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
-                    Catatan
+                    Koordinat GPS
                   </p>
-                  <p className="font-body-md text-[13px] text-on-surface">{formData.catatan}</p>
+                  <p className="font-label-md text-[13px] font-semibold text-on-surface font-mono">
+                    {formData.lat != null && formData.lng != null
+                      ? `${formData.lat.toFixed(6)}, ${formData.lng.toFixed(6)}`
+                      : "GPS tidak tersedia"}
+                  </p>
                 </div>
-              )}
+              </div>
+            </section>
+
+            {/* ── Catatan ── */}
+            <section className="bg-white border border-[#D0DAE8] rounded-lg p-4 flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Icon name="description" className="text-primary !text-[20px]" />
+                <h3 className="font-headline-sm text-[14px] font-bold text-primary">Catatan</h3>
+              </div>
+              <textarea
+                value={editCatatan}
+                onChange={(e) => setEditCatatan(e.target.value)}
+                placeholder="Tambahkan catatan (opsional)..."
+                rows={3}
+                className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-[13px] text-on-surface focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+              />
             </section>
 
             {/* ── Ganti Foto button (single mode) ── */}

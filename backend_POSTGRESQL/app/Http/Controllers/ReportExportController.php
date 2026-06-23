@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Report;
-use App\Models\Upr;
+use App\Models\Team;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -46,7 +46,7 @@ class ReportExportController extends Controller
 
         $ringkasanStatus = $this->buildRingkasanStatus(clone $query);
         $trustBreakdown = $this->buildTrustBreakdown(clone $query);
-        $uprBreakdown = $this->buildUprBreakdown(clone $query);
+        $teamBreakdown = $this->buildTeamBreakdown(clone $query);
         $severityBreakdown = $this->buildSeverityBreakdown(clone $query);
         $districtBreakdown = $this->buildDistrictBreakdown(clone $query);
 
@@ -56,7 +56,7 @@ class ReportExportController extends Controller
             'totalLaporan',
             'ringkasanStatus',
             'trustBreakdown',
-            'uprBreakdown',
+            'teamBreakdown',
             'severityBreakdown',
             'districtBreakdown',
         ));
@@ -98,7 +98,7 @@ class ReportExportController extends Controller
         $totalLaporan = (clone $query)->count();
         $ringkasanStatus = $this->buildRingkasanStatus(clone $query);
         $trustBreakdown = $this->buildTrustBreakdown(clone $query);
-        $uprBreakdown = $this->buildUprBreakdown(clone $query);
+        $teamBreakdown = $this->buildTeamBreakdown(clone $query);
         $severityBreakdown = $this->buildSeverityBreakdown(clone $query);
         $districtBreakdown = $this->buildDistrictBreakdown(clone $query);
 
@@ -191,11 +191,11 @@ class ReportExportController extends Controller
 
         $row++;
 
-        // ── Per UPR ──
-        $sheet->setCellValue("A{$row}", 'Kinerja UPR');
+        // ── Per Tim ──
+        $sheet->setCellValue("A{$row}", 'Kinerja Tim');
         $sheet->getStyle("A{$row}")->getFont()->setBold(true)->setSize(12);
         $row++;
-        $sheet->setCellValue("A{$row}", 'UPR');
+        $sheet->setCellValue("A{$row}", 'Tim');
         $sheet->setCellValue("B{$row}", 'Total');
         $sheet->setCellValue("C{$row}", 'Sedang Diperbaiki');
         $sheet->setCellValue("D{$row}", 'Selesai');
@@ -204,8 +204,8 @@ class ReportExportController extends Controller
         $sheet->getStyle("A{$row}:F{$row}")->getFont()->setBold(true);
         $row++;
 
-        foreach ($uprBreakdown as $s) {
-            $sheet->setCellValue("A{$row}", $s['upr_name']);
+        foreach ($teamBreakdown as $s) {
+            $sheet->setCellValue("A{$row}", $s['team_name']);
             $sheet->setCellValue("B{$row}", $s['total']);
             $sheet->setCellValue("C{$row}", $s['sedang_diperbaiki']);
             $sheet->setCellValue("D{$row}", $s['selesai']);
@@ -282,30 +282,30 @@ class ReportExportController extends Controller
         return $result;
     }
 
-    private function buildUprBreakdown($query): array
+    private function buildTeamBreakdown($query): array
     {
         $rows = (clone $query)
             ->selectRaw("
-                assigned_upr_id,
+                assigned_team_id,
                 COUNT(*) as total,
                 SUM(CASE WHEN status = 'Sedang Diperbaiki' THEN 1 ELSE 0 END) as sedang_diperbaiki,
                 SUM(CASE WHEN status = 'Selesai' THEN 1 ELSE 0 END) as selesai,
                 COALESCE(SUM(NULLIF(kerusakan_panjang, 0)), 0) as total_panjang,
                 COALESCE(SUM(NULLIF(kerusakan_panjang, 0) * NULLIF(kerusakan_lebar, 0)), 0) as total_luas
             ")
-            ->whereNotNull('assigned_upr_id')
-            ->groupBy('assigned_upr_id')
+            ->whereNotNull('assigned_team_id')
+            ->groupBy('assigned_team_id')
             ->get()
-            ->keyBy('assigned_upr_id');
+            ->keyBy('assigned_team_id');
 
-        $uprs = Upr::where('is_active', true)->get();
+        $teams = Team::all();
         $result = [];
 
-        foreach ($uprs as $upr) {
-            $r = $rows[$upr->id] ?? null;
+        foreach ($teams as $team) {
+            $r = $rows[$team->id] ?? null;
             $result[] = [
-                'upr_id' => $upr->id,
-                'upr_name' => $upr->name,
+                'team_id' => $team->id,
+                'team_name' => $team->name,
                 'total' => (int) ($r->total ?? 0),
                 'sedang_diperbaiki' => (int) ($r->sedang_diperbaiki ?? 0),
                 'selesai' => (int) ($r->selesai ?? 0),

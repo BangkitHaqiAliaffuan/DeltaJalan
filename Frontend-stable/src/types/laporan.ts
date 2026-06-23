@@ -107,9 +107,9 @@ export interface Laporan {
   perbaikan_selesai_at?: string | null;
   pelaksana?: string | null;
 
-  // UPR assignment
-  assigned_upr_id?: number | null;
-  assigned_upr_name?: string | null;
+  // Team assignment
+  assigned_team_id?: number | null;
+  assigned_team_name?: string | null;
   assigned_at?: string | null;
   catatan_petugas?: string | null;
 
@@ -134,6 +134,11 @@ export interface Laporan {
 
   // Survey task relation
   survey_task_id?: string | null;
+
+  // STA (Stationing) — offset meter dari titik awal ruas
+  sta_meter?: number | null;
+  sta_label?: string | null;
+  road_polyline?: [number, number][] | null;
 
   // Batch grouping — photos di tabel terpisah
   batch_id?: string | null;
@@ -234,8 +239,8 @@ export interface LaporanMarker {
   kerusakan_lebar?: number | null;
   trust_score?: number;
   created_at: string;
-  assigned_upr_id?: number | null;
-  assigned_upr_name?: string | null;
+  assigned_team_id?: number | null;
+  assigned_team_name?: string | null;
 }
 
 export interface MapDataResponse {
@@ -276,10 +281,10 @@ export interface NotificationItem {
   data: {
     type: string;
     message: string;
-    report_id: string;
-    report_code: string;
-    actor_name: string;
-    actor_role: string;
+    report_id?: string;
+    report_code?: string;
+    actor_name?: string;
+    actor_role?: string;
   };
   read_at: string | null;
   created_at: string;

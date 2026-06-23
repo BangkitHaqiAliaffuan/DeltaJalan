@@ -8,10 +8,13 @@ export interface SurveyTask {
   road_geometry: [number, number][] | null;
   road_length_m: number | null;
   team_id: string | null;
-  team?: { id: string; name: string; description?: string | null };}
+  team?: { id: string; name: string; description?: string | null };
   priority: SurveyPriority | null;
   catatan: string | null;
   status: SurveyStatus;
+  tanggal_patroli?: string | null;
+  alasan_tugas?: string | null;
+  selesai_at?: string | null;
   created_at: string;
   updated_at: string;
   reports_count?: number;
@@ -53,11 +56,53 @@ export interface Team {
 }
 
 export interface CreateSurveyPayload {
-  road_name: string;
-  kecamatan?: string;
-  road_geometry?: [number, number][];
-  road_length_m?: number;
   team_id: string;
+  kecamatan: string;
+  tanggal_patroli: string;
+  alasan_tugas?: string;
   priority?: SurveyPriority;
   catatan?: string;
+  road_name?: string;
+  road_geometry?: [number, number][];
+}
+
+export type Frekuensi = "setiap_minggu" | "dua_mingguan" | "bulanan";
+export type Hari = "Senin" | "Selasa" | "Rabu" | "Kamis" | "Jumat" | "Sabtu" | "Minggu";
+
+export const ALL_HARI: Hari[] = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+
+export interface PatrolSchedule {
+  id: string;
+  team_id: string;
+  team?: { id: string; name: string; description?: string | null };
+  hari: Hari[];
+  kecamatan_list: string[];
+  frekuensi: Frekuensi;
+  start_date: string;
+  end_date: string | null;
+  alasan_tugas: string;
+  status: "aktif" | "nonaktif";
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  tasks_count?: number;
+}
+
+export interface CreatePatrolSchedulePayload {
+  team_id: string;
+  hari: Hari[];
+  kecamatan_list: string[];
+  frekuensi: Frekuensi;
+  start_date: string;
+  end_date?: string;
+  alasan_tugas?: string;
+}
+
+export interface PatrolPreview {
+  total_hari: number;
+  hari_patroli: number;
+  kecamatan_count: number;
+  estimated_tasks: number;
+  start_date: string;
+  end_date: string;
 }

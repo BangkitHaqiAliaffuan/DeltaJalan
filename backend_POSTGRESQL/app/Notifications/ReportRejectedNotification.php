@@ -25,20 +25,20 @@ class ReportRejectedNotification extends Notification implements ShouldQueue
     public function toWebPush($notifiable): array
     {
         return [
-            'title'   => 'Laporan Ditolak',
-            'message' => 'Laporan ' . $this->report->report_code . ' ditolak oleh ' . $this->rejectedBy,
-            'url'     => '/detail-report?reportId=' . $this->report->id,
+            'title' => 'Laporan Ditolak',
+            'message' => 'Laporan '.$this->report->report_code.' ditolak oleh '.$this->rejectedBy,
+            'url' => '/detail-report?reportId='.$this->report->id,
         ];
     }
 
     public function toFcm($notifiable): array
     {
         return [
-            'title'   => 'Laporan Ditolak',
-            'body'    => 'Laporan ' . $this->report->report_code . ' ditolak oleh ' . $this->rejectedBy . "\n\nKlik buka",
-            'data'    => [
-                'type'        => 'report_rejected',
-                'report_id'   => $this->report->id,
+            'title' => 'Laporan Ditolak',
+            'body' => 'Laporan '.$this->report->report_code.' ditolak oleh '.$this->rejectedBy."\n\nKlik buka",
+            'data' => [
+                'type' => 'report_rejected',
+                'report_id' => $this->report->id,
                 'report_code' => $this->report->report_code,
             ],
             'android' => ['channel_id' => 'delta_jalan_general'],
@@ -48,12 +48,12 @@ class ReportRejectedNotification extends Notification implements ShouldQueue
     public function toDatabase($notifiable): array
     {
         return [
-            'type'        => 'report_rejected',
-            'message'     => 'Laporan ' . $this->report->report_code . ' ditolak oleh ' . $this->rejectedBy . ': ' . $this->reason,
-            'report_id'   => $this->report->id,
+            'type' => 'report_rejected',
+            'message' => 'Laporan '.$this->report->report_code.' ditolak oleh '.$this->rejectedBy.': '.$this->reason,
+            'report_id' => $this->report->id,
             'report_code' => $this->report->report_code,
-            'actor_name'  => $this->rejectedBy,
-            'actor_role'  => 'supervisor',
+            'actor_name' => $this->rejectedBy,
+            'actor_role' => 'supervisor',
         ];
     }
 }

@@ -1,8 +1,10 @@
 <?php
 
+use App\Http\Middleware\ForceJsonResponse;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Middleware\HandleCors;
 use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -25,8 +27,8 @@ return Application::configure(basePath: dirname(__DIR__))
         |
         */
         $middleware->api(prepend: [
-            \Illuminate\Http\Middleware\HandleCors::class,
-            \App\Http\Middleware\ForceJsonResponse::class,
+            HandleCors::class,
+            ForceJsonResponse::class,
         ]);
 
         /*
@@ -50,7 +52,7 @@ return Application::configure(basePath: dirname(__DIR__))
         | bukan sebagai halaman HTML (yang tidak bisa dibaca oleh frontend React).
         |
         */
-        $exceptions->shouldRenderJsonWhen(function (Request $request, \Throwable $e) {
+        $exceptions->shouldRenderJsonWhen(function (Request $request, Throwable $e) {
             return $request->is('api/*') || $request->expectsJson();
         });
     })->create();

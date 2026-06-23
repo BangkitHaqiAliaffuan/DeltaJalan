@@ -15,7 +15,7 @@ return new class extends Migration
         });
 
         DB::statement('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check');
-        DB::statement("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role::text IN ('petugas', 'supervisor', 'petugas_eksekusi'))");
+        DB::statement("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role::text IN ('petugas', 'supervisor'))");
 
         $uprs = DB::table('uprs')->get();
 
@@ -28,7 +28,7 @@ return new class extends Migration
                 'name' => $name,
                 'email' => $email,
                 'password' => Hash::make('password'),
-                'role' => 'petugas_eksekusi',
+                'role' => 'petugas',
                 'wilayah' => $wilayah,
                 'nip' => null,
                 'upr_id' => $upr->id,
@@ -40,7 +40,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        DB::table('users')->where('role', 'petugas_eksekusi')->delete();
+        DB::table('users')->where('email', 'like', 'eksekusi.%@jalankita.test')->delete();
 
         DB::statement('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check');
         DB::statement("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role::text IN ('petugas', 'supervisor'))");

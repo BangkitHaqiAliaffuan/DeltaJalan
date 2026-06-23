@@ -8,10 +8,13 @@ import { getCurrentUser, getToken } from "@/lib/auth";
 import { listDrafts, type OfflineDraft } from "@/lib/offlineDrafts";
 import { useStats, useRecentReports } from "@/hooks/useReportQueries";
 import { ReportCard } from "@/components/jk/ReportCard";
+import { PatrolScheduleCard } from "@/components/jk/PatrolScheduleCard";
+import { usePatrolSchedules } from "@/hooks/usePatrolScheduleQueries";
 import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
 import { formatDateRelative } from "@/lib/format";
 import { API_BASE_URL } from "@/lib/aiStore";
 import type { ActionButton } from "@/components/jk/report-card/types";
+import type { PatrolSchedule } from "@/types/survey";
 
 export const Route = createFileRoute("/home")({
   component: HomePage,
@@ -28,6 +31,10 @@ function HomePage() {
 
   const { data: stats, isLoading: statsLoading } = useStats(token);
   const { data: recent = [], isLoading: reportsLoading, refetch: refetchReports } = useRecentReports(token);
+  const schedulesQuery = usePatrolSchedules(
+    user?.team_id ? { team_id: user.team_id } : undefined,
+  );
+  const schedules: PatrolSchedule[] = (schedulesQuery.data as { data?: PatrolSchedule[] } | undefined)?.data ?? [];
   const [drafts, setDrafts] = useState<OfflineDraft[]>([]);
   const [draftsLoading, setDraftsLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -101,7 +108,7 @@ function HomePage() {
                 {greeting}, {user?.name ?? "Petugas"}
               </h1>
               <p className="text-sm text-blue-200 mt-1">
-                Status pelaporan jalan Kab. Sidoarjo hari ini
+                {user?.team_name ? `${user.team_name} • ` : ""}Status pelaporan jalan Kab. Sidoarjo hari ini
               </p>
             </div>
             <span className="px-2.5 py-1 bg-white/15 text-xs font-semibold text-blue-200 uppercase tracking-wide">
@@ -143,6 +150,28 @@ function HomePage() {
             )}
           </div>
         </section>
+
+        {schedules.length > 0 && (
+          <section className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-[15px] font-bold text-[#0F172A] flex items-center gap-2">
+                <Icon name="calendar_month" className="!text-lg text-[#1e40af]" />
+                Jadwal Patrolimu
+              </h3>
+              <Link
+                to="/tugas-saya"
+                className="text-[12px] font-semibold text-[#1e40af] hover:text-[#173bab] transition-colors"
+              >
+                Lihat Semua
+              </Link>
+            </div>
+            <PatrolScheduleCard
+              schedules={schedules}
+              isFetching={schedulesQuery.isFetching}
+              compact
+            />
+          </section>
+        )}
 
         <section className="mb-6">
           <div className="bg-white border border-[#E2E8F0] overflow-hidden">

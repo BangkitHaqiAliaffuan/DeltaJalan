@@ -8,15 +8,13 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::table('users')->where('role', 'petugas_eksekusi')
-            ->where('email', 'like', '%@jalankita.test')
+        DB::table('users')->where('email', 'like', '%eksekusi.%@jalankita.test')
             ->update(['password' => Hash::make('password123')]);
     }
 
     public function down(): void
     {
-        DB::table('users')->where('role', 'petugas_eksekusi')
-            ->where('email', 'like', '%eksekusi.%')
+        DB::table('users')->where('email', 'like', '%eksekusi.%@jalankita.test')
             ->update(['password' => Hash::make('password')]);
     }
 };

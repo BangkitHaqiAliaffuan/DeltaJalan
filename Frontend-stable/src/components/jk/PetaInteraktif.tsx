@@ -471,8 +471,8 @@ export function PetaInteraktif({
             ? `<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#64748B;margin-top:3px;"><span>📐</span><span>${r.kerusakan_panjang}m × ${r.kerusakan_lebar}m</span></div>`
             : "";
 
-        const uprHtml = r.assigned_upr_name
-          ? `<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#64748B;margin-top:2px;"><span>👥</span><span>${r.assigned_upr_name}</span></div>`
+        const uprHtml = r.assigned_team_name
+          ? `<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#64748B;margin-top:2px;"><span>👥</span><span>${r.assigned_team_name}</span></div>`
           : "";
 
         const marker = L.marker([r.latitude, r.longitude], { icon } as any)

@@ -22,3 +22,15 @@ Schedule::call(function () {
     $deleted = WorkerLocation::where('tracked_at', '<', now()->subDays(30))->delete();
     Log::info("WorkerLocation: purged {$deleted} old records (>30 days).");
 })->dailyAt('00:00');
+
+// Hapus laporan Ditolak yang sudah > N hari (default 3)
+Schedule::command('jalan-kita:purge-rejected-reports')->dailyAt('02:00');
+
+// Generate patrol tasks setiap jam 06:00 untuk 3 hari ke depan — petugas selalu punya task H-3
+Schedule::command('patrol:generate-tasks --days=3')->dailyAt('06:00');
+
+// Patrol reminder jam 09:00 — beri tahu petugas jadwal patroli hari ini
+Schedule::command('patrol:reminder-morning')->dailyAt('09:00');
+
+// Patrol reminder jam 17:00 — ingatkan menyelesaikan laporan patrol hari ini
+Schedule::command('patrol:reminder-evening')->dailyAt('17:00');

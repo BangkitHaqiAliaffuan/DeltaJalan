@@ -3,14 +3,15 @@
 use App\Http\Controllers\AIController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\PatrolScheduleController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReportExportController;
+use App\Http\Controllers\RoadController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\StatusLogController;
 use App\Http\Controllers\SurveyTaskController;
 use App\Http\Controllers\TeamController;
-use App\Http\Controllers\UprController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkerLocationController;
 use Illuminate\Http\Request;
@@ -111,7 +112,7 @@ Route::middleware('auth:sanctum')->group(function () {
      * GET /api/reports/stats-by-upr
      * HARUS sebelum /reports/{id}.
      */
-    Route::get('/reports/stats-by-upr', [ReportController::class, 'statsByUpr']);
+    Route::get('/reports/stats-by-team', [ReportController::class, 'statsByTeam']);
 
     /**
      * GET /api/reports/ringkasan-deadline
@@ -157,14 +158,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/reports/{id}/complete', [ReportController::class, 'complete']);
 
     /**
-     * GET /api/uprs
-     * Daftar UPR/tim satgas yang tersedia.
-     */
-    Route::get('/uprs', [UprController::class, 'index']);
-
-    /**
      * POST /api/reports/{id}/assign
-     * Menetapkan UPR/tim satgas ke laporan.
+     * Menetapkan tim satgas ke laporan.
      */
     Route::post('/reports/{id}/assign', [ReportController::class, 'assign']);
 
@@ -226,7 +221,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     /**
      * POST /api/reports/{id}/update-triage
-     * Petugas eksekusi memperbarui kategori kerusakan (severity) dan/atau prioritas.
+     * Petugas memperbarui kategori kerusakan (severity) dan/atau prioritas.
      */
     Route::post('/reports/{id}/update-triage', [ReportController::class, 'updateTriage']);
 
@@ -277,12 +272,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/settings', [SettingController::class, 'index']);
     Route::put('/settings', [SettingController::class, 'update']);
 
-    // ── UPR CRUD ──────────────────────────────────────────────────────────
-    Route::post('/uprs', [UprController::class, 'store']);
-    Route::get('/uprs/{id}', [UprController::class, 'show']);
-    Route::put('/uprs/{id}', [UprController::class, 'update']);
-    Route::delete('/uprs/{id}', [UprController::class, 'destroy']);
-
     // ── Survey Tasks (Ruas Jalan) ────────────────────────────────────────────
     Route::get('/survei', [SurveyTaskController::class, 'index']);
     Route::get('/survei/stats', [SurveyTaskController::class, 'stats']);
@@ -290,6 +279,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/survei/{id}', [SurveyTaskController::class, 'show']);
     Route::put('/survei/{id}', [SurveyTaskController::class, 'update']);
     Route::delete('/survei/{id}', [SurveyTaskController::class, 'destroy']);
+
+    // ── Patrol Schedules ─────────────────────────────────────────────────────
+    Route::get('/patrol-schedules/preview', [PatrolScheduleController::class, 'preview']);
+    Route::get('/patrol-schedules', [PatrolScheduleController::class, 'index']);
+    Route::post('/patrol-schedules', [PatrolScheduleController::class, 'store']);
+    Route::get('/patrol-schedules/{id}', [PatrolScheduleController::class, 'show']);
+    Route::put('/patrol-schedules/{id}', [PatrolScheduleController::class, 'update']);
+    Route::delete('/patrol-schedules/{id}', [PatrolScheduleController::class, 'destroy']);
+    Route::post('/patrol-schedules/{id}/generate', [PatrolScheduleController::class, 'generate']);
+    Route::post('/patrol-schedules/{id}/toggle', [PatrolScheduleController::class, 'toggle']);
 
     // ── Teams ────────────────────────────────────────────────────────────────
     Route::get('/teams', [TeamController::class, 'index']);
@@ -303,10 +302,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/teams/{id}/roads', [TeamController::class, 'assignRoads']);
     Route::delete('/teams/{id}/roads/{taskId}', [TeamController::class, 'unassignRoad']);
 
+    // ── Roads (OSM data) ────────────────────────────────────────────────────
+    Route::get('/roads', [RoadController::class, 'index']);
+    Route::post('/roads', [RoadController::class, 'store']);
+
     // ── Worker Location Tracking ────────────────────────────────────────────
     Route::post('/worker/location', [WorkerLocationController::class, 'store']);
-    Route::get('/worker/uprs/nearest', [WorkerLocationController::class, 'nearest']);
-    Route::get('/worker/uprs/{id}/locations', [WorkerLocationController::class, 'teamLocations']);
+    Route::get('/worker/teams/nearest', [WorkerLocationController::class, 'nearest']);
+    Route::get('/worker/teams/{id}/locations', [WorkerLocationController::class, 'teamLocations']);
 
     // ── Users CRUD ─────────────────────────────────────────────────────────
     Route::get('/users', [UserController::class, 'index']);

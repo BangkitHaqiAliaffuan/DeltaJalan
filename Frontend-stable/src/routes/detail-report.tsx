@@ -43,9 +43,9 @@ function DetailReportPage() {
   const token = getToken() ?? "";
   const user = getCurrentUser();
   const userRole = user?.role ?? "petugas";
-  const [backPath, setBackPath] = useState("/my-reports");
+  const [backPath, setBackPath] = useState("/tugas-saya");
   useEffect(() => {
-    setBackPath(userRole === "supervisor" ? "/supervisor" : userRole === "petugas_eksekusi" ? "/petugas-eksekusi" : "/my-reports");
+    setBackPath(userRole === "supervisor" ? "/supervisor" : "/tugas-saya");
   }, [userRole]);
 
   const [report, setReport] = useState<Laporan | null>(null);
@@ -60,9 +60,9 @@ function DetailReportPage() {
   const [tolakAlasan, setTolakAlasan] = useState("");
   const [showTolak, setShowTolak] = useState(false);
   const [showSatgasPicker, setShowSatgasPicker] = useState(false);
-  const [satgasUprId, setSatgasUprId] = useState("");
+  const [satgasTeamId, setSatgasTeamId] = useState("");
   const [satgasCatatan, setSatgasCatatan] = useState("");
-  const [uprList, setUprList] = useState<{ id: number; name: string; distance_label?: string }[]>([]);
+  const [teamList, setTeamList] = useState<{ id: number; name: string; distance_label?: string }[]>([]);
 
   useEffect(() => {
     if (!reportId) {
@@ -105,20 +105,20 @@ function DetailReportPage() {
     } catch {}
   }
 
-  // Fetch UPR list for satgas picker — sorted by nearest if coordinates available
-  async function fetchUprList() {
+  // Fetch team list for satgas picker — sorted by nearest if coordinates available
+  async function fetchTeamList() {
     try {
-      const [uprRes, nearestRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/uprs`, { headers: { Authorization: `Bearer ${token}` } }),
+      const [teamRes, nearestRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/teams`, { headers: { Authorization: `Bearer ${token}` } }),
         report?.latitude && report?.longitude
-          ? fetch(`${API_BASE_URL}/worker/uprs/nearest?lat=${report.latitude}&lng=${report.longitude}`, {
+          ? fetch(`${API_BASE_URL}/worker/teams/nearest?lat=${report.latitude}&lng=${report.longitude}`, {
               headers: { Authorization: `Bearer ${token}` },
             }).then((r) => r.ok ? r.json() : null)
           : Promise.resolve(null),
       ]);
 
-      if (uprRes.ok) {
-        const json = await uprRes.json();
+      if (teamRes.ok) {
+        const json = await teamRes.json();
         const baseList: { id: number; name: string }[] = json.data ?? json ?? [];
         const nearestMap = new Map<number, string>();
         if (nearestRes?.data) {
@@ -141,7 +141,7 @@ function DetailReportPage() {
             return 0;
           });
         }
-        setUprList(baseList.map((u) => ({
+        setTeamList(baseList.map((u) => ({
           ...u,
           distance_label: nearestMap.get(u.id),
         })));
@@ -249,13 +249,13 @@ function DetailReportPage() {
   }
 
   async function handleMulaiWithSatgas() {
-    if (!report || !satgasUprId) return;
+    if (!report || !satgasTeamId) return;
     setActionLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/reports/${report.id}/mulai`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ assigned_upr_id: satgasUprId, catatan: satgasCatatan }),
+        body: JSON.stringify({ assigned_team_id: satgasTeamId, catatan: satgasCatatan }),
       });
       const json = await res.json();
       if (res.ok) {
@@ -320,7 +320,7 @@ function DetailReportPage() {
   function renderFooter() {
     const status = report?.status ?? "";
     const isSupervisor = userRole === "supervisor";
-    const isEksekusi = userRole === "petugas_eksekusi";
+    const isEksekusi = userRole === "petugas";
 
     const showBack = (centered?: boolean) => (
       <Link
@@ -597,8 +597,8 @@ function DetailReportPage() {
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
                 <InfoRow icon="location_on" value={`Kec. ${report.district}`} />
-                {report.assigned_upr_name && (
-                  <InfoRow icon="group" value={`UPR: ${report.assigned_upr_name}`} />
+                  {report.assigned_team_name && (
+                  <InfoRow icon="group" value={`Tim: ${report.assigned_team_name}`} />
                 )}
                 {report.kerusakan_panjang != null && (
                   <InfoRow
@@ -768,7 +768,7 @@ function DetailReportPage() {
               <>
                 <button
                   type="button"
-                  disabled={actionLoading || !satgasUprId}
+                  disabled={actionLoading || !satgasTeamId}
                   onClick={() => {
                     const needApprove = userRole === "supervisor" && (report?.status === "Menunggu Review" || report?.status === "Ditinjau");
                     if (needApprove) {
@@ -811,15 +811,15 @@ function DetailReportPage() {
               </select>
             </div>
             <div>
-              <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Tugaskan ke UPR/Satgas <span className="text-[#E11D48]">*</span></label>
+              <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Tugaskan ke Tim Satgas <span className="text-[#E11D48]">*</span></label>
               <select
-                value={satgasUprId}
-                onChange={(e) => setSatgasUprId(e.target.value)}
+                value={satgasTeamId}
+                onChange={(e) => setSatgasTeamId(e.target.value)}
                 className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
-                onClick={() => { if (uprList.length === 0) fetchUprList(); }}
+                onClick={() => { if (teamList.length === 0) fetchTeamList(); }}
               >
-                <option value="">Pilih UPR/Satgas…</option>
-                {uprList.map((u) => (
+                <option value="">Pilih Tim Satgas…</option>
+                {teamList.map((u) => (
                   <option key={u.id} value={String(u.id)}>
                     {u.name}{u.distance_label ? ` (${u.distance_label})` : ''}
                   </option>
