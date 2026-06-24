@@ -5,13 +5,11 @@ import { PageLayout } from "@/components/jk/PageLayout";
 import { useQueryClient } from "@tanstack/react-query";
 import { SkeletonCard } from "@/components/jk/Skeleton";
 import { getCurrentUser, getToken } from "@/lib/auth";
-import { listDrafts, type OfflineDraft } from "@/lib/offlineDrafts";
 import { useStats, useRecentReports } from "@/hooks/useReportQueries";
 import { ReportCard } from "@/components/jk/ReportCard";
 import { PatrolScheduleCard } from "@/components/jk/PatrolScheduleCard";
 import { usePatrolSchedules } from "@/hooks/usePatrolScheduleQueries";
 import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
-import { formatDateRelative } from "@/lib/format";
 import { API_BASE_URL } from "@/lib/aiStore";
 import type { ActionButton } from "@/components/jk/report-card/types";
 import type { PatrolSchedule } from "@/types/survey";
@@ -35,17 +33,8 @@ function HomePage() {
     user?.team_id ? { team_id: user.team_id } : undefined,
   );
   const schedules: PatrolSchedule[] = (schedulesQuery.data as { data?: PatrolSchedule[] } | undefined)?.data ?? [];
-  const [drafts, setDrafts] = useState<OfflineDraft[]>([]);
-  const [draftsLoading, setDraftsLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
-
-  useEffect(() => {
-    listDrafts().then((d) => {
-      setDrafts(d);
-      setDraftsLoading(false);
-    });
-  }, []);
 
   const loading = !isClient || statsLoading || reportsLoading;
   const queryClient = useQueryClient();
@@ -54,7 +43,6 @@ function HomePage() {
     await Promise.all([
       refetchReports(),
       queryClient.invalidateQueries({ queryKey: ["stats"] }),
-      (async () => { setDrafts(await listDrafts()); })(),
     ]);
   }, [refetchReports, queryClient]);
 
@@ -173,97 +161,7 @@ function HomePage() {
           </section>
         )}
 
-        <section className="mb-6">
-          <div className="bg-white border border-[#E2E8F0] overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 bg-[#F8FAFC] border-b border-[#E2E8F0]">
-              <h3 className="font-headline-sm text-headline-sm font-bold text-[#0F172A] flex items-center gap-2">
-                Draf Laporan Terbaru
-                    {drafts.length > 0 && (
-                      <span className="bg-[#E2E8F0] text-[#475569] text-[10px] font-bold px-2 py-0.5 rounded-full">
-                        {drafts.length}
-                      </span>
-                    )}
-                  </h3>
-                  {drafts.length > 0 && (
-                    <Link
-                      to="/drafts"
-                      className="text-[13px] font-semibold text-[#1e40af] hover:text-[#173bab] transition-colors"
-                    >
-                      Lihat Semua
-                    </Link>
-                  )}
-                </div>
 
-                {draftsLoading ? (
-                  [1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="p-4 animate-pulse border-b border-[#E2E8F0] last:border-b-0"
-                    >
-                      <div className="flex gap-3">
-                        <div className="w-14 h-14 bg-gray-200 rounded-lg shrink-0" />
-                        <div className="flex-1 space-y-2">
-                          <div className="h-4 w-32 bg-gray-200 rounded" />
-                          <div className="h-3 w-20 bg-gray-200 rounded" />
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : drafts.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-10 text-center">
-                    <div className="w-10 h-10 rounded-lg bg-[#F1F5F9] border border-[#E2E8F0] flex items-center justify-center mb-3">
-                      <Icon name="edit_note" className="text-[#475569] !text-[20px]" />
-                    </div>
-                    <p className="font-body-md font-semibold text-[#0F172A] mb-1">Belum ada draf</p>
-                    <p className="font-body-sm text-body-sm text-[#475569]">
-                      Buat laporan baru untuk mulai.
-                    </p>
-                  </div>
-                ) : (
-                  drafts.slice(0, 4).map((draft) => {
-                    const draftDate = formatDateRelative(draft.updatedAt, isClient);
-                    return (
-                      <Link
-                        key={draft.id}
-                        to="/upload"
-                        search={{ draftId: draft.id }}
-                        className="flex items-center gap-4 p-4 border-b border-[#E2E8F0] last:border-b-0 hover:bg-[#F8FAFC] transition-colors"
-                      >
-                        <div className="w-14 h-14 shrink-0 rounded-xl overflow-hidden bg-gray-100 border border-[#E2E8F0]">
-                          {draft.photos[0]?.thumbnail ? (
-                            <img
-                              src={draft.photos[0].thumbnail}
-                              alt=""
-                              loading="lazy"
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Icon name="photo" className="text-gray-300 !text-[18px]" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[14px] font-semibold text-[#0F172A] truncate">
-                            {draft.roadName || "(tanpa nama jalan)"}
-                          </p>
-                          <p className="text-[12px] text-[#475569] mt-0.5">{draftDate}</p>
-                        </div>
-                        <div className="flex flex-col items-end gap-1.5 shrink-0">
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#475569] mr-1" />
-                            Draf
-                          </span>
-                          <span className="text-[10px] text-[#475569] font-medium">
-                            {draft.district || draft.photos.length + " foto"}
-                          </span>
-                        </div>
-                      </Link>
-                    );
-                  })
-                )}
-              </div>
-          </section>
 
         <section className="mb-6">
           <div className="grid grid-cols-2 gap-3">

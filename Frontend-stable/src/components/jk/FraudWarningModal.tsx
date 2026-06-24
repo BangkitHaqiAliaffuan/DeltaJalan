@@ -38,6 +38,10 @@ const STATUS_CONFIG: Record<
     icon: "info",
     badgeText: "METADATA TIDAK TERBACA",
   },
+  no_gps: {
+    icon: "location_off",
+    badgeText: "TANPA GPS",
+  },
   valid: {
     icon: "check_circle",
     badgeText: "VALID",

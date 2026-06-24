@@ -22,7 +22,6 @@ import { Route as MyReportsRouteImport } from './routes/my-reports'
 import { Route as MapRouteImport } from './routes/map'
 import { Route as HomeRouteImport } from './routes/home'
 import { Route as EditReportRouteImport } from './routes/edit-report'
-import { Route as DraftsRouteImport } from './routes/drafts'
 import { Route as DetailSurveiRouteImport } from './routes/detail-survei'
 import { Route as DetailReportRouteImport } from './routes/detail-report'
 import { Route as CompleteReportRouteImport } from './routes/complete-report'
@@ -103,11 +102,6 @@ const HomeRoute = HomeRouteImport.update({
 const EditReportRoute = EditReportRouteImport.update({
   id: '/edit-report',
   path: '/edit-report',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DraftsRoute = DraftsRouteImport.update({
-  id: '/drafts',
-  path: '/drafts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DetailSurveiRoute = DetailSurveiRouteImport.update({
@@ -198,7 +192,6 @@ export interface FileRoutesByFullPath {
   '/complete-report': typeof CompleteReportRoute
   '/detail-report': typeof DetailReportRoute
   '/detail-survei': typeof DetailSurveiRoute
-  '/drafts': typeof DraftsRoute
   '/edit-report': typeof EditReportRoute
   '/home': typeof HomeRoute
   '/map': typeof MapRoute
@@ -230,7 +223,6 @@ export interface FileRoutesByTo {
   '/complete-report': typeof CompleteReportRoute
   '/detail-report': typeof DetailReportRoute
   '/detail-survei': typeof DetailSurveiRoute
-  '/drafts': typeof DraftsRoute
   '/edit-report': typeof EditReportRoute
   '/home': typeof HomeRoute
   '/map': typeof MapRoute
@@ -262,7 +254,6 @@ export interface FileRoutesById {
   '/complete-report': typeof CompleteReportRoute
   '/detail-report': typeof DetailReportRoute
   '/detail-survei': typeof DetailSurveiRoute
-  '/drafts': typeof DraftsRoute
   '/edit-report': typeof EditReportRoute
   '/home': typeof HomeRoute
   '/map': typeof MapRoute
@@ -296,7 +287,6 @@ export interface FileRouteTypes {
     | '/complete-report'
     | '/detail-report'
     | '/detail-survei'
-    | '/drafts'
     | '/edit-report'
     | '/home'
     | '/map'
@@ -328,7 +318,6 @@ export interface FileRouteTypes {
     | '/complete-report'
     | '/detail-report'
     | '/detail-survei'
-    | '/drafts'
     | '/edit-report'
     | '/home'
     | '/map'
@@ -359,7 +348,6 @@ export interface FileRouteTypes {
     | '/complete-report'
     | '/detail-report'
     | '/detail-survei'
-    | '/drafts'
     | '/edit-report'
     | '/home'
     | '/map'
@@ -392,7 +380,6 @@ export interface RootRouteChildren {
   CompleteReportRoute: typeof CompleteReportRoute
   DetailReportRoute: typeof DetailReportRoute
   DetailSurveiRoute: typeof DetailSurveiRoute
-  DraftsRoute: typeof DraftsRoute
   EditReportRoute: typeof EditReportRoute
   HomeRoute: typeof HomeRoute
   MapRoute: typeof MapRoute
@@ -508,13 +495,6 @@ declare module '@tanstack/react-router' {
       path: '/edit-report'
       fullPath: '/edit-report'
       preLoaderRoute: typeof EditReportRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/drafts': {
-      id: '/drafts'
-      path: '/drafts'
-      fullPath: '/drafts'
-      preLoaderRoute: typeof DraftsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/detail-survei': {
@@ -652,7 +632,6 @@ const rootRouteChildren: RootRouteChildren = {
   CompleteReportRoute: CompleteReportRoute,
   DetailReportRoute: DetailReportRoute,
   DetailSurveiRoute: DetailSurveiRoute,
-  DraftsRoute: DraftsRoute,
   EditReportRoute: EditReportRoute,
   HomeRoute: HomeRoute,
   MapRoute: MapRoute,

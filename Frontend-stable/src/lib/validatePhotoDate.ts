@@ -29,7 +29,8 @@ export type PhotoDateValidationStatus =
   | "no_exif_date" // tidak ada metadata tanggal EXIF → DITOLAK
   | "too_old" // foto terlalu lama (> MAX_AGE_DAYS hari) → DITOLAK
   | "future_date" // tanggal foto di masa depan (manipulasi metadata) → DITOLAK
-  | "exif_read_error"; // gagal membaca EXIF → DITOLAK
+  | "exif_read_error" // gagal membaca EXIF → DITOLAK
+  | "no_gps"; // tidak ada metadata lokasi EXIF → DITOLAK
 
 /**
  * Status yang hanya membutuhkan peringatan (upload tetap lanjut).
@@ -125,7 +126,8 @@ export async function validatePhotoDate(file: File): Promise<PhotoDateValidation
     exifData = await exifr.parse(file, {
       pick: ["DateTimeOriginal", "DateTimeDigitized", "DateTime", "CreateDate"],
     });
-  } catch {
+  } catch (parseErr) {
+    console.warn("[validatePhotoDate] exifr.parse gagal:", parseErr, "file:", file.name, file.size);
     // File tidak punya EXIF sama sekali (PNG, screenshot, foto dari internet, dll)
     // DITOLAK — foto harus memiliki metadata tanggal untuk diverifikasi
     return {
