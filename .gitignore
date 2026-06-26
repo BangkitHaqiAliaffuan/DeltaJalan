@@ -56,3 +56,13 @@ Frontend-stable/vite.config.ts.backup
 
 # Capacitor EXIF GPS plugin build artifacts
 Frontend-stable/capacitor-exif-gps/android/build/
+
+# APK build output
+DeltaJalan.apk
+
+# Transient/temp files
+Frontend-stable/tmp_lines.txt
+Frontend-stable/vite_stdout.txt
+
+# Photo data directory (not part of source)
+Photos EXIF/

@@ -3,14 +3,23 @@ import { useState, useEffect } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { SkeletonDetailReport } from "@/components/jk/Skeleton";
 import { PageLayout } from "@/components/jk/PageLayout";
+import { SafeImage } from "@/components/jk/SafeImage";
+import { useBlobImage } from "@/hooks/useBlobImage";
 import { API_BASE_URL, normalizeSeverityKey } from "@/lib/aiStore";
 import { getToken, getCurrentUser } from "@/lib/auth";
-import { formatDate, statusDotStyle, displayStatus, haversineDistance, formatDistance } from "@/lib/format";
-import type { Laporan, TimelineEvent, TrustLabel } from "@/types/laporan";
+import {
+  formatDate,
+  statusDotStyle,
+  displayStatus,
+  haversineDistance,
+  formatDistance,
+} from "@/lib/format";
+import type { Laporan, TimelineEvent, TrustLabel, ProgressUpdate } from "@/types/laporan";
 import { ReportMap, type ReportMapPoint } from "@/components/jk/ReportMap";
 import { TimelineCard } from "@/components/jk/TimelineCard";
+import { ProgressTimeline } from "@/components/jk/ProgressTimeline";
+import { ProgressUpdateModal } from "@/components/jk/ProgressUpdateModal";
 import { BeforeAfterSlider } from "@/components/jk/BeforeAfterSlider";
-import { SafeImage } from "@/components/jk/SafeImage";
 import { Portal } from "@/components/jk/Portal";
 import { ModalBase } from "@/components/jk/ModalBase";
 import { TrustBadge } from "@/components/jk/TrustBadge";
@@ -26,7 +35,10 @@ export const Route = createFileRoute("/detail-report")({
 
 const SEVERITY_STYLES: Record<string, { badge: string; dot: string }> = {
   "Rusak Berat": { badge: "bg-[#E11D48] text-white", dot: "bg-white animate-pulse" },
-  "Rusak Sedang": { badge: "bg-orange-50 text-[#F97316] border border-orange-200", dot: "bg-white" },
+  "Rusak Sedang": {
+    badge: "bg-orange-50 text-[#F97316] border border-orange-200",
+    dot: "bg-white",
+  },
   "Rusak Ringan": { badge: "bg-amber-50 text-[#F59E0B] border border-amber-200", dot: "bg-white" },
   Baik: { badge: "bg-[#E8F5E9] text-[#2E7D32] border border-[#A5D6A7]", dot: "bg-[#2E7D32]" },
 };
@@ -59,10 +71,9 @@ function DetailReportPage() {
   const [actionMsg, setActionMsg] = useState("");
   const [tolakAlasan, setTolakAlasan] = useState("");
   const [showTolak, setShowTolak] = useState(false);
-  const [showSatgasPicker, setShowSatgasPicker] = useState(false);
-  const [satgasTeamId, setSatgasTeamId] = useState("");
-  const [satgasCatatan, setSatgasCatatan] = useState("");
-  const [teamList, setTeamList] = useState<{ id: number; name: string; distance_label?: string }[]>([]);
+  const [showApproval, setShowApproval] = useState(false);
+  const [progressUpdates, setProgressUpdates] = useState<ProgressUpdate[]>([]);
+  const [showProgressModal, setShowProgressModal] = useState(false);
 
   useEffect(() => {
     if (!reportId) {
@@ -105,49 +116,18 @@ function DetailReportPage() {
     } catch {}
   }
 
-  // Fetch team list for satgas picker — sorted by nearest if coordinates available
-  async function fetchTeamList() {
-    try {
-      const [teamRes, nearestRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/teams`, { headers: { Authorization: `Bearer ${token}` } }),
-        report?.latitude && report?.longitude
-          ? fetch(`${API_BASE_URL}/worker/teams/nearest?lat=${report.latitude}&lng=${report.longitude}`, {
-              headers: { Authorization: `Bearer ${token}` },
-            }).then((r) => r.ok ? r.json() : null)
-          : Promise.resolve(null),
-      ]);
-
-      if (teamRes.ok) {
-        const json = await teamRes.json();
-        const baseList: { id: number; name: string }[] = json.data ?? json ?? [];
-        const nearestMap = new Map<number, string>();
-        if (nearestRes?.data) {
-          for (const item of nearestRes.data) {
-            if (item.distance_label) {
-              nearestMap.set(item.id, item.distance_label);
-            }
-          }
-          // Sort: teams with distance first (nearest first), then teams without distance
-          baseList.sort((a, b) => {
-            const aDist = nearestMap.has(a.id);
-            const bDist = nearestMap.has(b.id);
-            if (aDist && bDist) {
-              const aIdx = nearestRes.data.findIndex((x: any) => x.id === a.id);
-              const bIdx = nearestRes.data.findIndex((x: any) => x.id === b.id);
-              return aIdx - bIdx;
-            }
-            if (aDist) return -1;
-            if (bDist) return 1;
-            return 0;
-          });
-        }
-        setTeamList(baseList.map((u) => ({
-          ...u,
-          distance_label: nearestMap.get(u.id),
-        })));
-      }
-    } catch {}
-  }
+  // Load progress updates + teams
+  useEffect(() => {
+    if (!reportId || !report) return;
+    if (report.status === "Sedang Diperbaiki" || report.status === "Selesai") {
+      fetch(`${API_BASE_URL}/reports/${reportId}/progress`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => r.json())
+        .then((json) => setProgressUpdates(json.data ?? []))
+        .catch(() => {});
+    }
+  }, [report?.id, report?.status]);
 
   // Supervisor: auto-set status to "Ditinjau" when viewing
   useEffect(() => {
@@ -171,7 +151,9 @@ function DetailReportPage() {
       const json = await res.json();
       if (res.ok) {
         await refreshReport();
-        setActionMsg("Laporan disetujui.");
+        setActionMsg("Laporan disetujui dan tim ditugaskan.");
+        setShowApproval(false);
+        setShowTolak(false);
       } else {
         setActionMsg(json.message ?? "Gagal menyetujui.");
       }
@@ -248,35 +230,32 @@ function DetailReportPage() {
     navigate({ to: "/complete-report", search: { reportId: report.id } });
   }
 
-  async function handleMulaiWithSatgas() {
-    if (!report || !satgasTeamId) return;
-    setActionLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/reports/${report.id}/mulai`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ assigned_team_id: satgasTeamId, catatan: satgasCatatan }),
-      });
-      const json = await res.json();
-      if (res.ok) {
-        await refreshReport();
-        setActionMsg("Satgas ditugaskan dan pengerjaan dimulai.");
-        setShowSatgasPicker(false);
-      } else {
-        setActionMsg(json.message ?? "Gagal memulai pengerjaan.");
-      }
-    } catch {
-      setActionMsg("Kesalahan jaringan.");
-    } finally {
-      setActionLoading(false);
-    }
+  function loadProgress() {
+    if (!reportId) return;
+    fetch(`${API_BASE_URL}/reports/${reportId}/progress`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((json) => setProgressUpdates(json.data ?? []))
+      .catch(() => {});
   }
 
+  const mapPoints: ReportMapPoint[] = (() => {
+    if (!report?.latitude || !report?.longitude) return [];
 
-  const mapPoints: ReportMapPoint[] =
-    report?.latitude && report?.longitude
-      ? [{ lat: report.latitude, lng: report.longitude, label: report.road_name }]
-      : [];
+    const photoPoints = (report.photos ?? [])
+      .filter((p) => p.latitude != null && p.longitude != null)
+      .map((p, i) => ({
+        lat: p.latitude!,
+        lng: p.longitude!,
+        label: `Foto ${i + 1}`,
+        imageUrl: p.image_original_url,
+      }));
+
+    if (photoPoints.length > 0) return photoPoints;
+
+    return [{ lat: report.latitude, lng: report.longitude, label: report.road_name }];
+  })();
 
   const statusHistory: TimelineEvent[] = report?.status_history ?? [];
 
@@ -287,9 +266,13 @@ function DetailReportPage() {
   if (loading) {
     return (
       <PageLayout back={backPath} title="Detail Laporan">
-          <main aria-busy="true" aria-label="Memuat detail laporan" className="flex flex-col items-center justify-center min-h-[calc(100dvh-3.5rem)] px-4">
-            <SkeletonDetailReport />
-          </main>
+        <main
+          aria-busy="true"
+          aria-label="Memuat detail laporan"
+          className="flex flex-col items-center justify-center min-h-[calc(100dvh-3.5rem)] px-4"
+        >
+          <SkeletonDetailReport />
+        </main>
       </PageLayout>
     );
   }
@@ -299,18 +282,20 @@ function DetailReportPage() {
   if (error || !report) {
     return (
       <PageLayout back={backPath} title="Detail Laporan">
-          <main className="flex flex-col items-center justify-center gap-3 px-4 bg-[#F5F7FA]">
-            <div className="w-14 h-14 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-center">
-              <Icon name="error" className="!text-[28px] text-[#E11D48]" />
-            </div>
-            <p className="text-[14px] font-semibold text-[#0F172A]">{error || "Laporan tidak ditemukan."}</p>
-            <Link
-              to={backPath}
-              className="px-5 py-2 bg-[#1A4F8A] text-white text-[13px] font-medium rounded-lg hover:bg-[#153d6e] transition-colors"
-            >
-              Kembali
-            </Link>
-          </main>
+        <main className="flex flex-col items-center justify-center gap-3 px-4 bg-[#F5F7FA]">
+          <div className="w-14 h-14 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-center">
+            <Icon name="error" className="!text-[28px] text-[#E11D48]" />
+          </div>
+          <p className="text-[14px] font-semibold text-[#0F172A]">
+            {error || "Laporan tidak ditemukan."}
+          </p>
+          <Link
+            to={backPath}
+            className="px-5 py-2 bg-[#1A4F8A] text-white text-[13px] font-medium rounded-lg hover:bg-[#153d6e] transition-colors"
+          >
+            Kembali
+          </Link>
+        </main>
       </PageLayout>
     );
   }
@@ -325,7 +310,7 @@ function DetailReportPage() {
     const showBack = (centered?: boolean) => (
       <Link
         to={backPath}
-        className={`${centered ? 'w-[70%] flex bg-[#1A4F8A] text-white shadow-sm hover:bg-[#153d6e]' : 'w-full flex bg-[#F8FAFC] border border-[#CBD5E1] text-[#475569] hover:bg-[#F1F5F9] hover:border-[#94A3B8]'} py-2 md:py-2.5 min-h-[36px] rounded-xl text-[12px] font-semibold items-center justify-center gap-1.5 active:scale-95 transition-all`}
+        className={`${centered ? "w-[70%] flex bg-[#1A4F8A] text-white shadow-sm hover:bg-[#153d6e]" : "w-full flex bg-[#F8FAFC] border border-[#CBD5E1] text-[#475569] hover:bg-[#F1F5F9] hover:border-[#94A3B8]"} py-2 md:py-2.5 min-h-[36px] rounded-xl text-[12px] font-semibold items-center justify-center gap-1.5 active:scale-95 transition-all`}
       >
         <Icon name="arrow_back" className="!text-[16px]" />
         Kembali
@@ -337,18 +322,22 @@ function DetailReportPage() {
       return (
         <FooterWrapper>
           {actionMsg && (
-            <div className="px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[12px] text-[#0F172A] text-center">{actionMsg}</div>
+            <div className="px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[12px] text-[#0F172A] text-center">
+              {actionMsg}
+            </div>
           )}
           <button
             type="button"
             disabled={actionLoading}
-            onClick={() => setShowSatgasPicker(true)}
+            onClick={() => setShowApproval(true)}
             className="w-full py-2.5 md:py-3 min-h-[40px] bg-[#1A4F8A] text-white rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm"
           >
-            {actionLoading ? "Memproses…" : (
+            {actionLoading ? (
+              "Memproses…"
+            ) : (
               <>
                 <Icon name="check" className="!text-[20px]" />
-                Setujui & Tugaskan
+                Setujui &amp; Tugaskan Tim
               </>
             )}
           </button>
@@ -374,62 +363,52 @@ function DetailReportPage() {
       );
     }
 
-    // Supervisor: Disetujui → Mulai Pengerjaan with satgas picker
+    // Supervisor: Disetujui → legacy (approve langsung Ditugaskan)
     if (isSupervisor && status === "Disetujui") {
       return (
         <FooterWrapper>
-          {actionMsg && (
-            <div className="px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[12px] text-[#0F172A] text-center">{actionMsg}</div>
-          )}
-          <button
-            type="button"
-            disabled={actionLoading}
-            onClick={() => setShowSatgasPicker(true)}
-            className="w-full py-2.5 md:py-3 min-h-[40px] bg-[#1A4F8A] text-white rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm"
-          >
-            {actionLoading ? "Memproses…" : (
-              <>
-                <Icon name="assignment" className="!text-[20px]" />
-                Mulai Pengerjaan
-              </>
-            )}
-          </button>
+          <p className="text-[12px] text-[#64748B] text-center py-1">
+            Tim pelapor telah ditugaskan. Menunggu tim memulai pengerjaan.
+          </p>
           {showBack()}
         </FooterWrapper>
       );
     }
 
-    // Supervisor: Selesai → Re-open
+    // Supervisor: Ditugaskan — lihat progress
+    if (isSupervisor && status === "Ditugaskan") {
+      return (
+        <FooterWrapper>
+          <p className="text-[12px] text-[#64748B] text-center py-1">
+            Menunggu tim satgas memulai pengerjaan
+          </p>
+          {showBack()}
+        </FooterWrapper>
+      );
+    }
+
+    // Supervisor: Selesai
     if (isSupervisor && status === "Selesai") {
       return (
         <FooterWrapper>
           {actionMsg && (
-            <div className="px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[12px] text-[#0F172A] text-center">{actionMsg}</div>
+            <div className="px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[12px] text-[#0F172A] text-center">
+              {actionMsg}
+            </div>
           )}
-          <button
-            type="button"
-            disabled={actionLoading}
-            onClick={handleReopen}
-            className="w-full py-2 md:py-2.5 min-h-[36px] bg-[#FFF7ED] border border-[#FED7AA] text-[#C2410C] rounded-xl text-[12px] font-semibold flex items-center justify-center gap-1.5 hover:bg-[#FFF5F5] hover:border-[#FB923C] active:scale-95 transition-all disabled:opacity-50"
-          >
-            {actionLoading ? "Memproses…" : (
-              <>
-                <Icon name="refresh" className="!text-[16px]" />
-                Buka Kembali
-              </>
-            )}
-          </button>
           {showBack()}
         </FooterWrapper>
       );
     }
 
-    // Petugas Eksekusi: Disetujui → Mulai
-    if (isEksekusi && status === "Disetujui") {
+    // Petugas: Ditugaskan → Mulai Pengerjaan
+    if (isEksekusi && status === "Ditugaskan") {
       return (
         <FooterWrapper>
           {actionMsg && (
-            <div className="px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[12px] text-[#0F172A] text-center">{actionMsg}</div>
+            <div className="px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[12px] text-[#0F172A] text-center">
+              {actionMsg}
+            </div>
           )}
           <button
             type="button"
@@ -437,7 +416,9 @@ function DetailReportPage() {
             onClick={handleMulaiEksekusi}
             className="w-full py-2.5 md:py-3 min-h-[40px] bg-[#1A4F8A] text-white rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm"
           >
-            {actionLoading ? "Memproses…" : (
+            {actionLoading ? (
+              "Memproses…"
+            ) : (
               <>
                 <Icon name="play_arrow" className="!text-[20px]" />
                 Mulai Pengerjaan
@@ -449,18 +430,29 @@ function DetailReportPage() {
       );
     }
 
-    // Petugas Eksekusi: Sedang Diperbaiki → Selesaikan
+    // Petugas: Sedang Diperbaiki → Upload Progress + Selesaikan
     if (isEksekusi && status === "Sedang Diperbaiki") {
       return (
         <FooterWrapper>
-          <button
-            type="button"
-            onClick={handleSelesaikan}
-            className="w-full py-2.5 md:py-3 min-h-[40px] bg-[#1A4F8A] text-white rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm"
-          >
-            <Icon name="check_circle" className="!text-[20px]" />
-            Selesaikan
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setShowProgressModal(true)}
+              className="flex-1 py-2.5 md:py-3 min-h-[40px] bg-white border border-[#1A4F8A] text-[#1A4F8A] rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#F8FAFC] active:scale-[0.98] transition-all"
+            >
+              <Icon name="add_a_photo" className="!text-[20px]" />
+              Progress
+            </button>
+            <button
+              type="button"
+              disabled={progressUpdates.length === 0}
+              onClick={handleSelesaikan}
+              className="flex-1 py-2.5 md:py-3 min-h-[40px] bg-[#1A4F8A] text-white rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-[0.98] transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#1A4F8A]"
+            >
+              <Icon name="check_circle" className="!text-[20px]" />
+              Selesaikan
+            </button>
+          </div>
           {showBack()}
         </FooterWrapper>
       );
@@ -470,11 +462,11 @@ function DetailReportPage() {
     return (
       <FooterWrapper>
         {actionMsg && (
-          <div className="px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[12px] text-[#0F172A] text-center">{actionMsg}</div>
+          <div className="px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[12px] text-[#0F172A] text-center">
+            {actionMsg}
+          </div>
         )}
-        <div className="flex justify-center">
-          {showBack(true)}
-        </div>
+        <div className="flex justify-center">{showBack(true)}</div>
       </FooterWrapper>
     );
   }
@@ -487,357 +479,390 @@ function DetailReportPage() {
       title="Detail Laporan"
       right={<span className="font-id-code text-[12px] text-[#64748B]">{report.report_code}</span>}
     >
-        <main>
-          <div className="max-w-2xl mx-auto p-4 pb-[140px] flex flex-col gap-4">
-
-            {/* ── Foto & Analisis AI per foto ── */}
-            {report.photos && report.photos.length > 0 ? (
-              report.photos.map((photo, i) => (
-                <div key={photo.id} className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
-                  {photo.image_original_url && photo.image_result_url && photo.image_result_url !== photo.image_original_url ? (
-                    <BeforeAfterSlider
-                      beforeSrc={photo.image_original_url}
-                      afterSrc={photo.image_result_url}
-                      beforeLabel={`Foto ${i + 1} — Asli`}
-                      afterLabel={`Foto ${i + 1} — AI`}
-                      panjang={photo.kerusakan_panjang}
-                      lebar={photo.kerusakan_lebar}
+      <main>
+        <div className="max-w-2xl mx-auto p-4 pb-[140px] flex flex-col gap-4">
+          {/* ── Foto & Analisis AI per foto ── */}
+          {report.photos && report.photos.length > 0 ? (
+            report.photos.map((photo, i) => (
+              <div
+                key={photo.id}
+                className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden"
+              >
+                {photo.image_original_url &&
+                photo.image_result_url &&
+                photo.image_result_url !== photo.image_original_url ? (
+                  <BeforeAfterSlider
+                    beforeSrc={photo.image_original_url}
+                    afterSrc={photo.image_result_url}
+                    beforeLabel={`Foto ${i + 1} — Asli`}
+                    afterLabel={`Foto ${i + 1} — AI`}
+                    panjang={photo.kerusakan_panjang}
+                    lebar={photo.kerusakan_lebar}
+                  />
+                ) : photo.image_original_url ? (
+                  <div
+                    className="bg-[#0F172A] flex items-center justify-center"
+                    style={{ minHeight: 280 }}
+                  >
+                    <SafeImage
+                      src={photo.image_original_url}
+                      alt={`Foto ${i + 1}`}
+                      className="w-full h-full object-contain max-h-[55vh]"
                     />
-                  ) : photo.image_original_url ? (
-                    <div className="bg-[#0F172A] flex items-center justify-center" style={{ minHeight: 280 }}>
-                      <SafeImage src={photo.image_original_url} alt={`Foto ${i + 1}`} className="w-full h-full object-contain max-h-[55vh]" />
-                    </div>
-                  ) : null}
-                  {(photo.ai_jenis_kerusakan || photo.ai_severity || photo.ai_confidence != null || photo.total_detections != null) && (
-                    <div className="p-3 border-t border-[#E2E8F0]">
-                      <div className="flex items-start gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-[#F1F5F9] flex items-center justify-center shrink-0">
-                          <Icon name="insights" className="!text-[16px] text-[#1A4F8A]" />
-                        </div>
-                        <div className="flex-1 min-w-0 space-y-1">
-                          {photo.ai_jenis_kerusakan && (
-                            <p className="text-[13px] font-semibold text-[#0F172A]">{photo.ai_jenis_kerusakan}</p>
+                  </div>
+                ) : null}
+                {(photo.ai_jenis_kerusakan ||
+                  photo.ai_severity ||
+                  photo.ai_confidence != null ||
+                  photo.total_detections != null) && (
+                  <div className="p-3 border-t border-[#E2E8F0]">
+                    <div className="flex items-start gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-[#F1F5F9] flex items-center justify-center shrink-0">
+                        <Icon name="insights" className="!text-[16px] text-[#1A4F8A]" />
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-1">
+                        {photo.ai_jenis_kerusakan && (
+                          <p className="text-[13px] font-semibold text-[#0F172A]">
+                            {photo.ai_jenis_kerusakan}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {photo.ai_severity && (
+                            <span
+                              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                                photo.ai_severity === "berat"
+                                  ? "bg-[#E11D48] text-white border-[#E11D48]"
+                                  : photo.ai_severity === "sedang"
+                                    ? "bg-orange-50 text-[#F97316] border-orange-200"
+                                    : "bg-amber-50 text-[#F59E0B] border-amber-200"
+                              }`}
+                            >
+                              {normalizeSeverityKey(photo.ai_severity)}
+                            </span>
                           )}
-                          <div className="flex flex-wrap items-center gap-2">
-                            {photo.ai_severity && (
-                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
-                                photo.ai_severity === "berat" ? "bg-[#E11D48] text-white border-[#E11D48]" :
-                                photo.ai_severity === "sedang" ? "bg-orange-50 text-[#F97316] border-orange-200" :
-                                "bg-amber-50 text-[#F59E0B] border-amber-200"
-                              }`}>
-                                {normalizeSeverityKey(photo.ai_severity)}
-                              </span>
-                            )}
-                            {photo.ai_confidence != null && (
-                              <span className="text-[11px] text-[#64748B] font-medium">
-                                {(photo.ai_confidence * 100).toFixed(0)}% yakin
-                              </span>
-                            )}
-                            {photo.total_detections != null && (
-                              <span className="text-[11px] text-[#64748B]">
-                                {photo.total_detections} area terdeteksi
-                              </span>
-                            )}
-                          </div>
-
+                          {photo.ai_confidence != null && (
+                            <span className="text-[11px] text-[#64748B] font-medium">
+                              {(photo.ai_confidence * 100).toFixed(0)}% yakin
+                            </span>
+                          )}
+                          {photo.total_detections != null && (
+                            <span className="text-[11px] text-[#64748B]">
+                              {photo.total_detections} area terdeteksi
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
-                  )}
-                </div>
-              ))
-            ) : report.image_original_url ? (
-              <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
-                {report.image_result_url && report.image_result_url !== report.image_original_url ? (
-                  <BeforeAfterSlider
-                    beforeSrc={report.image_original_url}
-                    afterSrc={report.image_result_url}
-                    beforeLabel="Foto Asli"
-                    afterLabel="Hasil AI"
-                    panjang={report.kerusakan_panjang}
-                    lebar={report.kerusakan_lebar}
-                  />
-                ) : (
-                  <div className="bg-[#0F172A] flex items-center justify-center" style={{ minHeight: 280 }}>
-                    <SafeImage src={report.image_original_url} alt="Foto" className="w-full h-full object-contain max-h-[55vh]" />
                   </div>
                 )}
               </div>
-            ) : null}
-
-            {/* ── After Photo Gallery ── */}
-            <AfterPhotoGallery report={report} />
-
-            {/* ── Badges ── */}
-            <div className="flex flex-wrap items-center gap-2">
-              {(() => {
-                const sev = report.overall_severity ?? report.ai_severity;
-                if (!sev) return null;
-                const s = getSevStyle(normalizeSeverityKey(sev));
-                return (
-                  <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${s.badge}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-                    {normalizeSeverityKey(sev)}
-                  </span>
-                );
-              })()}
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-[#E2E8F0] text-[#475569]">
-                <span className={`w-2 h-2 rounded-full ${statusDotStyle(report.status ?? "")}`} />
-                {displayStatus(report.status ?? "-")}
-              </span>
-              {report.trust_label && (
-                <TrustBadge score={report.trust_score ?? 0} label={report.trust_label as TrustLabel} compact />
+            ))
+          ) : report.image_original_url ? (
+            <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
+              {report.image_result_url && report.image_result_url !== report.image_original_url ? (
+                <BeforeAfterSlider
+                  beforeSrc={report.image_original_url}
+                  afterSrc={report.image_result_url}
+                  beforeLabel="Foto Asli"
+                  afterLabel="Hasil AI"
+                  panjang={report.kerusakan_panjang}
+                  lebar={report.kerusakan_lebar}
+                />
+              ) : (
+                <div
+                  className="bg-[#0F172A] flex items-center justify-center"
+                  style={{ minHeight: 280 }}
+                >
+                  <SafeImage
+                    src={report.image_original_url}
+                    alt="Foto"
+                    className="w-full h-full object-contain max-h-[55vh]"
+                  />
+                </div>
               )}
             </div>
+          ) : null}
 
-            {/* ── Info Jalan ── */}
-            <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
-              <h2 className="font-headline-sm text-[17px] font-bold text-[#0F172A] mb-3">
-                {report.road_name}
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-                <InfoRow icon="location_on" value={`Kec. ${report.district}`} />
-                  {report.assigned_team_name && (
-                  <InfoRow icon="group" value={`Tim: ${report.assigned_team_name}`} />
-                )}
-                {report.kerusakan_panjang != null && (
-                  <InfoRow
-                    icon="straighten"
-                    value={
-                      report.kerusakan_lebar != null
-                        ? `${report.kerusakan_panjang}m × ${report.kerusakan_lebar}m (${(report.kerusakan_panjang * report.kerusakan_lebar).toFixed(1)} m²)`
-                        : `${report.kerusakan_panjang}m`
-                    }
-                  />
-                )}
+          {/* ── After Photo Gallery ── */}
+          <AfterPhotoGallery report={report} />
+
+          {/* ── Badges ── */}
+          <div className="flex flex-wrap items-center gap-2">
+            {(() => {
+              const sev = report.overall_severity ?? report.ai_severity;
+              if (!sev) return null;
+              const s = getSevStyle(normalizeSeverityKey(sev));
+              return (
+                <span
+                  className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${s.badge}`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+                  {normalizeSeverityKey(sev)}
+                </span>
+              );
+            })()}
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-[#E2E8F0] text-[#475569]">
+              <span className={`w-2 h-2 rounded-full ${statusDotStyle(report.status ?? "")}`} />
+              {displayStatus(report.status ?? "-")}
+            </span>
+            {report.trust_label && (
+              <TrustBadge
+                score={report.trust_score ?? 0}
+                label={report.trust_label as TrustLabel}
+                compact
+              />
+            )}
+          </div>
+
+          {/* ── Info Jalan ── */}
+          <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
+            <h2 className="font-headline-sm text-[17px] font-bold text-[#0F172A] mb-3">
+              {report.road_name}
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+              <InfoRow icon="location_on" value={`Kec. ${report.district}`} />
+              {report.assigned_team_name && (
+                <InfoRow icon="group" value={`Tim: ${report.assigned_team_name}`} />
+              )}
+              {report.kerusakan_panjang != null && (
                 <InfoRow
-                  icon="calendar_month"
-                  value={report.created_at ? formatDate(report.created_at) : "-"}
+                  icon="straighten"
+                  value={
+                    report.kerusakan_lebar != null
+                      ? `${report.kerusakan_panjang}m × ${report.kerusakan_lebar}m (${(report.kerusakan_panjang * report.kerusakan_lebar).toFixed(1)} m²)`
+                      : `${report.kerusakan_panjang}m`
+                  }
                 />
-                <InfoRow icon="person" value={report.reporter_name} />
-                {report.report_code && (
-                  <InfoRow icon="tag" value={report.report_code} />
+              )}
+              <InfoRow
+                icon="calendar_month"
+                value={report.created_at ? formatDate(report.created_at) : "-"}
+              />
+              <InfoRow icon="person" value={report.reporter_name} />
+              {report.report_code && <InfoRow icon="tag" value={report.report_code} />}
+            </div>
+          </div>
+
+          {/* ── Timeline Perbaikan ── */}
+          {hasTimeline && <TimelineCard events={statusHistory} />}
+
+          {/* ── Progress Timeline ── */}
+          {progressUpdates.length > 0 && <ProgressTimeline updates={progressUpdates} />}
+
+          {/* ── Lokasi ── */}
+          {mapPoints.length > 0 && (
+            <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
+              <div className="p-4 pb-2">
+                <h3 className="font-label-md text-[13px] font-bold text-[#0F172A]">Lokasi</h3>
+                {report.latitude && report.longitude && (
+                  <p className="text-[11px] text-[#64748B] mt-0.5 font-mono">
+                    {report.latitude.toFixed(6)}, {report.longitude.toFixed(6)}
+                  </p>
                 )}
+              </div>
+              <div className="h-48" style={{ isolation: "isolate" }}>
+                <ReportMap
+                  points={mapPoints}
+                  onPointClick={(pt) => {
+                    navigate({
+                      to: "/map",
+                      search: { highlight: report.id, lat: pt.lat, lng: pt.lng },
+                    });
+                  }}
+                />
               </div>
             </div>
+          )}
 
-            {/* ── Timeline Perbaikan ── */}
-            {hasTimeline && <TimelineCard events={statusHistory} />}
-
-
-
-            {/* ── Lokasi ── */}
-            {mapPoints.length > 0 && (
-              <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
-                <div className="p-4 pb-2">
-                  <h3 className="font-label-md text-[13px] font-bold text-[#0F172A]">Lokasi</h3>
-                  {report.latitude && report.longitude && (
-                    <p className="text-[11px] text-[#64748B] mt-0.5 font-mono">
-                      {report.latitude.toFixed(6)}, {report.longitude.toFixed(6)}
-                    </p>
-                  )}
+          {/* ── Duplikasi ── */}
+          {report.duplicate_of && (
+            <div className="bg-white border border-[#FDE68A] rounded-xl overflow-hidden">
+              <div className="flex items-start gap-3 p-4">
+                <div className="w-9 h-9 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
+                  <span className="text-[18px]">⚠️</span>
                 </div>
-                <div className="h-48" style={{ isolation: "isolate" }}>
-                  <ReportMap
-                    points={mapPoints}
-                    onPointClick={(pt) => {
-                      navigate({
-                        to: "/map",
-                        search: { highlight: report.id, lat: pt.lat, lng: pt.lng },
-                      });
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* ── Duplikasi ── */}
-            {report.duplicate_of && (
-              <div className="bg-white border border-[#FDE68A] rounded-xl overflow-hidden">
-                <div className="flex items-start gap-3 p-4">
-                  <div className="w-9 h-9 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
-                    <span className="text-[18px]">⚠️</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-[13px] font-bold text-[#92400E] mb-1">Terindikasi Duplikat</h3>
-                    <p className="text-[12px] text-[#92400E]/80 mb-2">
-                      Laporan ini memiliki kemiripan dengan laporan{' '}
-                      <strong>{report.duplicate_of.report_code}</strong>{' '}
-                      ({report.duplicate_of.road_name}, {report.duplicate_of.district}).
-                    </p>
-                    {report.latitude != null && report.longitude != null &&
-                      report.duplicate_of.latitude != null && report.duplicate_of.longitude != null && (
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-[13px] font-bold text-[#92400E] mb-1">
+                    Terindikasi Duplikat
+                  </h3>
+                  <p className="text-[12px] text-[#92400E]/80 mb-2">
+                    Laporan ini memiliki kemiripan dengan laporan{" "}
+                    <strong>{report.duplicate_of.report_code}</strong> (
+                    {report.duplicate_of.road_name}, {report.duplicate_of.district}).
+                  </p>
+                  {report.latitude != null &&
+                    report.longitude != null &&
+                    report.duplicate_of.latitude != null &&
+                    report.duplicate_of.longitude != null && (
                       <p className="text-[12px] text-[#92400E]/80 mb-2">
-                        Jarak: {formatDistance(haversineDistance(
-                          report.latitude, report.longitude,
-                          report.duplicate_of.latitude, report.duplicate_of.longitude,
-                        ))} dari laporan tersebut
+                        Jarak:{" "}
+                        {formatDistance(
+                          haversineDistance(
+                            report.latitude,
+                            report.longitude,
+                            report.duplicate_of.latitude,
+                            report.duplicate_of.longitude,
+                          ),
+                        )}{" "}
+                        dari laporan tersebut
                       </p>
                     )}
-                    <div className="flex items-center gap-2">
-                      {report.duplicate_of.latitude && report.duplicate_of.longitude && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigate({
-                              to: "/map",
-                              search: {
-                                highlight: report.duplicate_of!.id,
-                                lat: report.duplicate_of!.latitude!,
-                                lng: report.duplicate_of!.longitude!,
-                              },
-                            });
-                          }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-[11px] font-semibold text-[#92400E] hover:bg-amber-100 transition-colors"
-                        >
-                          Lihat di Peta
-                        </button>
-                      )}
-                    </div>
+                  <div className="flex items-center gap-2">
+                    {report.duplicate_of.latitude && report.duplicate_of.longitude && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigate({
+                            to: "/map",
+                            search: {
+                              highlight: report.duplicate_of!.id,
+                              lat: report.duplicate_of!.latitude!,
+                              lng: report.duplicate_of!.longitude!,
+                            },
+                          });
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-[11px] font-semibold text-[#92400E] hover:bg-amber-100 transition-colors"
+                      >
+                        Lihat di Peta
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+          )}
+        </div>
+      </main>
 
+      {renderFooter()}
+
+      {/* ── Tolak Modal ── */}
+      {showTolak && (
+        <ModalBase
+          onClose={() => setShowTolak(false)}
+          icon="block"
+          badge="TOLAK LAPORAN"
+          title="Tolak Laporan"
+          footer={
+            <>
+              <button
+                type="button"
+                disabled={actionLoading || !tolakAlasan.trim()}
+                onClick={handleTolak}
+                className="w-full h-11 bg-[#E11D48] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#BE123C] active:scale-95 transition-all disabled:opacity-50"
+              >
+                {actionLoading ? (
+                  "Memproses…"
+                ) : (
+                  <>
+                    <Icon name="close" className="!text-[18px]" />
+                    Tolak Laporan
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowTolak(false)}
+                className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
+              >
+                Batal
+              </button>
+            </>
+          }
+        >
+          <div>
+            <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">
+              Alasan Penolakan <span className="text-[#E11D48]">*</span>
+            </label>
+            <textarea
+              value={tolakAlasan}
+              onChange={(e) => setTolakAlasan(e.target.value)}
+              className="w-full h-24 px-3 py-2 rounded-lg border border-[#D0DAE8] resize-none text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+              placeholder="Jelaskan alasan mengapa laporan ini ditolak…"
+            />
           </div>
-        </main>
+          <div>
+            <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">
+              Catatan (opsional)
+            </label>
+            <input
+              value={catatan}
+              onChange={(e) => setCatatan(e.target.value)}
+              className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+              placeholder="Catatan tambahan…"
+            />
+          </div>
+        </ModalBase>
+      )}
 
-        {renderFooter()}
-
-        {/* ── Tolak Modal ── */}
-        {showTolak && (
-          <ModalBase
-            onClose={() => setShowTolak(false)}
-            icon="block"
-            badge="TOLAK LAPORAN"
-            title="Tolak Laporan"
-            footer={
-              <>
-                <button
-                  type="button"
-                  disabled={actionLoading || !tolakAlasan.trim()}
-                  onClick={handleTolak}
-                  className="w-full h-11 bg-[#E11D48] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#BE123C] active:scale-95 transition-all disabled:opacity-50"
-                >
-                  {actionLoading ? "Memproses…" : (
-                    <>
-                      <Icon name="close" className="!text-[18px]" />
-                      Tolak Laporan
-                    </>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowTolak(false)}
-                  className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
-                >
-                  Batal
-                </button>
-              </>
-            }
-          >
-            <div>
-              <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Alasan Penolakan <span className="text-[#E11D48]">*</span></label>
-              <textarea
-                value={tolakAlasan}
-                onChange={(e) => setTolakAlasan(e.target.value)}
-                className="w-full h-24 px-3 py-2 rounded-lg border border-[#D0DAE8] resize-none text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
-                placeholder="Jelaskan alasan mengapa laporan ini ditolak…"
-              />
-            </div>
-            <div>
-              <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Catatan (opsional)</label>
-              <input
-                value={catatan}
-                onChange={(e) => setCatatan(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
-                placeholder="Catatan tambahan…"
-              />
-            </div>
-          </ModalBase>
-        )}
-
-        {/* ── Satgas Picker Modal ── */}
-        {showSatgasPicker && (
-          <ModalBase
-            onClose={() => setShowSatgasPicker(false)}
-            icon="assignment"
-            badge={(userRole === "supervisor" && (report?.status === "Menunggu Review" || report?.status === "Ditinjau")) ? "SETUJUI & TUGASKAN" : "TUGASKAN SATGAS"}
-            title="Setujui & Tugaskan"
-            footer={
-              <>
-                <button
-                  type="button"
-                  disabled={actionLoading || !satgasTeamId}
-                  onClick={() => {
-                    const needApprove = userRole === "supervisor" && (report?.status === "Menunggu Review" || report?.status === "Ditinjau");
-                    if (needApprove) {
-                      handleSetujui().then(() => {
-                        handleMulaiWithSatgas();
-                      });
-                    } else {
-                      handleMulaiWithSatgas();
-                    }
-                  }}
-                  className="w-full h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-95 transition-all disabled:opacity-50"
-                >
-                  {actionLoading ? "Memproses…" : (
-                    <>
-                      <Icon name="check" className="!text-[18px]" />
-                      {(userRole === "supervisor" && (report?.status === "Menunggu Review" || report?.status === "Ditinjau")) ? "Setujui & Tugaskan" : "Tugaskan"}
-                    </>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowSatgasPicker(false)}
-                  className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
-                >
-                  Batal
-                </button>
-              </>
-            }
-          >
-            <div>
-              <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Prioritas</label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as "Rendah" | "Sedang" | "Tinggi")}
-                className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+      {/* ── Approve Modal (hanya approve, tanpa satgas picker) ── */}
+      {showApproval && (
+        <ModalBase
+          onClose={() => setShowApproval(false)}
+          icon="check_circle"
+          badge="SETUJUI &amp; TUGASKAN"
+          title="Setujui &amp; Tugaskan Tim"
+          footer={
+            <>
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={handleSetujui}
+                className="w-full h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-95 transition-all disabled:opacity-50"
               >
-                <option value="Rendah">Rendah</option>
-                <option value="Sedang">Sedang</option>
-                <option value="Tinggi">Tinggi</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Tugaskan ke Tim Satgas <span className="text-[#E11D48]">*</span></label>
-              <select
-                value={satgasTeamId}
-                onChange={(e) => setSatgasTeamId(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
-                onClick={() => { if (teamList.length === 0) fetchTeamList(); }}
+                {actionLoading ? (
+                  "Memproses…"
+                ) : (
+                  <>
+                    <Icon name="check" className="!text-[18px]" />
+                    Setujui &amp; Tugaskan
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowApproval(false)}
+                className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
               >
-                <option value="">Pilih Tim Satgas…</option>
-                {teamList.map((u) => (
-                  <option key={u.id} value={String(u.id)}>
-                    {u.name}{u.distance_label ? ` (${u.distance_label})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Catatan (opsional)</label>
-              <input
-                value={satgasCatatan}
-                onChange={(e) => setSatgasCatatan(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
-                placeholder="Instruksi untuk satgas…"
-              />
-            </div>
-          </ModalBase>
-        )}
+                Batal
+              </button>
+            </>
+          }
+        >
+          <div>
+            <p className="text-[13px] text-[#475569] mb-4 leading-relaxed">
+              Laporan akan disetujui dan secara otomatis ditugaskan ke tim pelapor.
+            </p>
+            <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Prioritas</label>
+            <select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value as "Rendah" | "Sedang" | "Tinggi")}
+              className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+            >
+              <option value="Rendah">Rendah</option>
+              <option value="Sedang">Sedang</option>
+              <option value="Tinggi">Tinggi</option>
+            </select>
+          </div>
+        </ModalBase>
+      )}
 
+      {/* ── Progress Update Modal ── */}
+      {showProgressModal && report && (
+        <ProgressUpdateModal
+          reportId={report.id}
+          reportCode={report.report_code}
+          token={token}
+          onClose={() => {
+            setShowProgressModal(false);
+            loadProgress();
+          }}
+          onSuccess={() => {
+            loadProgress();
+            setActionMsg("Progress berhasil diupload.");
+          }}
+        />
+      )}
     </PageLayout>
   );
 }
@@ -847,9 +872,7 @@ function DetailReportPage() {
 function FooterWrapper({ children }: { children: React.ReactNode }) {
   return (
     <footer className="fixed bottom-0 left-0 right-0 md:left-64 z-30 bg-white border-t border-[#E2E8F0] shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
-      <div className="px-4 md:px-6 py-3 md:py-4 flex flex-col gap-2 md:gap-3">
-        {children}
-      </div>
+      <div className="px-4 md:px-6 py-3 md:py-4 flex flex-col gap-2 md:gap-3">{children}</div>
     </footer>
   );
 }
@@ -864,15 +887,18 @@ function InfoRow({ icon, value }: { icon: string; value: string }) {
 }
 
 function AfterPhotoGallery({ report }: { report: Laporan }) {
-  const photos = (report.after_photos ?? []).length > 0
-    ? report.after_photos!
-    : report.after_photo_url
-      ? [{ id: 0, url: report.after_photo_url, sort_order: 0 }]
-      : [];
+  const photos =
+    (report.after_photos ?? []).length > 0
+      ? report.after_photos!
+      : report.after_photo_url
+        ? [{ id: 0, url: report.after_photo_url, sort_order: 0 }]
+        : [];
 
   if (photos.length === 0) return null;
 
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const selectedUrl = selectedIndex != null ? photos[selectedIndex]?.url : undefined;
+  const blobSelectedUrl = useBlobImage(selectedUrl);
 
   const prev = () => setSelectedIndex((i) => (i != null && i > 0 ? i - 1 : i));
   const next = () => setSelectedIndex((i) => (i != null && i < photos.length - 1 ? i + 1 : i));
@@ -897,7 +923,7 @@ function AfterPhotoGallery({ report }: { report: Laporan }) {
                 onClick={() => setSelectedIndex(i)}
                 className="w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border border-[#E2E8F0] hover:border-[#1A4F8A] hover:ring-2 hover:ring-[#1A4F8A]/20 transition-all shrink-0"
               >
-                <img
+                <SafeImage
                   src={p.url}
                   alt={`Foto setelah perbaikan ${i + 1}`}
                   className="w-full h-full object-cover"
@@ -933,7 +959,10 @@ function AfterPhotoGallery({ report }: { report: Laporan }) {
               <>
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); prev(); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    prev();
+                  }}
                   disabled={selectedIndex === 0}
                   className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/40 text-white rounded-full flex items-center justify-center hover:bg-black/60 transition-all disabled:opacity-20 z-10"
                 >
@@ -944,7 +973,10 @@ function AfterPhotoGallery({ report }: { report: Laporan }) {
                 </span>
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); next(); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    next();
+                  }}
                   disabled={selectedIndex === photos.length - 1}
                   className="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/40 text-white rounded-full flex items-center justify-center hover:bg-black/60 transition-all disabled:opacity-20 z-10"
                 >
@@ -954,7 +986,7 @@ function AfterPhotoGallery({ report }: { report: Laporan }) {
             )}
 
             <img
-              src={photos[selectedIndex].url}
+              src={blobSelectedUrl ?? selectedUrl}
               alt={`Foto setelah perbaikan ${selectedIndex + 1}`}
               className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg select-none"
               onClick={(e) => e.stopPropagation()}

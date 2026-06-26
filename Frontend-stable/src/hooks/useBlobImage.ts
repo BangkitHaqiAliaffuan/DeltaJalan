@@ -16,7 +16,7 @@ function isProbablyBase64(s: string): boolean {
   return /^[A-Za-z0-9+/=]+$/.test(s.substring(0, 100))
 }
 
-function decodeToBlob(data: string): Blob {
+function decodeToBlob(data: string): Blob | null {
   let raw: string
   let mime = ''
 
@@ -37,7 +37,7 @@ function decodeToBlob(data: string): Blob {
     const bytes = Uint8Array.from(atob(raw), (c) => c.charCodeAt(0))
     return new Blob([bytes], { type: mime || 'image/jpeg' })
   } catch {
-    return new Blob([data], { type: 'text/plain' })
+    return null
   }
 }
 
@@ -55,6 +55,7 @@ async function fetchBlobWithRetry(url: string, checkCancelled: () => boolean): P
       })
       const data = res.data as string
       const blob = decodeToBlob(data)
+      if (!blob) continue
       const blobUrl = URL.createObjectURL(blob)
       return blobUrl
     } catch {
@@ -68,6 +69,8 @@ async function fetchBlobWithRetry(url: string, checkCancelled: () => boolean): P
 }
 
 export function useBlobImage(src: string | undefined): string | undefined {
+  // isNative adalah konstanta module-level, tidak berubah antar render —
+  // aman digunakan sebagai kondisi tanpa melanggar rules of hooks.
   const [blobUrl, setBlobUrl] = useState<string | undefined>(isNative ? undefined : src)
   const prevUrlRef = useRef<string | undefined>(undefined)
 
@@ -99,6 +102,9 @@ export function useBlobImage(src: string | undefined): string | undefined {
       if (prevUrlRef.current?.startsWith('blob:')) URL.revokeObjectURL(prevUrlRef.current)
     }
   }, [])
+
+  // Browser: return src langsung dari parameter, hindari stale 1-frame state
+  if (!isNative) return src
 
   return blobUrl
 }

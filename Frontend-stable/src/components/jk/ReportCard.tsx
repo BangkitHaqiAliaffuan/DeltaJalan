@@ -178,7 +178,7 @@ export function ReportCard({ report, actions, options }: ReportCardProps) {
                 Deadline: {deadlineText}
               </span>
             )}
-            {showDeadline && report.status_deadline === "terlambat" && (
+            {showDeadline && (report.status_deadline === "terlambat" || report.terlambat_review === true) && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-red-50 text-[#E11D48] border border-red-200 whitespace-nowrap shrink-0">
                 <Icon name="timer_off" className="!text-[10px]" />
                 Terlambat
