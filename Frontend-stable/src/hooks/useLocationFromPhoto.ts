@@ -23,11 +23,10 @@ import { PhotoExifGps } from "@jalankita/capacitor-exif-gps";
 
 /** Capacitor hanya tersedia di native — dicek via global window tanpa import */
 export function isNativePlatform(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof (window as Record<string, unknown>).Capacitor !== "undefined" &&
-    (window as Record<string, unknown>).Capacitor?.isNativePlatform?.() === true
-  );
+  if (typeof window === "undefined") return false;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const w = window as any;
+  return typeof w.Capacitor !== "undefined" && w.Capacitor?.isNativePlatform?.() === true;
 }
 
 export interface NativePhoto {
@@ -40,7 +39,7 @@ export interface NativePhoto {
   src: string;
 }
 
-function convertFileSrc(filePath: string): string {
+export function convertFileSrc(filePath: string): string {
   if (!isNativePlatform()) return filePath;
   // convertFileSrc only available after @capacitor/core is loaded
   try {
@@ -87,7 +86,7 @@ export async function nativeTakePhoto(): Promise<{
       lng: gps?.longitude ?? null,
     };
   } catch (err) {
-    console.warn("[nativeTakePhoto] Gagal:", err);
+
     return null;
   }
 }
@@ -237,88 +236,187 @@ function extractRoadFromLocationIQ(addr: Record<string, unknown>): string {
   return "";
 }
 
+const NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse";
+
 /**
- * Reverse geocoding — mencoba LocationIQ dulu, fallback ke OSRM Nearest,
- * lalu Photon (komoot).
+ * Reverse geocoding — 4-tier chain: Nominatim → LocationIQ → OSRM Nearest → Overpass API.
+ * Setiap tier punya error handling independen (satu gagal lanjut ke berikutnya).
  */
 export async function reverseGeocode(lat: number, lng: number): Promise<ReverseGeocodeResult> {
-  // ── Primary: LocationIQ ────────────────────────────────────────────────
-  const url = new URL(LOCATIONIQ_REVERSE_URL);
-  url.searchParams.set("key", LOCATIONIQ_KEY);
-  url.searchParams.set("lat", lat.toString());
-  url.searchParams.set("lon", lng.toString());
-  url.searchParams.set("format", "json");
-  url.searchParams.set("addressdetails", "1");
-  url.searchParams.set("zoom", "18");
-  url.searchParams.set("accept-language", "id");
-
-  const res = await fetch(url.toString());
-
-  if (!res.ok) {
-    throw new Error(`LocationIQ reverse geocoding error: ${res.status}`);
-  }
-
-  const data: LocationIQResponse = await res.json();
-  const addr = data.address ?? {};
-  // ── Nama Jalan dari LocationIQ ──────────────────────────────────────────
-  const road = extractRoadFromLocationIQ(addr);
   let namaJalan = "";
   let roadFound = false;
+  let kecamatan: string | null = null;
 
-  if (road) {
-    roadFound = true;
-    const parts = [road];
-    if (addr.house_number) parts.push(`No. ${addr.house_number}`);
-    namaJalan = parts.join(" ");
+  // ── Tier 1: Nominatim ──────────────────────────────────────────────────
+  // Nominatim pakai data OSM asli (tidak diturunkan seperti LocationIQ free tier).
+  // Wajib set User-Agent sesuai kebijakan Nominatim.
+
+  try {
+    const url = new URL(NOMINATIM_REVERSE_URL);
+    url.searchParams.set("lat", lat.toString());
+    url.searchParams.set("lon", lng.toString());
+    url.searchParams.set("format", "jsonv2");
+    url.searchParams.set("zoom", "18");
+    url.searchParams.set("addressdetails", "1");
+    url.searchParams.set("accept-language", "id");
+
+    const res = await fetch(url.toString(), {
+      headers: { "User-Agent": "DeltaJalan/1.0" },
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const addr = data.address ?? {};
+
+      const road = addr.road ?? addr.pedestrian ?? addr.path ?? addr.cycleway ?? addr.footway ?? "";
+      if (road) {
+        roadFound = true;
+        namaJalan = road.replace(/^Jalan\s+/i, "Jl. ").trim();
+        console.log(`[GEO] Tier1 Nominatim: "${namaJalan}"`);
+      } else {
+        console.log(`[GEO] Tier1 Nominatim: no road found`);
+      }
+
+      kecamatan = matchKecamatan(
+        addr.city_district ??
+          addr.suburb ??
+          addr.municipality ??
+          addr.neighbourhood ??
+          addr.town ??
+          addr.village ??
+          addr.city ??
+          addr.county ??
+          "",
+      );
+
+      if (kecamatan) {
+        console.log(`[GEO] Kecamatan: ${kecamatan}`);
+      }
+    } else {
+      console.warn(`[GEO] Tier1 Nominatim: HTTP ${res.status}`);
+    }
+  } catch (err) {
+    console.warn(`[GEO] Tier1 Nominatim error:`, err instanceof Error ? err.message : err);
   }
-  // ── Kecamatan ───────────────────────────────────────────────────────────
-  const kecamatanRaw =
-    addr.city_district ??
-    addr.suburb ??
-    addr.municipality ??
-    addr.neighbourhood ??
-    addr.town ??
-    addr.village ??
-    addr.city ??
-    addr.county ??
-    "";
-  const kecamatan = matchKecamatan(kecamatanRaw);
-  // ── Fallback 1: OSRM Nearest ────────────────────────────────────────────
+
+  // ── Tier 2: LocationIQ ──────────────────────────────────────────────────
   if (!namaJalan) {
+    console.log(`[GEO] Tier2 LocationIQ: trying...`);
+
+    try {
+      const url = new URL(LOCATIONIQ_REVERSE_URL);
+      url.searchParams.set("key", LOCATIONIQ_KEY);
+      url.searchParams.set("lat", lat.toString());
+      url.searchParams.set("lon", lng.toString());
+      url.searchParams.set("format", "json");
+      url.searchParams.set("addressdetails", "1");
+      url.searchParams.set("zoom", "18");
+      url.searchParams.set("accept-language", "id");
+
+      const res = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) });
+
+      if (res.ok) {
+        const data: LocationIQResponse = await res.json();
+        const addr = data.address ?? {};
+
+        const road = extractRoadFromLocationIQ(addr);
+        if (road) {
+          roadFound = true;
+          const parts = [road];
+          if (addr.house_number) parts.push(`No. ${addr.house_number}`);
+          namaJalan = parts.join(" ");
+          console.log(`[GEO] Tier2 LocationIQ: "${namaJalan}"`);
+        } else {
+          console.log(`[GEO] Tier2 LocationIQ: no road found`);
+        }
+
+        if (!kecamatan) {
+          kecamatan = matchKecamatan(
+            addr.city_district ??
+              addr.suburb ??
+              addr.municipality ??
+              addr.neighbourhood ??
+              addr.town ??
+              addr.village ??
+              addr.city ??
+              addr.county ??
+              "",
+          );
+        }
+
+        if (kecamatan) {
+
+        }
+      } else {
+      }
+    } catch (err) {
+
+    }
+  }
+
+  // ── Tier 3: OSRM Nearest ───────────────────────────────────────────────
+  if (!namaJalan) {
+
     try {
       const osmResult = await snapToRoad(lat, lng);
       if (osmResult.roadName) {
         namaJalan = osmResult.roadName;
         roadFound = true;
+
+      } else {
+
       }
     } catch (e) {
-      console.warn("REVERSE_GEO: OSRM fallback error", e);
+
     }
   }
 
-  // ── Fallback 2: Overpass API (query OSM raw data) ──────────────────────
+  // ── Tier 4: Overpass API ───────────────────────────────────────────────
   if (!namaJalan) {
+
     try {
-      const overpassQuery = `[out:json];way(around:100,${lat},${lng})[highway][name];out 1;`;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+
+      const overpassQuery = `[out:json][timeout:10];way(around:500,${lat},${lng})[highway][name];out 3;`;
       const overpassRes = await fetch("https://overpass-api.de/api/interpreter", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: `data=${encodeURIComponent(overpassQuery)}`,
+        signal: controller.signal,
       });
+      clearTimeout(timer);
+
       if (overpassRes.ok) {
         const overpassData = await overpassRes.json();
         const roadName = overpassData.elements?.[0]?.tags?.name;
         if (roadName) {
           namaJalan = roadName;
           roadFound = true;
+
+        } else {
+
         }
+      } else {
+
       }
-    } catch (e) {
-      console.warn("REVERSE_GEO: Overpass fallback error", e);
+    } catch (err) {
+      if ((err as Error)?.name === "AbortError") {
+
+      } else {
+
+      }
     }
   }
 
-  return { namaJalan, roadFound, kecamatan };
+  // ── Result ──────────────────────────────────────────────────────────────
+  if (!namaJalan) {
+
+  }
+
+  const result: ReverseGeocodeResult = { namaJalan, roadFound, kecamatan };
+  return result;
 }
 
 // ── Helper: EXIF GPS dari file ────────────────────────────────────────────
@@ -342,7 +440,7 @@ export async function readExifGps(file: File): Promise<ExifGps | null> {
     }
     return null;
   } catch (err) {
-    console.warn("[readExifGps] Gagal baca EXIF GPS:", err);
+
     return null;
   }
 }
@@ -363,7 +461,7 @@ export function getBrowserLocation(options?: {
 }): Promise<ExifGps | null> {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
-      console.warn("[getBrowserLocation] Geolocation tidak tersedia");
+
       resolve(null);
       return;
     }
@@ -375,7 +473,7 @@ export function getBrowserLocation(options?: {
         });
       },
       (err) => {
-        console.warn(`[getBrowserLocation] ${err.code}: ${err.message}`);
+
         resolve(null);
       },
       {
@@ -403,7 +501,7 @@ export async function readExifGpsFromServer(
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      console.warn(`[readExifGpsFromServer] HTTP ${res.status}: ${body.slice(0, 200)}`);
+
       return null;
     }
     const data = await res.json();
@@ -412,7 +510,7 @@ export async function readExifGpsFromServer(
     }
     return null;
   } catch (err) {
-    console.warn("[readExifGpsFromServer] Gagal:", err);
+
     return null;
   }
 }
@@ -603,7 +701,7 @@ export function useLocationFromPhoto(
   const handleNativePick = useCallback(
     async (limit: number = 1): Promise<NativePhoto[]> => {
       if (!isNativePlatform()) {
-        console.warn("[handleNativePick] Bukan native platform");
+
         return [];
       }
 
@@ -648,7 +746,7 @@ export function useLocationFromPhoto(
 
         return photosWithSrc;
       } catch (err) {
-        console.warn("[handleNativePick] Gagal:", err);
+
         setLocationState((prev) => ({
           ...prev,
           status: "error",

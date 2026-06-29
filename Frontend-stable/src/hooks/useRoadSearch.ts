@@ -162,14 +162,26 @@ async function searchLocationIQ(query: string): Promise<RoadSuggestion[]> {
   if (!res.ok) throw new Error(`LocationIQ error: ${res.status}`);
 
   const data: LocationIQResult[] = await res.json();
-  console.log(`[useRoadSearch] Raw API results: ${data.length}`, data.map((d) => ({ display_name: d.display_name, addresstype: d.addresstype, lat: d.lat, lon: d.lon, address: d.address })));
+
   const suggestions: RoadSuggestion[] = [];
 
   // ── Tipe addresstype yang dianggap sebagai jalan ──────────────────────
   const ROAD_ADDRESSTYPES = new Set([
-    "road", "highway", "street", "residential", "tertiary", "secondary",
-    "primary", "unclassified", "service", "track", "path",
-    "living_street", "pedestrian", "cycleway", "footway",
+    "road",
+    "highway",
+    "street",
+    "residential",
+    "tertiary",
+    "secondary",
+    "primary",
+    "unclassified",
+    "service",
+    "track",
+    "path",
+    "living_street",
+    "pedestrian",
+    "cycleway",
+    "footway",
   ]);
 
   for (const item of data) {
@@ -177,23 +189,35 @@ async function searchLocationIQ(query: string): Promise<RoadSuggestion[]> {
     const lng = parseFloat(item.lon);
 
     // ── Lapis 1: koordinat di luar Sidoarjo ───────────────────────────
-    if (!isInSidoarjoBbox(lat, lng)) { console.log(`[useRoadSearch] REJECTED layer 1 (bbox): ${item.display_name} (${lat},${lng})`); continue; }
+    if (!isInSidoarjoBbox(lat, lng)) {
+
+      continue;
+    }
 
     const addr = item.address ?? {};
 
     // ── Lapis 2: display_name wajib mengandung "Sidoarjo" ─────────────
     const displayName = (item.display_name ?? "").toLowerCase();
-    if (!displayName.includes("sidoarjo")) { console.log(`[useRoadSearch] REJECTED layer 2 (display_name): ${item.display_name}`); continue; }
+    if (!displayName.includes("sidoarjo")) {
+
+      continue;
+    }
 
     // ── Lapis 3: hanya hasil bertipe road ─────────────────────────────
-    if (item.addresstype && !ROAD_ADDRESSTYPES.has(item.addresstype)) { console.log(`[useRoadSearch] REJECTED layer 3 (addresstype): ${item.display_name} (addresstype=${item.addresstype})`); continue; }
+    if (item.addresstype && !ROAD_ADDRESSTYPES.has(item.addresstype)) {
+
+      continue;
+    }
 
     // ── Lapis 4: pastikan salah satu field kota menyebut Sidoarjo ─────
     // LocationIQ sering menaruh kelurahan di addr.city, tapi kabupaten
     // di addr.county atau addr.state_district. Pakai any-match.
     const cityFields = [addr.city, addr.county, addr.town, addr.state_district, addr.village];
     const hasSidoarjoCity = cityFields.some((f) => f && f.toLowerCase().includes("sidoarjo"));
-    if (!hasSidoarjoCity) { console.log(`[useRoadSearch] REJECTED layer 4 (city): ${item.display_name} (cityFields=${JSON.stringify(cityFields)})`); continue; }
+    if (!hasSidoarjoCity) {
+
+      continue;
+    }
 
     // ── Lapis 5: ekstrak nama jalan ───────────────────────────────────
     // Fallback chain: road → path → pedestrian → cycleway → footway
@@ -213,12 +237,22 @@ async function searchLocationIQ(query: string): Promise<RoadSuggestion[]> {
         roadName = firstPart;
       }
     }
-    if (!roadName) { console.log(`[useRoadSearch] REJECTED layer 5 (road name): ${item.display_name} (candidates=${JSON.stringify(roadCandidates)})`); continue; }
+    if (!roadName) {
+
+      continue;
+    }
 
     // ── Lapis 6: kecamatan wajib terdeteksi sebagai 1 dari 18 Sidoarjo ─
     // LocationIQ sering menaruh kelurahan di city_district/suburb,
     // tapi kecamatan di town/city/county. Cari di SEMUA field.
-    const kecCandidates = [addr.city_district, addr.suburb, addr.town, addr.village, addr.city, addr.county];
+    const kecCandidates = [
+      addr.city_district,
+      addr.suburb,
+      addr.town,
+      addr.village,
+      addr.city,
+      addr.county,
+    ];
     let kecamatan: string | null = null;
     for (const kf of kecCandidates) {
       if (kf) {
@@ -226,9 +260,12 @@ async function searchLocationIQ(query: string): Promise<RoadSuggestion[]> {
         if (kecamatan) break;
       }
     }
-    if (!kecamatan) { console.log(`[useRoadSearch] REJECTED layer 6 (kecamatan): ${item.display_name} (kecCandidates=${JSON.stringify(kecCandidates)})`); continue; }
+    if (!kecamatan) {
 
-    console.log(`[useRoadSearch] PASSED all layers: ${item.display_name} → roadName=${roadName} kecamatan=${kecamatan}`);
+      continue;
+    }
+
+
 
     const labelParts = [roadName];
     labelParts.push(`Kec. ${kecamatan}`);
@@ -244,7 +281,7 @@ async function searchLocationIQ(query: string): Promise<RoadSuggestion[]> {
     });
   }
 
-  console.log(`[useRoadSearch] After all filters: ${suggestions.length} suggestions`, suggestions);
+
 
   // Deduplikasi berdasarkan roadName + kecamatan
   const seen = new Set<string>();
@@ -254,7 +291,7 @@ async function searchLocationIQ(query: string): Promise<RoadSuggestion[]> {
     seen.add(key);
     return true;
   });
-  console.log(`[useRoadSearch] After dedup: ${deduped.length} suggestions`, deduped);
+
   return deduped;
 }
 
@@ -291,7 +328,7 @@ export function useRoadSearch(onSelect: (suggestion: RoadSuggestion) => void): U
         setShowSuggestions(results.length > 0);
       } catch (err) {
         if (err instanceof Error && err.name === "AbortError") return;
-        console.error("LocationIQ search error:", err);
+
         setStatus("error");
         setSuggestions([]);
         setShowSuggestions(false);

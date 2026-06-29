@@ -19,7 +19,9 @@ async function authFetch<T>(url: string, options?: RequestInit): Promise<T> {
     throw new Error(body.message ?? `HTTP ${res.status}`);
   }
   const json = await res.json();
-  return json.data ?? json;
+
+  // Return as-is (don't extract .data here, let caller decide)
+  return json as T;
 }
 
 export function useSurveyList(params?: {
@@ -42,10 +44,32 @@ export function useSurveyList(params?: {
 
   return useQuery({
     queryKey: ["survey-tasks", qs],
-    queryFn: () => authFetch<SurveyTask[]>(`${API_BASE_URL}/survei${qs ? `?${qs}` : ""}`),
+    queryFn: async () => {
+      const response = await authFetch<any>(`${API_BASE_URL}/survei${qs ? `?${qs}` : ""}`);
+      // Laravel pagination response has { data: [...], current_page, last_page, etc }
+      // Extract data array from pagination
+      if (
+        response &&
+        typeof response === "object" &&
+        "data" in response &&
+        Array.isArray(response.data)
+      ) {
+        return response.data as SurveyTask[];
+      }
+
+      // Fallback: if response is already array
+      if (Array.isArray(response)) {
+        return response as SurveyTask[];
+      }
+
+      return [] as SurveyTask[];
+    },
     enabled: !!token,
-    staleTime: 30_000,
+    staleTime: 0, // Always fetch fresh data (was 30_000)
+    gcTime: 0, // Don't cache (was cacheTime)
     refetchInterval: 60_000,
+    refetchOnMount: "always", // Always refetch on mount
+    refetchOnWindowFocus: true, // Refetch when window regains focus
   });
 }
 
@@ -86,22 +110,6 @@ export function useCreateSurvey() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["survey-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["survey-stats"] });
-    },
-  });
-}
-
-export function useCompleteSurvey() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      return authFetch(`${API_BASE_URL}/survei/${id}/selesai`, {
-        method: "POST",
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["survey-tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["survey-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["survey-detail"] });
     },
   });
 }

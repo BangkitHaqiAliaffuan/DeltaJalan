@@ -29,6 +29,7 @@ export interface UploadFormData {
   kerusakanLebar?: string;
   duplicate_of_id?: string; // ID laporan yang diduga duplikat
   survey_task_id?: string; // ID task/shift tempat laporan ini akan disimpan
+  file?: File; // file foto asli (single mode)
 }
 
 // ── Batch-specific types ──────────────────────────────────────────────────
@@ -45,6 +46,9 @@ export interface BatchPhotoResult {
   isDuplicate?: boolean;
   kerusakanPanjang?: string;
   kerusakanLebar?: string;
+  lat?: number;
+  lng?: number;
+  hasExifGps?: boolean;
 }
 
 export interface BatchResultData {
@@ -64,17 +68,18 @@ export function updateBatchPhoto(index: number, data: Partial<BatchPhotoResult>)
   const photos = [...current.photos];
   photos[index] = { ...photos[index], ...data };
   const totalDetections = photos.reduce((sum, p) => sum + p.detections.length, 0);
-  const rankOrder = ["Baik", "Rusak Ringan", "Rusak Sedang", "Rusak Berat"];
+  const rankOrder = ["baik", "ringan", "sedang", "berat"];
+  const displayNames = ["Baik", "Rusak Ringan", "Rusak Sedang", "Rusak Berat"];
   let worstIdx = 0;
   for (const p of photos) {
-    const idx = rankOrder.indexOf(p.severity);
+    const idx = rankOrder.indexOf(p.severity?.toLowerCase() ?? "");
     if (idx > worstIdx) worstIdx = idx;
   }
   store.batchResult = {
     ...current,
     photos,
     totalDetections,
-    overallSeverity: rankOrder[worstIdx],
+    overallSeverity: displayNames[worstIdx],
   };
 }
 
@@ -186,13 +191,13 @@ export const SEVERITY_CONFIG: Record<
 // Capacitor injects window.Capacitor — dicek tanpa import agar bundle aman.
 function getApiBaseUrl(): string {
   if (
-    typeof window !== 'undefined' &&
-    typeof (window as Record<string, unknown>).Capacitor !== 'undefined' &&
+    typeof window !== "undefined" &&
+    typeof (window as Record<string, unknown>).Capacitor !== "undefined" &&
     (window as Record<string, unknown>).Capacitor.isNativePlatform?.() === true
   ) {
-    return import.meta.env.VITE_API_BASE_URL ?? 'http://10.0.2.2:8080/api';
+    return import.meta.env.VITE_API_BASE_URL ?? "http://10.0.2.2:8080/api";
   }
-  return '/api';
+  return "/api";
 }
 
 export const API_BASE_URL = getApiBaseUrl();

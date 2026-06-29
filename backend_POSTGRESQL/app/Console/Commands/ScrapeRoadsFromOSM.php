@@ -11,7 +11,8 @@ class ScrapeRoadsFromOSM extends Command
     protected $signature = 'roads:scrape-osm
         {--dry-run : Preview without saving to database}
         {--kecamatan= : Only process specific kecamatan}
-        {--retry-skips : Re-attempt previously skipped (429/504) kecamatan only}';
+        {--retry-skips : Re-attempt previously skipped (429/504) kecamatan only}
+        {--ref-only : Only show roads captured via ref tag (dry-run)}';
 
     protected $description = 'Scrape named highways from OpenStreetMap for all Sidoarjo kecamatan';
 
@@ -20,6 +21,8 @@ class ScrapeRoadsFromOSM extends Command
     private const MAX_RETRIES = 3;
 
     private const BASE_DELAY = 10;
+
+    private const HIGHWAY_TYPES = 'primary|secondary|tertiary|unclassified|residential|service|living_street';
 
     private const KECAMATAN_BBOX = [
         'Porong' => '-7.559,112.659,-7.503,112.808',
@@ -45,8 +48,11 @@ class ScrapeRoadsFromOSM extends Command
     public function handle(): int
     {
         $dryRun = $this->option('dry-run');
+        $refOnly = $this->option('ref-only');
         $filterKecamatan = $this->option('kecamatan');
+        $retrySkips = $this->option('retry-skips');
         $totalSaved = 0;
+        $totalRefNamed = 0;
         $totalSkipped = 0;
 
         $bboxes = $filterKecamatan
@@ -60,15 +66,26 @@ class ScrapeRoadsFromOSM extends Command
         }
 
         foreach ($bboxes as $kecamatan => $bbox) {
+            if ($retrySkips && ! $this->wasSkipped($kecamatan)) {
+                $this->line("  {$kecamatan}: skip (already saved).");
+
+                continue;
+            }
+
             $this->info("{$kecamatan}...");
 
             [$south, $west, $north, $east] = explode(',', $bbox);
+            $bboxStr = "{$south},{$west},{$north},{$east}";
 
             $query = sprintf(
-                '[out:json][timeout:60];
-                way["highway"~"^(primary|secondary|tertiary|unclassified|residential|service)$"]["name"](%s,%s,%s,%s);
-                out geom;',
-                $south, $west, $north, $east
+                '[out:json][timeout:90];
+                (
+                  way["highway"~"^(%s)$"]["name"](%s);
+                  way["highway"~"^(%s)$"][!"name"]["ref"](%s);
+                );
+                out body geom;',
+                self::HIGHWAY_TYPES, $bboxStr,
+                self::HIGHWAY_TYPES, $bboxStr
             );
 
             $response = $this->overpassQuery($query);
@@ -93,6 +110,7 @@ class ScrapeRoadsFromOSM extends Command
             }
 
             $saved = 0;
+            $refFallbackCount = 0;
             $skipped = 0;
 
             foreach ($elements as $element) {
@@ -100,12 +118,25 @@ class ScrapeRoadsFromOSM extends Command
                     continue;
                 }
 
-                $roadName = trim($element['tags']['name'] ?? '');
+                $tags = $element['tags'] ?? [];
+
+                // Priority: name → ref (fallback)
+                $roadName = trim($tags['name'] ?? $tags['ref'] ?? '');
                 if ($roadName === '') {
                     continue;
                 }
 
-                $roadName = preg_replace('/\s+/', ' ', $roadName);
+                $isRefFallback = empty($tags['name']) && ! empty($tags['ref']);
+                if ($isRefFallback) {
+                    $refFallbackCount++;
+                }
+
+                // Normalize name untuk dedup
+                $normalizedName = Road::normalizeName($roadName);
+
+                if ($refOnly && ! $isRefFallback) {
+                    continue;
+                }
 
                 $geometry = null;
                 if (! empty($element['geometry']) && count($element['geometry']) >= 2) {
@@ -115,30 +146,40 @@ class ScrapeRoadsFromOSM extends Command
                     );
                 }
 
+                $osmId = $element['type'].'/'.$element['id'];
+                $highwayType = $tags['highway'] ?? null;
+                $surface = $tags['surface'] ?? null;
+
                 if ($dryRun) {
-                    $this->line("  [DRY-RUN] {$roadName}".($geometry ? ' (with polyline)' : ''));
+                    $src = $isRefFallback ? 'ref' : 'name';
+                    $this->line("  [DRY-RUN][{$src}] {$normalizedName} ({$highwayType}, osm:{$osmId})".($geometry ? ' (with polyline)' : ''));
                     $saved++;
 
                     continue;
                 }
 
                 try {
-                    Road::firstOrCreate(
-                        ['nama_ruas' => $roadName, 'kecamatan' => $kecamatan],
+                    Road::updateOrCreate(
+                        ['nama_ruas' => $normalizedName, 'kecamatan' => $kecamatan],
                         [
                             'polyline' => $geometry,
                             'sumber_polyline' => 'osm',
+                            'osm_id' => $osmId,
+                            'highway_type' => $highwayType,
+                            'surface' => $surface,
                         ]
                     );
                     $saved++;
                 } catch (\Exception $e) {
-                    $this->warn("  ✗ {$roadName}: {$e->getMessage()}");
+                    $this->warn("  ✗ {$normalizedName}: {$e->getMessage()}");
                     $skipped++;
                 }
             }
 
-            $this->info("  {$kecamatan}: {$saved} saved, {$skipped} skipped");
+            $refNote = $refFallbackCount > 0 ? " ({$refFallbackCount} via ref)" : '';
+            $this->info("  {$kecamatan}: {$saved} saved{$refNote}, {$skipped} skipped");
             $totalSaved += $saved;
+            $totalRefNamed += $refFallbackCount;
             $totalSkipped += $skipped;
 
             if ($kecamatan !== array_key_last($bboxes)) {
@@ -149,9 +190,9 @@ class ScrapeRoadsFromOSM extends Command
 
         $this->newLine();
         if ($dryRun) {
-            $this->info("[DRY-RUN] {$totalSaved} roads would be saved.");
+            $this->info("[DRY-RUN] {$totalSaved} roads would be saved ({$totalRefNamed} via ref fallback).");
         } else {
-            $this->info("Selesai. {$totalSaved} roads saved, {$totalSkipped} skipped.");
+            $this->info("Selesai. {$totalSaved} roads saved ({$totalRefNamed} via ref fallback), {$totalSkipped} skipped.");
         }
 
         return Command::SUCCESS;
@@ -198,5 +239,10 @@ class ScrapeRoadsFromOSM extends Command
         $this->warn('  Failed after '.self::MAX_RETRIES.' attempts.');
 
         return null;
+    }
+
+    private function wasSkipped(string $kecamatan): bool
+    {
+        return Road::where('kecamatan', $kecamatan)->count() === 0;
     }
 }

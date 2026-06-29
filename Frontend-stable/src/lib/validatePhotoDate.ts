@@ -127,7 +127,6 @@ export async function validatePhotoDate(file: File): Promise<PhotoDateValidation
       pick: ["DateTimeOriginal", "DateTimeDigitized", "DateTime", "CreateDate"],
     });
   } catch (parseErr) {
-    console.warn("[validatePhotoDate] exifr.parse gagal:", parseErr, "file:", file.name, file.size);
     // File tidak punya EXIF sama sekali (PNG, screenshot, foto dari internet, dll)
     // DITOLAK — foto harus memiliki metadata tanggal untuk diverifikasi
     return {

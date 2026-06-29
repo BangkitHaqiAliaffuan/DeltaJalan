@@ -11,7 +11,6 @@ import {
 
 import { Toaster } from "sonner";
 import { SubmissionQueue } from "@/components/jk/SubmissionQueue";
-import { ErudaToggle } from "@/components/jk/ErudaToggle";
 
 function NotFoundComponent() {
   return (
@@ -36,7 +35,6 @@ function NotFoundComponent() {
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
-  console.error(error);
   const router = useRouter();
 
   return (
@@ -155,7 +153,6 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <Outlet />
       <SubmissionQueue />
-      <ErudaToggle />
     </QueryClientProvider>
   );
 }

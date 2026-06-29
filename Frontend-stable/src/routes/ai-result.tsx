@@ -13,6 +13,7 @@ import {
   updateBatchPhoto,
   clearAiStore,
   getPendingBatchFiles,
+  setPendingBatchFiles,
   SEVERITY_CONFIG,
   getSeverityConfig,
   type Detection,
@@ -21,9 +22,13 @@ import {
 import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import { getCurrentUser, getToken } from "@/lib/auth";
-import { validatePhotoDate, isExifBlocking, type PhotoDateValidationStatus } from "@/lib/validatePhotoDate";
+import {
+  validatePhotoDate,
+  isExifBlocking,
+  type PhotoDateValidationStatus,
+} from "@/lib/validatePhotoDate";
 import { readExifGps } from "@/hooks/useLocationFromPhoto";
-import { snapToRoad } from "@/lib/geo";
+import { compressImage } from "@/lib/compressImage";
 import "leaflet/dist/leaflet.css";
 
 export const Route = createFileRoute("/ai-result")({
@@ -198,7 +203,9 @@ function DeteksiFoto({
   return (
     <div
       className="relative w-full bg-[#0F172A]"
-      style={naturalAspect ? { aspectRatio: `${naturalAspect}`, maxHeight: 360 } : { minHeight: 300 }}
+      style={
+        naturalAspect ? { aspectRatio: `${naturalAspect}`, maxHeight: 360 } : { minHeight: 300 }
+      }
     >
       {displayImage && !displayImageError ? (
         <img
@@ -302,12 +309,8 @@ function reconstructAnalyses(photos: BatchPhotoResult[]): string {
     confidence: p.confidence,
     image_result: p.imageResult,
     has_exif_gps: p.hasExifGps ?? false,
-    ...(p.lat != null && p.lng != null
-      ? { photo_lat: p.lat, photo_lng: p.lng }
-      : {}),
-    ...(p.hasExifGps && p.lat != null && p.lng != null
-      ? { exif_lat: p.lat, exif_lng: p.lng }
-      : {}),
+    ...(p.lat != null && p.lng != null ? { photo_lat: p.lat, photo_lng: p.lng } : {}),
+    ...(p.hasExifGps && p.lat != null && p.lng != null ? { exif_lat: p.lat, exif_lng: p.lng } : {}),
     ...(p.hasError ? { error: "error" } : {}),
   }));
   return JSON.stringify(analyses);
@@ -322,36 +325,22 @@ function AiResultPage() {
 
   const isBatch = batchResult !== null && batchResult.photos.length > 1;
 
-  // Guard: jika single mode (tidak aktif) atau tidak ada data sama sekali
-  if (!isBatch && !result) {
-    return (
-      <PageLayout back="/upload" title="Hasil Deteksi AI" withBottomNav>
-        <main className="flex flex-col items-center justify-center py-20 px-4">
-          <Icon name="info" className="!text-5xl text-[#64748B] mb-4 opacity-30" />
-          <p className="text-[#475569] text-center">Mode laporan tunggal tidak tersedia. Gunakan galeri untuk memilih minimal 2 foto.</p>
-        </main>
-      </PageLayout>
-    );
-  }
-
   const [activeIdx, setActiveIdx] = useState(0);
   const [imgError, setImgError] = useState(false);
   const [fullscreenIdx, setFullscreenIdx] = useState<number | null>(null);
+  const [freshBlobUrls, setFreshBlobUrls] = useState<string[]>([]);
 
   // Reset imgError saat foto aktif berubah
   useEffect(() => {
     setImgError(false);
   }, [activeIdx]);
 
-  // Guard: redirect ke upload jika tidak ada data (single maupun batch)
-  useEffect(() => {
-    if (!result && !batchResult) navigate({ to: "/upload" });
-  }, [result, batchResult, navigate]);
-
   // ── Editable Dimensions ─────────────────────────────────────────────────
   const [editPanjang, setEditPanjang] = useState(formData?.kerusakanPanjang ?? "");
   const [editLebar, setEditLebar] = useState(formData?.kerusakanLebar ?? "");
-  const [batchEditDimensi, setBatchEditDimensi] = useState<Record<number, { panjang: string; lebar: string }>>(() => {
+  const [batchEditDimensi, setBatchEditDimensi] = useState<
+    Record<number, { panjang: string; lebar: string }>
+  >(() => {
     if (!batchResult) return {};
     const dims: Record<number, { panjang: string; lebar: string }> = {};
     batchResult.photos.forEach((p, i) => {
@@ -369,20 +358,96 @@ function AiResultPage() {
     ? (batchResult!.photos[0]?.lat ?? formData?.lat) != null
     : formData?.lat != null;
 
-  // Auto-fill nama jalan & kecamatan dari reverse geocode GPS
+  // ── On mount: ambil browser geolocation, simpan ke formData jika belum ada GPS ──
+  useEffect(() => {
+    const hasExistingGps = isBatch
+      ? batchResult!.photos.some((p) => p.lat != null && p.lng != null)
+      : formData?.lat != null;
+    if (hasExistingGps) return; // sudah ada GPS dari EXIF, tidak perlu browser geo
+
+    if (!navigator.geolocation) return;
+    const timeoutId = setTimeout(() => {}, 0); // noop, just for cleanup pattern
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        // Simpan ke formData store agar reverse geocode effect bisa menggunakannya
+        const current = getFormData();
+        if (current && current.lat == null) {
+          setFormData({ ...current, lat, lng });
+        }
+      },
+      () => {
+        /* silent fail */
+      },
+      { timeout: 6000, enableHighAccuracy: true },
+    );
+    return () => clearTimeout(timeoutId);
+  }, []);
+
+  // ── Fresh blob URL fallback ─────────────────────────────────────────────
+  // Buat blob URL baru dari File object agar tidak bergantung pada blob URL
+  // dari halaman upload yang bisa invalid di Capacitor (GC / memory pressure).
+  useEffect(() => {
+    if (isBatch) {
+      const files = getPendingBatchFiles();
+      if (!files || files.length === 0) return;
+      const urls = files.map((f) => URL.createObjectURL(f));
+      setFreshBlobUrls(urls);
+      return () => urls.forEach(URL.revokeObjectURL);
+    } else {
+      if (!formData?.file) return;
+      const url = URL.createObjectURL(formData.file);
+      setFreshBlobUrls([url]);
+      return () => URL.revokeObjectURL(url);
+    }
+  }, []);
+
+  const gpsKey = isBatch
+    ? `${batchResult?.photos?.[0]?.lat ?? ""},${batchResult?.photos?.[0]?.lng ?? ""}`
+    : `${formData?.lat ?? ""},${formData?.lng ?? ""}`;
+
+  async function tryCoordinate(
+    lat: number,
+    lng: number,
+  ): Promise<{ namaJalan: string; kecamatan: string | null } | null> {
+    try {
+      const { reverseGeocode } = await import("@/hooks/useLocationFromPhoto");
+      const geo = await reverseGeocode(lat, lng);
+      if (geo.namaJalan) {
+        return { namaJalan: geo.namaJalan, kecamatan: geo.kecamatan };
+      }
+    } catch { /* silent */ }
+    return null;
+  }
+
   useEffect(() => {
     const gpsLat = isBatch ? (batchResult!.photos[0]?.lat ?? formData?.lat) : formData?.lat;
     const gpsLng = isBatch ? (batchResult!.photos[0]?.lng ?? formData?.lng) : formData?.lng;
     if (!gpsLat || !gpsLng) return;
-    if (editNamaJalan && editNamaJalan !== formData?.namaJalan) return; // already edited by user
+    if (editNamaJalan && editNamaJalan !== formData?.namaJalan) return;
     setGpsRoadLoading(true);
-    import("@/hooks/useLocationFromPhoto").then(({ reverseGeocode }) => {
-      reverseGeocode(gpsLat!, gpsLng!).then((geo) => {
-        if (geo.namaJalan) setEditNamaJalan(geo.namaJalan);
-        if (geo.kecamatan) setEditKecamatan(geo.kecamatan);
-      }).finally(() => setGpsRoadLoading(false));
-    }).catch(() => setGpsRoadLoading(false));
-  }, [isBatch]);
+
+    (async () => {
+      let result = await tryCoordinate(gpsLat, gpsLng);
+
+      if (!result && isBatch) {
+        for (let i = 1; i < batchResult!.photos.length; i++) {
+          const lat = batchResult!.photos[i]?.lat;
+          const lng = batchResult!.photos[i]?.lng;
+          if (lat == null || lng == null) continue;
+          result = await tryCoordinate(lat, lng);
+          if (result) break;
+        }
+      }
+
+      if (result) {
+        setEditNamaJalan(result.namaJalan);
+        if (result.kecamatan) setEditKecamatan(result.kecamatan);
+      }
+      setGpsRoadLoading(false);
+    })();
+  }, [isBatch, gpsKey]);
 
   // ── 2-detik Timer ───────────────────────────────────────────────────────
   const [confirmEnabled, setConfirmEnabled] = useState(false);
@@ -408,6 +473,14 @@ function AiResultPage() {
   const [submitState, setSubmitState] = useState<SubmitState>("idle");
   const [submitError, setSubmitError] = useState("");
   const [savedCode, setSavedCode] = useState<string | null>(null);
+
+  // Guard: redirect ke upload jika tidak ada data (single maupun batch)
+  // JANGAN override navigasi saat submit berhasil (clearAiStore akan null-kan data)
+  useEffect(() => {
+    if (submitState !== "success" && !result && !batchResult) {
+      navigate({ to: "/upload" });
+    }
+  }, [result, batchResult, navigate, submitState]);
 
   // ── Ganti Foto ──────────────────────────────────────────────────────────
   const [gantiFotoLoading, setGantiFotoLoading] = useState(false);
@@ -466,21 +539,39 @@ function AiResultPage() {
     const dateValidation = await validatePhotoDate(safeFile);
     if (dateValidation.status !== "valid") {
       if (isExifBlocking(dateValidation.status)) {
-        setFraudModal({ isOpen: true, status: dateValidation.status, title: dateValidation.title, message: dateValidation.message, isWarningOnly: false });
+        setFraudModal({
+          isOpen: true,
+          status: dateValidation.status,
+          title: dateValidation.title,
+          message: dateValidation.message,
+          isWarningOnly: false,
+        });
         if (fileInputRef.current) fileInputRef.current.value = "";
         return;
       }
-      setFraudModal({ isOpen: true, status: dateValidation.status, title: dateValidation.title, message: dateValidation.message, isWarningOnly: true });
+      setFraudModal({
+        isOpen: true,
+        status: dateValidation.status,
+        title: dateValidation.title,
+        message: dateValidation.message,
+        isWarningOnly: true,
+      });
     }
 
     // Guard 3: EXIF GPS (non-blocking, pakai safeFile)
     await readExifGps(safeFile);
 
+    // Kompresi gambar — EXIF sudah divalidasi, Canvas aman dipakai sekarang
+    setGantiFotoLoading(true);
+    safeFile = await compressImage(safeFile);
+
     // Guard 4: Duplication check (non-blocking, pakai safeFile)
     try {
       const hash = await computeFileHash(safeFile);
       const token = getToken() ?? "";
-      const url = new URL(`${window.location.origin}${import.meta.env.VITE_API_BASE_URL ?? "/api"}/v1/reports/check-duplicate`);
+      const url = new URL(
+        `${window.location.origin}${import.meta.env.VITE_API_BASE_URL ?? "/api"}/v1/reports/check-duplicate`,
+      );
       url.searchParams.set("file_hash", hash);
       const res = await fetch(url.toString(), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -496,16 +587,18 @@ function AiResultPage() {
     }
 
     // Re-analyze with AI (pakai safeFile — in-memory)
-    setGantiFotoLoading(true);
     try {
       const token = getToken() ?? "";
       const fd = new FormData();
       fd.append("file", safeFile);
-      const response = await fetch(`${formData ? (import.meta.env.VITE_API_BASE_URL ?? "/api") : "/api"}/analyze`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: fd,
-      });
+      const response = await fetch(
+        `${formData ? (import.meta.env.VITE_API_BASE_URL ?? "/api") : "/api"}/analyze`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd,
+        },
+      );
       if (!response.ok) throw new Error(`Analisis gagal (HTTP ${response.status})`);
       const aiResultData = await response.json();
 
@@ -529,6 +622,11 @@ function AiResultPage() {
           confidence: aiResultData.detections?.[0]?.confidence ?? aiResultData.confidence ?? 0,
           hasError: false,
         });
+
+        // Sync pendingBatchFiles so submit sends the right file
+        const newPending = [...getPendingBatchFiles()!];
+        newPending[gantiFotoTargetRef.current] = safeFile;
+        setPendingBatchFiles(newPending);
       } else {
         // Single mode: update result
         const newResult = {
@@ -541,7 +639,12 @@ function AiResultPage() {
         setAiResult(newResult);
         if (formData) {
           URL.revokeObjectURL(formData.previewUrl);
-          setFormData({ ...formData, previewUrl: URL.createObjectURL(safeFile), fileName: safeFile.name, file: safeFile });
+          setFormData({
+            ...formData,
+            previewUrl: URL.createObjectURL(safeFile),
+            fileName: safeFile.name,
+            file: safeFile,
+          });
         }
       }
 
@@ -580,6 +683,12 @@ function AiResultPage() {
       if (!batchResult?.batchId) {
         setSubmitState("error");
         setSubmitError("Batch ID tidak ditemukan.");
+        return;
+      }
+
+      if (pendingFiles.length !== batchResult!.photos.length) {
+        setSubmitState("error");
+        setSubmitError("Jumlah file tidak cocok dengan data analisis. Silakan upload ulang.");
         return;
       }
     } else {
@@ -640,15 +749,14 @@ function AiResultPage() {
         if (!formData.file) {
           throw new Error("File foto tidak tersedia. Silakan upload ulang.");
         }
-        const snapped = await snapToRoad(formData.lat, formData.lng);
 
         const token = getToken() ?? "";
         const fd = new FormData();
         fd.append("reporter_name", user?.name ?? editNamaJalan);
         fd.append("road_name", editNamaJalan);
         fd.append("district", editKecamatan);
-        fd.append("latitude", String(snapped.lat));
-        fd.append("longitude", String(snapped.lng));
+        fd.append("latitude", String(formData.lat));
+        fd.append("longitude", String(formData.lng));
         fd.append("kerusakan_panjang", editPanjang);
         fd.append("kerusakan_lebar", editLebar);
         if (editCatatan) fd.append("catatan", editCatatan);
@@ -661,13 +769,16 @@ function AiResultPage() {
         if (currentResult) {
           fd.append("total_detections", String(currentResult.total));
           fd.append("overall_severity", currentResult.overall_severity);
-          fd.append("ai_raw_output", JSON.stringify(
-            currentResult.detections.map((d) => ({
-              class: d.class,
-              confidence: d.confidence,
-              bbox: d.bbox,
-            }))
-          ));
+          fd.append(
+            "ai_raw_output",
+            JSON.stringify(
+              currentResult.detections.map((d) => ({
+                class: d.class,
+                confidence: d.confidence,
+                bbox: d.bbox,
+              })),
+            ),
+          );
           if (currentResult.image_result) {
             fd.append("image_result", currentResult.image_result);
           }
@@ -686,15 +797,10 @@ function AiResultPage() {
       }
 
       setSubmitState("success");
-      const redirectTaskId = formData?.survey_task_id;
       clearAiStore();
       setTimeout(() => {
-        if (redirectTaskId) {
-          navigate({ to: "/detail-survei", search: { taskId: redirectTaskId } });
-        } else {
-          navigate({ to: "/upload" });
-        }
-      }, 2500);
+        navigate({ to: "/tugas-saya" });
+      }, 1500);
     } catch (err) {
       setSubmitState("error");
       setSubmitError(err instanceof Error ? err.message : "Terjadi kesalahan");
@@ -705,8 +811,10 @@ function AiResultPage() {
   const photoLocations = isBatch
     ? batchResult!.photos
         .map((p, i) => ({ index: i, lat: p.lat, lng: p.lng }))
-        .filter((l): l is { index: number; lat: number; lng: number } => l.lat != null && l.lng != null)
-    : formData.lat != null && formData.lng != null
+        .filter(
+          (l): l is { index: number; lat: number; lng: number } => l.lat != null && l.lng != null,
+        )
+    : formData?.lat != null && formData?.lng != null
       ? [{ index: 0, lat: formData.lat, lng: formData.lng }]
       : [];
 
@@ -746,7 +854,7 @@ function AiResultPage() {
         map.setView([photoLocations[0].lat, photoLocations[0].lng], 15);
       } else {
         const group = L.featureGroup(markers);
-        map.fitBounds(group.getBounds().pad(0.15), { maxZoom: 15 });
+        map.fitBounds(group.getBounds().pad(0.15), { maxZoom: 15, animate: false });
       }
     });
 
@@ -757,6 +865,20 @@ function AiResultPage() {
   }, [photoLocations.length]);
 
   // ── Guard render ────────────────────────────────────────────────────────
+
+  // Guard: jika single mode (tidak aktif) atau tidak ada data sama sekali
+  if (submitState !== "success" && !isBatch && !result) {
+    return (
+      <PageLayout back="/upload" title="Hasil Deteksi AI" withBottomNav>
+        <main className="flex flex-col items-center justify-center py-20 px-4">
+          <Icon name="info" className="!text-5xl text-[#64748B] mb-4 opacity-30" />
+          <p className="text-[#475569] text-center">
+            Mode laporan tunggal tidak tersedia. Gunakan galeri untuk memilih minimal 2 foto.
+          </p>
+        </main>
+      </PageLayout>
+    );
+  }
 
   if (submitState !== "success" && ((!result && !batchResult) || !formData)) {
     return (
@@ -779,15 +901,19 @@ function AiResultPage() {
   }
 
   // ── Data display ────────────────────────────────────────────────────────
-  const activePhoto = isBatch ? batchResult!.photos[activeIdx] : null;
-  const displayImage = isBatch ? activePhoto!.imageResult || "" : (result?.image_result ?? "");
-  const displayDets = isBatch ? activePhoto!.detections : result.detections;
-  const displaySev = isBatch ? activePhoto!.severity : result.overall_severity;
-  const overallSev = isBatch ? batchResult!.overallSeverity : result.overall_severity;
-  const totalDets = isBatch ? batchResult!.totalDetections : result.total;
+  const activePhoto = isBatch ? (batchResult?.photos?.[activeIdx] ?? null) : null;
+  const displayImage = isBatch ? (activePhoto?.imageResult ?? "") : (result?.image_result ?? "");
+  const displayDets = isBatch ? (activePhoto?.detections ?? []) : (result?.detections ?? []);
+  const displaySev = isBatch ? (activePhoto?.severity ?? "") : (result?.overall_severity ?? "");
+  const overallSev = isBatch
+    ? (batchResult?.overallSeverity ?? "")
+    : (result?.overall_severity ?? "");
+  const totalDets = isBatch ? (batchResult?.totalDetections ?? 0) : (result?.total ?? 0);
   const overallCfg = getSeverityConfig(overallSev);
   const activeSevCfg = getSeverityConfig(displaySev);
-  const previewSrc = isBatch ? (activePhoto?.previewUrl ?? "") : (formData?.previewUrl ?? "");
+  const previewSrc = isBatch
+    ? activePhoto?.previewUrl || freshBlobUrls[activeIdx] || ""
+    : formData?.previewUrl || freshBlobUrls[0] || "";
 
   // Current dimensions for the active photo
   const currPanjang = isBatch ? (batchEditDimensi[activeIdx]?.panjang ?? "") : editPanjang;
@@ -813,426 +939,425 @@ function AiResultPage() {
     <PageLayout
       title={
         submitState === "success"
-          ? "Laporan Berhasil!"
+          ? "Laporan Berhasil"
           : isBatch
             ? `Hasil Batch (${batchResult!.photos.length} Foto)`
             : "Hasil Deteksi AI"
       }
-      back={submitState === "success" ? undefined : "/upload"}
+      back="/upload"
     >
-      {submitState === "success" ? (
-        /* ── Success screen ── */
-        <main className="px-4 pt-4 pb-6 w-full">
-          <div style={{ maxWidth: "42rem", marginLeft: "auto", marginRight: "auto" }}
-               className="flex flex-col items-center gap-4 pt-12">
-            <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
-              <Icon name="check_circle" className="!text-5xl text-green-600" filled />
-            </div>
-            <h2 className="text-xl font-bold text-on-surface text-center">
-              Laporan Berhasil Dikirim!
-            </h2>
-            {savedCode && (
-              <span className="font-id-code text-sm bg-surface-container px-4 py-2 rounded-lg border border-border-subtle">
-                {savedCode}
-              </span>
-            )}
-            <p className="text-sm text-on-surface-variant text-center">
-              Mengarahkan ke halaman utama...
-            </p>
-          </div>
-        </main>
-      ) : (
-        <main className="px-4 pt-4 pb-6 w-full">
-          <div
-            style={{ maxWidth: "42rem", marginLeft: "auto", marginRight: "auto" }}
-            className="flex flex-col gap-4"
-          >
-            {/* ── Ringkasan batch (hanya untuk mode batch) ── */}
-            {isBatch && (
-              <section className="bg-white border border-[#D0DAE8] rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Icon name="burst_mode" className="text-primary-container !text-[20px]" />
-                    <h3 className="font-headline-sm text-[14px] font-bold text-on-surface">
-                      Ringkasan Batch
-                    </h3>
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="text-center">
-                    <p className="text-[22px] font-bold text-on-surface">
-                      {batchResult!.photos.length}
-                    </p>
-                    <p className="text-[11px] text-on-surface-variant">Foto</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-[22px] font-bold text-on-surface">{totalDets}</p>
-                    <p className="text-[11px] text-on-surface-variant">Total Kerusakan</p>
-                  </div>
-                  <div className="text-center flex flex-col items-center gap-1">
-                    <SeverityBadge severity={overallSev} />
-                    <p className="text-[11px] text-on-surface-variant">Terparah</p>
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {/* ── Carousel thumbnail (hanya batch) ── */}
-            {isBatch && (
-              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-                {batchResult!.photos.map((photo, idx) => (
-                  <div key={idx} className="flex flex-col items-center gap-1">
-                    <BatchPhotoCard
-                      photo={photo}
-                      index={idx}
-                      isActive={activeIdx === idx}
-                      onClick={() => setActiveIdx(idx)}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleReplacePhoto(idx)}
-                      disabled={gantiFotoLoading}
-                      className="text-[10px] font-bold text-primary hover:text-primary-container disabled:opacity-40"
-                    >
-                      Ganti
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* ── Gambar hasil deteksi ── */}
-            <section className="bg-white border border-[#D0DAE8] rounded-lg overflow-hidden">
+      <main className="px-4 pt-4 pb-6 w-full">
+        <div
+          style={{ maxWidth: "42rem", marginLeft: "auto", marginRight: "auto" }}
+          className="flex flex-col gap-4"
+        >
+          {submitState !== "success" ? (
+            <>
+              {/* ── Ringkasan batch (hanya untuk mode batch) ── */}
               {isBatch && (
-                <div className="px-4 py-2 border-b border-border-subtle flex items-center justify-between">
-                  <span className="font-label-md text-[12px] font-semibold text-on-surface">
-                    Foto {activeIdx + 1} dari {batchResult!.photos.length}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-id-code text-[11px] text-on-surface-variant truncate max-w-[120px]">
-                      Foto {activeIdx + 1}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleReplacePhoto(activeIdx)}
-                      disabled={gantiFotoLoading}
-                      className="text-[11px] font-bold text-primary hover:text-primary-container border border-primary-container rounded px-2 py-0.5 disabled:opacity-40"
-                    >
-                      {gantiFotoLoading ? "..." : "Ganti Foto"}
-                    </button>
+                <section className="bg-white border border-[#D0DAE8] rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Icon name="burst_mode" className="text-primary-container !text-[20px]" />
+                      <h3 className="font-headline-sm text-[14px] font-bold text-on-surface">
+                        Ringkasan Batch
+                      </h3>
+                    </div>
                   </div>
-                </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="text-center">
+                      <p className="text-[22px] font-bold text-on-surface">
+                        {batchResult!.photos.length}
+                      </p>
+                      <p className="text-[11px] text-on-surface-variant">Foto</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[22px] font-bold text-on-surface">{totalDets}</p>
+                      <p className="text-[11px] text-on-surface-variant">Total Kerusakan</p>
+                    </div>
+                    <div className="text-center flex flex-col items-center gap-1">
+                      <SeverityBadge severity={overallSev} />
+                      <p className="text-[11px] text-on-surface-variant">Terparah</p>
+                    </div>
+                  </div>
+                </section>
               )}
 
-              <div className="relative max-w-[480px] mx-auto">
-                <DeteksiFoto
-                  previewUrl={previewSrc}
-                  displayImage={displayImage}
-                  displayImageError={imgError}
-                  onDisplayImageError={() => setImgError(true)}
-                  detections={displayDets}
-                  severity={displaySev}
-                  sevCfg={activeSevCfg}
-                />
-
-                {displayImage && !imgError && (
-                  <button
-                    type="button"
-                    onClick={() => setFullscreenIdx(isBatch ? activeIdx : 0)}
-                    className="absolute bottom-3 right-3 w-8 h-8 bg-black/50 hover:bg-black/70 text-white rounded-lg flex items-center justify-center transition-colors z-20"
-                  >
-                    <Icon name="open_in_full" className="!text-[16px]" />
-                  </button>
-                )}
-
-                {isBatch && batchResult!.photos.length > 1 && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setActiveIdx((i) => Math.max(0, i - 1))}
-                      disabled={activeIdx === 0}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center disabled:opacity-30 transition-colors z-20"
-                    >
-                      <Icon name="chevron_left" className="!text-[20px]" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setActiveIdx((i) => Math.min(batchResult!.photos.length - 1, i + 1))
-                      }
-                      disabled={activeIdx === batchResult!.photos.length - 1}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center disabled:opacity-30 transition-colors z-20"
-                    >
-                      <Icon name="chevron_right" className="!text-[20px]" />
-                    </button>
-                  </>
-                )}
-              </div>
-
-              {/* Summary stats */}
-              {!isBatch && (
-                <div className="p-4 grid grid-cols-2 gap-3 border-t border-border-subtle">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="font-label-sm text-[11px] text-on-surface-variant">
-                      Total Kerusakan
-                    </span>
-                    <span className="font-headline-sm text-[18px] font-bold text-on-surface">
-                      {result.total} titik
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="font-label-sm text-[11px] text-on-surface-variant">
-                      Tingkat Keparahan
-                    </span>
-                    <SeverityBadge severity={result.overall_severity} />
-                  </div>
-                </div>
-              )}
-            </section>
-
-            {/* ── Daftar deteksi foto aktif ── */}
-            {displayDets.length > 0 ? (
-              <section className="bg-white border border-[#D0DAE8] rounded-lg p-4 flex flex-col gap-3">
-                <div className="flex items-center gap-2">
-                  <Icon name="manage_search" className="text-primary !text-[20px]" />
-                  <h3 className="font-headline-sm text-[14px] font-bold text-on-surface">
-                    {isBatch ? `Detail Deteksi — Foto ${activeIdx + 1}` : "Detail Deteksi"}
-                  </h3>
-                </div>
-                <div className="flex flex-col gap-2">
-                  {displayDets.map((det, i) => (
-                    <DetectionCard key={i} det={det} index={i} />
+              {/* ── Carousel thumbnail (hanya batch) ── */}
+              {isBatch && (
+                <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                  {batchResult!.photos.map((photo, idx) => (
+                    <div key={idx} className="flex flex-col items-center gap-1">
+                      <BatchPhotoCard
+                        photo={photo}
+                        index={idx}
+                        isActive={activeIdx === idx}
+                        onClick={() => setActiveIdx(idx)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleReplacePhoto(idx)}
+                        disabled={gantiFotoLoading}
+                        className="text-[10px] font-bold text-primary hover:text-primary-container disabled:opacity-40"
+                      >
+                        Ganti
+                      </button>
+                    </div>
                   ))}
                 </div>
-              </section>
-            ) : activePhoto?.isDuplicate ? (
-              <section className="bg-amber-50 border border-amber-300 rounded-lg p-4 flex gap-3 items-start">
-                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                  <Icon name="content_copy" className="text-amber-700 !text-[16px]" />
-                </div>
-                <div>
-                  <p className="font-label-md text-[13px] font-bold text-amber-800">
-                    Foto sudah digunakan pada laporan lain
-                  </p>
-                  <p className="font-body-md text-[12px] text-amber-700/80 mt-0.5">
-                    Foto ini sudah pernah dilaporkan sebelumnya dan dilewati secara otomatis.
-                  </p>
-                </div>
-              </section>
-            ) : (
-              <section className="bg-[#D1FAE5] border border-[#6EE7B7] rounded-lg p-4 flex gap-3 items-start">
-                <Icon name="check_circle" className="text-[#065F46] !text-[22px] shrink-0" filled />
-                <div>
-                  <p className="font-label-md text-[13px] font-bold text-[#065F46]">
-                    {isBatch
-                      ? `Foto ${activeIdx + 1}: Tidak Ada Kerusakan`
-                      : "Tidak Ada Kerusakan Terdeteksi"}
-                  </p>
-                  <p className="font-body-md text-[12px] text-[#065F46]/80 mt-0.5">
-                    AI tidak menemukan kerusakan pada foto ini.
-                  </p>
-                </div>
-              </section>
-            )}
-
-            {/* ── Dimensi Kerusakan (editable) ── */}
-            <section className="bg-white border border-[#D0DAE8] rounded-lg p-4 flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <Icon name="straighten" className="text-primary !text-[20px]" />
-                <h3 className="font-headline-sm text-[14px] font-bold text-on-surface">
-                  Dimensi Kerusakan
-                  {isBatch && <span className="font-label-sm text-[11px] text-on-surface-variant ml-1">— Foto {activeIdx + 1}</span>}
-                </h3>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-label-sm text-[11px] text-on-surface-variant mb-1 block">
-                    Panjang (m)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    value={currPanjang}
-                    onChange={(e) => setCurrPanjang(e.target.value)}
-                    placeholder="0.0"
-                    className="w-full px-3 py-2.5 border border-[#D0DAE8] rounded-lg font-body-md text-[14px] bg-white text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="font-label-sm text-[11px] text-on-surface-variant mb-1 block">
-                    Lebar (m)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    value={currLebar}
-                    onChange={(e) => setCurrLebar(e.target.value)}
-                    placeholder="0.0"
-                    className="w-full px-3 py-2.5 border border-[#D0DAE8] rounded-lg font-body-md text-[14px] bg-white text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
-                </div>
-              </div>
-            </section>
-
-            {/* ── Informasi Lokasi ── */}
-            <section className="bg-white border border-[#D0DAE8] rounded-lg p-4 flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <Icon name="location_on" className="text-primary !text-[20px]" filled />
-                <h3 className="font-headline-sm text-[14px] font-bold text-primary">
-                  Lokasi Laporan
-                </h3>
-              </div>
-              <div className="grid grid-cols-3 gap-3 mt-1">
-                <div className="col-span-3">
-                  <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
-                    Nama Jalan
-                    {hasGps && (gpsRoadLoading
-                      ? <span className="inline-block w-3 h-3 ml-1.5 border-2 border-primary border-t-transparent rounded-full animate-spin align-middle" />
-                      : <span className="ml-1.5 text-[9px] font-medium text-green-700 bg-green-100 px-1.5 py-[1px] rounded-full align-middle">dari GPS</span>
-                    )}
-                  </p>
-                  <input
-                    value={editNamaJalan}
-                    onChange={(e) => setEditNamaJalan(e.target.value)}
-                    placeholder="Nama jalan..."
-                    className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-[13px] text-on-surface focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                <div className="col-span-3">
-                  <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
-                    Kecamatan
-                    {hasGps && (gpsRoadLoading
-                      ? <span className="inline-block w-3 h-3 ml-1.5 border-2 border-primary border-t-transparent rounded-full animate-spin align-middle" />
-                      : <span className="ml-1.5 text-[9px] font-medium text-green-700 bg-green-100 px-1.5 py-[1px] rounded-full align-middle">dari GPS</span>
-                    )}
-                  </p>
-                  <input
-                    value={editKecamatan}
-                    onChange={(e) => setEditKecamatan(e.target.value)}
-                    placeholder="Kecamatan..."
-                    className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-[13px] text-on-surface focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                <div>
-                  <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
-                    Tanggal
-                  </p>
-                  <p className="font-label-md text-[13px] font-semibold text-on-surface">
-                    {formData.tanggal}
-                  </p>
-                </div>
-                <div>
-                  <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
-                    {isBatch ? "Jumlah Foto" : "File Foto"}
-                  </p>
-                  <p className="font-id-code text-[11px] text-on-surface truncate">
-                    {formData.fileName}
-                  </p>
-                </div>
-                <div>
-                  <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
-                    Koordinat GPS
-                  </p>
-                  <p className="font-label-md text-[13px] font-semibold text-on-surface font-mono">
-                    {formData.lat != null && formData.lng != null
-                      ? `${formData.lat.toFixed(6)}, ${formData.lng.toFixed(6)}`
-                      : "GPS tidak tersedia"}
-                  </p>
-                </div>
-              </div>
-              {photoLocations.length > 0 && (
-                <div
-                  ref={mapRef}
-                  className="w-full h-[200px] rounded-lg border border-[#D0DAE8] z-0"
-                />
               )}
-            </section>
 
-            {/* ── Catatan ── */}
-            <section className="bg-white border border-[#D0DAE8] rounded-lg p-4 flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <Icon name="description" className="text-primary !text-[20px]" />
-                <h3 className="font-headline-sm text-[14px] font-bold text-primary">Catatan</h3>
-              </div>
-              <textarea
-                value={editCatatan}
-                onChange={(e) => setEditCatatan(e.target.value)}
-                placeholder="Tambahkan catatan (opsional)..."
-                rows={3}
-                className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-[13px] text-on-surface focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-              />
-            </section>
-
-            {/* ── Ganti Foto button (single mode) ── */}
-            {!isBatch && (
-              <button
-                type="button"
-                onClick={() => handleReplacePhoto(null)}
-                disabled={gantiFotoLoading}
-                className="w-full h-11 border border-primary-container text-primary-container rounded-lg flex items-center justify-center gap-2 font-label-md text-[14px] font-bold hover:bg-primary-container/5 transition-colors disabled:opacity-40"
-              >
-                <Icon name="photo_camera" className="!text-[20px]" />
-                {gantiFotoLoading ? "Menganalisis ulang..." : "Ganti Foto"}
-              </button>
-            )}
-
-            {/* ── Disclaimer ── */}
-            <div className="flex items-start gap-2 bg-[#FEF3C7] border border-[#FCD34D] rounded-lg px-4 py-3">
-              <Icon name="warning" className="text-[#92400E] !text-[20px] shrink-0 mt-0.5" />
-              <p className="font-label-md text-[12px] text-[#92400E] leading-relaxed">
-                Hasil ini merupakan deteksi awal AI (confidence threshold 60%). Mohon verifikasi
-                sebelum membuat laporan resmi.
-              </p>
-            </div>
-
-            {/* ── Error banner ── */}
-            {submitState === "error" && submitError && (
-              <div className="flex items-start gap-2 bg-[#FEE2E2] border border-[#FCA5A5] rounded-xl px-4 py-3">
-                <Icon name="error" className="text-[#991B1B] !text-[20px] shrink-0 mt-0.5" />
-                <p className="font-label-md text-[12px] text-[#991B1B] leading-relaxed">{submitError}</p>
-              </div>
-            )}
-
-            {/* ── Confirm Button ── */}
-            <div className="flex flex-col gap-3 pb-4">
-              <button
-                type="button"
-                onClick={handleConfirm}
-                disabled={!confirmEnabled || submitState === "loading"}
-                className="w-full h-11 bg-primary text-white rounded-lg flex items-center justify-center gap-2 font-headline-sm text-[15px] font-bold active:scale-[0.98] transition-transform disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {submitState === "loading" ? (
-                  <>
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Menyimpan...
-                  </>
-                ) : !confirmEnabled ? (
-                  <>
-                    <Icon name="timer" className="!text-[20px]" />
-                    Konfirmasi dalam {countdown} detik...
-                  </>
-                ) : (
-                  <>
-                    <Icon name="check_circle" className="!text-[20px]" />
-                    Konfirmasi & Buat Laporan
-                  </>
+              {/* ── Gambar hasil deteksi ── */}
+              <section className="bg-white border border-[#D0DAE8] rounded-lg overflow-hidden">
+                {isBatch && (
+                  <div className="px-4 py-2 border-b border-border-subtle flex items-center justify-between">
+                    <span className="font-label-md text-[12px] font-semibold text-on-surface">
+                      Foto {activeIdx + 1} dari {batchResult!.photos.length}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-id-code text-[11px] text-on-surface-variant truncate max-w-[120px]">
+                        Foto {activeIdx + 1}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleReplacePhoto(activeIdx)}
+                        disabled={gantiFotoLoading}
+                        className="text-[11px] font-bold text-primary hover:text-primary-container border border-primary-container rounded px-2 py-0.5 disabled:opacity-40"
+                      >
+                        {gantiFotoLoading ? "..." : "Ganti Foto"}
+                      </button>
+                    </div>
+                  </div>
                 )}
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate({ to: "/upload" })}
-                disabled={submitState === "loading"}
-                className="w-full h-11 border border-primary-container text-primary-container rounded-lg flex items-center justify-center gap-2 font-label-md text-[14px] font-bold hover:bg-primary-container/5 transition-colors"
-              >
-                <Icon name="refresh" className="!text-[20px]" />
-                {isBatch ? "Upload Batch Baru" : "Analisis Ulang dengan Foto Baru"}
-              </button>
-            </div>
-          </div>
-        </main>
-      )}
+
+                <div className="relative max-w-[480px] mx-auto">
+                  <DeteksiFoto
+                    previewUrl={previewSrc}
+                    displayImage={displayImage}
+                    displayImageError={imgError}
+                    onDisplayImageError={() => setImgError(true)}
+                    detections={displayDets}
+                    severity={displaySev}
+                    sevCfg={activeSevCfg}
+                  />
+
+                  {displayImage && !imgError && (
+                    <button
+                      type="button"
+                      onClick={() => setFullscreenIdx(isBatch ? activeIdx : 0)}
+                      className="absolute bottom-3 right-3 w-8 h-8 bg-black/50 hover:bg-black/70 text-white rounded-lg flex items-center justify-center transition-colors z-20"
+                    >
+                      <Icon name="open_in_full" className="!text-[16px]" />
+                    </button>
+                  )}
+
+                  {isBatch && batchResult!.photos.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setActiveIdx((i) => Math.max(0, i - 1))}
+                        disabled={activeIdx === 0}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center disabled:opacity-30 transition-colors z-20"
+                      >
+                        <Icon name="chevron_left" className="!text-[20px]" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setActiveIdx((i) => Math.min(batchResult!.photos.length - 1, i + 1))
+                        }
+                        disabled={activeIdx === batchResult!.photos.length - 1}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center disabled:opacity-30 transition-colors z-20"
+                      >
+                        <Icon name="chevron_right" className="!text-[20px]" />
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {/* Summary stats */}
+                {!isBatch && (
+                  <div className="p-4 grid grid-cols-2 gap-3 border-t border-border-subtle">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-label-sm text-[11px] text-on-surface-variant">
+                        Total Kerusakan
+                      </span>
+                      <span className="font-headline-sm text-[18px] font-bold text-on-surface">
+                        {result.total} titik
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-label-sm text-[11px] text-on-surface-variant">
+                        Tingkat Keparahan
+                      </span>
+                      <SeverityBadge severity={result.overall_severity} />
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              {/* ── Daftar deteksi foto aktif ── */}
+              {displayDets.length > 0 ? (
+                <section className="bg-white border border-[#D0DAE8] rounded-lg p-4 flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <Icon name="manage_search" className="text-primary !text-[20px]" />
+                    <h3 className="font-headline-sm text-[14px] font-bold text-on-surface">
+                      {isBatch ? `Detail Deteksi — Foto ${activeIdx + 1}` : "Detail Deteksi"}
+                    </h3>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {displayDets.map((det, i) => (
+                      <DetectionCard key={i} det={det} index={i} />
+                    ))}
+                  </div>
+                </section>
+              ) : activePhoto?.isDuplicate ? (
+                <section className="bg-amber-50 border border-amber-300 rounded-lg p-4 flex gap-3 items-start">
+                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                    <Icon name="content_copy" className="text-amber-700 !text-[16px]" />
+                  </div>
+                  <div>
+                    <p className="font-label-md text-[13px] font-bold text-amber-800">
+                      Foto sudah digunakan pada laporan lain
+                    </p>
+                    <p className="font-body-md text-[12px] text-amber-700/80 mt-0.5">
+                      Foto ini sudah pernah dilaporkan sebelumnya dan dilewati secara otomatis.
+                    </p>
+                  </div>
+                </section>
+              ) : (
+                <section className="bg-[#D1FAE5] border border-[#6EE7B7] rounded-lg p-4 flex gap-3 items-start">
+                  <Icon
+                    name="check_circle"
+                    className="text-[#065F46] !text-[22px] shrink-0"
+                    filled
+                  />
+                  <div>
+                    <p className="font-label-md text-[13px] font-bold text-[#065F46]">
+                      {isBatch
+                        ? `Foto ${activeIdx + 1}: Tidak Ada Kerusakan`
+                        : "Tidak Ada Kerusakan Terdeteksi"}
+                    </p>
+                    <p className="font-body-md text-[12px] text-[#065F46]/80 mt-0.5">
+                      AI tidak menemukan kerusakan pada foto ini.
+                    </p>
+                  </div>
+                </section>
+              )}
+
+              {/* ── Dimensi Kerusakan (editable) ── */}
+              <section className="bg-white border border-[#D0DAE8] rounded-lg p-4 flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <Icon name="straighten" className="text-primary !text-[20px]" />
+                  <h3 className="font-headline-sm text-[14px] font-bold text-on-surface">
+                    Dimensi Kerusakan
+                    {isBatch && (
+                      <span className="font-label-sm text-[11px] text-on-surface-variant ml-1">
+                        — Foto {activeIdx + 1}
+                      </span>
+                    )}
+                  </h3>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-label-sm text-[11px] text-on-surface-variant mb-1 block">
+                      Panjang (m)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={currPanjang}
+                      onChange={(e) => setCurrPanjang(e.target.value)}
+                      placeholder="0.0"
+                      className="w-full px-3 py-2.5 border border-[#D0DAE8] rounded-lg font-body-md text-[14px] bg-white text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-label-sm text-[11px] text-on-surface-variant mb-1 block">
+                      Lebar (m)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={currLebar}
+                      onChange={(e) => setCurrLebar(e.target.value)}
+                      placeholder="0.0"
+                      className="w-full px-3 py-2.5 border border-[#D0DAE8] rounded-lg font-body-md text-[14px] bg-white text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              {/* ── Informasi Lokasi ── */}
+              <section className="bg-white border border-[#D0DAE8] rounded-lg p-4 flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <Icon name="location_on" className="text-primary !text-[20px]" filled />
+                  <h3 className="font-headline-sm text-[14px] font-bold text-primary">
+                    Lokasi Laporan
+                  </h3>
+                </div>
+                <div className="grid grid-cols-3 gap-3 mt-1">
+                  <div className="col-span-3">
+                    <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
+                      Nama Jalan
+                      {hasGps &&
+                        (gpsRoadLoading ? (
+                          <span className="inline-block w-3 h-3 ml-1.5 border-2 border-primary border-t-transparent rounded-full animate-spin align-middle" />
+                        ) : (
+                          <span className="ml-1.5 text-[9px] font-medium text-green-700 bg-green-100 px-1.5 py-[1px] rounded-full align-middle">
+                            dari GPS
+                          </span>
+                        ))}
+                    </p>
+                    <input
+                      value={editNamaJalan}
+                      onChange={(e) => setEditNamaJalan(e.target.value)}
+                      placeholder="Nama jalan..."
+                      className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-[13px] text-on-surface focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
+                      Kecamatan
+                      {hasGps &&
+                        (gpsRoadLoading ? (
+                          <span className="inline-block w-3 h-3 ml-1.5 border-2 border-primary border-t-transparent rounded-full animate-spin align-middle" />
+                        ) : (
+                          <span className="ml-1.5 text-[9px] font-medium text-green-700 bg-green-100 px-1.5 py-[1px] rounded-full align-middle">
+                            dari GPS
+                          </span>
+                        ))}
+                    </p>
+                    <input
+                      value={editKecamatan}
+                      onChange={(e) => setEditKecamatan(e.target.value)}
+                      placeholder="Kecamatan..."
+                      className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-[13px] text-on-surface focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                  <div>
+                    <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
+                      Tanggal
+                    </p>
+                    <p className="font-label-md text-[13px] font-semibold text-on-surface">
+                      {formData.tanggal}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
+                      {isBatch ? "Jumlah Foto" : "File Foto"}
+                    </p>
+                    <p className="font-id-code text-[11px] text-on-surface truncate">
+                      {formData.fileName}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
+                      Koordinat GPS
+                    </p>
+                    <p className="font-label-md text-[13px] font-semibold text-on-surface font-mono">
+                      {formData.lat != null && formData.lng != null
+                        ? `${formData.lat.toFixed(6)}, ${formData.lng.toFixed(6)}`
+                        : "GPS tidak tersedia"}
+                    </p>
+                  </div>
+                </div>
+                {photoLocations.length > 0 && (
+                  <div
+                    ref={mapRef}
+                    className="w-full h-[200px] rounded-lg border border-[#D0DAE8] z-0"
+                  />
+                )}
+              </section>
+
+              {/* ── Catatan ── */}
+              <section className="bg-white border border-[#D0DAE8] rounded-lg p-4 flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <Icon name="description" className="text-primary !text-[20px]" />
+                  <h3 className="font-headline-sm text-[14px] font-bold text-primary">Catatan</h3>
+                </div>
+                <textarea
+                  value={editCatatan}
+                  onChange={(e) => setEditCatatan(e.target.value)}
+                  placeholder="Tambahkan catatan (opsional)..."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-[13px] text-on-surface focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                />
+              </section>
+
+              {/* ── Ganti Foto button (single mode) ── */}
+              {!isBatch && (
+                <button
+                  type="button"
+                  onClick={() => handleReplacePhoto(null)}
+                  disabled={gantiFotoLoading}
+                  className="w-full h-11 border border-primary-container text-primary-container rounded-lg flex items-center justify-center gap-2 font-label-md text-[14px] font-bold hover:bg-primary-container/5 transition-colors disabled:opacity-40"
+                >
+                  <Icon name="photo_camera" className="!text-[20px]" />
+                  {gantiFotoLoading ? "Menganalisis ulang..." : "Ganti Foto"}
+                </button>
+              )}
+
+              {/* ── Disclaimer ── */}
+              <div className="flex items-start gap-2 bg-[#FEF3C7] border border-[#FCD34D] rounded-lg px-4 py-3">
+                <Icon name="warning" className="text-[#92400E] !text-[20px] shrink-0 mt-0.5" />
+                <p className="font-label-md text-[12px] text-[#92400E] leading-relaxed">
+                  Hasil ini merupakan deteksi awal AI (confidence threshold 60%). Mohon verifikasi
+                  sebelum membuat laporan resmi.
+                </p>
+              </div>
+
+              {/* ── Error banner ── */}
+              {submitState === "error" && submitError && (
+                <div className="flex items-start gap-2 bg-[#FEE2E2] border border-[#FCA5A5] rounded-xl px-4 py-3">
+                  <Icon name="error" className="text-[#991B1B] !text-[20px] shrink-0 mt-0.5" />
+                  <p className="font-label-md text-[12px] text-[#991B1B] leading-relaxed">
+                    {submitError}
+                  </p>
+                </div>
+              )}
+
+              {/* ── Confirm Button ── */}
+              <div className="flex flex-col gap-3 pb-4">
+                <button
+                  type="button"
+                  onClick={handleConfirm}
+                  disabled={!confirmEnabled || submitState === "loading"}
+                  className="w-full h-11 bg-primary text-white rounded-lg flex items-center justify-center gap-2 font-headline-sm text-[15px] font-bold active:scale-[0.98] transition-transform disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {submitState === "loading" ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Menyimpan...
+                    </>
+                  ) : !confirmEnabled ? (
+                    <>
+                      <Icon name="timer" className="!text-[20px]" />
+                      Konfirmasi dalam {countdown} detik...
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="check_circle" className="!text-[20px]" />
+                      Konfirmasi & Buat Laporan
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate({ to: "/upload" })}
+                  disabled={submitState === "loading"}
+                  className="w-full h-11 border border-primary-container text-primary-container rounded-lg flex items-center justify-center gap-2 font-label-md text-[14px] font-bold hover:bg-primary-container/5 transition-colors"
+                >
+                  <Icon name="refresh" className="!text-[20px]" />
+                  {isBatch ? "Upload Batch Baru" : "Analisis Ulang dengan Foto Baru"}
+                </button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </main>
 
       {/* ── Hidden file input for Ganti Foto ── */}
       <input
@@ -1316,18 +1441,39 @@ function AiResultPage() {
         </Portal>
       )}
 
-      {/* ── Submit Loading Overlay ── */}
-      {submitState === "loading" && (
+      {/* ── Submit Loading / Success Overlay ── */}
+      {(submitState === "loading" || submitState === "success") && (
         <Portal>
           <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/60 backdrop-blur-sm">
             <div className="bg-white rounded-2xl px-6 py-7 w-[280px] shadow-2xl flex flex-col items-center gap-4">
-              <span className="w-10 h-10 border-[3px] border-[#1e40af]/20 border-t-[#1e40af] rounded-full animate-spin" />
-              <h3 className="font-headline-sm text-[16px] font-bold text-on-surface text-center">
-                Menyimpan Laporan
-              </h3>
-              <p className="font-body-md text-sm text-[#64748B] text-center">
-                Mohon tunggu, jangan tutup halaman ini
-              </p>
+              {submitState === "loading" ? (
+                <>
+                  <span className="w-10 h-10 border-[3px] border-[#1e40af]/20 border-t-[#1e40af] rounded-full animate-spin" />
+                  <h3 className="font-headline-sm text-[16px] font-bold text-on-surface text-center">
+                    Menyimpan Laporan
+                  </h3>
+                  <p className="font-body-md text-sm text-[#64748B] text-center">
+                    Mohon tunggu, jangan tutup halaman ini
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+                    <Icon name="check_circle" className="!text-[40px] text-green-600" filled />
+                  </div>
+                  <h3 className="font-headline-sm text-[16px] font-bold text-on-surface text-center">
+                    Laporan Berhasil Dikirim!
+                  </h3>
+                  {savedCode && (
+                    <span className="font-id-code text-sm bg-surface-container px-4 py-2 rounded-lg border border-border-subtle">
+                      {savedCode}
+                    </span>
+                  )}
+                  <p className="font-body-md text-sm text-[#64748B] text-center">
+                    Mengarahkan ke halaman utama...
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </Portal>

@@ -1,12 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { SafeImage } from "@/components/jk/SafeImage";
 import { getCurrentUser } from "@/lib/auth";
 import { formatDate, displayStatus, statusDotStyle } from "@/lib/format";
-import { useSurveyDetail, useCompleteSurvey } from "@/hooks/useSurveyQueries";
-import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
+import { useSurveyDetail } from "@/hooks/useSurveyQueries";
 
 export const Route = createFileRoute("/detail-survei")({
   component: DetailSurveiPage,
@@ -30,17 +28,6 @@ function DetailSurveiPage() {
   const userRole = user?.role ?? "petugas";
 
   const { data: task, isFetching, error, refetch } = useSurveyDetail(taskId);
-  const completeMutation = useCompleteSurvey();
-
-  const [confirmSelesai, setConfirmSelesai] = useState(false);
-
-  async function handleSelesaikan() {
-    try {
-      await completeMutation.mutateAsync(taskId!);
-    } catch (e) {
-      console.error("Gagal menyelesaikan shift:", e);
-    }
-  }
 
   if (!task) {
     if (isFetching) {
@@ -50,7 +37,10 @@ function DetailSurveiPage() {
             <div className="bg-white border border-[#D0DAE8] rounded-xl p-4 space-y-3">
               <div className="w-3/4 h-6 bg-[#D0DAE8] rounded" />
               <div className="w-1/2 h-4 bg-[#E8F0FA] rounded" />
-              <div className="flex gap-2"><div className="w-20 h-5 bg-[#D0DAE8] rounded-full" /><div className="w-20 h-5 bg-[#D0DAE8] rounded-full" /></div>
+              <div className="flex gap-2">
+                <div className="w-20 h-5 bg-[#D0DAE8] rounded-full" />
+                <div className="w-20 h-5 bg-[#D0DAE8] rounded-full" />
+              </div>
             </div>
             <div className="bg-white border border-[#D0DAE8] rounded-xl h-48" />
           </main>
@@ -63,8 +53,15 @@ function DetailSurveiPage() {
           <div className="w-14 h-14 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-center">
             <Icon name="error" className="!text-[28px] text-[#E11D48]" />
           </div>
-          <p className="text-[14px] font-semibold text-[#0F172A]">{error?.message || "Tugas tidak ditemukan."}</p>
-          <Link to={userRole === "supervisor" ? "/supervisor" : "/tugas-survei"} className="px-5 py-2 bg-[#1A4F8A] text-white text-[13px] font-medium rounded-lg hover:bg-[#153d6e] transition-colors">Kembali</Link>
+          <p className="text-[14px] font-semibold text-[#0F172A]">
+            {error?.message || "Tugas tidak ditemukan."}
+          </p>
+          <Link
+            to={userRole === "supervisor" ? "/supervisor" : "/tugas-survei"}
+            className="px-5 py-2 bg-[#1A4F8A] text-white text-[13px] font-medium rounded-lg hover:bg-[#153d6e] transition-colors"
+          >
+            Kembali
+          </Link>
         </main>
       </PageLayout>
     );
@@ -76,7 +73,10 @@ function DetailSurveiPage() {
   const reports = task.reports ?? [];
 
   return (
-    <PageLayout back={userRole === "supervisor" ? "/supervisor" : "/tugas-survei"} title="Detail Survei">
+    <PageLayout
+      back={userRole === "supervisor" ? "/supervisor" : "/tugas-survei"}
+      title="Detail Survei"
+    >
       <main>
         <div className="max-w-2xl mx-auto p-4 flex flex-col gap-4">
           {/* Shift Info Card */}
@@ -86,12 +86,22 @@ function DetailSurveiPage() {
               <InfoRow icon="location_on" value={task.kecamatan ? `Kec. ${task.kecamatan}` : "—"} />
               <InfoRow icon="group" value={task.team?.name ? `Tim: ${task.team.name}` : "—"} />
               <InfoRow icon="calendar_month" value={formatDate(task.created_at)} />
-              {task.tanggal_patroli && <InfoRow icon="event" value={formatDate(task.tanggal_patroli)} />}
-              {task.alasan_tugas && <InfoRow icon="info" value={task.alasan_tugas.replace("_", " ")} />}
+              {task.tanggal_patroli && (
+                <InfoRow icon="event" value={formatDate(task.tanggal_patroli)} />
+              )}
+              {task.alasan_tugas && (
+                <InfoRow icon="info" value={task.alasan_tugas.replace("_", " ")} />
+              )}
             </div>
             <div className="flex gap-2 mt-3">
-              <span className={`px-3 py-1 rounded-full text-[11px] font-bold ${STATUS_STYLES[task.status] ?? ""}`}>
-                {task.status === "aktif" ? "Aktif" : task.status === "selesai" ? "Selesai" : "Dibatalkan"}
+              <span
+                className={`px-3 py-1 rounded-full text-[11px] font-bold ${STATUS_STYLES[task.status] ?? ""}`}
+              >
+                {task.status === "aktif"
+                  ? "Aktif"
+                  : task.status === "selesai"
+                    ? "Selesai"
+                    : "Dibatalkan"}
               </span>
             </div>
             {task.catatan && (
@@ -124,24 +134,43 @@ function DetailSurveiPage() {
               </div>
               <div className="divide-y divide-[#E2E8F0]">
                 {reports.map((r) => (
-                  <div key={r.id} className="px-4 py-3 flex items-center gap-3 hover:bg-[#F8FAFC] transition-colors">
+                  <div
+                    key={r.id}
+                    className="px-4 py-3 flex items-center gap-3 hover:bg-[#F8FAFC] transition-colors"
+                  >
                     {r.first_photo_url || r.image_original_url ? (
-                      <SafeImage src={r.first_photo_url ?? r.image_original_url!} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0 border border-[#E2E8F0]" />
+                      <SafeImage
+                        src={r.first_photo_url ?? r.image_original_url!}
+                        alt=""
+                        className="w-12 h-12 rounded-lg object-cover shrink-0 border border-[#E2E8F0]"
+                      />
                     ) : (
                       <div className="w-12 h-12 rounded-lg bg-[#EEF3FA] flex items-center justify-center shrink-0">
                         <Icon name="photo" className="!text-xl text-[#94A3B8]" />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-medium text-[#0F172A] truncate">{r.report_code || "Laporan"}</p>
+                      <p className="text-[13px] font-medium text-[#0F172A] truncate">
+                        {r.report_code || "Laporan"}
+                      </p>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className={`w-1.5 h-1.5 rounded-full ${statusDotStyle(r.status)}`} />
-                        <span className="text-[11px] text-[#64748B]">{displayStatus(r.status)}</span>
+                        <span className="text-[11px] text-[#64748B]">
+                          {displayStatus(r.status)}
+                        </span>
                         <span className="text-[#E2E8F0]">·</span>
-                        <span className="text-[11px] text-[#64748B]">{formatDate(r.created_at)}</span>
+                        <span className="text-[11px] text-[#64748B]">
+                          {formatDate(r.created_at)}
+                        </span>
                       </div>
                     </div>
-                    <Link to="/detail-report" search={{ reportId: r.id }} className="shrink-0 px-2.5 py-1 bg-[#EEF3FA] text-[#476788] rounded-lg text-[11px] font-semibold hover:bg-[#E2E8F0] transition-colors">Detail</Link>
+                    <Link
+                      to="/detail-report"
+                      search={{ reportId: r.id }}
+                      className="shrink-0 px-2.5 py-1 bg-[#EEF3FA] text-[#476788] rounded-lg text-[11px] font-semibold hover:bg-[#E2E8F0] transition-colors"
+                    >
+                      Detail
+                    </Link>
                   </div>
                 ))}
               </div>
@@ -156,27 +185,6 @@ function DetailSurveiPage() {
           )}
         </div>
       </main>
-
-      {canUpload && (
-        <footer className="sticky bottom-0 bg-white border-t border-[#E2E8F0] p-4">
-          <button
-            onClick={() => setConfirmSelesai(true)}
-            disabled={completeMutation.isPending}
-            className="w-full py-2.5 bg-green-600 text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-green-700 transition-colors disabled:opacity-50"
-          >
-            {completeMutation.isPending ? "Memproses..." : <><Icon name="check_circle" className="!text-lg" /> Selesaikan Shift</>}
-          </button>
-        </footer>
-      )}
-
-      <ConfirmDialog
-        open={confirmSelesai}
-        title="Selesaikan Shift?"
-        message="Tandai shift ini sebagai selesai? Laporan yang sudah diupload tetap tersimpan."
-        confirmText="Ya, Selesaikan"
-        onConfirm={() => { setConfirmSelesai(false); handleSelesaikan(); }}
-        onCancel={() => setConfirmSelesai(false)}
-      />
     </PageLayout>
   );
 }
