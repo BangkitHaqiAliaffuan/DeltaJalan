@@ -112,7 +112,15 @@ export function useTogglePatrolSchedule() {
 export function useGenerateTasks() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, start_date, end_date }: { id: string; start_date: string; end_date: string }) =>
+    mutationFn: ({
+      id,
+      start_date,
+      end_date,
+    }: {
+      id: string;
+      start_date: string;
+      end_date: string;
+    }) =>
       apiFetch(`${API_BASE_URL}/patrol-schedules/${id}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers() },

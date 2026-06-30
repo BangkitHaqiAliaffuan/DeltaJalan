@@ -13,7 +13,13 @@ interface SearchSelectProps {
   placeholder?: string;
 }
 
-export function SearchSelect({ options, value, onChange, multiple, placeholder }: SearchSelectProps) {
+export function SearchSelect({
+  options,
+  value,
+  onChange,
+  multiple,
+  placeholder,
+}: SearchSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [highlightIdx, setHighlightIdx] = useState(0);
@@ -102,9 +108,10 @@ export function SearchSelect({ options, value, onChange, multiple, placeholder }
   }
 
   // Single-select trigger
-  const singleLabel = !multiple && value
-    ? options.find((o) => o.value === value)?.label ?? placeholder ?? "Pilih..."
-    : null;
+  const singleLabel =
+    !multiple && value
+      ? (options.find((o) => o.value === value)?.label ?? placeholder ?? "Pilih...")
+      : null;
 
   return (
     <div ref={containerRef} className="relative">
@@ -117,9 +124,20 @@ export function SearchSelect({ options, value, onChange, multiple, placeholder }
           {(value as string[]).map((v) => {
             const label = options.find((o) => o.value === v)?.label ?? v;
             return (
-              <span key={v} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#EEF3FA] text-[11px] font-semibold text-[#476788]">
+              <span
+                key={v}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#EEF3FA] text-[11px] font-semibold text-[#476788]"
+              >
                 {label}
-                <button onClick={(e) => { e.stopPropagation(); removeChip(v); }} className="hover:text-[#E11D48] leading-none">×</button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeChip(v);
+                  }}
+                  className="hover:text-[#E11D48] leading-none"
+                >
+                  ×
+                </button>
               </span>
             );
           })}
@@ -149,11 +167,18 @@ export function SearchSelect({ options, value, onChange, multiple, placeholder }
               className="flex-1 outline-none bg-transparent text-[13px] placeholder-[#94A3B8]"
             />
           ) : (
-            <span className={`flex-1 text-[13px] ${singleLabel ? "text-[#0F172A]" : "text-[#94A3B8]"}`}>
+            <span
+              className={`flex-1 text-[13px] ${singleLabel ? "text-[#0F172A]" : "text-[#94A3B8]"}`}
+            >
               {singleLabel || placeholder || "Pilih..."}
             </span>
           )}
-          <svg className="w-4 h-4 text-[#94A3B8] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg
+            className="w-4 h-4 text-[#94A3B8] shrink-0"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </div>
@@ -176,10 +201,26 @@ export function SearchSelect({ options, value, onChange, multiple, placeholder }
                 } ${selected ? "font-semibold text-[#1e40af]" : "text-[#0F172A]"}`}
               >
                 {multiple && (
-                  <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                    selected ? "bg-[#1e40af] border-[#1e40af]" : "border-[#CBD5E1]"
-                  }`}>
-                    {selected && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                  <span
+                    className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                      selected ? "bg-[#1e40af] border-[#1e40af]" : "border-[#CBD5E1]"
+                    }`}
+                  >
+                    {selected && (
+                      <svg
+                        className="w-3 h-3 text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={3}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    )}
                   </span>
                 )}
                 {opt.label}

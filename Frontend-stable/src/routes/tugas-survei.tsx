@@ -4,7 +4,9 @@ import { useEffect } from "react";
 export const Route = createFileRoute("/tugas-survei")({
   component: () => {
     const navigate = useNavigate();
-    useEffect(() => { navigate({ to: "/tugas-saya", replace: true }); }, []);
+    useEffect(() => {
+      navigate({ to: "/tugas-saya", replace: true });
+    }, []);
     return null;
   },
 });

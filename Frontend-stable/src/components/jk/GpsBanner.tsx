@@ -66,7 +66,8 @@ export function GpsBanner({
   if (status === "idle") return null;
 
   const v = variants[status] ?? variants.error;
-  const isSpinning = status === "detecting" || status === "geocoding" || status === "auto_geolocating";
+  const isSpinning =
+    status === "detecting" || status === "geocoding" || status === "auto_geolocating";
 
   return (
     <div className={`flex items-start gap-2.5 ${v.bg} border ${v.border} rounded-lg px-4 py-3`}>

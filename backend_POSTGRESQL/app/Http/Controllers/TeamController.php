@@ -19,6 +19,7 @@ class TeamController extends Controller
         }
 
         $teams = Team::withCount('members')
+            ->with('uptd')
             ->orderBy('name')
             ->get();
 

@@ -6,9 +6,23 @@ import { TimelineCard } from "@/components/jk/TimelineCard";
 import { BeforeAfterSlider } from "@/components/jk/BeforeAfterSlider";
 import { ImageWithLoading } from "@/components/jk/ImageWithLoading";
 import { useBlobImage } from "@/hooks/useBlobImage";
-import { formatDate, severityBadgeStyle, severityDotStyle, statusBadgeStyle, displayStatus } from "@/lib/format";
-import type { Laporan, TrustLabel, TimelineEvent, PriorityLevel } from "@/types/laporan";
-import { BadgeStatCard, severityIcon, statusIcon, trustIcon, statusGradient, statusBorder, statusIconColor, statusTextColor, trustLabel, trustGradient, trustBorder, trustIconColor, trustTextColor } from "@/components/jk/StatCard";
+import {
+  formatDate,
+  severityBadgeStyle,
+  severityDotStyle,
+  statusBadgeStyle,
+  displayStatus,
+} from "@/lib/format";
+import type { Laporan, TimelineEvent, PriorityLevel } from "@/types/laporan";
+import {
+  BadgeStatCard,
+  severityIcon,
+  statusIcon,
+  statusGradient,
+  statusBorder,
+  statusIconColor,
+  statusTextColor,
+} from "@/components/jk/StatCard";
 
 // ── Types ──
 
@@ -63,9 +77,20 @@ function statusStep(s: string) {
 
 // ── Photo Slider Sub-component ──
 
-function SliderImg({ url, alt, onLoad, onError, className, imgRef: externalRef }: {
-  url: string; alt: string; onLoad: React.ReactEventHandler<HTMLImageElement>; onError: React.ReactEventHandler<HTMLImageElement>;
-  className: string; imgRef?: React.Ref<HTMLImageElement>;
+function SliderImg({
+  url,
+  alt,
+  onLoad,
+  onError,
+  className,
+  imgRef: externalRef,
+}: {
+  url: string;
+  alt: string;
+  onLoad: React.ReactEventHandler<HTMLImageElement>;
+  onError: React.ReactEventHandler<HTMLImageElement>;
+  className: string;
+  imgRef?: React.Ref<HTMLImageElement>;
 }) {
   const blobSrc = useBlobImage(url);
   return (
@@ -86,12 +111,15 @@ function PhotoSlider({ photos }: { photos: SliderPhoto[] }) {
   const [naturalAspect, setNaturalAspect] = useState<number | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
-  const goTo = useCallback((i: number) => {
-    const next = (i + photos.length) % photos.length;
-    setIdx(next);
-    setNaturalAspect(null);
-    setLoaded((prev) => new Set(prev).add(next));
-  }, [photos.length]);
+  const goTo = useCallback(
+    (i: number) => {
+      const next = (i + photos.length) % photos.length;
+      setIdx(next);
+      setNaturalAspect(null);
+      setLoaded((prev) => new Set(prev).add(next));
+    },
+    [photos.length],
+  );
 
   const prev = useCallback(() => goTo(idx - 1), [goTo, idx]);
   const next = useCallback(() => goTo(idx + 1), [goTo, idx]);
@@ -165,7 +193,9 @@ function PhotoSlider({ photos }: { photos: SliderPhoto[] }) {
           <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-3 pt-8">
             <div className="flex items-center justify-between">
               <p className="text-white text-[12px] font-medium">{photos[idx].label}</p>
-              <p className="text-white/60 text-[11px]">{idx + 1}/{photos.length}</p>
+              <p className="text-white/60 text-[11px]">
+                {idx + 1}/{photos.length}
+              </p>
             </div>
             <div className="flex gap-1.5 mt-2">
               {photos.map((_, i) => (
@@ -220,20 +250,32 @@ function ProgressStepper({ report, rejected }: { report: Laporan; rejected: bool
             ) : (
               <div className="w-5 h-5 rounded-full border-2 border-border-subtle" />
             )}
-            <span className={`font-label-sm text-[10px] text-center whitespace-nowrap ${
-              s.l === "Ditolak" ? "text-error font-bold" :
-              s.active ? "text-primary font-bold" :
-              s.done ? "text-on-surface-variant" : "text-slate-400"
-            }`}>
+            <span
+              className={`font-label-sm text-[10px] text-center whitespace-nowrap ${
+                s.l === "Ditolak"
+                  ? "text-error font-bold"
+                  : s.active
+                    ? "text-primary font-bold"
+                    : s.done
+                      ? "text-on-surface-variant"
+                      : "text-slate-400"
+              }`}
+            >
               {s.l}
             </span>
           </div>
           {i < arr.length - 1 && (
-            <div className={`h-px flex-1 mx-1 min-w-[20px] ${
-              s.l === "Ditolak" ? "bg-error" :
-              s.done ? "bg-selesai" :
-              s.active ? "bg-primary" : "bg-border-subtle"
-            }`} />
+            <div
+              className={`h-px flex-1 mx-1 min-w-[20px] ${
+                s.l === "Ditolak"
+                  ? "bg-error"
+                  : s.done
+                    ? "bg-selesai"
+                    : s.active
+                      ? "bg-primary"
+                      : "bg-border-subtle"
+              }`}
+            />
           )}
         </div>
       ))}
@@ -257,17 +299,25 @@ export function ReportDetail({
   onCatatanSupervisorChange,
 }: ReportDetailProps) {
   const sev = report.overall_severity ?? report.ai_severity;
-  const detections = (report.ai_raw_output as Array<{ type: string; confidence: number }> | null) ?? [];
+  const detections =
+    (report.ai_raw_output as Array<{ type: string; confidence: number }> | null) ?? [];
   const sliderPhotos = useMemo(() => collectPhotos(report), [report]);
   const hasTimeline = (report.status_history?.length ?? 0) > 0;
   const rejected = report.status === "Ditolak";
-  const needsSupervisorForm = (report.status === "Menunggu Review" || report.status === "Ditinjau") && userRole === "supervisor";
+  const needsSupervisorForm =
+    (report.status === "Menunggu Review" || report.status === "Ditinjau") &&
+    userRole === "supervisor";
   const isNonSupervisor = userRole !== "supervisor";
 
   // Map points
   const mapPoints: ReportMapPoint[] = [];
   if (report.latitude && report.longitude) {
-    mapPoints.push({ label: report.road_name, lat: report.latitude, lng: report.longitude, reportCode: report.report_code });
+    mapPoints.push({
+      label: report.road_name,
+      lat: report.latitude,
+      lng: report.longitude,
+      reportCode: report.report_code,
+    });
   }
   if (showDetailedAI && report.photos) {
     report.photos.forEach((photo) => {
@@ -285,9 +335,7 @@ export function ReportDetail({
   return (
     <div className="flex flex-col">
       {/* Progress Stepper (non-supervisor only) */}
-      {showStepper && isNonSupervisor && (
-        <ProgressStepper report={report} rejected={rejected} />
-      )}
+      {showStepper && isNonSupervisor && <ProgressStepper report={report} rejected={rejected} />}
 
       <main className="p-4 flex flex-col gap-4">
         {/* Photo Slider */}
@@ -321,18 +369,7 @@ export function ReportDetail({
             textColor={statusTextColor(report.status)}
           />
 
-          {/* Trust Score Card */}
-          <BadgeStatCard
-            iconName={trustIcon(report.trust_label as TrustLabel)}
-            value={`${report.trust_score}`}
-            label={trustLabel(report.trust_label as TrustLabel)}
-            gradientFrom={trustGradient(report.trust_label as TrustLabel)}
-            gradientTo="white"
-            borderColor={trustBorder(report.trust_label as TrustLabel)}
-            iconColor={trustIconColor(report.trust_label as TrustLabel)}
-            textColor={trustTextColor(report.trust_label as TrustLabel)}
-            suffix="/100"
-          />
+          {/* ── TRUST SCORE [NONAKTIF] — Trust Score Card dihapus */}
         </div>
 
         {/* Info Jalan */}
@@ -360,16 +397,16 @@ export function ReportDetail({
               value={report.created_at ? formatDate(report.created_at) : "-"}
             />
             <InfoRow icon="person" value={report.reporter_name} />
-            {report.report_code && (
-              <InfoRow icon="tag" value={report.report_code} />
-            )}
+            {report.report_code && <InfoRow icon="tag" value={report.report_code} />}
           </div>
         </div>
 
         {/* Evidence Photos */}
         {showEvidence && (report as any).evidences?.length > 0 && (
           <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
-            <h3 className="font-label-md text-[13px] font-bold text-[#0F172A] mb-3">Foto Bukti Tambahan</h3>
+            <h3 className="font-label-md text-[13px] font-bold text-[#0F172A] mb-3">
+              Foto Bukti Tambahan
+            </h3>
             <div className="grid grid-cols-2 gap-2">
               {(report as any).evidences.map((e: any) => (
                 <ImageWithLoading
@@ -401,27 +438,44 @@ export function ReportDetail({
                     <p className="text-[11px] font-semibold text-slate-500 mb-1.5">
                       Foto #{i + 1} — {photo.ai_jenis_kerusakan ?? "Kerusakan"}
                     </p>
-                    <BeforeAfterSlider beforeSrc={origUrl} afterSrc={detUrl} beforeLabel="Original" afterLabel="Deteksi AI" />
+                    <BeforeAfterSlider
+                      beforeSrc={origUrl}
+                      afterSrc={detUrl}
+                      beforeLabel="Original"
+                      afterLabel="Deteksi AI"
+                    />
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
                       {(photo.kerusakan_panjang || photo.kerusakan_lebar) && (
                         <p className="text-[10px] text-slate-500">
                           {photo.kerusakan_panjang ? `${photo.kerusakan_panjang} m` : ""}
                           {photo.kerusakan_panjang && photo.kerusakan_lebar ? " × " : ""}
                           {photo.kerusakan_lebar ? `${photo.kerusakan_lebar} m` : ""}
-                          {photo.kerusakan_panjang && photo.kerusakan_lebar ? ` (${(photo.kerusakan_panjang * photo.kerusakan_lebar).toFixed(1)} m²)` : ""}
+                          {photo.kerusakan_panjang && photo.kerusakan_lebar
+                            ? ` (${(photo.kerusakan_panjang * photo.kerusakan_lebar).toFixed(1)} m²)`
+                            : ""}
                         </p>
                       )}
                       {photo.ai_severity ? (
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
-                          photo.ai_severity === "berat" ? "bg-[#E11D48] text-white" :
-                          photo.ai_severity === "sedang" ? "bg-orange-50 text-[#F97316] border border-orange-200" :
-                          "bg-amber-50 text-[#F59E0B] border border-amber-200"
-                        }`}>
-                          {photo.ai_severity === "berat" ? "Rusak Berat" : photo.ai_severity === "sedang" ? "Rusak Sedang" : "Rusak Ringan"}
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                            photo.ai_severity === "berat"
+                              ? "bg-[#E11D48] text-white"
+                              : photo.ai_severity === "sedang"
+                                ? "bg-orange-50 text-[#F97316] border border-orange-200"
+                                : "bg-amber-50 text-[#F59E0B] border border-amber-200"
+                          }`}
+                        >
+                          {photo.ai_severity === "berat"
+                            ? "Rusak Berat"
+                            : photo.ai_severity === "sedang"
+                              ? "Rusak Sedang"
+                              : "Rusak Ringan"}
                         </span>
                       ) : null}
                       {photo.ai_confidence != null && (
-                        <p className="text-[10px] text-slate-400">{(photo.ai_confidence * 100).toFixed(0)}% confidence</p>
+                        <p className="text-[10px] text-slate-400">
+                          {(photo.ai_confidence * 100).toFixed(0)}% confidence
+                        </p>
                       )}
                       {(photo.total_detections ?? 0) === 0 && (
                         <p className="text-[9px] text-slate-400 italic">Tidak ada kerusakan</p>
@@ -438,40 +492,53 @@ export function ReportDetail({
         <DetailBeforeAfter report={report} />
 
         {/* Assignment Info */}
-        {showAssignment && (report.status === "Disetujui" || report.status === "Sedang Diperbaiki" || report.status === "Selesai") && (
-          <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Icon name="group" className="text-primary !text-[18px]" />
-              <h3 className="font-label-md font-bold text-[#0F172A]">Informasi Penugasan</h3>
+        {showAssignment &&
+          (report.status === "Disetujui" ||
+            report.status === "Sedang Diperbaiki" ||
+            report.status === "Selesai") && (
+            <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Icon name="group" className="text-primary !text-[18px]" />
+                <h3 className="font-label-md font-bold text-[#0F172A]">Informasi Penugasan</h3>
+              </div>
+              <div className="space-y-2 text-xs text-slate-700">
+                {report.assigned_team_name && (
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">Tim:</span>
+                    <span>{report.assigned_team_name}</span>
+                  </div>
+                )}
+                {(report as any).assigned_at && (
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">Ditugaskan:</span>
+                    <span>{formatDate((report as any).assigned_at, { withTime: true })}</span>
+                  </div>
+                )}
+                {(report as any).perbaikan_dimulai_at && (
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">Mulai:</span>
+                    <span>
+                      {formatDate((report as any).perbaikan_dimulai_at, { withTime: true })}
+                    </span>
+                  </div>
+                )}
+                {(report as any).perbaikan_selesai_at && (
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">Selesai:</span>
+                    <span>
+                      {formatDate((report as any).perbaikan_selesai_at, { withTime: true })}
+                    </span>
+                  </div>
+                )}
+                {(report as any).pelaksana && (
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">Pelaksana:</span>
+                    <span>{(report as any).pelaksana}</span>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="space-y-2 text-xs text-slate-700">
-              {report.assigned_team_name && (
-                <div className="flex items-center gap-2"><span className="font-semibold">Tim:</span><span>{report.assigned_team_name}</span></div>
-              )}
-              {(report as any).assigned_at && (
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">Ditugaskan:</span>
-                  <span>{formatDate((report as any).assigned_at, { withTime: true })}</span>
-                </div>
-              )}
-              {(report as any).perbaikan_dimulai_at && (
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">Mulai:</span>
-                  <span>{formatDate((report as any).perbaikan_dimulai_at, { withTime: true })}</span>
-                </div>
-              )}
-              {(report as any).perbaikan_selesai_at && (
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">Selesai:</span>
-                  <span>{formatDate((report as any).perbaikan_selesai_at, { withTime: true })}</span>
-                </div>
-              )}
-              {(report as any).pelaksana && (
-                <div className="flex items-center gap-2"><span className="font-semibold">Pelaksana:</span><span>{(report as any).pelaksana}</span></div>
-              )}
-            </div>
-          </div>
-        )}
+          )}
 
         {/* Timeline */}
         {hasTimeline && <TimelineCard events={report.status_history as TimelineEvent[]} />}
@@ -479,17 +546,26 @@ export function ReportDetail({
         {/* AI Detections */}
         {detections.length > 0 && (
           <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
-            <h3 className="font-label-md text-[13px] font-bold text-[#0F172A] mb-3">Hasil Deteksi AI</h3>
+            <h3 className="font-label-md text-[13px] font-bold text-[#0F172A] mb-3">
+              Hasil Deteksi AI
+            </h3>
             <div className="space-y-2.5">
               {detections.map((d, i) => (
                 <div key={i} className="flex items-center gap-3">
-                  <span className="text-[11px] font-semibold text-[#64748B] w-5 shrink-0">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="text-[11px] font-semibold text-[#64748B] w-5 shrink-0">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
                   <span className="flex-1 text-[13px] text-[#0F172A] truncate">{d.type}</span>
                   <div className="flex items-center gap-2 shrink-0">
                     <div className="w-16 h-1.5 bg-[#F1F5F9] rounded-full overflow-hidden">
-                      <div className="h-full bg-[#1A4F8A] rounded-full transition-all" style={{ width: `${Math.round(d.confidence * 100)}%` }} />
+                      <div
+                        className="h-full bg-[#1A4F8A] rounded-full transition-all"
+                        style={{ width: `${Math.round(d.confidence * 100)}%` }}
+                      />
                     </div>
-                    <span className="text-[11px] text-[#64748B] w-8 text-right font-medium">{(d.confidence * 100).toFixed(0)}%</span>
+                    <span className="text-[11px] text-[#64748B] w-8 text-right font-medium">
+                      {(d.confidence * 100).toFixed(0)}%
+                    </span>
                   </div>
                 </div>
               ))}
@@ -543,11 +619,15 @@ export function ReportDetail({
                 <Icon name="edit_note" className="text-primary" />
                 <h3 className="font-label-md font-bold text-[#0F172A]">Penilaian Supervisor</h3>
               </div>
-              <span className="bg-orange-600 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase">Wajib Diisi</span>
+              <span className="bg-orange-600 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase">
+                Wajib Diisi
+              </span>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-[12px] font-medium text-slate-600 mb-2.5">Prioritas Penanganan</label>
+                <label className="block text-[12px] font-medium text-slate-600 mb-2.5">
+                  Prioritas Penanganan
+                </label>
                 <div className="flex gap-2">
                   {(["Rendah", "Sedang", "Tinggi"] as const).map((p) => {
                     const active = priority === p;
@@ -556,8 +636,11 @@ export function ReportDetail({
                         key={p}
                         onClick={() => onPriorityChange?.(p)}
                         className={`flex-1 py-2 text-[12px] font-semibold rounded-lg border ${
-                          active ? (p === "Tinggi" ? "bg-rusak-berat text-white border-transparent" : "bg-primary text-white border-transparent")
-                          : "bg-white border-border-subtle text-slate-500"
+                          active
+                            ? p === "Tinggi"
+                              ? "bg-rusak-berat text-white border-transparent"
+                              : "bg-primary text-white border-transparent"
+                            : "bg-white border-border-subtle text-slate-500"
                         }`}
                       >
                         {p}
@@ -567,7 +650,9 @@ export function ReportDetail({
                 </div>
               </div>
               <div>
-                <label className="block text-[12px] font-medium text-slate-600 mb-1.5">Catatan Supervisor</label>
+                <label className="block text-[12px] font-medium text-slate-600 mb-1.5">
+                  Catatan Supervisor
+                </label>
                 <textarea
                   value={catatanSupervisor ?? ""}
                   onChange={(e) => onCatatanSupervisorChange?.(e.target.value)}
@@ -597,14 +682,18 @@ function InfoRow({ icon, value }: { icon: string; value: string }) {
 function DetailBeforeAfter({ report }: { report: Laporan }) {
   if (!report.after_photo_url) return null;
 
-  const damagedPhotos = (report.photos ?? []).filter((p) => (p.total_detections ?? 0) > 0 && p.ai_severity);
+  const damagedPhotos = (report.photos ?? []).filter(
+    (p) => (p.total_detections ?? 0) > 0 && p.ai_severity,
+  );
   const singleBefore = report.image_original_url ?? report.first_photo_url;
   if (!damagedPhotos.length && !singleBefore) return null;
 
   return (
     <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
       <div className="p-3 border-b border-[#E2E8F0]">
-        <h3 className="font-label-md text-[13px] font-bold text-on-surface">Perbandingan Sebelum & Sesudah</h3>
+        <h3 className="font-label-md text-[13px] font-bold text-on-surface">
+          Perbandingan Sebelum & Sesudah
+        </h3>
       </div>
       <div className="p-3 flex flex-col gap-4">
         {damagedPhotos.length > 0 ? (
@@ -613,7 +702,10 @@ function DetailBeforeAfter({ report }: { report: Laporan }) {
               <p className="text-[11px] font-semibold text-slate-500 mb-1.5">
                 Foto #{p.sort_order ?? i + 1} — {p.ai_jenis_kerusakan ?? "Kerusakan"}
               </p>
-              <BeforeAfterSlider beforeSrc={p.image_original_url ?? ""} afterSrc={report.after_photo_url ?? ""} />
+              <BeforeAfterSlider
+                beforeSrc={p.image_original_url ?? ""}
+                afterSrc={report.after_photo_url ?? ""}
+              />
             </div>
           ))
         ) : (

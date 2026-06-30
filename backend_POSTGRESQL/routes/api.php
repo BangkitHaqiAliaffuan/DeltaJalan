@@ -7,6 +7,7 @@ use App\Http\Controllers\PatrolScheduleController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReportExportController;
+use App\Http\Controllers\ReverseGeocodeController;
 use App\Http\Controllers\RoadController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\StatusLogController;
@@ -109,17 +110,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reports/map-data', [ReportController::class, 'mapData']);
 
     /**
-     * GET /api/reports/stats-by-upr
+     * GET /api/reports/stats-by-team
      * HARUS sebelum /reports/{id}.
      */
     Route::get('/reports/stats-by-team', [ReportController::class, 'statsByTeam']);
-
-    /**
-     * GET /api/reports/ringkasan-deadline
-     * HARUS sebelum /reports/{id}.
-     * Agregasi status deadline per priority.
-     */
-    Route::get('/reports/ringkasan-deadline', [ReportController::class, 'ringkasanDeadline']);
 
     /**
      * GET /api/reports/{id}
@@ -158,10 +152,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/reports/{id}/complete', [ReportController::class, 'complete']);
 
     /**
-     * POST /api/reports/{id}/assign
-     * Menetapkan tim satgas ke laporan.
+     * POST /api/reports/{id}/progress
+     * Upload progress foto + catatan selama pengerjaan.
      */
-    Route::post('/reports/{id}/assign', [ReportController::class, 'assign']);
+    Route::post('/reports/{id}/progress', [ReportController::class, 'updateProgress']);
+
+    /**
+     * GET /api/reports/{id}/progress
+     * Daftar progress updates untuk timeline.
+     */
+    Route::get('/reports/{id}/progress', [ReportController::class, 'getProgress']);
+
+
 
     /**
      * POST /api/reports/bulk-approve
@@ -301,6 +303,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/teams/{id}/roads', [TeamController::class, 'roads']);
     Route::post('/teams/{id}/roads', [TeamController::class, 'assignRoads']);
     Route::delete('/teams/{id}/roads/{taskId}', [TeamController::class, 'unassignRoad']);
+
+    // ── Reverse Geocode (OSM Nominatim + local roads) ──────────────────────
+    Route::get('/v1/reverse-geocode', ReverseGeocodeController::class);
 
     // ── Roads (OSM data) ────────────────────────────────────────────────────
     Route::get('/roads', [RoadController::class, 'index']);

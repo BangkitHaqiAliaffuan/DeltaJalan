@@ -32,14 +32,11 @@ class TeamSeeder extends Seeder
         $pusat = Team::where('name', 'Tim Satgas Pusat')->first();
 
         User::where('email', 'agus.setiawan@dispu.binamarga.go.id')->update(['team_id' => $utara->id]);
-        User::where('email', 'ahmad.hidayat@dispu.binamarga.go.id')->update(['team_id' => $utara->id]);
         User::where('email', 'rizky.firmansyah@dispu.binamarga.go.id')->update(['team_id' => $pusat->id]);
         User::where('email', 'dewi.rahayu@dispu.binamarga.go.id')->update(['team_id' => $barat->id]);
-        User::where('email', 'slamet.riyadi@dispu.binamarga.go.id')->update(['team_id' => $barat->id]);
         User::where('email', 'bambang.eko@dispu.binamarga.go.id')->update(['team_id' => $selatan->id]);
-        User::where('email', 'rudi.hartono@dispu.binamarga.go.id')->update(['team_id' => $selatan->id]);
         User::where('email', 'dodi.kurniawan@dispu.binamarga.go.id')->update(['team_id' => $timur->id]);
 
-        $this->command->info('✅ TeamSeeder: 5 tim Satgas berhasil dibuat + 8 petugas ditugaskan.');
+        $this->command->info('✅ TeamSeeder: 5 tim Satgas berhasil dibuat + 5 petugas ditugaskan.');
     }
 }

@@ -12,6 +12,8 @@ export interface SurveyTask {
   priority: SurveyPriority | null;
   catatan: string | null;
   status: SurveyStatus;
+  jam_mulai?: string | null;
+  jam_selesai?: string | null;
   tanggal_patroli?: string | null;
   alasan_tugas?: string | null;
   selesai_at?: string | null;
@@ -20,6 +22,8 @@ export interface SurveyTask {
   reports_count?: number;
   reports?: SurveyReport[];
 }
+
+export type PatrolSession = SurveyTask;
 
 export interface SurveyReport {
   id: string;
@@ -46,6 +50,12 @@ export interface Team {
   name: string;
   description: string | null;
   members_count?: number;
+  uptd_id?: string | null;
+  uptd?: {
+    id: string;
+    nama: string;
+    kecamatan_wilayah: string[];
+  } | null;
   members?: Array<{
     id: number;
     name: string;
@@ -67,9 +77,9 @@ export interface CreateSurveyPayload {
 }
 
 export type Frekuensi = "setiap_minggu" | "dua_mingguan" | "bulanan";
-export type Hari = "Senin" | "Selasa" | "Rabu" | "Kamis" | "Jumat" | "Sabtu" | "Minggu";
+export type Hari = "Senin" | "Selasa" | "Rabu" | "Kamis" | "Jumat" | "Sabtu";
 
-export const ALL_HARI: Hari[] = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+export const ALL_HARI: Hari[] = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 
 export interface PatrolSchedule {
   id: string;

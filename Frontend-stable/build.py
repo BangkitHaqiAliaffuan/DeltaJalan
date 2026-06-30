@@ -45,7 +45,28 @@ def inject_into_html(content):
     return content
 
 
+def ensure_plugin_link():
+    target = os.path.abspath("capacitor-exif-gps")
+    scope_dir = "node_modules/@jalankita"
+    link = os.path.join(scope_dir, "capacitor-exif-gps")
+    link_pkg = os.path.join(link, "package.json")
+
+    if os.path.isfile(link_pkg):
+        return
+
+    os.makedirs(scope_dir, exist_ok=True)
+    if sys.platform == "win32":
+        subprocess.run(
+            ["cmd", "/c", "mklink", "/J", os.path.abspath(link), target],
+            shell=True, check=True, capture_output=True,
+        )
+    else:
+        os.symlink(target, link, target_is_directory=True)
+    print(f"[BUILD] Created junction: {link} -> {target}")
+
+
 def build():
+    ensure_plugin_link()
     print("=== Build SPA ===")
     r = subprocess.run(["npx", "vite", "build", "--config", "vite.config.capacitor.ts"], shell=True)
     if r.returncode != 0:

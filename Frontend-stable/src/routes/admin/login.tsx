@@ -73,12 +73,16 @@ function AdminLoginPage() {
 
   return (
     <div className="relative min-h-[100dvh] w-full">
-      <div className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: "url('/background.jpg')" }} />
+      <div
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: "url('/background.jpg')" }}
+      />
       <div className="absolute inset-0 bg-gradient-to-b from-[#1e40af]/80 to-[#0f2b6d]/90" />
       <div className="relative z-10 min-h-[100dvh] flex items-center justify-center p-4">
-        <div className="w-full max-w-[420px] max-h-[90dvh] bg-white/95 rounded-2xl border border-white/20 overflow-y-auto"
-          style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.08)" }}>
+        <div
+          className="w-full max-w-[420px] max-h-[90dvh] bg-white/95 rounded-2xl border border-white/20 overflow-y-auto"
+          style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.08)" }}
+        >
           <div className="relative flex flex-col items-center pt-8 pb-4 px-8 border-b border-[#E2E8F0]">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-1 bg-[#1e40af] rounded-b-full" />
             <div className="w-14 h-14 rounded-xl bg-[#1e40af] flex items-center justify-center mb-3">
@@ -111,9 +115,14 @@ function AdminLoginPage() {
 
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="font-label-md text-label-md font-semibold text-[#0F172A]">Email</label>
+                <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
+                  Email
+                </label>
                 <div className="relative flex items-center">
-                  <Icon name="mail" className="absolute left-3.5 text-[#757684] !text-[18px] pointer-events-none" />
+                  <Icon
+                    name="mail"
+                    className="absolute left-3.5 text-[#757684] !text-[18px] pointer-events-none"
+                  />
                   <input
                     type="email"
                     value={email}
@@ -127,7 +136,9 @@ function AdminLoginPage() {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="font-label-md text-label-md font-semibold text-[#0F172A]">Kata Sandi</label>
+                <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
+                  Kata Sandi
+                </label>
                 <div className="relative flex items-center">
                   <input
                     type={showPw ? "text" : "password"}
@@ -144,7 +155,10 @@ function AdminLoginPage() {
                     className="absolute right-3.5 text-[#757684] hover:text-[#475569] transition-colors"
                     aria-label={showPw ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
                   >
-                    <Icon name={showPw ? "visibility_off" : "visibility"} className="!text-[20px]" />
+                    <Icon
+                      name={showPw ? "visibility_off" : "visibility"}
+                      className="!text-[20px]"
+                    />
                   </button>
                 </div>
               </div>
@@ -171,7 +185,10 @@ function AdminLoginPage() {
           </div>
 
           <div className="px-8 py-3 bg-white border-t border-[#E2E8F0] flex items-center justify-center">
-            <Link to="/" className="font-label-sm text-label-sm text-[#475569] hover:text-[#1e40af] transition-colors flex items-center gap-1">
+            <Link
+              to="/"
+              className="font-label-sm text-label-sm text-[#475569] hover:text-[#1e40af] transition-colors flex items-center gap-1"
+            >
               <Icon name="arrow_back" className="!text-[16px]" />
               Kembali ke halaman masuk petugas
             </Link>

@@ -66,6 +66,8 @@ class PatrolMorningReminder extends Command
                     kecamatan: $kecList,
                     hari: $todayName,
                     tanggal: $today->format('Y-m-d'),
+                    jamMulai: $schedule->jam_mulai ?? '09:00',
+                    jamSelesai: $schedule->jam_selesai ?? '16:00',
                 ));
                 $sent++;
             }

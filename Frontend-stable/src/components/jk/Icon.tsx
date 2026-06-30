@@ -52,6 +52,7 @@ import {
   Mail,
   Map,
   MapPin,
+  Maximize,
   Menu,
   MessageSquare,
   Minus,
@@ -161,6 +162,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   near_me: Navigation,
   notifications: Bell,
   notifications_none: Bell,
+  open_in_full: Maximize,
   pending_actions: Clock,
   people: Users,
   person: User,
@@ -230,23 +232,20 @@ export function Icon({
           className={className}
           size={iconSize}
           strokeWidth={3}
-          style={{ ...style, position: "absolute", left: 0, top: 0, opacity: 0.25, transform: "translate(2px, 3px)" }}
+          style={{
+            ...style,
+            position: "absolute",
+            left: 0,
+            top: 0,
+            opacity: 0.25,
+            transform: "translate(2px, 3px)",
+          }}
           aria-hidden="true"
         />
-        <LucideIconComponent
-          className={className}
-          size={iconSize}
-          style={style}
-        />
+        <LucideIconComponent className={className} size={iconSize} style={style} />
       </span>
     );
   }
 
-  return (
-    <LucideIconComponent
-      className={className}
-      size={iconSize}
-      style={style}
-    />
-  );
+  return <LucideIconComponent className={className} size={iconSize} style={style} />;
 }

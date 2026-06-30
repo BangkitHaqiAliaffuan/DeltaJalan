@@ -5,6 +5,7 @@
 App DeltaJalan (Capacitor + TanStack Start v1 SPA) menampilkan **blank white screen** di Android WebView setelah production build.
 
 **Gejala CDP:**
+
 - `document.body.innerHTML = ""` (body kosong)
 - `document.scripts.length = 0`
 - `document.head.querySelectorAll("script").length = 0`
@@ -23,6 +24,7 @@ content = content.replace("</head>", f"<style>{SPLASH_CSS}\n{ERROR_SCRIPT}\n</he
 ```
 
 Hasil HTML:
+
 ```html
 <style>
 body::before { ... }
@@ -37,6 +39,7 @@ window.__jkError = function(m) { ... };
 ```
 
 **`<style>` TIDAK pernah ditutup dengan `</style>`.** Browser HTML5 parser masuk ke RAWTEXT state dan memperlakukan SEMUA konten setelahnya (termasuk `<script>`, `</head>`, `<body>`) sebagai CSS text. Akibatnya:
+
 - Semua `<script>` element tidak dibuat (hanya teks di dalam style)
 - `<body>` tidak memiliki children karena parser sudah mengkonsumsi semuanya
 - Tidak ada kode JavaScript yang dieksekusi
@@ -58,6 +61,7 @@ Setelah fix #1, app muncul tapi ada React error #418 di console.
 ### Diagnosa Detail
 
 **React Error #418:**
+
 > "Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client."
 
 Argumen `args[]=HTML` berarti React mengharapkan **HTML element** (seperti `<script>`, `<div>`) di posisi DOM tertentu, tapi menemukan node yang berbeda (comment node).
@@ -67,19 +71,21 @@ Argumen `args[]=HTML` berarti React mengharapkan **HTML element** (seperti `<scr
 TanStack Start menyuntikkan dua script ke `<body>` yang memanggil `document.currentScript.remove()`:
 
 1. **Scroll restoration script:**
+
    ```js
-   document.currentScript.remove()
+   document.currentScript.remove();
    ```
 
 2. **Stream barrier script (`$tsr-stream-barrier`):**
    ```js
    $_TSR.e();
-   document.currentScript.remove()
+   document.currentScript.remove();
    ```
 
 Kedua script ini **menghapus diri mereka sendiri dari DOM secara sinkronus** selama parsing HTML — SEBELUM React memulai hidrasi.
 
 **Tree React (dari `RootShell` di `__root.tsx`):**
+
 ```
 <body suppressHydrationWarning>
   {children}  ← SSR content dari TanStack
@@ -96,6 +102,7 @@ Kedua script ini **menghapus diri mereka sendiri dari DOM secara sinkronus** sel
 ```
 
 **DOM aktual saat React hidrasi** (setelah `document.currentScript.remove()`):
+
 ```
   <!--$-->              [0] comment ✓
   <!--$-->              [1] comment ✓
@@ -117,12 +124,12 @@ React berjalan ke posisi [3], mengharapkan `<script>` tapi menemukan `<!--/$-->`
 
 ## Opsi Fix
 
-| # | Opsi | Effort | Kelebihan | Kekurangan | Status |
-|---|------|--------|-----------|------------|--------|
-| A | Do nothing | 0 | Tidak perlu perubahan | Error di console (invisible ke user) | ❌ Ditolak |
-| **B** | **Patch `document.currentScript.remove()` via build.py** | **Rendah** | **Root cause fixed, hydration bersih** | **Perlu maintenance tiap update TanStack** | **✅ DIPILIH** |
-| C | Ganti `hydrateRoot(document, ...)` jadi `createRoot()` | Sedang | Tidak ada hydration sama sekali | Perlu modifikasi built JS tiap build | ❌ Ditolak |
-| D | Wrap content di `<div id="app-root">` + replace `hydrateRoot(document,` dengan `hydrateRoot(document.getElementById('app-root'),` di built JS | Sedang | Hydration terisolasi di div, script luar tidak tersentuh | Sama seperti C | ❌ Ditolak |
+| #     | Opsi                                                                                                                                          | Effort     | Kelebihan                                                | Kekurangan                                 | Status         |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | -------------------------------------------------------- | ------------------------------------------ | -------------- |
+| A     | Do nothing                                                                                                                                    | 0          | Tidak perlu perubahan                                    | Error di console (invisible ke user)       | ❌ Ditolak     |
+| **B** | **Patch `document.currentScript.remove()` via build.py**                                                                                      | **Rendah** | **Root cause fixed, hydration bersih**                   | **Perlu maintenance tiap update TanStack** | **✅ DIPILIH** |
+| C     | Ganti `hydrateRoot(document, ...)` jadi `createRoot()`                                                                                        | Sedang     | Tidak ada hydration sama sekali                          | Perlu modifikasi built JS tiap build       | ❌ Ditolak     |
+| D     | Wrap content di `<div id="app-root">` + replace `hydrateRoot(document,` dengan `hydrateRoot(document.getElementById('app-root'),` di built JS | Sedang     | Hydration terisolasi di div, script luar tidak tersentuh | Sama seperti C                             | ❌ Ditolak     |
 
 ### Implementasi Fix (Opsi B)
 
@@ -141,14 +148,14 @@ print("Patched: stripped document.currentScript.remove() from TanStack inline sc
 
 ## File yang Relevan
 
-| File | Peran |
-|------|-------|
-| `build.py` | Build script — inject CSS, error handlers. **SUDAH DIFIX** (missing `</style>`) |
-| `src/routes/__root.tsx` | Root shell + component. `RootComponent` punya `useEffect(() => document.documentElement.classList.add("app-ready"), [])` |
-| `src/routes/admin/dashboard.tsx` | Butuh fix import: `import { isLoggedIn, getCurrentUser } from "@/lib/auth"`. **SUDAH DIFIX** |
-| `dist/client/index.html` | Built HTML output |
-| `dist/client/assets/index-BIlj-GEL.js` | react-dom bundle — berisi fungsi `Ya()` yang throw error #418 |
-| `vite.config.capacitor.ts` | Vite config dengan TanStack Start SPA mode |
+| File                                   | Peran                                                                                                                    |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `build.py`                             | Build script — inject CSS, error handlers. **SUDAH DIFIX** (missing `</style>`)                                          |
+| `src/routes/__root.tsx`                | Root shell + component. `RootComponent` punya `useEffect(() => document.documentElement.classList.add("app-ready"), [])` |
+| `src/routes/admin/dashboard.tsx`       | Butuh fix import: `import { isLoggedIn, getCurrentUser } from "@/lib/auth"`. **SUDAH DIFIX**                             |
+| `dist/client/index.html`               | Built HTML output                                                                                                        |
+| `dist/client/assets/index-BIlj-GEL.js` | react-dom bundle — berisi fungsi `Ya()` yang throw error #418                                                            |
+| `vite.config.capacitor.ts`             | Vite config dengan TanStack Start SPA mode                                                                               |
 
 ---
 

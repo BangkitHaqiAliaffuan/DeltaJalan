@@ -12,7 +12,7 @@ Dinas Perhubungan Kabupaten Sidoarjo
 
 | Atribut         | Nilai                                                              |
 | --------------- | ------------------------------------------------------------------ |
-| Nama Produk     | DeltaJalan                                                          |
+| Nama Produk     | DeltaJalan                                                         |
 | Tagline         | Deteksi Cepat, Penanganan Tepat                                    |
 | Instansi        | Dinas Perhubungan Kabupaten Sidoarjo                               |
 | Alamat Instansi | Jl. Sultan Agung No. 12, Sidoarjo, Jawa Timur 61211                |

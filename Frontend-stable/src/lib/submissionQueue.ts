@@ -25,7 +25,9 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
-export async function enqueueSubmission(data: Omit<PendingSubmission, "id" | "createdAt" | "retryCount">): Promise<number> {
+export async function enqueueSubmission(
+  data: Omit<PendingSubmission, "id" | "createdAt" | "retryCount">,
+): Promise<number> {
   const db = await openDB();
   const item: PendingSubmission = { ...data, createdAt: new Date().toISOString(), retryCount: 0 };
   return new Promise((resolve, reject) => {

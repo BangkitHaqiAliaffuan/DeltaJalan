@@ -30,10 +30,7 @@ export function Sidebar() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
-  const menuItems =
-    user?.role === "supervisor"
-      ? SUPERVISOR_MENU
-      : PETUGAS_MENU;
+  const menuItems = user?.role === "supervisor" ? SUPERVISOR_MENU : PETUGAS_MENU;
 
   useEffect(() => {
     setUser(getCurrentUser());
@@ -124,7 +121,10 @@ export function Sidebar() {
                 className={`!text-[22px] sidebar-icon relative z-10 ${active ? "shadow-active" : "group-hover:text-[#1A4F8A] transition-colors duration-300"}`}
                 filled={active}
               />
-              <span className={`text-[14px] relative z-10 ${active ? "" : "group-hover:text-[#1A4F8A] transition-colors duration-300"}`} style={{ fontFamily: "'Inter', sans-serif" }}>
+              <span
+                className={`text-[14px] relative z-10 ${active ? "" : "group-hover:text-[#1A4F8A] transition-colors duration-300"}`}
+                style={{ fontFamily: "'Inter', sans-serif" }}
+              >
                 {item.label}
               </span>
             </Link>
@@ -159,9 +159,7 @@ export function Sidebar() {
                 className="text-white/60 text-[11px] truncate leading-tight capitalize"
                 style={{ fontFamily: "'Inter', sans-serif" }}
               >
-                {displayUser.role === "supervisor"
-                  ? "Supervisor"
-                  : "Petugas Lapangan"}
+                {displayUser.role === "supervisor" ? "Supervisor" : "Petugas Lapangan"}
               </span>
             )}
           </div>

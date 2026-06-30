@@ -1,6 +1,6 @@
 import re
 
-with open("D:/JalanKita/Frontend-stable/dist/client/index.html", "r", encoding="utf-8") as f:
+with open("D:/DeltaJalan/Frontend-stable/dist/client/index.html", "r", encoding="utf-8") as f:
     content = f.read()
 
 body = content.split("<body")[1].split("</body>")[0]

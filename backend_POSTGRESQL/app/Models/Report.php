@@ -63,10 +63,7 @@ class Report extends Model
         'system_notes',
         // Batch grouping
         'batch_id',
-        // Trust score
-        'trust_score',
-        'trust_label',
-        'trust_breakdown',
+        // ── TRUST SCORE [NONAKTIF] — trust_score, trust_label, trust_breakdown
         // Koordinat sumber
         'koordinat_sumber',
         // AI results (batch)
@@ -80,15 +77,21 @@ class Report extends Model
         'perbaikan_dimulai_at',
         'perbaikan_selesai_at',
         'pelaksana',
-        // UPR assignment
-        'assigned_upr_id',
+        // Team assignment
+        'assigned_team_id',
         'assigned_at',
+        'ditugaskan_at',
+        'deadline_mulai',
+        'terlambat_mulai',
+        'assignor_name',
         'catatan_petugas',
         // Dimensi kerusakan
         'kerusakan_panjang',
         'kerusakan_lebar',
         // Prioritas penanganan
         'priority',
+        // Estimasi hari pengerjaan
+        'estimasi_hari',
         // Deadline & breach flags
         'deadline_review',
         'deadline_resolusi',
@@ -108,20 +111,22 @@ class Report extends Model
      */
     protected $casts = [
         'ai_raw_output' => 'array',      // JSONB ↔ PHP array
-        'trust_breakdown' => 'array',      // JSONB ↔ PHP array
+        // ── TRUST SCORE [NONAKTIF] — 'trust_breakdown' => 'array', 'trust_score' => 'integer',
         'latitude' => 'decimal:8',  // Presisi 8 desimal
         'longitude' => 'decimal:8',  // Presisi 8 desimal
         'total_detections' => 'integer',
-        'trust_score' => 'integer',
 
         'ai_confidence' => 'decimal:3',
         'perbaikan_dimulai_at' => 'datetime',
         'perbaikan_selesai_at' => 'datetime',
         'assigned_at' => 'datetime',
+        'ditugaskan_at' => 'datetime',
+        'deadline_mulai' => 'datetime',
         'deadline_review' => 'datetime',
         'deadline_resolusi' => 'datetime',
         'terlambat_review' => 'boolean',
         'terlambat_resolusi' => 'boolean',
+        'terlambat_mulai' => 'boolean',
     ];
 
     /**
@@ -194,6 +199,7 @@ class Report extends Model
         'Menunggu Review',
         'Disetujui',
         'Ditolak',
+        'Ditugaskan',
         'Sedang Diperbaiki',
         'Selesai',
         'Ditinjau',
@@ -277,6 +283,14 @@ class Report extends Model
     }
 
     /**
+     * Update progress (foto + catatan) selama pengerjaan.
+     */
+    public function progressUpdates(): HasMany
+    {
+        return $this->hasMany(ReportProgressUpdate::class, 'report_id')->orderBy('created_at');
+    }
+
+    /**
      * Relasi duplikasi — laporan ini terindikasi duplikat dari laporan lain.
      */
     public function duplicateOf(): HasOne
@@ -321,19 +335,22 @@ class Report extends Model
     }
 
     /**
+     * Hitung deadline mulai kerja berdasarkan priority.
+     */
+    public static function hitungDeadlineMulai(string $priority): Carbon
+    {
+        $hours = config("deadline.{$priority}.assignment_start_hours", 48);
+
+        return now()->addHours((int) $hours);
+    }
+
+    /**
      * Set deadline pada laporan (dipakai saat create & update priority).
      */
     public function setDeadline(?string $priority = null): void
     {
         $priority = $priority ?? $this->priority ?? 'Sedang';
         $this->deadline_review = static::hitungDeadlineReview($priority);
-
-        // Resolution deadline hanya relevan jika sudah disetujui
-        if (in_array($this->status, ['Disetujui', 'Sedang Diperbaiki', 'Selesai'])) {
-            $approvedAt = $this->perbaikan_dimulai_at ?? $this->updated_at ?? $this->created_at;
-            $this->deadline_resolusi = Carbon::parse($approvedAt)
-                ->addHours((int) config("deadline.{$priority}.resolution_hours", 168));
-        }
     }
 
     /**

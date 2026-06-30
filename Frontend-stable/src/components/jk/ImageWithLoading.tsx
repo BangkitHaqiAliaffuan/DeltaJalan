@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useBlobImage } from "@/hooks/useBlobImage";
 
 interface ImageWithLoadingProps {
   src: string;
@@ -21,27 +22,28 @@ export function ImageWithLoading({
   const [error, setError] = useState(false);
   const [naturalAspect, setNaturalAspect] = useState<number | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const blobSrc = useBlobImage(src);
+  const effectiveSrc = blobSrc ?? src;
 
   useEffect(() => {
     setLoaded(false);
     setError(false);
     setNaturalAspect(null);
-  }, [src]);
+  }, [effectiveSrc]);
 
   useEffect(() => {
     if (imgRef.current?.complete) {
       setLoaded(true);
+      setError(false);
       const img = imgRef.current;
       if (img.naturalWidth && img.naturalHeight) {
         setNaturalAspect(img.naturalWidth / img.naturalHeight);
       }
     }
-  }, [src]);
+  }, [effectiveSrc]);
 
   const wrapperStyle =
-    preserveAspect && naturalAspect
-      ? { aspectRatio: `${naturalAspect}` }
-      : undefined;
+    preserveAspect && naturalAspect ? { aspectRatio: `${naturalAspect}` } : undefined;
 
   const wrapperClasses = preserveAspect
     ? wrapperClassName.replace(/\baspect-video\b/g, "")
@@ -51,11 +53,12 @@ export function ImageWithLoading({
     <div className={wrapperClasses} style={wrapperStyle}>
       <img
         ref={imgRef}
-        src={src}
+        src={effectiveSrc}
         alt={alt}
         className={className}
         loading={loading}
         onLoad={(e) => {
+          setError(false);
           setLoaded(true);
           const img = e.currentTarget;
           if (img.naturalWidth && img.naturalHeight) {

@@ -130,7 +130,7 @@ class AIController extends Controller
             $poolRequests = Http::pool(fn (Pool $pool) => array_map(
                 fn ($item, $key) => $pool->as('f'.$key)
                     ->timeout(30)
-                    ->attach('file', file_get_contents($item['filePath']), $item['fileName'])
+                    ->attach('file', fopen($item['filePath'], 'r'), $item['fileName'])
                     ->post($endpoint),
                 $pendingAi,
                 array_keys($pendingAi)
@@ -242,7 +242,7 @@ class AIController extends Controller
 
         try {
             $response = Http::timeout(30)
-                ->attach('file', file_get_contents($filePath), $fileName)
+                ->attach('file', fopen($filePath, 'r'), $fileName)
                 ->post($endpoint);
 
             if ($response->successful()) {

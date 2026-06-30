@@ -5,30 +5,106 @@ interface TimelineCardProps {
   events: TimelineEvent[];
 }
 
-const EVENT_STYLE: Record<string, { icon: string; color: string; bg: string; border: string; line: string }> = {
-  laporan_dibuat:      { icon: "description",    color: "#1A4F8A", bg: "#EFF6FF", border: "#BFDBFE", line: "#93C5FD" },
-  ditinjau:            { icon: "visibility",     color: "#2563EB", bg: "#EFF6FF", border: "#BFDBFE", line: "#93C5FD" },
-  disetujui:           { icon: "verified",       color: "#16A34A", bg: "#F0FDF4", border: "#BBF7D0", line: "#86EFAC" },
-  ditolak:             { icon: "cancel",         color: "#DC2626", bg: "#FEF2F2", border: "#FECACA", line: "#FCA5A5" },
-  disposisi:           { icon: "assignment",     color: "#D97706", bg: "#FFFBEB", border: "#FDE68A", line: "#FCD34D" },
-  perbaikan_dimulai:   { icon: "construction",   color: "#D97706", bg: "#FFFBEB", border: "#FDE68A", line: "#FCD34D" },
-  perbaikan_selesai:   { icon: "check_circle",   color: "#16A34A", bg: "#F0FDF4", border: "#BBF7D0", line: "#86EFAC" },
-  dibuka_kembali:      { icon: "replay",         color: "#7C3AED", bg: "#F5F3FF", border: "#DDD6FE", line: "#C4B5FD" },
-  menunggu_review:     { icon: "hourglass_empty",color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB", line: "#D1D5DB" },
-  ditugaskan:          { icon: "person_add",     color: "#2563EB", bg: "#EFF6FF", border: "#BFDBFE", line: "#93C5FD" },
-  triage:              { icon: "edit_note",      color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB", line: "#D1D5DB" },
-  diedit:              { icon: "edit",           color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB", line: "#D1D5DB" },
-  status_changed:      { icon: "swap_horiz",     color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB", line: "#D1D5DB" },
+const EVENT_STYLE: Record<
+  string,
+  { icon: string; color: string; bg: string; border: string; line: string }
+> = {
+  laporan_dibuat: {
+    icon: "description",
+    color: "#1A4F8A",
+    bg: "#EFF6FF",
+    border: "#BFDBFE",
+    line: "#93C5FD",
+  },
+  ditinjau: {
+    icon: "visibility",
+    color: "#2563EB",
+    bg: "#EFF6FF",
+    border: "#BFDBFE",
+    line: "#93C5FD",
+  },
+  disetujui: {
+    icon: "verified",
+    color: "#16A34A",
+    bg: "#F0FDF4",
+    border: "#BBF7D0",
+    line: "#86EFAC",
+  },
+  ditolak: { icon: "cancel", color: "#DC2626", bg: "#FEF2F2", border: "#FECACA", line: "#FCA5A5" },
+  disposisi: {
+    icon: "assignment",
+    color: "#D97706",
+    bg: "#FFFBEB",
+    border: "#FDE68A",
+    line: "#FCD34D",
+  },
+  perbaikan_dimulai: {
+    icon: "construction",
+    color: "#D97706",
+    bg: "#FFFBEB",
+    border: "#FDE68A",
+    line: "#FCD34D",
+  },
+  perbaikan_selesai: {
+    icon: "check_circle",
+    color: "#16A34A",
+    bg: "#F0FDF4",
+    border: "#BBF7D0",
+    line: "#86EFAC",
+  },
+  dibuka_kembali: {
+    icon: "replay",
+    color: "#7C3AED",
+    bg: "#F5F3FF",
+    border: "#DDD6FE",
+    line: "#C4B5FD",
+  },
+  menunggu_review: {
+    icon: "hourglass_empty",
+    color: "#6B7280",
+    bg: "#F9FAFB",
+    border: "#E5E7EB",
+    line: "#D1D5DB",
+  },
+  ditugaskan: {
+    icon: "person_add",
+    color: "#2563EB",
+    bg: "#EFF6FF",
+    border: "#BFDBFE",
+    line: "#93C5FD",
+  },
+  triage: {
+    icon: "edit_note",
+    color: "#6B7280",
+    bg: "#F9FAFB",
+    border: "#E5E7EB",
+    line: "#D1D5DB",
+  },
+  diedit: { icon: "edit", color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB", line: "#D1D5DB" },
+  status_changed: {
+    icon: "swap_horiz",
+    color: "#6B7280",
+    bg: "#F9FAFB",
+    border: "#E5E7EB",
+    line: "#D1D5DB",
+  },
 };
 
 function formatDateTime(iso: string): string {
   try {
     const d = new Date(iso);
-    return d.toLocaleDateString("id-ID", {
-      day: "numeric", month: "short", year: "numeric",
-    }) + " " + d.toLocaleTimeString("id-ID", {
-      hour: "2-digit", minute: "2-digit",
-    });
+    return (
+      d.toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }) +
+      " " +
+      d.toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    );
   } catch {
     return iso;
   }

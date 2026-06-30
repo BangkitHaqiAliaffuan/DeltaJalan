@@ -5,7 +5,12 @@ import { PageLayout } from "@/components/jk/PageLayout";
 import { SkeletonNotificationItem } from "@/components/jk/Skeleton";
 import { PushSubscriptionManager } from "@/components/jk/PushSubscriptionManager";
 import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
-import { fetchNotifications, markNotificationRead, markAllNotificationsRead, deleteAllNotifications } from "@/lib/notifications";
+import {
+  fetchNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  deleteAllNotifications,
+} from "@/lib/notifications";
 import { formatDate } from "@/lib/format";
 import type { NotificationItem } from "@/types/laporan";
 
@@ -34,7 +39,9 @@ function NotificationsPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [filterType, setFilterType] = useState("");
   const [isClient, setIsClient] = useState(false);
-  useEffect(() => { setIsClient(true); }, []);
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const load = async (p: number, type: string) => {
     setLoading(true);
@@ -113,27 +120,31 @@ function NotificationsPage() {
   }, [filterType]);
 
   return (
-    <PageLayout title="Semua Notifikasi" back="/" onRefresh={handleRefresh} right={
-      <div className="flex items-center gap-2">
+    <PageLayout
+      title="Semua Notifikasi"
+      back="/"
+      onRefresh={handleRefresh}
+      right={
+        <div className="flex items-center gap-2">
           <PushSubscriptionManager />
-        <button
-          type="button"
-          onClick={handleMarkAll}
-          className="text-[11px] text-primary font-medium hover:underline"
-        >
-          Tandai dibaca
-        </button>
-        <button
-          type="button"
-          onClick={() => setConfirmDelete(true)}
-          className="text-[11px] text-red-500 font-medium hover:underline"
-        >
-          Hapus semua
-        </button>
-      </div>
-    }>
+          <button
+            type="button"
+            onClick={handleMarkAll}
+            className="text-[11px] text-primary font-medium hover:underline"
+          >
+            Tandai dibaca
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(true)}
+            className="text-[11px] text-red-500 font-medium hover:underline"
+          >
+            Hapus semua
+          </button>
+        </div>
+      }
+    >
       <div className="flex-1 px-4 py-4 max-w-2xl mx-auto">
-
         <div className="flex gap-1.5 overflow-x-auto pb-3 mb-2 scrollbar-none">
           {types.map((t) => (
             <button
@@ -186,7 +197,9 @@ function NotificationsPage() {
                         {formatDate(item.created_at, { withTime: true, short: true })}
                       </span>
                       <span className="text-[10px] text-on-surface-variant">•</span>
-                      <span className="text-[10px] text-on-surface-variant">{timeAgo(item.created_at, isClient)}</span>
+                      <span className="text-[10px] text-on-surface-variant">
+                        {timeAgo(item.created_at, isClient)}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -210,7 +223,10 @@ function NotificationsPage() {
         open={confirmDelete}
         title="Hapus Semua Notifikasi?"
         message="Semua notifikasi akan dihapus permanen. Tindakan ini tidak dapat dibatalkan."
-        onConfirm={() => { setConfirmDelete(false); handleDeleteAll(); }}
+        onConfirm={() => {
+          setConfirmDelete(false);
+          handleDeleteAll();
+        }}
         onCancel={() => setConfirmDelete(false)}
       />
     </PageLayout>

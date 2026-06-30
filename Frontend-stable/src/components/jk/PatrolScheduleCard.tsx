@@ -38,8 +38,18 @@ function getKecamatanCenter(kec: string): { lat: number; lng: number } | null {
 
 function formatDateId(dateStr: string): string {
   const months = [
-    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-    "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+    "Januari",
+    "Februari",
+    "Maret",
+    "April",
+    "Mei",
+    "Juni",
+    "Juli",
+    "Agustus",
+    "September",
+    "Oktober",
+    "November",
+    "Desember",
   ];
   const [y, m, d] = dateStr.split("-");
   return `${parseInt(d)} ${months[parseInt(m, 10) - 1]} ${y}`;
@@ -50,9 +60,12 @@ function todayHariName(): string {
   return days[new Date().getDay()];
 }
 
-function kecamatanAtIdx(hariList: Hari[], kecList: string[], idx: number): string {
-  if (kecList.length === 0) return "—";
-  return kecList[idx % kecList.length];
+const HARI_ORDER = Object.fromEntries(ALL_HARI.map((h, i) => [h, i]));
+
+function sortHariWithKec(hariList: Hari[], kecList: string[]): [Hari[], string[]] {
+  const pairs = hariList.map((h, i) => ({ h, k: kecList[i % kecList.length] || "—" }));
+  pairs.sort((a, b) => (HARI_ORDER[a.h] ?? 99) - (HARI_ORDER[b.h] ?? 99));
+  return [pairs.map((p) => p.h), pairs.map((p) => p.k)];
 }
 
 // ── Component ──
@@ -86,9 +99,9 @@ export function PatrolScheduleCard({
       <div className="bg-white border border-[#D0DAE8] rounded-xl p-5 animate-pulse">
         <div className="w-32 h-5 bg-[#D0DAE8] rounded mx-auto mb-3" />
         <div className="w-28 h-4 bg-[#D0DAE8] rounded mx-auto mb-6" />
-        <div className="flex justify-center gap-3 mb-6">
+        <div className="flex flex-wrap justify-center gap-3 mb-6">
           {Array.from({ length: 3 }).map((_, j) => (
-            <div key={j} className="w-24 h-16 bg-[#D0DAE8] rounded-lg" />
+            <div key={j} className="w-[130px] h-16 bg-[#D0DAE8] rounded-lg" />
           ))}
         </div>
         <div className="w-full h-9 bg-[#D0DAE8] rounded-lg" />
@@ -103,18 +116,17 @@ export function PatrolScheduleCard({
   return (
     <div ref={dropdownRef} className="space-y-3">
       {schedules.map((s) => {
-        const kecList = s.kecamatan_list ?? [];
-        const hariList = s.hari ?? [];
+        const rawKec = s.kecamatan_list ?? [];
+        const rawHari = s.hari ?? [];
+        const [hariList, kecList] = sortHariWithKec(rawHari, rawKec);
         const todayActive = hariList.includes(todayHari as Hari);
         const todayIdx = hariList.indexOf(todayHari as Hari);
-        const todayKec = todayActive ? kecamatanAtIdx(hariList, kecList, todayIdx) : null;
+        const todayKec = todayActive ? kecList[todayIdx] : null;
 
         return (
           <div
             key={s.id}
-            className={`bg-white border border-[#E2E8F0] rounded-xl ${
-              compact ? "p-4" : "p-5"
-            }`}
+            className={`bg-white border border-[#E2E8F0] rounded-xl ${compact ? "p-4" : "p-5"}`}
           >
             {/* Header */}
             <div className={`text-center ${compact ? "mb-3" : "mb-4"}`}>
@@ -143,16 +155,16 @@ export function PatrolScheduleCard({
                 compact ? "gap-2 mb-3" : "gap-3 mb-4"
               }`}
             >
-              {hariList.slice(0, compact ? 3 : undefined).map((h, i) => {
-                const k = kecamatanAtIdx(hariList, kecList, i);
+              {hariList.map((h, i) => {
+                const k = kecList[i];
                 const isToday = h === todayHari;
                 return (
                   <div
                     key={h}
-                    className={`flex flex-col items-center rounded-lg border text-center transition-all ${
+                    className={`flex flex-col items-center rounded-lg border text-center transition-all min-w-0 max-w-full ${
                       compact
-                        ? "px-2 py-2 flex-1 min-w-0 max-w-[110px]"
-                        : "px-3 py-3 flex-1 min-w-0"
+                        ? "px-2 py-2 w-[100px]"
+                        : "px-3 py-3 w-[130px]"
                     } ${
                       isToday
                         ? "border-[#10B981]/40 bg-[#F0FDF4] ring-2 ring-[#10B981]/20"
@@ -164,23 +176,22 @@ export function PatrolScheduleCard({
                         Hari ini
                       </span>
                     )}
-                    <span className={`font-bold text-[#0F172A] ${compact ? "text-[11px]" : "text-[12px]"}`}>
+                    <span
+                      className={`font-bold text-[#0F172A] ${compact ? "text-[11px]" : "text-[12px]"}`}
+                    >
                       {HARI_NAMA[h]}
                     </span>
-                    <span className={`text-[#475569] flex items-center gap-0.5 mt-0.5 ${
-                      compact ? "text-[10px]" : "text-[11px]"
-                    }`}>
-                      <Icon name="location_on" className="!text-[12px] text-[#94A3B8]" />
-                      <span className="break-words">{k}</span>
+                    <span
+                      className={`text-[#475569] flex items-center gap-0.5 mt-0.5 max-w-full ${
+                        compact ? "text-[10px]" : "text-[11px]"
+                      }`}
+                    >
+                      <Icon name="location_on" className="!text-[12px] text-[#94A3B8] shrink-0" />
+                      <span className="truncate">{k}</span>
                     </span>
                   </div>
                 );
               })}
-              {compact && hariList.length > 3 && (
-                <div className="flex items-center px-2 text-[11px] font-semibold text-[#64748B]">
-                  +{hariList.length - 3}
-                </div>
-              )}
             </div>
 
             {/* Full week reference (full mode only) */}
@@ -224,7 +235,7 @@ export function PatrolScheduleCard({
 
               {openDropdown === s.id && (
                 <div className="absolute bottom-full mb-1 left-0 right-0 bg-white border border-[#E2E8F0] rounded-lg shadow-lg z-20 overflow-hidden">
-                  {kecList.map((k) => {
+                  {rawKec.map((k) => {
                     const pt = getKecamatanCenter(k);
                     if (!pt) return null;
                     return (

@@ -55,24 +55,30 @@ export function PullToRefresh({ onRefresh, children }: PullToRefreshProps) {
     }, 300);
   }
 
-  const handleTouchStart = useCallback((e: TouchEvent) => {
-    if (refreshing) return;
-    if (!isAtTop()) return;
-    startY.current = e.touches[0].clientY;
-    pulling.current = true;
-  }, [refreshing]);
+  const handleTouchStart = useCallback(
+    (e: TouchEvent) => {
+      if (refreshing) return;
+      if (!isAtTop()) return;
+      startY.current = e.touches[0].clientY;
+      pulling.current = true;
+    },
+    [refreshing],
+  );
 
-  const handleTouchMove = useCallback((e: TouchEvent) => {
-    if (!pulling.current || refreshing) return;
-    const dy = e.touches[0].clientY - startY.current;
-    if (dy <= 0) {
-      pulling.current = false;
-      resetPull();
-      return;
-    }
-    e.preventDefault();
-    applyPull(dy);
-  }, [refreshing]);
+  const handleTouchMove = useCallback(
+    (e: TouchEvent) => {
+      if (!pulling.current || refreshing) return;
+      const dy = e.touches[0].clientY - startY.current;
+      if (dy <= 0) {
+        pulling.current = false;
+        resetPull();
+        return;
+      }
+      e.preventDefault();
+      applyPull(dy);
+    },
+    [refreshing],
+  );
 
   const handleTouchEnd = useCallback(async () => {
     if (!pulling.current) return;
@@ -92,7 +98,9 @@ export function PullToRefresh({ onRefresh, children }: PullToRefreshProps) {
         if (el2) {
           el2.style.transform = "translateY(0px)";
           currentY.current = 0;
-          setTimeout(() => { if (el2) el2.style.transition = "none"; }, 300);
+          setTimeout(() => {
+            if (el2) el2.style.transition = "none";
+          }, 300);
         }
       }
     } else {
@@ -114,10 +122,7 @@ export function PullToRefresh({ onRefresh, children }: PullToRefreshProps) {
   }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
 
   return (
-    <div
-      ref={outerRef}
-      className="flex-1 min-h-0 overflow-y-auto overscroll-contain"
-    >
+    <div ref={outerRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
       <div ref={innerRef} style={{ willChange: refreshing ? "auto" : "transform" }}>
         <div
           ref={indicatorRef}

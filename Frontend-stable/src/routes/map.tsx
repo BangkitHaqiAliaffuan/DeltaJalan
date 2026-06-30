@@ -6,7 +6,7 @@ import { PetaInteraktif } from "@/components/jk/PetaInteraktif";
 import type { MapFilters } from "@/components/jk/PetaInteraktif";
 import { SkeletonMapArea } from "@/components/jk/Skeleton";
 import { getCurrentUser, getToken } from "@/lib/auth";
-import { useMapData, useUprs } from "@/hooks/useReportQueries";
+import { useMapData, useTeams } from "@/hooks/useReportQueries";
 
 export const Route = createFileRoute("/map")({
   ssr: false,
@@ -28,7 +28,7 @@ const defaultFilters: MapFilters = {
   status: [],
   severity: [],
   district: "",
-  upr_id: "",
+  uptd_id: "",
   deadline_hari: "",
   status_deadline: "",
 };
@@ -39,7 +39,9 @@ function MapPage() {
   const search = useSearch({ from: Route.id });
 
   const [clientUserRole, setClientUserRole] = useState<string | undefined>(undefined);
-  useEffect(() => { setClientUserRole(getCurrentUser()?.role); }, []);
+  useEffect(() => {
+    setClientUserRole(getCurrentUser()?.role);
+  }, []);
 
   const [filters, setFilters] = useState<MapFilters>(defaultFilters);
   const [debouncedFilters, setDebouncedFilters] = useState<MapFilters>(defaultFilters);
@@ -52,7 +54,7 @@ function MapPage() {
   }, [filters]);
 
   const { data: mapData, isLoading: loading, isError: error } = useMapData(token, debouncedFilters);
-  const { data: uprList = [] } = useUprs(token);
+  const { data: teamList = [] } = useTeams(token);
 
   const handleFilterChange = useCallback((newFilters: MapFilters) => {
     setFilters(newFilters);
@@ -106,7 +108,7 @@ function MapPage() {
                 terlambat_count: 0,
               }
             }
-            uprList={uprList}
+            teamList={teamList}
             filters={filters}
             onFilterChange={handleFilterChange}
             onViewDetail={handleViewDetail}

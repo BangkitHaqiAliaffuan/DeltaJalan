@@ -185,31 +185,7 @@
     </tbody>
   </table>
 
-  {{-- SECTION 2: TRUST SCORE --}}
-  <div class="section-title">B. Tingkat Kredibilitas Laporan</div>
-  <table>
-    <thead>
-      <tr>
-        <th style="width: 60%;">Kategori</th>
-        <th style="width: 20%;">Jumlah</th>
-        <th style="width: 20%;">Persentase</th>
-      </tr>
-    </thead>
-    <tbody>
-      @foreach ($trustBreakdown as $item)
-        <tr>
-          <td>{{ $item['label'] }}</td>
-          <td class="angka">{{ $item['jumlah'] }}</td>
-          <td class="angka">{{ $item['persen'] }}</td>
-        </tr>
-      @endforeach
-      <tr class="total-row">
-        <td>Total</td>
-        <td class="angka">{{ $totalLaporan }}</td>
-        <td class="angka">100%</td>
-      </tr>
-    </tbody>
-  </table>
+  {{-- ── TRUST SCORE [NONAKTIF] — SECTION 2: Kredibilitas Laporan dihapus --}}
 
   {{-- SECTION 3: PER-TIM --}}
   <div class="section-title">C. Rekapitulasi per Tim Satgas</div>

@@ -18,7 +18,12 @@ export function TopBar({
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [user, setUser] = useState<{ name: string; role: string; initials: string; team_name: string | null } | null>(null);
+  const [user, setUser] = useState<{
+    name: string;
+    role: string;
+    initials: string;
+    team_name: string | null;
+  } | null>(null);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -92,14 +97,10 @@ export function TopBar({
                     {user.name}
                   </p>
                   {user.team_name && (
-                    <p className="text-[11px] text-primary font-medium mt-0.5">
-                      {user.team_name}
-                    </p>
+                    <p className="text-[11px] text-primary font-medium mt-0.5">{user.team_name}</p>
                   )}
                   <p className="text-[11px] text-on-surface-variant capitalize">
-                    {user.role === "supervisor"
-                      ? "Supervisor"
-                      : "Petugas Lapangan"}
+                    {user.role === "supervisor" ? "Supervisor" : "Petugas Lapangan"}
                   </p>
                 </div>
                 <button

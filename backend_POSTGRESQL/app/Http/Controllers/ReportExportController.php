@@ -45,7 +45,7 @@ class ReportExportController extends Controller
         $totalLaporan = (clone $query)->count();
 
         $ringkasanStatus = $this->buildRingkasanStatus(clone $query);
-        $trustBreakdown = $this->buildTrustBreakdown(clone $query);
+        // ── TRUST SCORE [NONAKTIF] — $trustBreakdown = $this->buildTrustBreakdown(clone $query);
         $teamBreakdown = $this->buildTeamBreakdown(clone $query);
         $severityBreakdown = $this->buildSeverityBreakdown(clone $query);
         $districtBreakdown = $this->buildDistrictBreakdown(clone $query);
@@ -55,7 +55,7 @@ class ReportExportController extends Controller
             'tanggalCetak',
             'totalLaporan',
             'ringkasanStatus',
-            'trustBreakdown',
+            // ── TRUST SCORE [NONAKTIF] — 'trustBreakdown',
             'teamBreakdown',
             'severityBreakdown',
             'districtBreakdown',
@@ -97,7 +97,7 @@ class ReportExportController extends Controller
 
         $totalLaporan = (clone $query)->count();
         $ringkasanStatus = $this->buildRingkasanStatus(clone $query);
-        $trustBreakdown = $this->buildTrustBreakdown(clone $query);
+        // ── TRUST SCORE [NONAKTIF] — $trustBreakdown = $this->buildTrustBreakdown(clone $query);
         $teamBreakdown = $this->buildTeamBreakdown(clone $query);
         $severityBreakdown = $this->buildSeverityBreakdown(clone $query);
         $districtBreakdown = $this->buildDistrictBreakdown(clone $query);
@@ -153,25 +153,7 @@ class ReportExportController extends Controller
 
         $row++;
 
-        // ── Trust Breakdown ──
-        $sheet->setCellValue("A{$row}", 'Kredibilitas Laporan');
-        $sheet->getStyle("A{$row}")->getFont()->setBold(true)->setSize(12);
-        $row++;
-        $sheet->setCellValue("A{$row}", 'Label');
-        $sheet->setCellValue("B{$row}", 'Jumlah');
-        $sheet->setCellValue("C{$row}", 'Persentase');
-        $sheet->getStyle("A{$row}:C{$row}")->getFont()->setBold(true);
-        $row++;
-
-        foreach ($trustBreakdown as $s) {
-            $sheet->setCellValue("A{$row}", $s['label']);
-            $sheet->setCellValue("B{$row}", $s['jumlah']);
-            $sheet->setCellValue("C{$row}", $s['persen']);
-            $row++;
-        }
-
-        $row++;
-
+        // ── TRUST SCORE [NONAKTIF] — section Kredibilitas Laporan dihapus
         // ── Per Kecamatan ──
         $sheet->setCellValue("A{$row}", 'Per Kecamatan');
         $sheet->getStyle("A{$row}")->getFont()->setBold(true)->setSize(12);
@@ -254,6 +236,7 @@ class ReportExportController extends Controller
         return $result;
     }
 
+    // ── TRUST SCORE [NONAKTIF] — buildTrustBreakdown
     private function buildTrustBreakdown($query): array
     {
         $rows = (clone $query)

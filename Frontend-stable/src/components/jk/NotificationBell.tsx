@@ -2,7 +2,13 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { playNotificationSound } from "@/lib/notificationSound";
-import { fetchNotifications, fetchUnreadCount, markNotificationRead, markAllNotificationsRead, deleteAllNotifications } from "@/lib/notifications";
+import {
+  fetchNotifications,
+  fetchUnreadCount,
+  markNotificationRead,
+  markAllNotificationsRead,
+  deleteAllNotifications,
+} from "@/lib/notifications";
 import { getToken } from "@/lib/auth";
 import type { NotificationItem } from "@/types/laporan";
 import { Icon } from "./Icon";
@@ -19,7 +25,9 @@ export function NotificationBell() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isClient, setIsClient] = useState(false);
-  useEffect(() => { setIsClient(true); }, []);
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const refreshUnread = useCallback(() => {
@@ -149,7 +157,10 @@ export function NotificationBell() {
         onClick={() => setOpen((o) => !o)}
         className="relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-[#EEF3FA] transition-colors"
       >
-        <Icon name={unread > 0 ? "notifications" : "notifications_none"} className="text-on-surface-variant" />
+        <Icon
+          name={unread > 0 ? "notifications" : "notifications_none"}
+          className="text-on-surface-variant"
+        />
         {unread > 0 && (
           <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-[#DC2626] text-white text-[10px] font-bold leading-none px-1 shadow-sm">
             {unread > 99 ? "99+" : unread}
@@ -243,7 +254,10 @@ export function NotificationBell() {
         open={confirmDelete}
         title="Hapus Semua Notifikasi?"
         message="Semua notifikasi akan dihapus permanen. Tindakan ini tidak dapat dibatalkan."
-        onConfirm={() => { setConfirmDelete(false); handleDeleteAll(); }}
+        onConfirm={() => {
+          setConfirmDelete(false);
+          handleDeleteAll();
+        }}
         onCancel={() => setConfirmDelete(false)}
       />
     </div>

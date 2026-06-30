@@ -22,6 +22,7 @@ BACKEND_DIR="$(cd "$SCRIPT_DIR/../backend_POSTGRESQL" && pwd)"
 FRONTEND_DIR="$(cd "$SCRIPT_DIR/../Frontend-stable" && pwd)"
 BACKEND_ENV="$BACKEND_DIR/.env"
 FRONTEND_ENV="$FRONTEND_DIR/.env"
+LOG_FILE="$SCRIPT_DIR/start-android.log"
 
 REBUILD=false
 BUILD_ONLY=false
@@ -36,11 +37,61 @@ NGROK_URL=""
 OLD_BACKEND_NGROK=""
 OLD_FRONTEND_URL=""
 ADDED_FRONTEND_URL=false
+NGROK_RESTART_COUNT=0
+LARAVEL_RESTART_COUNT=0
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
+log_to_file() {
+  local msg="[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+  echo "$msg" >> "$LOG_FILE"
+}
+
 write_step() {
-  printf "%s %s %s\n" "$(date +%H:%M:%S)" "$1" "$2"
+  local timestamp="$(date +%H:%M:%S)"
+  local msg="$timestamp $1 $2"
+  printf "%s\n" "$msg"
+  log_to_file "$msg"
+}
+
+check_ngrok_health() {
+  local url
+  url=$(curl -s --connect-timeout 3 --max-time 5 http://127.0.0.1:4040/api/tunnels 2>&1)
+  local exit_code=$?
+  
+  if [ $exit_code -ne 0 ]; then
+    log_to_file "NGROK HEALTH: curl failed with exit code $exit_code"
+    log_to_file "NGROK HEALTH: curl output: $url"
+    return 1
+  fi
+  
+  if echo "$url" | grep -q '"public_url"'; then
+    return 0
+  else
+    log_to_file "NGROK HEALTH: No public_url in response"
+    log_to_file "NGROK HEALTH: Response: $url"
+    return 1
+  fi
+}
+
+check_process_alive() {
+  local pid=$1
+  local name=$2
+  
+  # Check using ps command (more reliable than kill -0 in Git Bash)
+  if ps -p "$pid" > /dev/null 2>&1; then
+    # Process exists, check if it's not zombie
+    local state=$(ps -p "$pid" -o stat= 2>/dev/null | tr -d ' ')
+    if [[ "$state" == *"Z"* ]]; then
+      log_to_file "PROCESS CHECK: $name (PID $pid) is ZOMBIE (state: $state)"
+      return 1
+    fi
+    log_to_file "PROCESS CHECK: $name (PID $pid) is ALIVE (state: $state)"
+    return 0
+  else
+    log_to_file "PROCESS CHECK: $name (PID $pid) is DEAD (ps check failed)"
+    return 1
+  fi
 }
 
 kill_ngrok() {
@@ -56,19 +107,34 @@ kill_ngrok() {
 }
 
 get_ngrok_url() {
+  log_to_file "Getting ngrok URL (max 30 attempts)..."
   for i in $(seq 1 30); do
     local data
-    data=$(curl -s http://127.0.0.1:4040/api/tunnels 2>/dev/null || true)
+    data=$(curl -s --connect-timeout 2 --max-time 4 http://127.0.0.1:4040/api/tunnels 2>&1)
+    local curl_exit=$?
+    
+    if [ $curl_exit -ne 0 ]; then
+      log_to_file "Attempt $i/30: curl failed (exit $curl_exit)"
+      sleep 1
+      continue
+    fi
+    
     if [ -n "$data" ]; then
       local url
       url=$(echo "$data" | grep -o '"public_url":"https://[^"]*"' | head -1 | cut -d'"' -f4)
       if [ -n "$url" ]; then
+        log_to_file "Attempt $i/30: Got URL: $url"
         echo "$url"
         return 0
+      else
+        log_to_file "Attempt $i/30: No URL in response"
       fi
+    else
+      log_to_file "Attempt $i/30: Empty response"
     fi
     sleep 1
   done
+  log_to_file "Failed to get ngrok URL after 30 attempts"
   return 1
 }
 
@@ -122,6 +188,9 @@ cleanup() {
     kill "$NGROK_PID" 2>/dev/null || true
     write_step "OK" "ngrok dihentikan"
   fi
+  
+  # Clean up PID file
+  rm -f "$SCRIPT_DIR/.ngrok.pid"
 
   if [ -n "$LARAVEL_PID" ]; then
     kill "$LARAVEL_PID" 2>/dev/null || true
@@ -147,6 +216,12 @@ cleanup() {
 trap cleanup EXIT
 
 # === MAIN ===
+
+# Initialize log file
+echo "========================================" > "$LOG_FILE"
+echo "Start Android Script Log" >> "$LOG_FILE"
+echo "Started at: $(date)" >> "$LOG_FILE"
+echo "========================================" >> "$LOG_FILE"
 
 write_step "---" "Membersihkan proses ngrok lama..."
 kill_ngrok
@@ -192,12 +267,24 @@ if [ "$BUILD_ONLY" != true ]; then
 
   # ── Start ngrok ────────────────────────────────────────────────────────────
   write_step "---" "Menjalankan ngrok tunnel ke port $LARAVEL_PORT..."
-  ngrok http $LARAVEL_PORT --log=stdout > /dev/null 2>&1 &
+  log_to_file "Starting ngrok with command: ngrok http $LARAVEL_PORT"
+  
+  # Start ngrok WITHOUT output redirect to avoid PID tracking issues in Git Bash
+  nohup ngrok http $LARAVEL_PORT --log=stdout >> "$SCRIPT_DIR/ngrok.log" 2>&1 &
   NGROK_PID=$!
+  
+  # Store PID in file for reliable tracking
+  echo "$NGROK_PID" > "$SCRIPT_DIR/.ngrok.pid"
+  log_to_file "ngrok started with PID: $NGROK_PID (saved to .ngrok.pid)"
 
   write_step "..." "Menunggu ngrok siap (max 30 detik)..."
   if ! NGROK_URL=$(get_ngrok_url); then
     write_step "X" "Gagal mendapatkan ngrok URL"
+    log_to_file "ERROR: Failed to get ngrok URL. Check ngrok.log for details."
+    if [ -f "$SCRIPT_DIR/ngrok.log" ]; then
+      log_to_file "Last 20 lines of ngrok.log:"
+      tail -20 "$SCRIPT_DIR/ngrok.log" >> "$LOG_FILE"
+    fi
     wait_for_enter; exit 1
   fi
   write_step "OK" "Ngrok URL: $NGROK_URL"
@@ -319,27 +406,95 @@ echo "   API:        $API_URL"
 echo ""
 echo "   Backend CORS auto-update via NGROK_URL di .env"
 echo "   Frontend API URL via VITE_API_BASE_URL di .env"
+echo "   Log file:   $LOG_FILE"
+echo "   Ngrok log:  $SCRIPT_DIR/ngrok.log"
 echo ""
 echo "   Tekan Ctrl+C untuk menghentikan semua service..."
 echo ""
 
 # Keep running — Ctrl+C triggers cleanup trap
+write_step "..." "Monitoring services (health check every 15 seconds)..."
+log_to_file "Starting monitoring loop..."
+
+HEALTH_CHECK_INTERVAL=15
+LAST_CHECK=$(date +%s)
+
 while true; do
-  if ! kill -0 $LARAVEL_PID 2>/dev/null; then
-    write_step "W" "Laravel mati — restart..."
-    cd "$BACKEND_DIR"
-    php artisan serve --host=0.0.0.0 --port=$LARAVEL_PORT > /dev/null 2>&1 &
-    LARAVEL_PID=$!
-    poll_port $LARAVEL_PORT || write_step "X" "Gagal restart Laravel"
-  fi
-  if ! kill -0 $NGROK_PID 2>/dev/null; then
-    write_step "W" "ngrok mati — restart..."
-    ngrok http $LARAVEL_PORT --log=stdout > /dev/null 2>&1 &
-    NGROK_PID=$!
-    if NGROK_URL=$(get_ngrok_url); then
-      set_env_value "$BACKEND_ENV" "NGROK_URL" "$NGROK_URL" >/dev/null
-      set_env_value "$FRONTEND_ENV" "VITE_API_BASE_URL" "$NGROK_URL/api" >/dev/null
+  NOW=$(date +%s)
+  
+  # Only do health check every HEALTH_CHECK_INTERVAL seconds
+  if [ $((NOW - LAST_CHECK)) -ge $HEALTH_CHECK_INTERVAL ]; then
+    LAST_CHECK=$NOW
+    
+    # Check Laravel
+    if ! check_process_alive "$LARAVEL_PID" "Laravel"; then
+      LARAVEL_RESTART_COUNT=$((LARAVEL_RESTART_COUNT + 1))
+      write_step "W" "Laravel mati (restart #$LARAVEL_RESTART_COUNT) — restarting..."
+      log_to_file "RESTART: Laravel died, attempting restart #$LARAVEL_RESTART_COUNT"
+      cd "$BACKEND_DIR"
+      php artisan serve --host=0.0.0.0 --port=$LARAVEL_PORT > /dev/null 2>&1 &
+      LARAVEL_PID=$!
+      log_to_file "RESTART: New Laravel PID: $LARAVEL_PID"
+      if poll_port $LARAVEL_PORT; then
+        write_step "OK" "Laravel berhasil restart"
+        log_to_file "RESTART: Laravel successfully restarted"
+      else
+        write_step "X" "Gagal restart Laravel"
+        log_to_file "RESTART: Failed to restart Laravel"
+      fi
+    fi
+    
+    # Check ngrok process AND health
+    if ! check_process_alive "$NGROK_PID" "ngrok"; then
+      NGROK_RESTART_COUNT=$((NGROK_RESTART_COUNT + 1))
+      write_step "W" "ngrok process mati (restart #$NGROK_RESTART_COUNT) — restarting..."
+      log_to_file "RESTART: ngrok process died, attempting restart #$NGROK_RESTART_COUNT"
+      
+      nohup ngrok http $LARAVEL_PORT --log=stdout >> "$SCRIPT_DIR/ngrok.log" 2>&1 &
+      NGROK_PID=$!
+      echo "$NGROK_PID" > "$SCRIPT_DIR/.ngrok.pid"
+      log_to_file "RESTART: New ngrok PID: $NGROK_PID"
+      
+      sleep 3
+      if NGROK_URL=$(get_ngrok_url); then
+        write_step "OK" "ngrok berhasil restart: $NGROK_URL"
+        log_to_file "RESTART: ngrok successfully restarted with URL: $NGROK_URL"
+        set_env_value "$BACKEND_ENV" "NGROK_URL" "$NGROK_URL" >/dev/null
+        set_env_value "$FRONTEND_ENV" "VITE_API_BASE_URL" "$NGROK_URL/api" >/dev/null
+      else
+        write_step "X" "Gagal restart ngrok"
+        log_to_file "RESTART: Failed to restart ngrok"
+      fi
+    elif ! check_ngrok_health; then
+      NGROK_RESTART_COUNT=$((NGROK_RESTART_COUNT + 1))
+      write_step "W" "ngrok API tidak responsif (restart #$NGROK_RESTART_COUNT) — restarting..."
+      log_to_file "RESTART: ngrok API unhealthy, attempting restart #$NGROK_RESTART_COUNT"
+      
+      # Kill old process
+      kill "$NGROK_PID" 2>/dev/null || true
+      pkill -f "ngrok http $LARAVEL_PORT" 2>/dev/null || true
+      sleep 2
+      
+      nohup ngrok http $LARAVEL_PORT --log=stdout >> "$SCRIPT_DIR/ngrok.log" 2>&1 &
+      NGROK_PID=$!
+      echo "$NGROK_PID" > "$SCRIPT_DIR/.ngrok.pid"
+      log_to_file "RESTART: New ngrok PID after health check failure: $NGROK_PID"
+      
+      sleep 3
+      if NGROK_URL=$(get_ngrok_url); then
+        write_step "OK" "ngrok berhasil restart: $NGROK_URL"
+        log_to_file "RESTART: ngrok successfully restarted with URL: $NGROK_URL"
+        set_env_value "$BACKEND_ENV" "NGROK_URL" "$NGROK_URL" >/dev/null
+        set_env_value "$FRONTEND_ENV" "VITE_API_BASE_URL" "$NGROK_URL/api" >/dev/null
+      else
+        write_step "X" "Gagal restart ngrok"
+        log_to_file "RESTART: Failed to restart ngrok after health check failure"
+      fi
+    else
+      # ngrok is healthy
+      log_to_file "HEALTH CHECK: ngrok is healthy (PID: $NGROK_PID, URL: $NGROK_URL)"
     fi
   fi
-  sleep 10
+  
+  sleep 5
 done

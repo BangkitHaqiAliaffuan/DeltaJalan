@@ -15,6 +15,8 @@ class PatrolMorningNotification extends Notification implements ShouldQueue
         public array $kecamatan,
         public string $hari,
         public string $tanggal,
+        public string $jamMulai = '09:00',
+        public string $jamSelesai = '16:00',
     ) {}
 
     public function via($notifiable): array
@@ -28,7 +30,7 @@ class PatrolMorningNotification extends Notification implements ShouldQueue
 
         return [
             'title' => 'Pengingat Patroli Hari Ini',
-            'message' => "Hari ini ({$this->hari}, {$this->tanggal}) kamu patroli di {$kecStr}. Cek tugas kamu sekarang!",
+            'message' => "Hari ini ({$this->hari}, {$this->tanggal}) kamu patroli di {$kecStr} — shift {$this->jamMulai}–{$this->jamSelesai}. Cek tugas kamu sekarang!",
             'url' => '/tugas-saya',
         ];
     }
@@ -39,7 +41,7 @@ class PatrolMorningNotification extends Notification implements ShouldQueue
 
         return [
             'title' => 'Pengingat Patroli Hari Ini',
-            'body' => "Hari ini ({$this->hari}, {$this->tanggal}) kamu patroli di {$kecStr}.\n\nCek tugas kamu sekarang!",
+            'body' => "Hari ini ({$this->hari}, {$this->tanggal}) kamu patroli di {$kecStr} — shift {$this->jamMulai}–{$this->jamSelesai}.\n\nCek tugas kamu sekarang!",
             'data' => [
                 'type' => 'patrol_morning_reminder',
                 'team_name' => $this->teamName,
@@ -56,7 +58,7 @@ class PatrolMorningNotification extends Notification implements ShouldQueue
 
         return [
             'type' => 'patrol_morning_reminder',
-            'message' => "Hari ini ({$this->hari}, {$this->tanggal}) kamu patroli di {$kecStr}. Cek tugas kamu sekarang!",
+            'message' => "Hari ini ({$this->hari}, {$this->tanggal}) kamu patroli di {$kecStr} — shift {$this->jamMulai}–{$this->jamSelesai}. Cek tugas kamu sekarang!",
             'team_name' => $this->teamName,
             'kecamatan' => json_encode($this->kecamatan),
             'tanggal' => $this->tanggal,

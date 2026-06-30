@@ -99,6 +99,7 @@ class UserController extends Controller
                 'role' => ['required', Rule::in(['petugas', 'supervisor', 'admin'])],
                 'wilayah' => ['nullable', 'string', 'max:100'],
                 'nip' => ['nullable', 'string', 'max:20'],
+                'team_id' => ['nullable', 'integer', 'exists:teams,id'],
             ]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -115,6 +116,7 @@ class UserController extends Controller
             'role' => $validated['role'],
             'wilayah' => $validated['wilayah'] ?? null,
             'nip' => $validated['nip'] ?? null,
+            'team_id' => $validated['team_id'] ?? null,
         ]);
 
         return response()->json([
@@ -193,7 +195,7 @@ class UserController extends Controller
                 'role' => ['sometimes', 'required', Rule::in(['petugas', 'supervisor', 'admin'])],
                 'wilayah' => ['nullable', 'string', 'max:100'],
                 'nip' => ['nullable', 'string', 'max:20'],
-                'team_id' => ['nullable', 'string', 'exists:teams,id'],
+                'team_id' => ['nullable', 'integer', 'exists:teams,id'],
             ];
 
             // Only supervisor/admin can change role

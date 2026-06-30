@@ -13,6 +13,7 @@ class PatrolEveningNotification extends Notification implements ShouldQueue
     public function __construct(
         public string $teamName,
         public string $tanggal,
+        public string $jamSelesai = '16:00',
     ) {}
 
     public function via($notifiable): array
@@ -24,7 +25,7 @@ class PatrolEveningNotification extends Notification implements ShouldQueue
     {
         return [
             'title' => 'Patroli Selesai',
-            'message' => "Waktunya menyelesaikan patrol hari ini ({$this->tanggal}). Pastikan semua laporan sudah diisi.",
+            'message' => "Waktunya menyelesaikan patrol hari ini ({$this->tanggal}) — shift berakhir pukul {$this->jamSelesai}. Pastikan semua laporan sudah diisi.",
             'url' => '/tugas-saya',
         ];
     }
@@ -33,7 +34,7 @@ class PatrolEveningNotification extends Notification implements ShouldQueue
     {
         return [
             'title' => 'Patroli Selesai',
-            'body' => "Waktunya menyelesaikan patrol hari ini ({$this->tanggal}). Pastikan semua laporan sudah diisi.",
+            'body' => "Waktunya menyelesaikan patrol hari ini ({$this->tanggal}) — shift berakhir pukul {$this->jamSelesai}. Pastikan semua laporan sudah diisi.",
             'data' => [
                 'type' => 'patrol_evening_reminder',
                 'team_name' => $this->teamName,
@@ -47,7 +48,7 @@ class PatrolEveningNotification extends Notification implements ShouldQueue
     {
         return [
             'type' => 'patrol_evening_reminder',
-            'message' => "Waktunya menyelesaikan patrol hari ini ({$this->tanggal}). Pastikan semua laporan sudah diisi.",
+            'message' => "Waktunya menyelesaikan patrol hari ini ({$this->tanggal}) — shift berakhir pukul {$this->jamSelesai}. Pastikan semua laporan sudah diisi.",
             'team_name' => $this->teamName,
             'tanggal' => $this->tanggal,
         ];

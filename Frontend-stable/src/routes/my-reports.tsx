@@ -25,7 +25,9 @@ const FILTERS = [
 function matchFilter(report: Laporan, filter: string): boolean {
   if (filter === "all") return true;
   if (filter === "Diproses")
-    return ["Menunggu Review", "Ditinjau", "Disetujui", "Sedang Diperbaiki"].includes(report.status);
+    return ["Menunggu Review", "Ditinjau", "Disetujui", "Sedang Diperbaiki"].includes(
+      report.status,
+    );
   if (filter === "Selesai") return report.status === "Selesai";
   return (report.overall_severity ?? report.ai_severity ?? "") === filter;
 }
@@ -88,18 +90,18 @@ function MyReportsPage() {
       } else {
         const json = await res.json().catch(() => ({}));
         alert(json.message ?? "Gagal menghapus laporan.");
+        setDeleteTarget(null);
       }
     } catch {
       alert("Terjadi kesalahan jaringan.");
+      setDeleteTarget(null);
     } finally {
       setDeleteLoading(false);
     }
   }, [deleteTarget, token]);
 
   const filtered = useMemo(() => {
-    return laporan.filter(
-      (r) => matchFilter(r, activeFilter) && matchSearch(r, searchQuery),
-    );
+    return laporan.filter((r) => matchFilter(r, activeFilter) && matchSearch(r, searchQuery));
   }, [laporan, activeFilter, searchQuery]);
 
   const handleRefresh = useCallback(async () => {
@@ -121,7 +123,10 @@ function MyReportsPage() {
         {/* Search bar */}
         <section className="px-margin-mobile pt-md">
           <div className="relative flex items-center">
-            <Icon name="search" className="absolute left-4 text-on-surface-variant pointer-events-none" />
+            <Icon
+              name="search"
+              className="absolute left-4 text-on-surface-variant pointer-events-none"
+            />
             <input
               className="w-full bg-[#F1F5F9] border border-[#C0CEDF] rounded-lg h-11 pl-12 pr-10 font-body-md text-body-md text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
               placeholder="Cari ID, nama jalan, atau kecamatan..."
@@ -169,7 +174,11 @@ function MyReportsPage() {
         {/* Card list */}
         <main className="px-margin-mobile flex flex-col gap-md pb-28">
           {isLoading ? (
-            <div aria-busy="true" aria-label="Memuat laporan" className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div
+              aria-busy="true"
+              aria-label="Memuat laporan"
+              className="grid grid-cols-1 md:grid-cols-3 gap-4"
+            >
               <ReportCardSkeleton />
               <ReportCardSkeleton />
               <ReportCardSkeleton />
@@ -178,7 +187,9 @@ function MyReportsPage() {
             <div className="flex flex-col items-center justify-center py-16 text-on-surface-variant">
               <Icon name="description" className="!text-[48px] mb-3" />
               <p className="font-body-md text-body-md mb-1">
-                {searchQuery || activeFilter !== "all" ? "Laporan tidak ditemukan" : "Belum ada laporan."}
+                {searchQuery || activeFilter !== "all"
+                  ? "Laporan tidak ditemukan"
+                  : "Belum ada laporan."}
               </p>
               {searchQuery || activeFilter !== "all" ? (
                 <button
@@ -198,12 +209,32 @@ function MyReportsPage() {
                 <ReportCard
                   key={c.id}
                   report={c}
-                  options={{ showTrust: true }}
+                  // ── TRUST SCORE [NONAKTIF] — showTrust: true dihapus
+                  options={{ showTrust: false }}
                   actions={[
-                    { label: "Lihat Detail", icon: "arrow_forward", variant: "secondary", to: "/detail-report", search: { reportId: c.id } },
-                    ...(c.status === "Menunggu Review"
-                      ? [{ label: "Hapus", icon: "delete", variant: "destructive" as const, onClick: () => handleDeleteClick(c.id) }]
+                    ...(c.status === "Menunggu Review" || c.status === "Ditinjau"
+                      ? [
+                          {
+                            label: "Hapus",
+                            icon: "delete",
+                            variant: "destructive" as const,
+                            onClick: () => handleDeleteClick(c.id),
+                          },
+                          {
+                            label: "Edit",
+                            variant: "secondary" as const,
+                            to: "/edit-report",
+                            search: { reportId: c.id },
+                          },
+                        ]
                       : []),
+                    {
+                      label: "Lihat Detail",
+                      icon: "arrow_forward",
+                      variant: "secondary",
+                      to: "/detail-report",
+                      search: { reportId: c.id },
+                    },
                   ]}
                 />
               ))}
@@ -215,7 +246,7 @@ function MyReportsPage() {
       <ConfirmDialog
         open={deleteTarget != null}
         title="Hapus Laporan?"
-        message="Laporan yang dihapus tidak dapat dikembalikan. Apakah Anda yakin ingin menghapus laporan ini?"
+        message="Laporan yang dihapus tidak bisa dikembalikan. Semua foto dan data terkait akan dihapus permanen."
         confirmText="Ya, Hapus"
         cancelText="Batal"
         confirmLoading={deleteLoading}

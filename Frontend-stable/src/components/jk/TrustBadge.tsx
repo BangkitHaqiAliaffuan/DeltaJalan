@@ -50,7 +50,13 @@ const BREAKDOWN_LABELS: Record<string, string> = {
   fake_gps: "Keaslian GPS",
 };
 
-export function TrustBadge({ score, label, breakdown, showDetail = false, compact = false }: TrustBadgeProps) {
+export function TrustBadge({
+  score,
+  label,
+  breakdown,
+  showDetail = false,
+  compact = false,
+}: TrustBadgeProps) {
   const c = CONFIG[label] ?? CONFIG.merah;
 
   if (compact) {

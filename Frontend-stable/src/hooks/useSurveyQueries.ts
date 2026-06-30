@@ -91,7 +91,13 @@ export function useSurveyDetail(id: string | undefined) {
   const token = getToken();
   return useQuery({
     queryKey: ["survey-detail", id],
-    queryFn: () => authFetch<SurveyTask>(`${API_BASE_URL}/survei/${id}`),
+    queryFn: async () => {
+      const response = await authFetch<any>(`${API_BASE_URL}/survei/${id}`);
+      if (response && typeof response === "object" && "data" in response) {
+        return response.data as SurveyTask;
+      }
+      return response as SurveyTask;
+    },
     enabled: !!token && !!id,
     staleTime: 15_000,
     refetchInterval: 30_000,

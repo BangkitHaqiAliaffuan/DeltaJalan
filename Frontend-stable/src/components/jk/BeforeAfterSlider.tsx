@@ -19,23 +19,20 @@ export function BeforeAfterSlider({
   lebar,
 }: BeforeAfterSliderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const beforeBlob = useBlobImage(beforeSrc || undefined)
-  const afterBlob = useBlobImage(afterSrc || undefined)
+  const beforeBlob = useBlobImage(beforeSrc || undefined);
+  const afterBlob = useBlobImage(afterSrc || undefined);
   const [sliderPos, setSliderPos] = useState(50);
   const [aspect, setAspect] = useState<number | null>(null);
   const [imgLoaded, setImgLoaded] = useState(0);
   const draggingRef = useRef(false);
 
-  const getPositionFromEvent = useCallback(
-    (e: MouseEvent | TouchEvent) => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      const x = "touches" in e ? e.touches[0].clientX : e.clientX;
-      const pct = ((x - rect.left) / rect.width) * 100;
-      setSliderPos(Math.max(0, Math.min(100, pct)));
-    },
-    [],
-  );
+  const getPositionFromEvent = useCallback((e: MouseEvent | TouchEvent) => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const pct = ((x - rect.left) / rect.width) * 100;
+    setSliderPos(Math.max(0, Math.min(100, pct)));
+  }, []);
 
   const onDragStart = useCallback(
     (e: React.MouseEvent | React.TouchEvent) => {
@@ -96,10 +93,7 @@ export function BeforeAfterSlider({
       />
 
       {/* Before image (clipped from right via clip-path) */}
-      <div
-        className="absolute inset-0"
-        style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
-      >
+      <div className="absolute inset-0" style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}>
         <img
           src={beforeBlob}
           alt={beforeLabel}
@@ -129,12 +123,22 @@ export function BeforeAfterSlider({
         onMouseDown={onDragStart}
         onTouchStart={onDragStart}
       >
-        <div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center"
-        >
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M5 3L2 7L5 11" stroke="#475569" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M9 3L12 7L9 11" stroke="#475569" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+              d="M5 3L2 7L5 11"
+              stroke="#475569"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M9 3L12 7L9 11"
+              stroke="#475569"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         </div>
       </div>
@@ -161,7 +165,16 @@ export function BeforeAfterSlider({
       {bothLoaded && (panjang != null || lebar != null) && (
         <div className="absolute bottom-3 left-3 z-20 pointer-events-none transition-opacity">
           <span className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold text-white bg-black/50 rounded-md whitespace-nowrap">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M3 12h18" />
               <path d="M9 6l-6 6 6 6" />
               <path d="M15 6l6 6-6 6" />

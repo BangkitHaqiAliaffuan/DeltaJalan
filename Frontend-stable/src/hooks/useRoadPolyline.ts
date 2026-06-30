@@ -8,7 +8,7 @@ const LIQ_KEY = import.meta.env.VITE_LOCATIONIQ_KEY;
 
 export async function getRoadPolyline(
   roadName: string,
-  kecamatan: string
+  kecamatan: string,
 ): Promise<{ geometry: [number, number][]; source: string } | null> {
   if (!roadName || !kecamatan) return null;
 
@@ -40,7 +40,7 @@ export async function getRoadPolyline(
 
 async function fetchFromOSM(
   roadName: string,
-  kecamatan: string
+  kecamatan: string,
 ): Promise<[number, number][] | null> {
   const bbox = getBbox(kecamatan);
   if (!bbox) return null;
@@ -80,13 +80,13 @@ async function fetchFromOSM(
 
 async function fetchFromNominatim(
   roadName: string,
-  kecamatan: string
+  kecamatan: string,
 ): Promise<[number, number][] | null> {
   const q = `${roadName}, ${kecamatan}, Sidoarjo, Indonesia`;
   try {
     const res = await fetch(
       `${NOMINATIM_SEARCH_URL}?q=${encodeURIComponent(q)}&format=json&polygon_geojson=1&limit=1`,
-      { headers: { "User-Agent": "DeltaJalan/1.0" } }
+      { headers: { "User-Agent": "DeltaJalan/1.0" } },
     );
     const json = await res.json();
     if (!json?.length) return null;
@@ -98,13 +98,13 @@ async function fetchFromNominatim(
 
 async function fetchFromLocationIQ(
   roadName: string,
-  kecamatan: string
+  kecamatan: string,
 ): Promise<[number, number][] | null> {
   if (!LIQ_KEY) return null;
   const q = `${roadName}, ${kecamatan}, Sidoarjo, Indonesia`;
   try {
     const res = await fetch(
-      `${LIQ_SEARCH_URL}?key=${LIQ_KEY}&q=${encodeURIComponent(q)}&format=json&polygon_geojson=1&limit=1`
+      `${LIQ_SEARCH_URL}?key=${LIQ_KEY}&q=${encodeURIComponent(q)}&format=json&polygon_geojson=1&limit=1`,
     );
     const json = await res.json();
     if (!json?.length) return null;
@@ -115,7 +115,7 @@ async function fetchFromLocationIQ(
 }
 
 function extractGeoJsonPolyline(
-  geojson: { type: string; coordinates: unknown } | undefined
+  geojson: { type: string; coordinates: unknown } | undefined,
 ): [number, number][] | null {
   if (!geojson?.coordinates) return null;
   const coords = geojson.coordinates as unknown;
@@ -135,7 +135,7 @@ function extractGeoJsonPolyline(
 
 export async function getPolylineWithCache(
   roadName: string,
-  kecamatan: string
+  kecamatan: string,
 ): Promise<[number, number][] | null> {
   const result = await getRoadPolyline(roadName, kecamatan);
   return result?.geometry ?? null;

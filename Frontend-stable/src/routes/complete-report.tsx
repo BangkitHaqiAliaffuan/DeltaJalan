@@ -64,16 +64,22 @@ function CompleteReportPage() {
     }
   }
 
-  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    const newFiles: File[] = [];
+    const safeFiles: File[] = [];
     const newPreviews: string[] = [];
+    const bufs: ArrayBuffer[] = [];
     for (let i = 0; i < files.length; i++) {
-      newFiles.push(files[i]);
-      newPreviews.push(URL.createObjectURL(files[i]));
+      const f = files[i];
+      const buf = await f.arrayBuffer();
+      const safeFile = new File([buf], f.name, { type: f.type });
+      safeFiles.push(safeFile);
+      bufs.push(buf);
+      newPreviews.push(URL.createObjectURL(safeFile));
     }
-    setAfterFiles((prev) => [...prev, ...newFiles]);
+    void bufs;
+    setAfterFiles((prev) => [...prev, ...safeFiles]);
     setAfterPreviews((prev) => [...prev, ...newPreviews]);
     if (fileRef.current) fileRef.current.value = "";
   }
@@ -142,136 +148,139 @@ function CompleteReportPage() {
   return (
     <PageLayout showBrand back={backUrl}>
       <div>
-      <div className="px-margin-mobile py-lg max-w-lg mx-auto">
-        <h2 className="text-headline-sm font-headline-sm font-bold text-on-surface mb-1">
-          Selesaikan Laporan
-        </h2>
-        <p className="text-label-md text-on-surface-variant mb-6">
-          Upload foto setelah perbaikan untuk menutup laporan.
-        </p>
+        <div className="px-margin-mobile py-lg max-w-lg mx-auto">
+          <h2 className="text-headline-sm font-headline-sm font-bold text-on-surface mb-1">
+            Selesaikan Laporan
+          </h2>
+          <p className="text-label-md text-on-surface-variant mb-6">
+            Upload foto setelah perbaikan untuk menutup laporan.
+          </p>
 
-        {!isSedangDiperbaiki && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
-            <p className="text-sm text-amber-800 font-semibold">
-              Laporan ini berstatus "{report.status}"
-            </p>
-            <p className="text-xs text-amber-700 mt-1">
-              Hanya laporan dengan status "Sedang Diperbaiki" yang bisa diselesaikan.
-            </p>
-            <Link to={backUrl} className="text-sm text-blue-600 font-semibold mt-2 inline-block">
-              Kembali ke Dashboard
-            </Link>
+          {!isSedangDiperbaiki && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+              <p className="text-sm text-amber-800 font-semibold">
+                Laporan ini berstatus "{report.status}"
+              </p>
+              <p className="text-xs text-amber-700 mt-1">
+                Hanya laporan dengan status "Sedang Diperbaiki" yang bisa diselesaikan.
+              </p>
+              <Link to={backUrl} className="text-sm text-blue-600 font-semibold mt-2 inline-block">
+                Kembali ke Dashboard
+              </Link>
+            </div>
+          )}
+
+          {/* Ringkasan laporan */}
+          <div className="bg-white border border-[#D0DAE8] rounded-lg p-4 mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-id-code text-id-code text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded">
+                {report.report_code}
+              </span>
+              <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-label-sm font-bold rounded">
+                {report.status}
+              </span>
+            </div>
+            <h3 className="text-body-lg font-bold text-on-surface">{report.road_name}</h3>
+            <p className="text-label-md text-on-surface-variant mt-1">{report.district}</p>
+            <p className="text-label-md text-on-surface-variant">Pelapor: {report.reporter_name}</p>
           </div>
-        )}
 
-        {/* Ringkasan laporan */}
-        <div className="bg-white border border-[#D0DAE8] rounded-lg p-4 mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-id-code text-id-code text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded">
-              {report.report_code}
-            </span>
-            <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-label-sm font-bold rounded">
-              {report.status}
-            </span>
-          </div>
-          <h3 className="text-body-lg font-bold text-on-surface">{report.road_name}</h3>
-          <p className="text-label-md text-on-surface-variant mt-1">{report.district}</p>
-          <p className="text-label-md text-on-surface-variant">Pelapor: {report.reporter_name}</p>
-        </div>
+          {/* Error message */}
+          {errorMsg && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4 text-sm text-red-800">
+              {errorMsg}
+            </div>
+          )}
 
-        {/* Error message */}
-        {errorMsg && (
-          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4 text-sm text-red-800">
-            {errorMsg}
-          </div>
-        )}
+          {/* Foto after */}
+          <div className="mb-6">
+            <label className="block text-label-md font-semibold text-on-surface mb-2">
+              Foto Setelah Perbaikan <span className="text-error">*</span>
+            </label>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png"
+              capture="environment"
+              multiple
+              onChange={handleFileSelect}
+              className="hidden"
+            />
 
-        {/* Foto after */}
-        <div className="mb-6">
-          <label className="block text-label-md font-semibold text-on-surface mb-2">
-            Foto Setelah Perbaikan <span className="text-error">*</span>
-          </label>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/jpeg,image/jpg,image/png"
-            capture="environment"
-            multiple
-            onChange={handleFileSelect}
-            className="hidden"
-          />
-
-          {afterPreviews.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {afterPreviews.map((preview, i) => (
-                <div key={i} className="relative rounded-lg overflow-hidden border border-[#D0DAE8] aspect-square">
-                  <img
-                    src={preview}
-                    alt={`Foto after ${i + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeFile(i)}
-                    className="absolute top-1.5 right-1.5 w-7 h-7 bg-black/50 text-white rounded-full flex items-center justify-center"
+            {afterPreviews.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {afterPreviews.map((preview, i) => (
+                  <div
+                    key={i}
+                    className="relative rounded-lg overflow-hidden border border-[#D0DAE8] aspect-square"
                   >
-                    <Icon name="close" className="!text-[14px]" />
-                  </button>
-                </div>
-              ))}
+                    <img
+                      src={preview}
+                      alt={`Foto after ${i + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeFile(i)}
+                      className="absolute top-1.5 right-1.5 w-7 h-7 bg-black/50 text-white rounded-full flex items-center justify-center"
+                    >
+                      <Icon name="close" className="!text-[14px]" />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={!isSedangDiperbaiki}
+                  className="aspect-square border-2 border-dashed border-[#D0DAE8] rounded-lg flex flex-col items-center justify-center gap-1 text-on-surface-variant hover:bg-surface-container-low transition-colors disabled:opacity-40"
+                >
+                  <Icon name="add_a_photo" className="!text-2xl" />
+                  <span className="text-[11px]">Tambah</span>
+                </button>
+              </div>
+            ) : (
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 disabled={!isSedangDiperbaiki}
-                className="aspect-square border-2 border-dashed border-[#D0DAE8] rounded-lg flex flex-col items-center justify-center gap-1 text-on-surface-variant hover:bg-surface-container-low transition-colors disabled:opacity-40"
+                className="w-full h-48 border-2 border-dashed border-[#D0DAE8] rounded-lg flex flex-col items-center justify-center gap-2 text-on-surface-variant hover:bg-surface-container-low transition-colors disabled:opacity-40"
               >
-                <Icon name="add_a_photo" className="!text-2xl" />
-                <span className="text-[11px]">Tambah</span>
+                <Icon name="camera_alt" className="!text-4xl" />
+                <span className="text-label-md">Ambil atau pilih foto</span>
               </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              disabled={!isSedangDiperbaiki}
-              className="w-full h-48 border-2 border-dashed border-[#D0DAE8] rounded-lg flex flex-col items-center justify-center gap-2 text-on-surface-variant hover:bg-surface-container-low transition-colors disabled:opacity-40"
-            >
-              <Icon name="camera_alt" className="!text-4xl" />
-              <span className="text-label-md">Ambil atau pilih foto</span>
-            </button>
-          )}
-        </div>
+            )}
+          </div>
 
-        {/* Catatan */}
-        <div className="mb-8">
-          <label className="block text-label-md font-semibold text-on-surface mb-2">
-            Catatan (opsional)
-          </label>
-          <textarea
-            value={catatan}
-            onChange={(e) => setCatatan(e.target.value)}
-            placeholder="Deskripsi perbaikan yang dilakukan..."
-            className="w-full border border-[#C0CEDF] rounded-lg px-4 py-3 text-sm resize-none h-24 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
-          />
-        </div>
+          {/* Catatan */}
+          <div className="mb-8">
+            <label className="block text-label-md font-semibold text-on-surface mb-2">
+              Catatan (opsional)
+            </label>
+            <textarea
+              value={catatan}
+              onChange={(e) => setCatatan(e.target.value)}
+              placeholder="Deskripsi perbaikan yang dilakukan..."
+              className="w-full border border-[#C0CEDF] rounded-lg px-4 py-3 text-sm resize-none h-24 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+            />
+          </div>
 
-        {/* Submit button */}
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={afterFiles.length === 0 || submitting || !isSedangDiperbaiki}
-          className="w-full py-3 bg-primary text-white rounded-lg font-semibold text-sm hover:bg-[#163F6E] disabled:opacity-40 transition-all flex items-center justify-center gap-2"
-        >
-          {submitting ? (
-            <>
-              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              Menyelesaikan...
-            </>
-          ) : (
-            "✓ Selesaikan Laporan"
-          )}
-        </button>
-      </div>
+          {/* Submit button */}
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={afterFiles.length === 0 || submitting || !isSedangDiperbaiki}
+            className="w-full py-3 bg-primary text-white rounded-lg font-semibold text-sm hover:bg-[#163F6E] disabled:opacity-40 transition-all flex items-center justify-center gap-2"
+          >
+            {submitting ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Menyelesaikan...
+              </>
+            ) : (
+              "✓ Selesaikan Laporan"
+            )}
+          </button>
+        </div>
       </div>
 
       {successMsg && (
@@ -291,7 +300,9 @@ function CompleteReportPage() {
             </button>
           }
         >
-          <p className="text-[13px] text-[#475569] text-center leading-relaxed">Mengalihkan ke dashboard…</p>
+          <p className="text-[13px] text-[#475569] text-center leading-relaxed">
+            Mengalihkan ke dashboard…
+          </p>
         </ModalBase>
       )}
     </PageLayout>

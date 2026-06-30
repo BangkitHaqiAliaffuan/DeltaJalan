@@ -10,6 +10,7 @@ export type StatusLaporan =
   | "Ditinjau"
   | "Disetujui"
   | "Ditolak"
+  | "Ditugaskan"
   | "Sedang Diperbaiki"
   | "Selesai"
   | "Diedit";
@@ -120,12 +121,16 @@ export interface Laporan {
   // Prioritas penanganan (dari supervisor)
   priority?: PriorityLevel;
 
+  // Estimasi hari pengerjaan
+  estimasi_hari?: number | null;
   // Deadline & terlambat flags
   deadline_review?: string | null;
+  deadline_mulai?: string | null;
   deadline_resolusi?: string | null;
   status_deadline?: string;
   terlambat_review?: boolean;
   terlambat_resolusi?: boolean;
+  terlambat_mulai?: boolean;
 
   // Duplikasi
   is_duplicate?: boolean;
@@ -147,6 +152,9 @@ export interface Laporan {
 
   // Timeline riwayat status
   status_history?: TimelineEvent[];
+
+  // Progress updates count (from server withCount)
+  progress_updates_count?: number;
 }
 
 export interface ReportPhoto {
@@ -165,6 +173,22 @@ export interface ReportPhoto {
   created_at: string | null;
   kerusakan_panjang?: number | null;
   kerusakan_lebar?: number | null;
+}
+
+// ── Progress Update ─────────────────────────────────────────────────────
+
+export interface ProgressUpdate {
+  id: number;
+  foto_url: string | null;
+  catatan: string | null;
+  user_name: string | null;
+      created_at: string | null;
+      progress_updates_count?: number;
+}
+
+export interface ProgressUpdateResponse {
+  success: boolean;
+  data: ProgressUpdate[];
 }
 
 // ── Timeline ────────────────────────────────────────────────────────────
@@ -216,6 +240,7 @@ export interface MapStats {
   by_status: {
     "Menunggu Review": number;
     Disetujui: number;
+    Ditugaskan: number;
     "Sedang Diperbaiki": number;
     Selesai: number;
     Ditolak: number;
@@ -250,18 +275,6 @@ export interface MapDataResponse {
 }
 
 // ── Notifikasi ────────────────────────────────────────────────────────────
-
-export interface RingkasanDeadlinePerPrioritas {
-  total: number;
-  tepat_waktu: number;
-  mendekati: number;
-  terlambat: number;
-}
-
-export interface RingkasanDeadlineResponse {
-  per_priority: Record<string, RingkasanDeadlinePerPrioritas>;
-  total: RingkasanDeadlinePerPrioritas;
-}
 
 export interface DuplicateReport {
   id: string;

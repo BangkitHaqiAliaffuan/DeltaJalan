@@ -32,5 +32,5 @@ Schedule::command('patrol:generate-tasks --days=3')->dailyAt('06:00');
 // Patrol reminder jam 09:00 — beri tahu petugas jadwal patroli hari ini
 Schedule::command('patrol:reminder-morning')->dailyAt('09:00');
 
-// Patrol reminder jam 17:00 — ingatkan menyelesaikan laporan patrol hari ini
-Schedule::command('patrol:reminder-evening')->dailyAt('17:00');
+// Patrol reminder jam 16:00 — ingatkan menyelesaikan laporan patrol hari ini
+Schedule::command('patrol:reminder-evening')->dailyAt('16:00');

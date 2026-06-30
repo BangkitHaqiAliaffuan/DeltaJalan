@@ -24,24 +24,16 @@ const POLYGON_SEVERITY_COLORS: Record<string, string> = {
   baik: "#2E7D32",
 };
 
-const ALL_STATUSES = [
-  "Menunggu Review",
-  "Ditinjau",
-  "Disetujui",
-  "Ditolak",
-  "Sedang Diperbaiki",
-  "Selesai",
-  "Diedit",
-];
+const ALL_STATUSES = ["Ditinjau", "Disetujui", "Ditolak", "Sedang Diperbaiki", "Selesai", "Diedit"];
 
 const STATUS_BADGE: Record<string, { color: string; label: string }> = {
-  "Menunggu Review":  { color: "#64748B", label: "Menunggu" },
-  Ditinjau:           { color: "#64748B", label: "Ditinjau" },
-  Disetujui:          { color: "#2563EB", label: "Disetujui" },
-  "Sedang Diperbaiki":{ color: "#D97706", label: "Diperbaiki" },
-  Selesai:            { color: "#16A34A", label: "Selesai" },
-  Ditolak:            { color: "#DC2626", label: "Ditolak" },
-  Diedit:             { color: "#6B7280", label: "Diedit" },
+  "Menunggu Review": { color: "#64748B", label: "Menunggu" },
+  Ditinjau: { color: "#64748B", label: "Ditinjau" },
+  Disetujui: { color: "#2563EB", label: "Disetujui" },
+  "Sedang Diperbaiki": { color: "#D97706", label: "Diperbaiki" },
+  Selesai: { color: "#16A34A", label: "Selesai" },
+  Ditolak: { color: "#DC2626", label: "Ditolak" },
+  Diedit: { color: "#6B7280", label: "Diedit" },
 };
 
 function getSeverityKey(r: LaporanMarker): string {
@@ -94,7 +86,7 @@ export interface MapFilters {
   status: string[];
   severity: string[];
   district: string;
-  upr_id: string;
+  uptd_id: string;
   deadline_hari: string;
   status_deadline: string;
 }
@@ -103,7 +95,7 @@ interface PetaInteraktifProps {
   mapReports: LaporanMarker[];
   districtStats: Record<string, DistrictSummary>;
   mapStats: MapStats;
-  uprList: { id: number; name: string; wilayah?: string }[];
+  teamList: { id: string; name: string; wilayah?: string; uptd?: { id: string; nama: string } }[];
   filters: MapFilters;
   onFilterChange: (filters: MapFilters) => void;
   onViewDetail?: (id: string) => void;
@@ -115,7 +107,7 @@ export function PetaInteraktif({
   mapReports,
   districtStats,
   mapStats,
-  uprList,
+  teamList,
   filters,
   onFilterChange,
   onViewDetail,
@@ -143,15 +135,15 @@ export function PetaInteraktif({
 
   // ── Responsive breakpoint ──
   useEffect(() => {
-    const mq = window.matchMedia('(min-width: 768px)');
+    const mq = window.matchMedia("(min-width: 768px)");
     const handler = (e: MediaQueryListEvent | MediaQueryList) => {
       const desktop = e.matches;
       setIsDesktop(desktop);
       if (!desktop) setShowStats(false);
     };
     handler(mq);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
   }, []);
 
   // ── Dynamic Leaflet import (single chunk — leaflet + markercluster in one module) ──
@@ -162,7 +154,9 @@ export function PetaInteraktif({
       LRef.current = mod.default;
       setLeafletReady(true);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // ── Active-only district severity (for polygon coloring) ──
@@ -185,8 +179,7 @@ export function PetaInteraktif({
       const s = sums[k];
       result[k] = {
         ...v,
-        avg_severity_score:
-          s && s.total > 0 ? parseFloat((s.score / s.total).toFixed(2)) : 0,
+        avg_severity_score: s && s.total > 0 ? parseFloat((s.score / s.total).toFixed(2)) : 0,
       };
     });
     return result;
@@ -209,8 +202,10 @@ export function PetaInteraktif({
     style.textContent = `
       .leaflet-popup-close-button { display: none !important; }
       .leaflet-popup { transition: transform 0.25s ease, opacity 0.25s ease !important; }
-      .leaflet-popup-content-wrapper { border-radius: 12px !important; overflow: hidden; }
+      .leaflet-popup-content-wrapper { border-radius: 14px !important; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.12) !important; }
       .leaflet-popup-content { margin: 0 !important; }
+      .leaflet-tooltip { background: #0F172A !important; color: white !important; border: none !important; border-radius: 10px !important; padding: 8px 12px !important; font-size: 12px !important; font-family: 'Inter', sans-serif !important; box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important; }
+      .leaflet-tooltip-top::before { border-top-color: #0F172A !important; }
     `;
     document.head.appendChild(style);
   }, []);
@@ -314,7 +309,9 @@ export function PetaInteraktif({
         // Leaflet's internal _onZoomTransitionEnd doesn't fire
         // after the map container is removed from the DOM.
         const pane = (m as any)._panes?.mapPane;
-        if (pane) { pane.style.transition = "none"; }
+        if (pane) {
+          pane.style.transition = "none";
+        }
         m.remove();
         mapRef.current = null;
         polygonLayerRef.current = null;
@@ -345,18 +342,22 @@ export function PetaInteraktif({
         const activeTotal = activeDs?.total ?? 0;
         layer.bindPopup(
           `<div style="font-family:'Inter',sans-serif;min-width:200px;">
-            <p style="font-weight:600;font-size:14px;color:#0F172A;margin:0 0 4px;">Kec. ${kec}</p>
+            <p style="font-weight:700;font-size:14px;color:#0F172A;margin:0 0 6px;">Kec. ${kec}</p>
             <div style="font-size:12px;color:#475569;">
-              ${ds ? `
-                <p style="margin:2px 0;">Total laporan: <strong>${ds.total}</strong></p>
-                <p style="margin:2px 0;">🔴 Rusak Berat: ${ds.rusak_berat}</p>
-                <p style="margin:2px 0;">🟠 Rusak Sedang: ${ds.rusak_sedang}</p>
-                <p style="margin:2px 0;">🟡 Rusak Ringan: ${ds.rusak_ringan}</p>
+              ${
+                ds
+                  ? `
+                <p style="margin:3px 0;">Total laporan: <strong>${ds.total}</strong></p>
+                <p style="margin:3px 0;"><span style="color:#E11D48;font-size:10px;">●</span> Rusak Berat: ${ds.rusak_berat}</p>
+                <p style="margin:3px 0;"><span style="color:#F97316;font-size:10px;">●</span> Rusak Sedang: ${ds.rusak_sedang}</p>
+                <p style="margin:3px 0;"><span style="color:#F59E0B;font-size:10px;">●</span> Rusak Ringan: ${ds.rusak_ringan}</p>
                 <p style="margin:4px 0 0;padding-top:4px;border-top:1px solid #E2E8F0;font-size:11px;color:#64748B;">Laporan aktif: <strong>${activeTotal}</strong> (belum selesai)</p>
-              ` : `<p style="margin:2px 0;">Tidak ada data laporan</p>`}
+              `
+                  : `<p style="margin:2px 0;">Tidak ada data laporan</p>`
+              }
             </div>
           </div>`,
-          { maxWidth: 260 },
+          { maxWidth: 280 },
         );
         layer.on("click", () => {
           if (filters.district !== kec) {
@@ -385,157 +386,175 @@ export function PetaInteraktif({
 
     // Create cluster group once
     if (!markerClusterRef.current) {
-        const mcg = L.markerClusterGroup({
-          chunkedLoading: true,
-          maxClusterRadius: 50,
-          spiderfyOnMaxZoom: true,
-          showCoverageOnHover: false,
-          disableClusteringAtZoom: UNCLUSTER_ZOOM,
-          iconCreateFunction: (cluster: any) => {
-            const subMarkers = cluster.getAllChildMarkers();
-            let berat = 0;
-            let selesai = 0;
-            subMarkers.forEach((m: any) => {
-              const sev = m.options?.severity ?? "baik";
-              if (sev === "berat") berat++;
-              const st = m.options?.status ?? "";
-              if (st === "Selesai") selesai++;
-            });
-            const color = berat > 0 ? "#E11D48" : "#1A4F8A";
-            const count = cluster.getChildCount();
-            const badgeHtml = selesai > 0
+      const mcg = L.markerClusterGroup({
+        chunkedLoading: true,
+        maxClusterRadius: 50,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        disableClusteringAtZoom: UNCLUSTER_ZOOM,
+        iconCreateFunction: (cluster: any) => {
+          const subMarkers = cluster.getAllChildMarkers();
+          let berat = 0;
+          let selesai = 0;
+          subMarkers.forEach((m: any) => {
+            const sev = m.options?.severity ?? "baik";
+            if (sev === "berat") berat++;
+            const st = m.options?.status ?? "";
+            if (st === "Selesai") selesai++;
+          });
+          const color = berat > 0 ? "#E11D48" : "#1A4F8A";
+          const count = cluster.getChildCount();
+          const badgeHtml =
+            selesai > 0
               ? `<div style="position:absolute;bottom:-4px;right:-4px;width:16px;height:16px;border-radius:50%;background:#16A34A;border:2px solid white;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,0.4);"><span style="color:white;font-size:8px;font-weight:700;">${selesai}</span></div>`
               : "";
-            return L.divIcon({
-              html: `<div style="width:40px;height:40px;position:relative;">
+          return L.divIcon({
+            html: `<div style="width:40px;height:40px;position:relative;">
                 <div style="width:40px;height:40px;background:${color};color:white;border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.3);">${count}</div>
                 ${badgeHtml}
               </div>`,
-              className: "",
-              iconSize: L.point(40, 40),
-            });
-          },
-        });
-        const initialZ = currentZoomRef.current;
-        const markersInitiallyVisible = initialZ < POLYGON_MIN_ZOOM || initialZ >= UNCLUSTER_ZOOM;
-        if (markersInitiallyVisible) {
-          map.addLayer(mcg);
-        }
-        markerClusterRef.current = mcg;
+            className: "",
+            iconSize: L.point(40, 40),
+          });
+        },
+      });
+      const initialZ = currentZoomRef.current;
+      const markersInitiallyVisible = initialZ < POLYGON_MIN_ZOOM || initialZ >= UNCLUSTER_ZOOM;
+      if (markersInitiallyVisible) {
+        map.addLayer(mcg);
       }
+      markerClusterRef.current = mcg;
+    }
 
-      // Register global view-detail & minimize handlers
-      (window as any).__mapViewDetail = (id: string) => {
-        if (onViewDetail) {
-          onViewDetail(id);
-        } else {
-          window.location.href = `/detail-report?reportId=${id}`;
-        }
-      };
-      (window as any).__minimizePopup = () => {
-        map.closePopup();
-      };
-
-      const mcg = markerClusterRef.current;
-      mcg.clearLayers();
-      markersRef.current.forEach((m) => m.remove());
-      markersRef.current = [];
+    // Register global view-detail & minimize handlers
+    (window as any).__mapViewDetail = (id: string) => {
+      if (onViewDetail) {
+        onViewDetail(id);
+      } else {
+        window.location.href = `/detail-report?reportId=${id}`;
+      }
+    };
+    (window as any).__minimizePopup = () => {
       map.closePopup();
+    };
 
-      if (mapReports.length === 0) return;
+    const mcg = markerClusterRef.current;
+    mcg.clearLayers();
+    markersRef.current.forEach((m) => m.remove());
+    markersRef.current = [];
+    map.closePopup();
 
-      const markers: any[] = [];
+    if (mapReports.length === 0) return;
 
-      mapReports.forEach((r) => {
-        if (!r.latitude || !r.longitude) return;
-        const sevKey = getSeverityKey(r);
-        const sevConf = SEVERITY_CONFIG[sevKey] ?? SEVERITY_CONFIG.baik;
-        const status = displayStatus(r.status);
+    const markers: any[] = [];
 
-        const icon = L.divIcon({
-          className: "",
-          html: `<div style="width:28px;height:36px;position:relative;">
+    mapReports.forEach((r) => {
+      if (!r.latitude || !r.longitude) return;
+      const sevKey = getSeverityKey(r);
+      const sevConf = SEVERITY_CONFIG[sevKey] ?? SEVERITY_CONFIG.baik;
+      const status = displayStatus(r.status);
+
+      const icon = L.divIcon({
+        className: "",
+        html: `<div style="width:28px;height:36px;position:relative;">
             <div style="width:24px;height:24px;background:${sevConf.color};border:3px solid white;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>
             ${getStatusBadgeHtml(r.status)}
           </div>`,
-          iconSize: [28, 36],
-          iconAnchor: [14, 36],
-        });
+        iconSize: [28, 36],
+        iconAnchor: [14, 36],
+      });
 
-        const photoHtml = r.first_photo_url
-          ? `<img src="${r.first_photo_url}" loading="lazy" style="width:100%;height:80px;object-fit:cover;border-radius:8px 8px 0 0;" alt="" />`
-          : `<div style="width:100%;height:80px;background:#F1F5F9;border-radius:8px 8px 0 0;display:flex;align-items:center;justify-content:center;color:#CBD5E1;font-size:18px;">📷</div>`;
+      const photoHtml = r.first_photo_url
+        ? `<div style="position:relative;height:116px;overflow:hidden;">
+            <img src="${r.first_photo_url}" loading="lazy" style="width:100%;height:116px;object-fit:cover;" alt="" />
+            <div style="position:absolute;top:0;left:0;right:0;height:100%;background:linear-gradient(0deg,rgba(0,0,0,0.55) 0%,rgba(0,0,0,0.01) 50%,rgba(0,0,0,0.01) 100%);pointer-events:none;"></div>
+            <div style="position:absolute;bottom:10px;left:12px;right:40px;">
+              <p style="margin:0;font-size:15px;font-weight:700;color:white;text-shadow:0 1px 4px rgba(0,0,0,0.4);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.road_name}</p>
+            </div>
+          </div>`
+        : `<div style="height:80px;background:#F1F5F9;border-radius:8px 8px 0 0;display:flex;align-items:center;justify-content:center;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z"/><circle cx="12" cy="13" r="3"/></svg></div>`;
 
-        const dimensiHtml =
-          r.kerusakan_panjang != null && r.kerusakan_lebar != null
-            ? `<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#64748B;margin-top:3px;"><span>📐</span><span>${r.kerusakan_panjang}m × ${r.kerusakan_lebar}m</span></div>`
-            : "";
+      const infoItems = [
+        { icon: '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>', label: r.district ?? '-' },
+        { icon: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>', label: formatAge(r.created_at) },
+      ];
+      if (r.kerusakan_panjang != null && r.kerusakan_lebar != null) {
+        infoItems.push({ icon: '<path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/>', label: `${r.kerusakan_panjang}m × ${r.kerusakan_lebar}m` });
+      }
+      if (r.assigned_team_name) {
+        infoItems.push({ icon: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/>', label: r.assigned_team_name });
+      }
 
-        const uprHtml = r.assigned_team_name
-          ? `<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#64748B;margin-top:2px;"><span>👥</span><span>${r.assigned_team_name}</span></div>`
-          : "";
+      const infoItemsHtml = infoItems.map((item) =>
+        `<div style="display:flex;align-items:center;gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">${item.icon}</svg><span style="font-size:11px;color:#475569;">${item.label}</span></div>`
+      ).join('');
 
-        const marker = L.marker([r.latitude, r.longitude], { icon } as any)
-          .bindPopup(
-            `<div style="font-family:'Inter',sans-serif;min-width:190px;border-radius:8px;overflow:hidden;">
+      const marker = L.marker([r.latitude, r.longitude], { icon } as any).bindPopup(
+        `<div style="font-family:'Inter',sans-serif;min-width:190px;border-radius:8px;overflow:hidden;">
               <button onclick="window.__minimizePopup()" style="position:absolute;top:6px;right:6px;z-index:10;width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;transition:all .2s ease;" onmouseover="this.style.background='rgba(0,0,0,0.7)'" onmouseout="this.style.background='rgba(0,0,0,0.45)'">
                 <span style="font-size:13px;line-height:1;">&#x2715;</span>
               </button>
               ${photoHtml}
-              <div style="padding:8px;">
-                <p style="font-size:10px;color:#475569;margin:0 0 1px;">${r.road_name}</p>
-                <p style="font-weight:600;font-size:13px;color:#0F172A;margin:0 0 2px;">${r.road_name}</p>
-                <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#64748B;margin-bottom:4px;flex-wrap:wrap;">
-                  <span>📍 ${r.district ?? "-"}</span>
-                  <span>⭐ ${r.trust_score ?? "—"}</span>
-                  <span>🕐 ${formatAge(r.created_at)}</span>
+              <div style="padding:12px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;">
+                  ${infoItemsHtml}
                 </div>
-                <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:3px;">
-                  <span style="display:inline-block;background:${sevConf.color}15;color:${sevConf.color};border:1px solid ${sevConf.color}30;border-radius:9999px;padding:0 6px;font-size:9px;font-weight:600;">${sevConf.label}</span>
-                  <span style="display:inline-block;background:#F1F5F9;color:#475569;border:1px solid #E2E8F0;border-radius:9999px;padding:0 6px;font-size:9px;font-weight:500;">${status}</span>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;padding-top:8px;border-top:1px solid #F1F5F9;">
+                  <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:9999px;font-size:11px;font-weight:600;background:${sevConf.color}15;color:${sevConf.color};border:1px solid ${sevConf.color}30;">
+                    <span style="width:6px;height:6px;border-radius:50%;background:${sevConf.color};flex-shrink:0;"></span>
+                    ${sevConf.label}
+                  </span>
+                  <span style="display:inline-flex;align-items:center;padding:3px 10px;border-radius:9999px;font-size:11px;font-weight:500;background:#F1F5F9;color:#475569;border:1px solid #E2E8F0;">
+                    ${status}
+                  </span>
                 </div>
-                ${dimensiHtml}
-                ${uprHtml}
-                ${userRole === 'petugas' ? '' : `<button onclick="window.__mapViewDetail('${r.id}')" style="margin-top:4px;width:100%;padding:5px 0;background:#1A4F8A;color:white;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">🔍 Lihat Detail</button>`}
+                ${userRole === "petugas" ? "" : `<button onclick="window.__mapViewDetail('${r.id}')" style="margin-top:4px;width:100%;padding:8px 0;background:#1A4F8A;color:white;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:background .2s;" onmouseover="this.style.background='#153d6e'" onmouseout="this.style.background='#1A4F8A'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>Lihat Detail</button>`}
               </div>
             </div>`,
-            { maxWidth: 250, className: "" },
-          );
+        { maxWidth: 320, className: "" },
+      ).bindTooltip(
+        `<div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-weight:600;font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:white;">${r.road_name}</span>
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${sevConf.color};flex-shrink:0;"></span>
+          <span style="font-size:11px;color:${sevConf.color};font-weight:500;white-space:nowrap;">${sevConf.label.replace(/^Rusak\s*/, '')}</span>
+        </div>`,
+        { direction: "top", offset: [0, -8] }
+      );
 
-        (marker as any).options.severity = sevKey;
-        (marker as any).options.status = r.status;
-        mcg.addLayer(marker);
-        markers.push(marker);
-      });
+      (marker as any).options.severity = sevKey;
+      (marker as any).options.status = r.status;
+      mcg.addLayer(marker);
+      markers.push(marker);
+    });
 
-      markersRef.current = markers;
+    markersRef.current = markers;
 
-      // Fit bounds only on first load (when mapReports came from a fresh fetch)
-      if (mapReports.length > 0 && markers.length > 0) {
-        const map = mapRef.current;
-        if (map && map.getZoom() === DEFAULT_ZOOM && map.getCenter().equals(DEFAULT_CENTER)) {
-          if (markers.length === 1) {
-            map.setView([mapReports[0].latitude!, mapReports[0].longitude!], 15);
-          } else {
-            const group = L.featureGroup(markers);
-            map.fitBounds(group.getBounds(), { padding: [40, 40], maxZoom: 13 });
-          }
+    // Fit bounds only on first load (when mapReports came from a fresh fetch)
+    if (mapReports.length > 0 && markers.length > 0) {
+      const map = mapRef.current;
+      if (map && map.getZoom() === DEFAULT_ZOOM && map.getCenter().equals(DEFAULT_CENTER)) {
+        if (markers.length === 1) {
+          map.setView([mapReports[0].latitude!, mapReports[0].longitude!], 15);
+        } else {
+          const group = L.featureGroup(markers);
+          map.fitBounds(group.getBounds(), { padding: [40, 40], maxZoom: 13, animate: false });
         }
       }
+    }
 
-      // ── Highlight report — fly to marker + open popup ──
-      if (highlightReportId && mapReports.length > 0) {
-        const map = mapRef.current;
-        if (map && markers.length > 0) {
-          const idx = mapReports.findIndex((r) => r.id === highlightReportId);
-          if (idx !== -1 && markers[idx] && typeof (markers[idx] as any).getLatLng === 'function') {
-            const marker = markers[idx];
-            const latlng = (marker as any).getLatLng();
-            map.setView([latlng.lat, latlng.lng], 16, { animate: true });
-            setTimeout(() => marker.openPopup?.(), 400);
-          }
+    // ── Highlight report — fly to marker + open popup ──
+    if (highlightReportId && mapReports.length > 0) {
+      const map = mapRef.current;
+      if (map && markers.length > 0) {
+        const idx = mapReports.findIndex((r) => r.id === highlightReportId);
+        if (idx !== -1 && markers[idx] && typeof (markers[idx] as any).getLatLng === "function") {
+          const marker = markers[idx];
+          const latlng = (marker as any).getLatLng();
+          map.setView([latlng.lat, latlng.lng], 16, { animate: true });
+          setTimeout(() => marker.openPopup?.(), 400);
         }
       }
+    }
   }, [mapReports, mapReady, onViewDetail, highlightReportId]);
 
   // ── Filter callbacks ──
@@ -561,7 +580,14 @@ export function PetaInteraktif({
   }
 
   function resetFilters() {
-    onFilterChange({ status: [], severity: [], district: "", upr_id: "", deadline_hari: "", status_deadline: "" });
+    onFilterChange({
+      status: [],
+      severity: [],
+      district: "",
+      uptd_id: "",
+      deadline_hari: "",
+      status_deadline: "",
+    });
   }
 
   const districts = useMemo(() => {
@@ -574,7 +600,12 @@ export function PetaInteraktif({
 
   const filterPanelVisible = (isDesktop || mobileFilterOpen) && !filterMinimized;
   const activeFilterCount =
-    filters.status.length + filters.severity.length + (filters.district ? 1 : 0) + (filters.upr_id ? 1 : 0) + (filters.deadline_hari ? 1 : 0) + (filters.status_deadline ? 1 : 0);
+    filters.status.length +
+    filters.severity.length +
+    (filters.district ? 1 : 0) +
+    (filters.uptd_id ? 1 : 0) +
+    (filters.deadline_hari ? 1 : 0) +
+    (filters.status_deadline ? 1 : 0);
 
   const validReportsCount = mapReports.filter((r) => r.latitude && r.longitude).length;
   const polygonsShown = zoomLevel >= POLYGON_MIN_ZOOM && zoomLevel < UNCLUSTER_ZOOM;
@@ -589,7 +620,11 @@ export function PetaInteraktif({
 
   return (
     <div className="relative w-full h-full">
-      <div ref={mapContainerRef} className="w-full h-full" aria-label="Peta interaktif laporan kerusakan jalan" />
+      <div
+        ref={mapContainerRef}
+        className="w-full h-full"
+        aria-label="Peta interaktif laporan kerusakan jalan"
+      />
 
       {/* Loading GeoJSON */}
       {geoJsonLoading && (
@@ -601,9 +636,12 @@ export function PetaInteraktif({
       {/* Filter toggle button (always mounted) */}
       <button
         type="button"
-        onClick={() => { if (!isDesktop) setMobileFilterOpen(true); else setFilterMinimized(false); }}
+        onClick={() => {
+          if (!isDesktop) setMobileFilterOpen(true);
+          else setFilterMinimized(false);
+        }}
         className={`absolute top-[84px] left-2 z-[1000] w-9 h-9 bg-white rounded-lg shadow-md border border-[#E2E8F0] flex items-center justify-center hover:bg-[#F8FAFC] transition-all duration-200 ease-out ${
-          filterPanelVisible ? 'opacity-0 scale-75 pointer-events-none' : 'opacity-100 scale-100'
+          filterPanelVisible ? "opacity-0 scale-75 pointer-events-none" : "opacity-100 scale-100"
         }`}
         aria-label="Buka filter"
       >
@@ -619,8 +657,8 @@ export function PetaInteraktif({
       <div
         className={`absolute top-3 left-3 z-[1000] bg-white/95 backdrop-blur-sm border border-[#E2E8F0] rounded-xl shadow-lg overflow-y-auto transition-all duration-200 ease-out ${
           filterPanelVisible
-            ? 'opacity-100 translate-y-0'
-            : 'opacity-0 -translate-y-2 pointer-events-none'
+            ? "opacity-100 translate-y-0"
+            : "opacity-0 -translate-y-2 pointer-events-none"
         }`}
         style={{ width: 200, maxHeight: "calc(100% - 24px)" }}
         aria-hidden={!filterPanelVisible}
@@ -640,7 +678,10 @@ export function PetaInteraktif({
               )}
               <button
                 type="button"
-                onClick={() => { setFilterMinimized(true); if (!isDesktop) setMobileFilterOpen(false); }}
+                onClick={() => {
+                  setFilterMinimized(true);
+                  if (!isDesktop) setMobileFilterOpen(false);
+                }}
                 className="w-6 h-6 flex items-center justify-center rounded hover:bg-[#F1F5F9] transition-colors"
                 aria-label="Minimalkan filter"
               >
@@ -649,120 +690,135 @@ export function PetaInteraktif({
             </div>
           </div>
 
-            {/* Severity */}
-            <div className="mb-3">
-              <p className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">
-                Tingkat Kerusakan
-              </p>
-              <div className="flex flex-col gap-1">
-                {Object.entries(SEVERITY_CONFIG).map(([key, cfg]) => (
-                  <label key={key} className="flex items-center gap-2 cursor-pointer text-[12px]">
-                    <input
-                      type="checkbox"
-                      checked={filters.severity.includes(key)}
-                      onChange={() => toggleSev(key)}
-                      className="w-3.5 h-3.5 rounded border-[#CBD5E1] text-[#1A4F8A] focus:ring-[#1A4F8A]"
-                    />
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: cfg.color }} />
-                    <span className="text-[#0F172A]">{cfg.label}</span>
-                  </label>
-                ))}
-              </div>
+          {/* Severity */}
+          <div className="mb-3">
+            <p className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">
+              Tingkat Kerusakan
+            </p>
+            <div className="flex flex-col gap-1">
+              {Object.entries(SEVERITY_CONFIG).map(([key, cfg]) => (
+                <label key={key} className="flex items-center gap-2 cursor-pointer text-[12px]">
+                  <input
+                    type="checkbox"
+                    checked={filters.severity.includes(key)}
+                    onChange={() => toggleSev(key)}
+                    className="w-3.5 h-3.5 rounded border-[#CBD5E1] text-[#1A4F8A] focus:ring-[#1A4F8A]"
+                  />
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ background: cfg.color }}
+                  />
+                  <span className="text-[#0F172A]">{cfg.label}</span>
+                </label>
+              ))}
             </div>
+          </div>
 
-            {/* Status */}
-            <div className="mb-3">
-              <p className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">Status</p>
-              <div className="flex flex-col gap-1 max-h-[140px] overflow-y-auto">
-                {ALL_STATUSES.map((s) => (
-                  <label key={s} className="flex items-center gap-2 cursor-pointer text-[12px]">
-                    <input
-                      type="checkbox"
-                      checked={filters.status.includes(s)}
-                      onChange={() => toggleStatus(s)}
-                      className="w-3.5 h-3.5 rounded border-[#CBD5E1] text-[#1A4F8A] focus:ring-[#1A4F8A]"
-                    />
-                    <span className="text-[#0F172A]">{displayStatus(s)}</span>
-                  </label>
-                ))}
-              </div>
+          {/* Status */}
+          <div className="mb-3">
+            <p className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">
+              Status
+            </p>
+            <div className="flex flex-col gap-1 max-h-[140px] overflow-y-auto">
+              {ALL_STATUSES.map((s) => (
+                <label key={s} className="flex items-center gap-2 cursor-pointer text-[12px]">
+                  <input
+                    type="checkbox"
+                    checked={filters.status.includes(s)}
+                    onChange={() => toggleStatus(s)}
+                    className="w-3.5 h-3.5 rounded border-[#CBD5E1] text-[#1A4F8A] focus:ring-[#1A4F8A]"
+                  />
+                  <span className="text-[#0F172A]">{displayStatus(s)}</span>
+                </label>
+              ))}
             </div>
+          </div>
 
           {/* Kecamatan */}
-            {districts.length > 0 && (
-              <div className="mb-3">
-                <p className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">Kecamatan</p>
-                <select
-                  value={filters.district}
-                  onChange={(e) => updateFilter({ district: e.target.value })}
-                  className="w-full text-[12px] px-2 py-1.5 rounded-lg border border-[#CBD5E1] bg-white text-[#0F172A] focus:outline-none focus:ring-1 focus:ring-[#1A4F8A]"
-                >
-                  <option value="">Semua Kecamatan</option>
-                  {districts.map((d: string) => {
-                    const ds = districtStats[d];
-                    return (
-                      <option key={d} value={d}>
-                        {d}{ds ? ` (${ds.total})` : ""}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-            )}
-
-            {/* UPR */}
-            {uprList.length > 0 && (
-              <div className="mb-3">
-                <p className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">UPR / Tim Satgas</p>
-                <select
-                  value={filters.upr_id}
-                  onChange={(e) => updateFilter({ upr_id: e.target.value })}
-                  className="w-full text-[12px] px-2 py-1.5 rounded-lg border border-[#CBD5E1] bg-white text-[#0F172A] focus:outline-none focus:ring-1 focus:ring-[#1A4F8A]"
-                >
-                  <option value="">Semua UPR</option>
-                  {uprList.map((u) => (
-                    <option key={u.id} value={String(u.id)}>
-                      {u.name}{u.wilayah ? ` (${u.wilayah})` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Deadline Status */}
+          {districts.length > 0 && (
             <div className="mb-3">
               <p className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">
-                Deadline
+                Kecamatan
               </p>
               <select
-                value={filters.status_deadline}
-                onChange={(e) => updateFilter({ status_deadline: e.target.value, deadline_hari: "" })}
+                value={filters.district}
+                onChange={(e) => updateFilter({ district: e.target.value })}
                 className="w-full text-[12px] px-2 py-1.5 rounded-lg border border-[#CBD5E1] bg-white text-[#0F172A] focus:outline-none focus:ring-1 focus:ring-[#1A4F8A]"
               >
-                <option value="">Semua</option>
-                <option value="terlambat">Terlewat Deadline</option>
-                <option value="tepat_waktu">Tepat Waktu</option>
+                <option value="">Semua Kecamatan</option>
+                {districts.map((d: string) => {
+                  const ds = districtStats[d];
+                  return (
+                    <option key={d} value={d}>
+                      {d}
+                      {ds ? ` (${ds.total})` : ""}
+                    </option>
+                  );
+                })}
               </select>
             </div>
+          )}
 
-            {!isDesktop && activeFilterCount > 0 && (
-              <button
-                type="button"
-                onClick={resetFilters}
-                className="mt-3 w-full py-1.5 text-[12px] text-[#1A4F8A] font-medium border border-[#E2E8F0] rounded-lg hover:bg-[#F8FAFC]"
+          {/* UPTD */}
+          {teamList.length > 0 && (
+            <div className="mb-3">
+              <p className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">
+                UPTD / Tim Satgas
+              </p>
+              <select
+                value={filters.uptd_id}
+                onChange={(e) => updateFilter({ uptd_id: e.target.value })}
+                className="w-full text-[12px] px-2 py-1.5 rounded-lg border border-[#CBD5E1] bg-white text-[#0F172A] focus:outline-none focus:ring-1 focus:ring-[#1A4F8A]"
               >
-                Reset Filter
-              </button>
-            )}
+                <option value="">Semua UPTD</option>
+                {teamList.map((u) => {
+                  const optValue = u.uptd?.id ?? u.id;
+                  const optLabel = u.uptd?.nama ?? u.name;
+                  return (
+                    <option key={optValue} value={String(optValue)}>
+                      {optLabel}
+                      {u.wilayah ? ` (${u.wilayah})` : ""}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
+
+          {/* Deadline Status */}
+          <div className="mb-3">
+            <p className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">
+              Deadline
+            </p>
+            <select
+              value={filters.status_deadline}
+              onChange={(e) => updateFilter({ status_deadline: e.target.value, deadline_hari: "" })}
+              className="w-full text-[12px] px-2 py-1.5 rounded-lg border border-[#CBD5E1] bg-white text-[#0F172A] focus:outline-none focus:ring-1 focus:ring-[#1A4F8A]"
+            >
+              <option value="">Semua</option>
+              <option value="terlambat">Terlewat Deadline</option>
+              <option value="tepat_waktu">Tepat Waktu</option>
+            </select>
           </div>
+
+          {!isDesktop && activeFilterCount > 0 && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="mt-3 w-full py-1.5 text-[12px] text-[#1A4F8A] font-medium border border-[#E2E8F0] rounded-lg hover:bg-[#F8FAFC]"
+            >
+              Reset Filter
+            </button>
+          )}
         </div>
+      </div>
 
       {/* Floating reopen stats button (always mounted) */}
       <button
         type="button"
         onClick={() => setShowStats(true)}
         className={`absolute top-3 right-2 z-[1000] w-9 h-9 bg-white rounded-lg shadow-md border border-[#E2E8F0] flex items-center justify-center hover:bg-[#F8FAFC] transition-all duration-200 ease-out ${
-          showStats ? 'opacity-0 scale-75 pointer-events-none' : 'opacity-100 scale-100'
+          showStats ? "opacity-0 scale-75 pointer-events-none" : "opacity-100 scale-100"
         }`}
         aria-label="Buka ringkasan"
       >
@@ -772,9 +828,7 @@ export function PetaInteraktif({
       {/* Stats Panel (always mounted, animates) */}
       <div
         className={`absolute top-3 right-3 z-[1000] transition-all duration-200 ease-out ${
-          showStats
-            ? 'opacity-100 translate-y-0'
-            : 'opacity-0 -translate-y-2 pointer-events-none'
+          showStats ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 pointer-events-none"
         }`}
         style={{ width: 176, maxHeight: "calc(100% - 24px)" }}
         aria-hidden={!showStats}
@@ -793,11 +847,15 @@ export function PetaInteraktif({
               </button>
             </div>
 
-            <p className="text-[24px] font-bold text-[#0F172A] leading-none mb-3">{mapStats.total}</p>
+            <p className="text-[24px] font-bold text-[#0F172A] leading-none mb-3">
+              {mapStats.total}
+            </p>
 
             {/* By Severity */}
             <div className="mb-3">
-              <p className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">Tingkat Kerusakan</p>
+              <p className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">
+                Tingkat Kerusakan
+              </p>
               <div className="flex flex-col gap-1">
                 {(["berat", "sedang", "ringan"] as const).map((key) => {
                   const cfg = SEVERITY_CONFIG[key];
@@ -805,7 +863,10 @@ export function PetaInteraktif({
                   const pct = mapStats.total > 0 ? (count / mapStats.total) * 100 : 0;
                   return (
                     <div key={key} className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: cfg.color }} />
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ background: cfg.color }}
+                      />
                       <span className="text-[11px] text-[#475569] flex-1">{cfg.label}</span>
                       <span className="text-[11px] font-semibold text-[#0F172A]">{count}</span>
                       <div className="w-12 h-1.5 bg-[#F1F5F9] rounded-full overflow-hidden">
@@ -822,9 +883,19 @@ export function PetaInteraktif({
 
             {/* By Status */}
             <div className="mb-2">
-              <p className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">Status</p>
+              <p className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider mb-1.5">
+                Status
+              </p>
               <div className="flex flex-col gap-0.5">
-                {(["Menunggu Review", "Disetujui", "Sedang Diperbaiki", "Selesai", "Ditolak"] as const).map((key) => {
+                {(
+                  [
+                    "Menunggu Review",
+                    "Disetujui",
+                    "Sedang Diperbaiki",
+                    "Selesai",
+                    "Ditolak",
+                  ] as const
+                ).map((key) => {
                   const count = (mapStats.by_status as any)[key] ?? 0;
                   if (count === 0) return null;
                   return (
@@ -837,7 +908,9 @@ export function PetaInteraktif({
               </div>
             </div>
 
-            {(mapStats.terlambat_count > 0 || (mapStats.terlambat_review ?? 0) > 0 || (mapStats.terlambat_resolusi ?? 0) > 0) && (
+            {(mapStats.terlambat_count > 0 ||
+              (mapStats.terlambat_review ?? 0) > 0 ||
+              (mapStats.terlambat_resolusi ?? 0) > 0) && (
               <div className="mt-2 pt-2 border-t border-[#F1F5F9] space-y-1">
                 {mapStats.terlambat_count > 0 && (
                   <div className="flex items-center gap-1">
@@ -874,7 +947,9 @@ export function PetaInteraktif({
         {/* Zoom Layer Indicator */}
         <div className="bg-white/90 backdrop-blur-sm border border-[#E2E8F0] rounded-lg px-2.5 py-1.5 shadow-sm">
           <div className="flex items-center gap-1.5 mb-1">
-            <span className="text-[9px] font-semibold text-[#64748B] uppercase tracking-wider">Layer</span>
+            <span className="text-[9px] font-semibold text-[#64748B] uppercase tracking-wider">
+              Layer
+            </span>
             <span className="text-[10px] text-[#0F172A] font-medium">{zoomLabel}</span>
           </div>
           <div className="flex items-center gap-1">
@@ -885,9 +960,7 @@ export function PetaInteraktif({
                 style={{
                   width: zoomLevel === z ? 12 : 6,
                   background:
-                    z < POLYGON_MIN_ZOOM ? "#94A3B8" :
-                    z >= UNCLUSTER_ZOOM ? "#1A4F8A" :
-                    "#3B82F6",
+                    z < POLYGON_MIN_ZOOM ? "#94A3B8" : z >= UNCLUSTER_ZOOM ? "#1A4F8A" : "#3B82F6",
                   opacity: zoomLevel === z ? 1 : 0.4,
                 }}
               />
@@ -899,14 +972,16 @@ export function PetaInteraktif({
         <div
           className={`transition-all duration-200 ease-out ${
             showLegend
-              ? 'opacity-100 translate-y-0'
-              : 'opacity-0 translate-y-1 pointer-events-none absolute'
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 translate-y-1 pointer-events-none absolute"
           }`}
           aria-hidden={!showLegend}
         >
           <div className="bg-white/90 backdrop-blur-sm border border-[#E2E8F0] rounded-lg px-2 py-1.5 flex flex-col gap-0.5 shadow-sm">
             <div className="flex items-center justify-between mb-0.5">
-              <p className="text-[9px] font-semibold text-[#64748B] uppercase tracking-wider">Tingkat Kerusakan</p>
+              <p className="text-[9px] font-semibold text-[#64748B] uppercase tracking-wider">
+                Tingkat Kerusakan
+              </p>
               <button
                 type="button"
                 onClick={() => setShowLegend(false)}
@@ -923,24 +998,55 @@ export function PetaInteraktif({
               </div>
             ))}
             <div className="border-t border-[#E2E8F0] my-1" />
-            <p className="text-[9px] font-semibold text-[#64748B] uppercase tracking-wider mb-0.5">Status</p>
+            <p className="text-[9px] font-semibold text-[#64748B] uppercase tracking-wider mb-0.5">
+              Status
+            </p>
             <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full shrink-0" style={{ background: "#16A34A", border: "2px solid white", boxShadow: "0 0 0 1px #E2E8F0" }} />
+              <div
+                className="w-3 h-3 rounded-full shrink-0"
+                style={{
+                  background: "#16A34A",
+                  border: "2px solid white",
+                  boxShadow: "0 0 0 1px #E2E8F0",
+                }}
+              />
               <span className="text-[10px] text-[#475569] whitespace-nowrap">Selesai</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full shrink-0" style={{ background: "#DC2626", border: "2px solid white", boxShadow: "0 0 0 1px #E2E8F0" }} />
+              <div
+                className="w-3 h-3 rounded-full shrink-0"
+                style={{
+                  background: "#DC2626",
+                  border: "2px solid white",
+                  boxShadow: "0 0 0 1px #E2E8F0",
+                }}
+              />
               <span className="text-[10px] text-[#475569] whitespace-nowrap">Ditolak</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full shrink-0" style={{ background: "#2563EB", border: "2px solid white", boxShadow: "0 0 0 1px #E2E8F0" }} />
-              <span className="text-[10px] text-[#475569] whitespace-nowrap">Disetujui / Diperbaiki</span>
+              <div
+                className="w-3 h-3 rounded-full shrink-0"
+                style={{
+                  background: "#2563EB",
+                  border: "2px solid white",
+                  boxShadow: "0 0 0 1px #E2E8F0",
+                }}
+              />
+              <span className="text-[10px] text-[#475569] whitespace-nowrap">
+                Disetujui / Diperbaiki
+              </span>
             </div>
             <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full shrink-0" style={{ background: "#64748B", border: "2px solid white", boxShadow: "0 0 0 1px #E2E8F0" }} />
+              <div
+                className="w-3 h-3 rounded-full shrink-0"
+                style={{
+                  background: "#64748B",
+                  border: "2px solid white",
+                  boxShadow: "0 0 0 1px #E2E8F0",
+                }}
+              />
               <span className="text-[10px] text-[#475569] whitespace-nowrap">Menunggu Review</span>
             </div>
-            
           </div>
         </div>
         {/* Legend toggle (always mounted) */}
@@ -949,8 +1055,8 @@ export function PetaInteraktif({
           onClick={() => setShowLegend(true)}
           className={`self-end transition-all duration-200 ease-out ${
             showLegend
-              ? 'opacity-0 scale-75 pointer-events-none w-0 h-0 overflow-hidden'
-              : 'opacity-100 scale-100 w-8 h-8 bg-white mb-3'
+              ? "opacity-0 scale-75 pointer-events-none w-0 h-0 overflow-hidden"
+              : "opacity-100 scale-100 w-8 h-8 bg-white mb-3"
           } flex items-center justify-center rounded-lg hover:bg-[#F1F5F9] transition-colors shadow-md`}
           aria-label="Buka legend"
         >

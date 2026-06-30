@@ -1,4 +1,4 @@
-f=open('D:/JalanKita/Frontend-stable/dist/client/index.html','r',encoding='utf-8')
+f=open('D:/DeltaJalan/Frontend-stable/dist/client/index.html','r',encoding='utf-8')
 c=f.read()
 # Find all script tags
 import re

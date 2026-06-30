@@ -141,7 +141,10 @@ export function BatchMapPreview({ locations }: BatchMapPreviewProps) {
   }, [locations, online]);
 
   return (
-    <div className="w-full h-[220px] rounded-xl overflow-hidden border border-border-subtle relative" style={mapContainerStyle}>
+    <div
+      className="w-full h-[220px] rounded-xl overflow-hidden border border-border-subtle relative"
+      style={mapContainerStyle}
+    >
       <div ref={mapRef} className="w-full h-full" />
       {!online && locations.length > 0 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/40 pointer-events-none">

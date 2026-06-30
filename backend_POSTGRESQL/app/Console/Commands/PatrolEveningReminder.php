@@ -13,7 +13,7 @@ class PatrolEveningReminder extends Command
 {
     protected $signature = 'patrol:reminder-evening';
 
-    protected $description = 'Send 17:00 reminder to petugas to complete today patrol reports';
+    protected $description = 'Send 16:00 reminder to petugas to complete today patrol reports';
 
     private const DAY_MAP = [
         'Minggu' => 0, 'Senin' => 1, 'Selasa' => 2, 'Rabu' => 3,
@@ -52,6 +52,7 @@ class PatrolEveningReminder extends Command
                 Notification::send($petugas, new PatrolEveningNotification(
                     teamName: $schedule->team?->name ?? 'Tim Satgas',
                     tanggal: $today->format('Y-m-d'),
+                    jamSelesai: $schedule->jam_selesai ?? '16:00',
                 ));
                 $sent++;
             }

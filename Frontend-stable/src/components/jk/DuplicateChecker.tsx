@@ -71,14 +71,14 @@ export function DuplicateChecker({
       <div className="flex items-start gap-2.5 bg-[#FEF3C7] border border-[#FCD34D] rounded-xl px-4 py-3">
         <Icon name="warning" className="text-[#92400E] !text-[20px] shrink-0 mt-0.5" filled />
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-semibold text-[#92400E]">
-            Laporan aktif ditemukan
-          </p>
+          <p className="text-[13px] font-semibold text-[#92400E]">Laporan aktif ditemukan</p>
           <p className="text-[12px] text-[#92400E] mt-0.5 leading-relaxed">
-            <strong>{activeReport.report_code}</strong> — {activeReport.road_name}, Kec. {activeReport.district}
+            <strong>{activeReport.report_code}</strong> — {activeReport.road_name}, Kec.{" "}
+            {activeReport.district}
           </p>
           <p className="text-[11px] text-[#92400E] mt-0.5 opacity-75">
-            Dilaporkan pada {formatDate(activeReport.created_at)} &middot; Status: {activeReport.status}
+            Dilaporkan pada {formatDate(activeReport.created_at)} &middot; Status:{" "}
+            {activeReport.status}
           </p>
 
           {isEvidenceAllowed && (
@@ -89,7 +89,11 @@ export function DuplicateChecker({
 
               {isSuccess && (
                 <div className="flex items-start gap-2 bg-[#D1FAE5] border border-[#6EE7B7] rounded-lg px-3 py-2 mb-2">
-                  <Icon name="check_circle" className="text-[#065F46] !text-[16px] shrink-0 mt-0.5" filled />
+                  <Icon
+                    name="check_circle"
+                    className="text-[#065F46] !text-[16px] shrink-0 mt-0.5"
+                    filled
+                  />
                   <p className="text-[12px] text-[#065F46] leading-snug">{addEvidenceMessage}</p>
                 </div>
               )}
@@ -127,7 +131,8 @@ export function DuplicateChecker({
 
           {isFinalStatus && (
             <p className="text-[11px] text-[#92400E] mt-2 opacity-75">
-              Laporan ini sudah diproses (status: {activeReport.status}). Tidak dapat menambahkan bukti foto.
+              Laporan ini sudah diproses (status: {activeReport.status}). Tidak dapat menambahkan
+              bukti foto.
             </p>
           )}
 

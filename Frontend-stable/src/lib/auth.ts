@@ -42,7 +42,7 @@ export function saveAuth(user: User, token: string): void {
   if (typeof window !== "undefined") {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
-    window.dispatchEvent(new CustomEvent('auth:login'));
+    window.dispatchEvent(new CustomEvent("auth:login"));
   }
 }
 
@@ -52,7 +52,7 @@ export function clearAuth(): void {
   if (typeof window !== "undefined") {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
-    window.dispatchEvent(new CustomEvent('auth:logout'));
+    window.dispatchEvent(new CustomEvent("auth:logout"));
   }
 }
 

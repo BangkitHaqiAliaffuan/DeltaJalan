@@ -4,19 +4,23 @@ import { getCurrentUser, clearAuth } from "@/lib/auth";
 import { useEffect, useState, type ReactNode } from "react";
 
 const ADMIN_MENU = [
-  { section: "Manajemen", items: [
-    { icon: "dashboard", label: "Dashboard", to: "/admin/dashboard" },
-    { icon: "people", label: "User", to: "/admin/users" },
-    { icon: "group_work", label: "Tim", to: "/admin/teams" },
-
-    { icon: "groups", label: "UPR", to: "/admin/uprs" },
-    { icon: "description", label: "Laporan", to: "/admin/reports" },
-  ]},
-  { section: "Sistem", items: [
-    { icon: "file_download", label: "Export", to: "/admin/export" },
-    { icon: "history", label: "Aktivitas", to: "/admin/activity" },
-    { icon: "settings", label: "Pengaturan", to: "/admin/config" },
-  ]},
+  {
+    section: "Manajemen",
+    items: [
+      { icon: "dashboard", label: "Dashboard", to: "/admin/dashboard" },
+      { icon: "people", label: "User", to: "/admin/users" },
+      { icon: "groups", label: "Tim Satgas", to: "/admin/teams" },
+      { icon: "description", label: "Laporan", to: "/admin/reports" },
+    ],
+  },
+  {
+    section: "Sistem",
+    items: [
+      { icon: "file_download", label: "Export", to: "/admin/export" },
+      { icon: "history", label: "Aktivitas", to: "/admin/activity" },
+      { icon: "settings", label: "Pengaturan", to: "/admin/config" },
+    ],
+  },
 ];
 
 export function AdminLayout({ children }: { children?: ReactNode }) {
@@ -39,18 +43,27 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex">
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#1e40af] transform transition-transform md:translate-x-0 md:sticky md:top-0 md:h-screen md:z-auto ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#1e40af] transform transition-transform md:translate-x-0 md:sticky md:top-0 md:h-screen md:z-auto ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+      >
         <div className="flex items-center justify-between px-5 h-[68px] border-b border-white/15">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0 border border-white/30">
               <span className="text-white text-[15px] font-bold">DJ</span>
             </div>
             <div className="min-w-0">
-              <span className="font-semibold text-white text-[15px] leading-tight block truncate">DeltaJalan</span>
-              <span className="text-white/60 text-[10px] leading-tight block truncate">Dinas PU Bina Marga</span>
+              <span className="font-semibold text-white text-[15px] leading-tight block truncate">
+                DeltaJalan
+              </span>
+              <span className="text-white/60 text-[10px] leading-tight block truncate">
+                Dinas PU Bina Marga
+              </span>
             </div>
           </div>
-          <button onClick={() => setSidebarOpen(false)} className="md:hidden text-white/60 hover:text-white">
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden text-white/60 hover:text-white"
+          >
             <Icon name="close" className="!text-[22px]" />
           </button>
         </div>
@@ -89,8 +102,12 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
               <span className="text-white text-[13px] font-bold">{user?.initials ?? "A"}</span>
             </div>
             <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-white text-[13px] font-semibold truncate leading-tight">{user?.name ?? "Admin"}</span>
-              <span className="text-white/60 text-[11px] truncate leading-tight capitalize">Admin</span>
+              <span className="text-white text-[13px] font-semibold truncate leading-tight">
+                {user?.name ?? "Admin"}
+              </span>
+              <span className="text-white/60 text-[11px] truncate leading-tight capitalize">
+                Admin
+              </span>
             </div>
           </div>
           <button
@@ -104,12 +121,18 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
       </aside>
 
       {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/40 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
+        <div
+          className="fixed inset-0 bg-black/40 z-40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
       )}
 
       <div className="flex-1 min-w-0 flex flex-col">
         <header className="sticky top-0 z-30 bg-white border-b border-[#E2E8F0] px-4 md:px-6 h-14 flex items-center gap-3 shrink-0">
-          <button onClick={() => setSidebarOpen(true)} className="md:hidden text-[#475569] hover:text-[#0F172A] -ml-1 w-9 h-9 flex items-center justify-center rounded-lg hover:bg-[#F1F5F9] transition-colors">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="md:hidden text-[#475569] hover:text-[#0F172A] -ml-1 w-9 h-9 flex items-center justify-center rounded-lg hover:bg-[#F1F5F9] transition-colors"
+          >
             <Icon name="menu" className="!text-[22px]" />
           </button>
           <div className="flex-1" />
@@ -120,9 +143,7 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
             {user?.initials ?? "A"}
           </div>
         </header>
-        <main className="flex-1 p-4 md:p-6 overflow-auto">
-          {children}
-        </main>
+        <main className="flex-1 p-4 md:p-6 overflow-auto">{children}</main>
       </div>
     </div>
   );

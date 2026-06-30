@@ -24,7 +24,12 @@ export interface UseActiveReportCheckReturn {
     reportId: string,
     file: File,
     reporterName: string,
-    options?: { isBatch?: boolean; catatan?: string; kerusakanPanjang?: string; kerusakanLebar?: string },
+    options?: {
+      isBatch?: boolean;
+      catatan?: string;
+      kerusakanPanjang?: string;
+      kerusakanLebar?: string;
+    },
   ) => Promise<void>;
   reset: () => void;
 }
@@ -48,59 +53,83 @@ export function useDuplicateCheck(
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const callCheck = useCallback(async (params: {
-    lat?: number; lng?: number;
-    district?: string; roadName?: string; fileHash?: string;
-  }) => {
-    if (abortControllerRef.current) abortControllerRef.current.abort();
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
+  const callCheck = useCallback(
+    async (params: {
+      lat?: number;
+      lng?: number;
+      district?: string;
+      roadName?: string;
+      fileHash?: string;
+    }) => {
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
 
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    setChecking(true);
+      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      setChecking(true);
 
-    try {
-      const url = new URL(`${window.location.origin}${API_BASE_URL}/v1/reports/check-duplicate`);
-      if (params.lat !== undefined && params.lng !== undefined) {
-        url.searchParams.set("latitude", params.lat.toString());
-        url.searchParams.set("longitude", params.lng.toString());
-      }
-      if (params.district) url.searchParams.set("district", params.district);
-      if (params.roadName) url.searchParams.set("road_name", params.roadName.trim());
-      if (params.fileHash) url.searchParams.set("file_hash", params.fileHash);
+      try {
+        const url = new URL(`${window.location.origin}${API_BASE_URL}/v1/reports/check-duplicate`);
+        if (params.lat !== undefined && params.lng !== undefined) {
+          url.searchParams.set("latitude", params.lat.toString());
+          url.searchParams.set("longitude", params.lng.toString());
+        }
+        if (params.district) url.searchParams.set("district", params.district);
+        if (params.roadName) url.searchParams.set("road_name", params.roadName.trim());
+        if (params.fileHash) url.searchParams.set("file_hash", params.fileHash);
 
-      const res = await fetch(url.toString(), { signal: controller.signal });
-      clearTimeout(timeoutId);
-      if (!res.ok) {
+        const res = await fetch(url.toString(), { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!res.ok) {
+          setActiveReport(null);
+          setChecking(false);
+          return;
+        }
+        const data = await res.json();
+        setActiveReport(data.report ?? null);
+        setChecking(false);
+      } catch {
+        clearTimeout(timeoutId);
         setActiveReport(null);
         setChecking(false);
-        return;
       }
-      const data = await res.json();
-      setActiveReport(data.report ?? null);
-      setChecking(false);
-    } catch {
-      clearTimeout(timeoutId);
-      setActiveReport(null);
-      setChecking(false);
-    }
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (isGpsActive && lat !== null && lng !== null) {
-      callCheck({ lat, lng, district: district || undefined, roadName: roadName || undefined, fileHash: fileHash || undefined });
+      callCheck({
+        lat,
+        lng,
+        district: district || undefined,
+        roadName: roadName || undefined,
+        fileHash: fileHash || undefined,
+      });
     }
   }, [isGpsActive, lat, lng]);
 
   useEffect(() => {
     if (fileHash) {
-      callCheck({ lat: lat ?? undefined, lng: lng ?? undefined, district: district || undefined, roadName: roadName || undefined, fileHash });
+      callCheck({
+        lat: lat ?? undefined,
+        lng: lng ?? undefined,
+        district: district || undefined,
+        roadName: roadName || undefined,
+        fileHash,
+      });
     }
   }, [fileHash]);
 
   useEffect(() => {
     if (!district) return;
-    callCheck({ lat: lat ?? undefined, lng: lng ?? undefined, district, roadName: roadName || undefined, fileHash: fileHash || undefined });
+    callCheck({
+      lat: lat ?? undefined,
+      lng: lng ?? undefined,
+      district,
+      roadName: roadName || undefined,
+      fileHash: fileHash || undefined,
+    });
   }, [district]);
 
   useEffect(() => {
@@ -108,56 +137,75 @@ export function useDuplicateCheck(
     if (isGpsActive) return;
     if (!district) return;
     debounceTimerRef.current = setTimeout(() => {
-      callCheck({ lat: lat ?? undefined, lng: lng ?? undefined, district, roadName: roadName || undefined, fileHash: fileHash || undefined });
+      callCheck({
+        lat: lat ?? undefined,
+        lng: lng ?? undefined,
+        district,
+        roadName: roadName || undefined,
+        fileHash: fileHash || undefined,
+      });
     }, 300);
-    return () => { if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current); };
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
   }, [roadName]);
 
-  const submitEvidence = useCallback(async (
-    reportId: string,
-    file: File,
-    reporterName: string,
-    options?: { isBatch?: boolean; catatan?: string; kerusakanPanjang?: string; kerusakanLebar?: string },
-  ) => {
-    setAddEvidenceState("loading");
-    setAddEvidenceMessage("");
+  const submitEvidence = useCallback(
+    async (
+      reportId: string,
+      file: File,
+      reporterName: string,
+      options?: {
+        isBatch?: boolean;
+        catatan?: string;
+        kerusakanPanjang?: string;
+        kerusakanLebar?: string;
+      },
+    ) => {
+      setAddEvidenceState("loading");
+      setAddEvidenceMessage("");
 
-    try {
-      const fd = new FormData();
-      fd.append("image", file);
-      fd.append("reporter_name", reporterName);
-      if (options?.isBatch) fd.append("is_batch", "1");
-      if (options?.catatan) fd.append("catatan", options.catatan);
-      if (options?.kerusakanPanjang) fd.append("kerusakan_panjang", options.kerusakanPanjang);
-      if (options?.kerusakanLebar) fd.append("kerusakan_lebar", options.kerusakanLebar);
+      try {
+        const fd = new FormData();
+        fd.append("image", file);
+        fd.append("reporter_name", reporterName);
+        if (options?.isBatch) fd.append("is_batch", "1");
+        if (options?.catatan) fd.append("catatan", options.catatan);
+        if (options?.kerusakanPanjang) fd.append("kerusakan_panjang", options.kerusakanPanjang);
+        if (options?.kerusakanLebar) fd.append("kerusakan_lebar", options.kerusakanLebar);
 
-      const token = localStorage.getItem("auth_token") ?? localStorage.getItem("jalankita_token");
-      const response = await fetch(`${API_BASE_URL}/v1/reports/${reportId}/add-evidence`, {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: fd,
-      });
+        const token = localStorage.getItem("auth_token") ?? localStorage.getItem("jalankita_token");
+        const response = await fetch(`${API_BASE_URL}/v1/reports/${reportId}/add-evidence`, {
+          method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body: fd,
+        });
 
-      const data = await response.json();
+        const data = await response.json();
 
-      if (!response.ok) {
-        const msg = data.error_code === "DUPLICATE_IMAGE"
-          ? "Foto ini sudah pernah dikirim sebelumnya."
-          : data.error_code === "INVALID_STATUS"
-            ? data.message
-            : (data.message ?? "Gagal mengirim bukti foto.");
+        if (!response.ok) {
+          const msg =
+            data.error_code === "DUPLICATE_IMAGE"
+              ? "Foto ini sudah pernah dikirim sebelumnya."
+              : data.error_code === "INVALID_STATUS"
+                ? data.message
+                : (data.message ?? "Gagal mengirim bukti foto.");
+          setAddEvidenceState("error");
+          setAddEvidenceMessage(msg);
+          return;
+        }
+
+        setAddEvidenceState("success");
+        setAddEvidenceMessage(
+          `Foto bukti berhasil ditambahkan ke laporan ${data.data?.report?.report_code ?? ""}.`,
+        );
+      } catch {
         setAddEvidenceState("error");
-        setAddEvidenceMessage(msg);
-        return;
+        setAddEvidenceMessage("Tidak dapat terhubung ke server. Silakan coba lagi.");
       }
-
-      setAddEvidenceState("success");
-      setAddEvidenceMessage(`Foto bukti berhasil ditambahkan ke laporan ${data.data?.report?.report_code ?? ""}.`);
-    } catch {
-      setAddEvidenceState("error");
-      setAddEvidenceMessage("Tidak dapat terhubung ke server. Silakan coba lagi.");
-    }
-  }, []);
+    },
+    [],
+  );
 
   const reset = useCallback(() => {
     if (abortControllerRef.current) abortControllerRef.current.abort();

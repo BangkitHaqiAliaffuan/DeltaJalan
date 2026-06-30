@@ -73,25 +73,30 @@ class TeamRoadSeeder extends Seeder
         ];
 
         $count = 0;
+        $dateCounter = [];
         foreach ($roadsByTeam as $teamName => $roads) {
             $team = $teams[$teamName] ?? null;
             if (! $team) {
                 continue;
             }
             foreach ($roads as $r) {
+                $key = $team->id . '_' . $r[1];
+                $dateCounter[$key] = ($dateCounter[$key] ?? 6) + 1;
                 SurveyTask::create([
                     'road_name' => $r[0],
                     'kecamatan' => $r[1],
                     'road_length_m' => $r[2],
                     'team_id' => $team->id,
                     'status' => 'aktif',
-                    'tanggal_patroli' => today()->subDays(rand(0, 7))->format('Y-m-d'),
+                    // PENTING: Hanya buat task HISTORIS (7-30 hari lalu)
+                    // Task untuk hari ini dan masa depan harus dibuat oleh patrol:generate-tasks
+                    'tanggal_patroli' => today()->subDays($dateCounter[$key])->format('Y-m-d'),
                     'alasan_tugas' => 'rutin',
                 ]);
                 $count++;
             }
         }
 
-        $this->command->info("✅ TeamRoadSeeder: {$count} ruas jalan real untuk 5 tim Satgas (sumber: sidoarjokab.go.id — 39 ruas 2024).");
+        $this->command->info("✅ TeamRoadSeeder: {$count} ruas jalan real untuk 5 tim Satgas (data historis 7-30 hari lalu).");
     }
 }

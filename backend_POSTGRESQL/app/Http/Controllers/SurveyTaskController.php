@@ -3,9 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\SurveyTask;
+use App\Models\User;
+use App\Notifications\SurveyTaskCancelledNotification;
+use App\Notifications\SurveyTaskCompletedNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 
 class SurveyTaskController extends Controller
 {
@@ -41,7 +46,8 @@ class SurveyTaskController extends Controller
             if ($tanggal === 'today') {
                 $tanggal = now()->format('Y-m-d');
             }
-            $query->where('tanggal_patroli', $tanggal);
+            // Use DATE() to compare only date part, not datetime
+            $query->whereRaw('DATE(tanggal_patroli) = ?', [$tanggal]);
         }
 
         $perPage = min((int) $request->get('per_page', 20), 100);
@@ -106,6 +112,17 @@ class SurveyTaskController extends Controller
             $validated['alasan_tugas'] = 'rutin';
         }
 
+        $existingTask = SurveyTask::where('team_id', $validated['team_id'])
+            ->where('tanggal_patroli', $validated['tanggal_patroli'])
+            ->where('status', 'aktif')
+            ->exists();
+
+        if ($existingTask) {
+            return response()->json([
+                'message' => 'Tim ini sudah memiliki tugas aktif pada tanggal tersebut. Selesaikan tugas yang ada terlebih dahulu.',
+            ], 409);
+        }
+
         $task = DB::transaction(function () use ($validated) {
             return SurveyTask::create($validated);
         });
@@ -127,6 +144,7 @@ class SurveyTaskController extends Controller
             'reports' => function ($q) {
                 $q->orderBy('created_at', 'desc');
             },
+            'reports.firstPhoto',
         ])->withCount('reports')->find($id);
 
         if (! $task) {
@@ -138,6 +156,8 @@ class SurveyTaskController extends Controller
                 return response()->json(['message' => 'Forbidden'], 403);
             }
         }
+
+        $task->reports->each(fn ($r) => $r->append('first_photo_url'));
 
         return response()->json(['data' => $task]);
     }
@@ -210,6 +230,15 @@ class SurveyTaskController extends Controller
             'selesai_at' => now(),
         ]);
 
+        try {
+            $supervisors = User::where('role', 'supervisor')->get();
+            if ($supervisors->isNotEmpty()) {
+                Notification::send($supervisors, new SurveyTaskCompletedNotification($task));
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Gagal kirim notifikasi shift selesai: '.$e->getMessage());
+        }
+
         return response()->json(['message' => 'Shift berhasil diselesaikan.']);
     }
 
@@ -226,6 +255,15 @@ class SurveyTaskController extends Controller
         }
 
         $task->update(['status' => 'dibatalkan']);
+
+        try {
+            $supervisors = User::where('role', 'supervisor')->get();
+            if ($supervisors->isNotEmpty()) {
+                Notification::send($supervisors, new SurveyTaskCancelledNotification($task));
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Gagal kirim notifikasi shift dibatalkan: '.$e->getMessage());
+        }
 
         return response()->json(['message' => 'Shift berhasil dibatalkan.']);
     }

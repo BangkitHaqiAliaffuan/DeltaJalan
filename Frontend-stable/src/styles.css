@@ -186,7 +186,7 @@
   --color-on-tertiary-fixed: #380d00;
 
   --color-surface: #f6faff;
-  --color-on-surface: #0F172A;
+  --color-on-surface: #0f172a;
   --color-on-surface-variant: #475569;
   --color-surface-variant: #d9e4ed;
   --color-surface-bright: #f6faff;
@@ -203,9 +203,9 @@
 
   --color-outline: #757684;
   --color-outline-variant: #c4c5d5;
-  --color-border-subtle: #E2E8F0;
+  --color-border-subtle: #e2e8f0;
 
-  --color-error: #E11D48;
+  --color-error: #e11d48;
   --color-on-error: #ffffff;
   --color-error-container: #ffdad6;
   --color-on-error-container: #93000a;
@@ -213,14 +213,14 @@
   --color-inverse-surface: #2d3133;
   --color-inverse-primary: #b8c4ff;
 
-  --color-rusak-berat: #E11D48;
-  --color-rusak-sedang: #F97316;
-  --color-rusak-ringan: #F59E0B;
-  --color-selesai: #10B981;
+  --color-rusak-berat: #e11d48;
+  --color-rusak-sedang: #f97316;
+  --color-rusak-ringan: #f59e0b;
+  --color-selesai: #10b981;
 
-  --color-status-critical: #E11D48;
-  --color-status-success: #10B981;
-  --color-status-warning: #F59E0B;
+  --color-status-critical: #e11d48;
+  --color-status-success: #10b981;
+  --color-status-warning: #f59e0b;
 
   --spacing-margin-mobile: 16px;
   --spacing-xs: 4px;
@@ -269,22 +269,26 @@
 
   --animate-fade-in: fade-in 0.6s ease-out;
   --animate-slide-up: slide-up 0.6s ease-out;
-  --animate-slow-zoom: slow-zoom 25s ease-in-out infinite alternate;
 }
 
 @keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slide-up {
-  from { opacity: 0; transform: translateY(24px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes slow-zoom {
-  from { transform: scale(1); }
-  to { transform: scale(1.15); }
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 :root {
@@ -304,17 +308,17 @@
   --badge-sedang-text: #9a3412;
   --badge-sedang-border: #fdba74;
 
-  --badge-berat-bg: #E11D48;
+  --badge-berat-bg: #e11d48;
   --badge-berat-text: #ffffff;
-  --badge-berat-border: #E11D48;
+  --badge-berat-border: #e11d48;
 
   --badge-diproses-bg: #eff6ff;
   --badge-diproses-text: #1e40af;
   --badge-diproses-border: #93c5fd;
 
-  --badge-selesai-bg: #10B981;
+  --badge-selesai-bg: #10b981;
   --badge-selesai-text: #ffffff;
-  --badge-selesai-border: #10B981;
+  --badge-selesai-border: #10b981;
 }
 
 html,

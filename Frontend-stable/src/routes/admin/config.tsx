@@ -14,7 +14,11 @@ export const Route = createFileRoute("/admin/config")({
 });
 
 function RouteComponent() {
-  return <AdminLayout><AdminConfig /></AdminLayout>;
+  return (
+    <AdminLayout>
+      <AdminConfig />
+    </AdminLayout>
+  );
 }
 
 function AdminConfig() {
@@ -28,10 +32,18 @@ function AdminConfig() {
 
   const settingsQuery = useQuery({
     queryKey: ["admin-settings"],
-    queryFn: () => apiFetch("/api/settings", { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
+    queryFn: () =>
+      apiFetch("/api/settings", { headers: { Authorization: `Bearer ${token}` } }).then((r) =>
+        r.json(),
+      ),
   });
 
-  const data = settingsQuery.data as { success?: boolean; data?: { key: string; value: string; type: string; description: string }[] } | undefined;
+  const data = settingsQuery.data as
+    | {
+        success?: boolean;
+        data?: { key: string; value: string; type: string; description: string }[];
+      }
+    | undefined;
 
   useEffect(() => {
     const s = data?.data;
@@ -52,49 +64,89 @@ function AdminConfig() {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          settings: { deadline_review: deadlineReview, deadline_resolusi: deadlineResolusi, warning_hours: warningHours },
+          settings: {
+            deadline_review: deadlineReview,
+            deadline_resolusi: deadlineResolusi,
+            warning_hours: warningHours,
+          },
         }),
       });
       const r = await res.json();
-      if (r.success) { setMsg("Pengaturan berhasil disimpan."); qc.invalidateQueries({ queryKey: ["admin-settings"] }); }
-      else setMsg(r.message ?? "Gagal menyimpan.");
-    } catch { setMsg("Gagal terhubung ke server."); }
-    finally { setSaving(false); }
+      if (r.success) {
+        setMsg("Pengaturan berhasil disimpan.");
+        qc.invalidateQueries({ queryKey: ["admin-settings"] });
+      } else setMsg(r.message ?? "Gagal menyimpan.");
+    } catch {
+      setMsg("Gagal terhubung ke server.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-[22px] font-bold text-[#0F172A]">Pengaturan Sistem</h1>
-        <p className="text-[13px] text-[#64748B] mt-1">Konfigurasi parameter dan threshold sistem</p>
+        <p className="text-[13px] text-[#64748B] mt-1">
+          Konfigurasi parameter dan threshold sistem
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-[#E2E8F0] p-5">
           <h2 className="text-[15px] font-semibold text-[#0F172A] mb-4">Deadline & Threshold</h2>
           {msg && (
-            <div className={`mb-4 text-[13px] px-4 py-2 rounded-lg ${msg.includes("berhasil") ? "bg-emerald-50 text-[#10B981] border border-emerald-200" : "bg-red-50 text-[#E11D48] border border-red-200"}`}>
+            <div
+              className={`mb-4 text-[13px] px-4 py-2 rounded-lg ${msg.includes("berhasil") ? "bg-emerald-50 text-[#10B981] border border-emerald-200" : "bg-red-50 text-[#E11D48] border border-red-200"}`}
+            >
               {msg}
             </div>
           )}
           <div className="space-y-4">
             <div>
-              <label className="text-[12px] font-semibold text-[#475569] block mb-1">Batas Waktu Review (jam)</label>
-              <input type="number" value={deadlineReview} onChange={(e) => setDeadlineReview(e.target.value)} className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]" />
+              <label className="text-[12px] font-semibold text-[#475569] block mb-1">
+                Batas Waktu Review (jam)
+              </label>
+              <input
+                type="number"
+                value={deadlineReview}
+                onChange={(e) => setDeadlineReview(e.target.value)}
+                className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+              />
               <p className="text-[11px] text-[#94A3B8] mt-1">Default: 48 jam (2 hari)</p>
             </div>
             <div>
-              <label className="text-[12px] font-semibold text-[#475569] block mb-1">Batas Waktu Resolusi (jam)</label>
-              <input type="number" value={deadlineResolusi} onChange={(e) => setDeadlineResolusi(e.target.value)} className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]" />
+              <label className="text-[12px] font-semibold text-[#475569] block mb-1">
+                Batas Waktu Resolusi (jam)
+              </label>
+              <input
+                type="number"
+                value={deadlineResolusi}
+                onChange={(e) => setDeadlineResolusi(e.target.value)}
+                className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+              />
               <p className="text-[11px] text-[#94A3B8] mt-1">Default: 168 jam (7 hari)</p>
             </div>
             <div>
-              <label className="text-[12px] font-semibold text-[#475569] block mb-1">Peringatan Mendekati Deadline (jam sebelum)</label>
-              <input type="number" value={warningHours} onChange={(e) => setWarningHours(e.target.value)} className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]" />
+              <label className="text-[12px] font-semibold text-[#475569] block mb-1">
+                Peringatan Mendekati Deadline (jam sebelum)
+              </label>
+              <input
+                type="number"
+                value={warningHours}
+                onChange={(e) => setWarningHours(e.target.value)}
+                className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+              />
             </div>
           </div>
-          <button onClick={handleSave} disabled={saving} className="mt-4 bg-[#1A4F8A] text-white text-[13px] font-semibold px-4 py-2 rounded-lg hover:bg-[#15407A] transition-colors disabled:opacity-50 flex items-center gap-1">
-            {saving && <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="mt-4 bg-[#1A4F8A] text-white text-[13px] font-semibold px-4 py-2 rounded-lg hover:bg-[#15407A] transition-colors disabled:opacity-50 flex items-center gap-1"
+          >
+            {saving && (
+              <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            )}
             Simpan Pengaturan
           </button>
         </div>

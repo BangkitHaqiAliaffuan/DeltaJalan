@@ -4,8 +4,10 @@ import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { getCurrentUser, getToken } from "@/lib/auth";
 import { useSurveyList } from "@/hooks/useSurveyQueries";
-import { readExifGps, reverseGeocode, isNativePlatform, convertFileSrc } from "@/hooks/useLocationFromPhoto";
+import { usePatrolSchedules } from "@/hooks/usePatrolScheduleQueries";
+import { readExifGps, isNativePlatform, convertFileSrc } from "@/hooks/useLocationFromPhoto";
 import { PhotoExifGps } from "@jalankita/capacitor-exif-gps";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   setAiResult,
   setFormData,
@@ -18,8 +20,13 @@ import type { BatchPhotoResult } from "@/lib/aiStore";
 import { AnalyzingOverlay, type AnalyzeStage } from "@/components/jk/AnalyzingOverlay";
 import { Portal } from "@/components/jk/Portal";
 import { PatrolMap } from "@/components/jk/PatrolMap";
-import { validatePhotoDate, isExifBlocking, type PhotoDateValidationStatus } from "@/lib/validatePhotoDate";
+import {
+  validatePhotoDate,
+  isExifBlocking,
+  type PhotoDateValidationStatus,
+} from "@/lib/validatePhotoDate";
 import { FraudWarningModal } from "@/components/jk/FraudWarningModal";
+import { compressImage } from "@/lib/compressImage";
 
 export const Route = createFileRoute("/upload")({
   component: UploadPage,
@@ -47,6 +54,7 @@ function todayStr() {
 function UploadPage() {
   const { taskId } = Route.useSearch();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const user = getCurrentUser();
   const token = getToken() ?? "";
   const teamId = user?.team_id;
@@ -60,6 +68,7 @@ function UploadPage() {
     batchProgress?: number;
   } | null>(null);
   const [error, setError] = useState("");
+  const [processing, setProcessing] = useState(false);
 
   const [fraudModal, setFraudModal] = useState<{
     isOpen: boolean;
@@ -85,12 +94,59 @@ function UploadPage() {
   >(null);
   const replaceInputRef = useRef<HTMLInputElement>(null);
   const [replaceTargetIndex, setReplaceTargetIndex] = useState<number | null>(null);
+  const exifGpsRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const batchGpsRef = useRef<Array<{ lat: number; lng: number } | null>>([]);
 
   const { data: tasks = [], isFetching } = useSurveyList(
     teamId ? { team_id: teamId, tanggal_patroli: today } : undefined,
   );
 
-  const activeTask = taskId ? tasks.find((t) => t.id === taskId) : null;
+  // Get patrol schedules (more accurate for today's schedule)
+  const schedulesQuery = usePatrolSchedules(teamId ? { team_id: teamId } : undefined);
+  const schedules = (schedulesQuery.data as { data?: any[] } | undefined)?.data ?? [];
+
+  // Helper function to get today's day name in Indonesian
+  function todayHariName(): string {
+    const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+    return days[new Date().getDay()];
+  }
+
+  // Filter schedules to get today's expected kecamatan from patrol schedules
+  const todayHari = todayHariName();
+  const expectedKecamatanList = schedules
+    .filter((schedule: any) => {
+      const hariList = schedule.hari ?? [];
+      return hariList.includes(todayHari);
+    })
+    .map((schedule: any) => {
+      const hariList = schedule.hari ?? [];
+      const kecamatanList = schedule.kecamatan_list ?? [];
+      const todayIndex = hariList.indexOf(todayHari);
+      return kecamatanList[todayIndex];
+    })
+    .filter(Boolean);
+
+  // Filter survey tasks to only show those matching today's patrol schedule
+  // If patrol schedule says "Buduran" for today, only show Buduran tasks
+  const filteredTasks =
+    expectedKecamatanList.length > 0
+      ? tasks.filter((task: any) => {
+          const taskKec = task.kecamatan ?? "";
+          return expectedKecamatanList.includes(taskKec);
+        })
+      : tasks;
+
+  // Use filtered tasks based on patrol schedule
+  const actualTasks = filteredTasks;
+  const actualIsFetching = isFetching || schedulesQuery.isFetching;
+
+  // Find activeTask from the filtered actualTasks, not from unfiltered tasks
+  const activeTask = taskId ? actualTasks.find((t: any) => t.id === taskId) : null;
+
+  function handleClearCache() {
+    queryClient.invalidateQueries({ queryKey: ["survey-tasks"] });
+    queryClient.removeQueries({ queryKey: ["survey-tasks"] });
+  }
 
   // ── Photo handler ──
 
@@ -106,16 +162,13 @@ function UploadPage() {
         throw new Error("Ukuran file maksimal 5MB.");
       }
 
-      console.warn(`[DEBUG handleFilePicked] arrayBuffer() START: ${file.name}`);
       const buf = await file.arrayBuffer();
-      console.warn(`[DEBUG handleFilePicked] arrayBuffer() OK: ${file.name} (${buf.byteLength} bytes)`);
       const safeFile = new File([buf], file.name, { type: file.type });
       // Verifikasi in-memory File bisa dibaca
       try {
-        const v = await safeFile.arrayBuffer();
-        console.warn(`[DEBUG handleFilePicked] in-memory verify OK: ${file.name} (${v.byteLength} bytes)`);
-      } catch (e) {
-        console.warn(`[DEBUG handleFilePicked] in-memory verify FAILED: ${file.name}`, e);
+        await safeFile.arrayBuffer();
+      } catch {
+        // in-memory verify failed — proceed anyway
       }
 
       // Validasi EXIF tanggal foto
@@ -144,11 +197,17 @@ function UploadPage() {
         });
         return;
       }
+      exifGpsRef.current = { latitude: gps.latitude, longitude: gps.longitude };
 
-      const previewUrl = URL.createObjectURL(safeFile);
+      // Kompresi gambar — EXIF sudah divalidasi, Canvas aman dipakai sekarang
+      setProcessing(true);
+      const displayFile = await compressImage(safeFile);
+      setProcessing(false);
+
+      const previewUrl = URL.createObjectURL(displayFile);
 
       setPreview({
-        file: safeFile,
+        file: displayFile,
         previewUrl,
         fileName: file.name,
         panjang: "",
@@ -209,16 +268,14 @@ function UploadPage() {
       // mentransfer data ke blob store di browser process.
       const safeFilesWithBuf: { file: File; buf: ArrayBuffer }[] = [];
       for (const f of fileArr) {
-        console.warn(`[DEBUG handleBatchSelect] arrayBuffer() START: ${f.name} (size=${f.size}, type=${f.type})`);
         const buf = await f.arrayBuffer();
-        console.warn(`[DEBUG handleBatchSelect] arrayBuffer() OK: ${f.name} (${buf.byteLength} bytes)`);
         const safeFile = new File([buf], f.name, { type: f.type });
         // Verifikasi in-memory File bisa dibaca langsung
         try {
           const verifyBuf = await safeFile.arrayBuffer();
-          console.warn(`[DEBUG handleBatchSelect] in-memory File OK: ${f.name} (${verifyBuf.byteLength} bytes)`);
-        } catch (verifyErr) {
-          console.warn(`[DEBUG handleBatchSelect] in-memory File GAGAL DIBACA: ${f.name}`, verifyErr);
+          // verify passed
+        } catch {
+          // in-memory file creation failed on this Android device
         }
         safeFilesWithBuf.push({ file: safeFile, buf });
       }
@@ -227,8 +284,11 @@ function UploadPage() {
       void safeFilesWithBuf; // suppress unused warning — sengaja dipertahankan di scope
 
       // Validasi EXIF tanggal + GPS untuk setiap file
+      const gpsData: Array<{ lat: number; lng: number } | null> = new Array(safeFiles.length).fill(
+        null,
+      );
       const validationResults = await Promise.all(
-        safeFiles.map(async (f) => {
+        safeFiles.map(async (f, i) => {
           const dateResult = await validatePhotoDate(f);
           if (dateResult.status !== "valid") return dateResult;
           const gps = await readExifGps(f);
@@ -243,10 +303,17 @@ function UploadPage() {
                 "Aktifkan GPS pada perangkat Anda saat mengambil foto.",
             };
           }
+          gpsData[i] = { lat: gps.latitude, lng: gps.longitude };
           return dateResult;
         }),
       );
       const validFiles = safeFiles.filter((_, i) => validationResults[i].status === "valid");
+      batchGpsRef.current = [];
+      for (let i = 0; i < safeFiles.length; i++) {
+        if (validationResults[i].status === "valid") {
+          batchGpsRef.current.push(gpsData[i]);
+        }
+      }
       const firstFailure = validationResults.find((r) => r.status !== "valid");
 
       if (firstFailure) {
@@ -260,14 +327,21 @@ function UploadPage() {
 
       if (validFiles.length === 0) return;
 
-      const previews = validFiles.map((f) => ({
+      // Kompresi gambar — EXIF sudah divalidasi, Canvas aman dipakai sekarang
+      setProcessing(true);
+      const compressedFiles = await Promise.all(validFiles.map(compressImage));
+      setProcessing(false);
+
+      const previews = compressedFiles.map((f) => ({
         file: f,
         previewUrl: URL.createObjectURL(f),
       }));
       setBatchPreviewFiles(previews);
 
       const initialDims: Record<number, { panjang: string; lebar: string }> = {};
-      validFiles.forEach((_, i) => { initialDims[i] = { panjang: "", lebar: "" }; });
+      validFiles.forEach((_, i) => {
+        initialDims[i] = { panjang: "", lebar: "" };
+      });
       setBatchDimensi(initialDims);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Terjadi kesalahan");
@@ -281,42 +355,76 @@ function UploadPage() {
     }
     try {
       setError("");
+      setProcessing(true);
       const result = await PhotoExifGps.pickPhotos({ limit: 20 });
       if (!result.photos?.length) {
         setError("Tidak ada foto yang dipilih");
+        setProcessing(false);
         return;
       }
       const validFiles: { file: File; previewUrl: string }[] = [];
+      const nativeGpsData: Array<{ lat: number; lng: number } | null> = [];
+      let firstFailure: { status: string; title: string; message: string } | null = null;
       for (const photo of result.photos) {
         try {
           const capUrl = convertFileSrc(photo.uri);
           const resp = await fetch(capUrl);
           const blob = await resp.blob();
-          const file = new File([blob], photo.name || "photo.jpg", { type: blob.type || "image/jpeg" });
+          const file = new File([blob], photo.name || "photo.jpg", {
+            type: blob.type || "image/jpeg",
+          });
           const testBuf = await file.arrayBuffer();
           if (testBuf.byteLength === 0) {
-            console.warn(`[DEBUG handleNativeBatchSelect] verify FAILED (0 bytes): ${file.name}`);
             continue;
           }
-          console.warn(`[DEBUG handleNativeBatchSelect] verify OK: ${file.name} (${testBuf.byteLength} bytes)`);
           const dateResult = await validatePhotoDate(file);
           if (dateResult.status !== "valid") {
-            console.warn(`[DEBUG handleNativeBatchSelect] date validation failed: ${file.name}`);
+            if (!firstFailure)
+              firstFailure = {
+                status: dateResult.status,
+                title: dateResult.title,
+                message: dateResult.message,
+              };
             continue;
           }
-          const previewUrl = URL.createObjectURL(file);
-          validFiles.push({ file, previewUrl });
+          const gps = await readExifGps(file);
+          if (!gps?.latitude || !gps?.longitude) {
+            nativeGpsData.push(null);
+            if (!firstFailure) {
+              firstFailure = {
+                status: "no_gps",
+                title: "Foto Tanpa Data Lokasi",
+                message:
+                  "Foto ini tidak memiliki metadata lokasi (EXIF GPS). " +
+                  "Aktifkan GPS pada perangkat Anda saat mengambil foto, " +
+                  "atau gunakan kamera langsung untuk hasil terbaik.",
+              };
+            }
+            continue;
+          }
+          nativeGpsData.push({ lat: gps.latitude, lng: gps.longitude });
+          // Kompresi gambar — EXIF sudah divalidasi, Canvas aman dipakai sekarang
+          const compressedFile = await compressImage(file);
+          const previewUrl = URL.createObjectURL(compressedFile);
+          validFiles.push({ file: compressedFile, previewUrl });
         } catch (err) {
-          console.warn(`[DEBUG handleNativeBatchSelect] failed to process: ${photo.uri}`, err);
+          // failed to process this photo
         }
       }
+      if (firstFailure) {
+        setFraudModal({ isOpen: true, ...firstFailure });
+      }
+
+      setProcessing(false);
       if (validFiles.length < 2) {
+        if (validFiles.length === 0) return;
         setError("Pilih minimal 2 foto untuk dilaporkan.");
         return;
       }
+      batchGpsRef.current = nativeGpsData;
       setBatchPreviewFiles(validFiles);
     } catch (err) {
-      console.error("[DEBUG handleNativeBatchSelect] error:", err);
+      setProcessing(false);
       setError(err instanceof Error ? err.message : "Gagal memilih foto");
     }
   }
@@ -330,28 +438,15 @@ function UploadPage() {
     try {
       const { file, previewUrl, fileName, panjang, lebar } = preview;
 
-      let lat: number | undefined;
-      let lng: number | undefined;
-      try {
-        const gps = await readExifGps(file);
-        if (gps?.latitude != null && gps?.longitude != null) {
-          lat = gps.latitude;
-          lng = gps.longitude;
-        }
-      } catch {}
+      const savedGps = exifGpsRef.current;
+      let lat: number | undefined = savedGps?.latitude;
+      let lng: number | undefined = savedGps?.longitude;
 
       setAnalyzeState({ stage: "analyzing", variant: "single" });
       await new Promise((r) => setTimeout(r, 0));
 
       let roadName = activeTask?.road_name ?? "";
       let kecamatan = activeTask?.kecamatan ?? "";
-      if (lat != null && lng != null) {
-        try {
-          const geo = await reverseGeocode(lat, lng);
-          if (geo.namaJalan) roadName = geo.namaJalan;
-          if (geo.kecamatan) kecamatan = geo.kecamatan;
-        } catch {}
-      }
 
       const analyzeFd = new FormData();
       analyzeFd.append("file", file);
@@ -401,17 +496,15 @@ function UploadPage() {
         fileName,
         lat,
         lng,
-        survey_task_id: taskId,
+        survey_task_id: taskId?.startsWith("schedule-") ? undefined : taskId,
         kerusakanPanjang: panjang,
         kerusakanLebar: lebar,
         file,
       });
 
       setAnalyzeState({ stage: "complete", variant: "single" });
-      await new Promise((r) => setTimeout(r, 600));
+      await new Promise((r) => setTimeout(r, 500));
 
-      URL.revokeObjectURL(preview.previewUrl);
-      setPreview(null);
       navigate({ to: "/ai-result" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Terjadi kesalahan");
@@ -431,17 +524,13 @@ function UploadPage() {
       let lat: number = activeTask?.latitude ?? -7.45;
       let lng: number = activeTask?.longitude ?? 112.72;
 
-      const geo = await new Promise<GeolocationPosition>((resolve, reject) => {
-        if (!navigator.geolocation) return reject(new Error("Geolokasi tidak tersedia"));
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          timeout: 8000,
-          enableHighAccuracy: true,
-        });
-      }).catch(() => null);
-      if (geo) {
-        lat = geo.coords.latitude;
-        lng = geo.coords.longitude;
-      }
+      // Pakai GPS yang sudah disimpan sebelum kompresi
+      const gpsResults = batchGpsRef.current;
+      const firstExifGps = gpsResults.find((g) => g != null);
+      const gpsLat = firstExifGps?.lat ?? lat;
+      const gpsLng = firstExifGps?.lng ?? lng;
+      let roadName = "";
+      let kecamatan = activeTask?.kecamatan ?? "";
 
       setAnalyzeState({
         stage: "analyzing",
@@ -451,31 +540,16 @@ function UploadPage() {
       });
       await new Promise((r) => setTimeout(r, 0));
 
-      // Verifikasi semua file sebelum diupload
-      let allFilesOk = true;
-      for (let i = 0; i < fileArr.length; i++) {
-        try {
-          const testBuf = await fileArr[i].arrayBuffer();
-          console.warn(`[DEBUG handleBatchAnalyze] pre-fetch verify OK [${i}]: ${fileArr[i].name} (${testBuf.byteLength} bytes)`);
-        } catch (verifyErr) {
-          console.warn(`[DEBUG handleBatchAnalyze] pre-fetch verify FAILED [${i}]: ${fileArr[i].name}`, verifyErr);
-          allFilesOk = false;
-        }
-      }
-      console.warn(`[DEBUG handleBatchAnalyze] pre-fetch allFilesOk=${allFilesOk}, count=${fileArr.length}`);
-
       const fd = new FormData();
       fileArr.forEach((f) => fd.append("files[]", f));
-      fd.append("latitude", String(lat));
-      fd.append("longitude", String(lng));
+      fd.append("latitude", String(gpsLat));
+      fd.append("longitude", String(gpsLng));
 
-      console.warn(`[DEBUG handleBatchAnalyze] fetch() START: url=${API_BASE_URL}/analyze-batch`);
       const res = await fetch(`${API_BASE_URL}/analyze-batch`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: fd,
       });
-      console.warn(`[DEBUG handleBatchAnalyze] fetch() OK: status=${res.status}`);
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -522,42 +596,22 @@ function UploadPage() {
         photos,
         totalDetections: photos.reduce((s, p) => s + p.detections.length, 0),
         overallSeverity: ["Baik", "Rusak Ringan", "Rusak Sedang", "Rusak Berat"][worstIdx],
-        trustScore: 0.8,
-        trustLabel: "Sedang",
+        // ── TRUST SCORE [NONAKTIF] — trustScore, trustLabel placeholder dihapus
         batchId: json.batch_id,
         reportCode: "",
       });
 
       setFormData({
-        namaJalan: activeTask?.road_name ?? "",
-        kecamatan: activeTask?.kecamatan ?? "",
+        namaJalan: roadName,
+        kecamatan,
         tanggal: today,
         catatan: "",
         previewUrl: photos[0]?.previewUrl ?? "",
         fileName: fileArr[0]?.name ?? "",
-        lat,
-        lng,
-        survey_task_id: taskId,
+        lat: gpsLat,
+        lng: gpsLng,
+        survey_task_id: taskId?.startsWith("schedule-") ? undefined : taskId,
       });
-
-      console.warn(`[DEBUG handleBatchAnalyze] readExifGps START: count=${fileArr.length}`);
-      const gpsResults = await Promise.all(
-        fileArr.map(async (f, i) => {
-          try {
-            console.warn(`[DEBUG handleBatchAnalyze] readExifGps [${i}]: ${f.name}`);
-            const gps = await readExifGps(f);
-            if (gps?.latitude != null && gps?.longitude != null) {
-              return { lat: gps.latitude, lng: gps.longitude };
-            }
-            console.warn(`[DEBUG handleBatchAnalyze] readExifGps [${i}]: no GPS data`);
-            return null;
-          } catch {
-            console.warn(`[DEBUG handleBatchAnalyze] readExifGps [${i}]: CRASHED`);
-            return null;
-          }
-        })
-      );
-      console.warn(`[DEBUG handleBatchAnalyze] readExifGps DONE`);
 
       gpsResults.forEach((gps, i) => {
         if (gps) {
@@ -578,11 +632,8 @@ function UploadPage() {
         batchCount: fileArr.length,
         batchProgress: fileArr.length,
       });
-      await new Promise((r) => setTimeout(r, 600));
+      await new Promise((r) => setTimeout(r, 500));
 
-      batchPreviewFiles.forEach((p) => URL.revokeObjectURL(p.previewUrl));
-      setBatchPreviewFiles(null);
-      setBatchDimensi({});
       navigate({ to: "/ai-result" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Terjadi kesalahan");
@@ -613,17 +664,29 @@ function UploadPage() {
         const capUrl = convertFileSrc(photo.uri);
         const resp = await fetch(capUrl);
         const blob = await resp.blob();
-        const file = new File([blob], photo.name || "photo.jpg", { type: blob.type || "image/jpeg" });
+        const file = new File([blob], photo.name || "photo.jpg", {
+          type: blob.type || "image/jpeg",
+        });
         const buf = await file.arrayBuffer();
         const safeFile = new File([buf], file.name, { type: file.type });
         const dateValidation = await validatePhotoDate(safeFile);
         if (dateValidation.status !== "valid") {
-          setFraudModal({ isOpen: true, status: dateValidation.status, title: dateValidation.title, message: dateValidation.message });
+          setFraudModal({
+            isOpen: true,
+            status: dateValidation.status,
+            title: dateValidation.title,
+            message: dateValidation.message,
+          });
           return;
         }
         const gps = await readExifGps(safeFile);
         if (!gps?.latitude || !gps?.longitude) {
-          setFraudModal({ isOpen: true, status: "no_gps", title: "Foto Tanpa Data Lokasi", message: "Foto yang diunggah harus memiliki data lokasi (GPS)." });
+          setFraudModal({
+            isOpen: true,
+            status: "no_gps",
+            title: "Foto Tanpa Data Lokasi",
+            message: "Foto yang diunggah harus memiliki data lokasi (GPS).",
+          });
           return;
         }
         const previewUrl = URL.createObjectURL(safeFile);
@@ -665,16 +728,13 @@ function UploadPage() {
       return;
     }
 
-    console.warn(`[DEBUG handleReplaceFile] arrayBuffer() START: ${file.name}`);
     const buf = await file.arrayBuffer();
-    console.warn(`[DEBUG handleReplaceFile] arrayBuffer() OK: ${file.name} (${buf.byteLength} bytes)`);
     const safeFile = new File([buf], file.name, { type: file.type });
     // Verifikasi in-memory File bisa dibaca
     try {
-      const v = await safeFile.arrayBuffer();
-      console.warn(`[DEBUG handleReplaceFile] in-memory verify OK: ${file.name} (${v.byteLength} bytes)`);
-    } catch (e) {
-      console.warn(`[DEBUG handleReplaceFile] in-memory verify FAILED: ${file.name}`, e);
+      await safeFile.arrayBuffer();
+    } catch {
+      // in-memory verify failed — proceed anyway
     }
 
     // Validasi EXIF tanggal foto
@@ -730,12 +790,37 @@ function UploadPage() {
     </Portal>
   );
 
+  const processingOverlay = processing && (
+    <Portal>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className="mx-4 w-full max-w-sm bg-white rounded-2xl shadow-2xl p-8 flex flex-col items-center gap-5">
+          <div className="relative w-16 h-16">
+            <div className="absolute inset-0 rounded-full border-2 border-[#E2E8F0] border-t-[#1e40af] animate-spin" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-[#EEF2FF] flex items-center justify-center">
+                <Icon name="compress" className="!text-2xl text-[#1e40af]" filled />
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col items-center gap-1 text-center">
+            <p className="text-[15px] font-bold text-[#0F172A]">Memproses Gambar</p>
+            <p className="text-[13px] text-[#475569]">Kompresi dan validasi foto...</p>
+          </div>
+          <p className="text-[11px] text-[#94A3B8] text-center">
+            Mohon tunggu, jangan tutup halaman ini
+          </p>
+        </div>
+      </div>
+    </Portal>
+  );
+
   // ── Guard: not petugas ──
 
   if (user?.role !== "petugas") {
     return (
       <PageLayout showBrand withBottomNav>
         {analyzeOverlay}
+        {processingOverlay}
         <main className="flex flex-col items-center justify-center py-20 px-4">
           <Icon name="lock" className="!text-5xl text-[#64748B] mb-4 opacity-30" />
           <p className="text-[#475569] text-center">Halaman ini khusus petugas lapangan.</p>
@@ -751,6 +836,7 @@ function UploadPage() {
       return (
         <PageLayout back="/upload" title="Upload & Analisis" withBottomNav>
           {analyzeOverlay}
+          {processingOverlay}
           <main className="flex flex-col items-center justify-center py-20 px-4">
             <Icon name="search_off" className="!text-5xl text-[#64748B] mb-4 opacity-30" />
             <p className="text-[#475569] text-center">Jadwal tidak ditemukan.</p>
@@ -765,6 +851,7 @@ function UploadPage() {
       return (
         <PageLayout back="/upload" title="Upload & Analisis" withBottomNav>
           {analyzeOverlay}
+          {processingOverlay}
           <FraudWarningModal
             isOpen={fraudModal.isOpen}
             status={fraudModal.status}
@@ -795,7 +882,9 @@ function UploadPage() {
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
-                        <p className="text-[12px] text-[#0F172A] font-medium truncate">Foto {i + 1}</p>
+                        <p className="text-[12px] text-[#0F172A] font-medium truncate">
+                          Foto {i + 1}
+                        </p>
                         <button
                           type="button"
                           onClick={() => handleReplaceTrigger(i)}
@@ -806,13 +895,19 @@ function UploadPage() {
                       </div>
                       <div className="flex items-center gap-1 mt-2 mb-1.5">
                         <Icon name="straighten" className="!text-[12px] text-[#1e40af]" />
-                        <span className="text-[10px] font-bold text-[#0F172A]">Dimensi Kerusakan</span>
+                        <span className="text-[10px] font-bold text-[#0F172A]">
+                          Dimensi Kerusakan
+                        </span>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <span className="text-[9px] text-[#64748B] block mb-0.5">Panjang (m)</span>
+                          <span className="text-[9px] text-[#64748B] block mb-0.5">
+                            Panjang (m)
+                          </span>
                           <input
-                            type="number" step="0.1" min="0"
+                            type="number"
+                            step="0.1"
+                            min="0"
                             placeholder="0.0"
                             value={batchDimensi[i]?.panjang ?? ""}
                             onChange={(e) =>
@@ -827,7 +922,9 @@ function UploadPage() {
                         <div>
                           <span className="text-[9px] text-[#64748B] block mb-0.5">Lebar (m)</span>
                           <input
-                            type="number" step="0.1" min="0"
+                            type="number"
+                            step="0.1"
+                            min="0"
                             placeholder="0.0"
                             value={batchDimensi[i]?.lebar ?? ""}
                             onChange={(e) =>
@@ -888,6 +985,7 @@ function UploadPage() {
       return (
         <PageLayout back="/upload" title="Upload & Analisis" withBottomNav>
           {analyzeOverlay}
+          {processingOverlay}
           <FraudWarningModal
             isOpen={fraudModal.isOpen}
             status={fraudModal.status}
@@ -923,7 +1021,9 @@ function UploadPage() {
                     <div>
                       <label className="text-[10px] text-[#64748B] mb-0.5 block">Panjang (m)</label>
                       <input
-                        type="number" step="0.1" min="0"
+                        type="number"
+                        step="0.1"
+                        min="0"
                         value={preview.panjang}
                         onChange={(e) => setPreview({ ...preview, panjang: e.target.value })}
                         placeholder="0.0"
@@ -933,7 +1033,9 @@ function UploadPage() {
                     <div>
                       <label className="text-[10px] text-[#64748B] mb-0.5 block">Lebar (m)</label>
                       <input
-                        type="number" step="0.1" min="0"
+                        type="number"
+                        step="0.1"
+                        min="0"
                         value={preview.lebar}
                         onChange={(e) => setPreview({ ...preview, lebar: e.target.value })}
                         placeholder="0.0"
@@ -957,7 +1059,7 @@ function UploadPage() {
                     disabled={analyzeState !== null}
                     className="flex-1 h-10 bg-[#1e40af] text-white rounded-xl text-[12px] font-semibold hover:bg-[#1A4F8A] transition-colors disabled:opacity-50"
                   >
-                    Analisis
+                    {analyzeState !== null ? "Menganalisis..." : "Analisis"}
                   </button>
                 </div>
 
@@ -978,6 +1080,7 @@ function UploadPage() {
     return (
       <PageLayout back="/upload" title="Upload & Analisis" withBottomNav>
         {analyzeOverlay}
+        {processingOverlay}
         <FraudWarningModal
           isOpen={fraudModal.isOpen}
           status={fraudModal.status}
@@ -994,8 +1097,8 @@ function UploadPage() {
             )}
           </section>
 
-          <div className="flex-1 overflow-y-auto px-4 py-4">
-            <div className="max-w-xl mx-auto space-y-6">
+          <div className="flex-1 px-4 py-4 flex flex-col items-center justify-center">
+            <div className="w-full max-w-xl">
               <button
                 type="button"
                 onClick={() => {
@@ -1006,9 +1109,9 @@ function UploadPage() {
                   }
                 }}
                 disabled={analyzeState !== null}
-                className="w-full flex flex-col items-center justify-center gap-2 py-8 bg-white border-2 border-dashed border-[#C7D2FE] rounded-xl hover:border-[#A5B4FC] hover:bg-[#EEF2FF] transition-all disabled:opacity-50"
+                className="aspect-square max-w-[200px] w-full mx-auto flex flex-col items-center justify-center gap-1 bg-white border-2 border-dashed border-[#C7D2FE] rounded-none hover:border-[#A5B4FC] hover:bg-[#EEF2FF] transition-all disabled:opacity-50 p-3"
               >
-                <Icon name="photo_library" className="!text-4xl text-[#1e40af]" />
+                <Icon name="photo_library" className="!text-5xl text-[#1e40af]" />
                 <span className="text-[13px] font-semibold text-[#1e40af]">Pilih 2+ Foto</span>
               </button>
 
@@ -1043,34 +1146,58 @@ function UploadPage() {
 
   // ── List mode ──
 
-  const task = tasks[0];
+  const task = actualTasks[0]; // Use actualTasks instead of tasks
 
   function formatDate(dateStr: string) {
     const d = new Date(dateStr);
     const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
-    const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+    const months = [
+      "Januari",
+      "Februari",
+      "Maret",
+      "April",
+      "Mei",
+      "Juni",
+      "Juli",
+      "Agustus",
+      "September",
+      "Oktober",
+      "November",
+      "Desember",
+    ];
     return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
   }
 
   return (
     <PageLayout showBrand withBottomNav>
       {analyzeOverlay}
+      {processingOverlay}
       <main className="pb-4">
         <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] p-6 text-white">
           <h1 className="text-xl font-bold tracking-tight">Upload & Analisis</h1>
           {task?.tanggal_patroli ? (
             <p className="text-sm text-blue-200 mt-1">{formatDate(task.tanggal_patroli)}</p>
+          ) : task?.kecamatan ? (
+            <p className="text-sm text-blue-200 mt-1">
+              Patroli {task.kecamatan} —{" "}
+              {actualTasks.length > 0 ? `${actualTasks.length} kecamatan` : "tidak ada jadwal"}
+            </p>
           ) : (
             <p className="text-sm text-blue-200 mt-1">
-              {isFetching ? "Memuat jadwal..." : `Jadwal patroli hari ini (${tasks.length})`}
+              {actualIsFetching
+                ? "Memuat jadwal..."
+                : `Jadwal patroli hari ini (${actualTasks.length})`}
             </p>
           )}
         </section>
 
         <div className="max-w-5xl mx-auto px-4">
-          {isFetching && (
+          {actualIsFetching && (
             <div className="mt-4 flex flex-col gap-3">
-              <div className="w-full rounded-xl overflow-hidden border border-[#D0DAE8] bg-slate-100 animate-pulse" style={{ height: "240px" }} />
+              <div
+                className="w-full rounded-xl overflow-hidden border border-[#D0DAE8] bg-slate-100 animate-pulse"
+                style={{ height: "240px" }}
+              />
               <div className="bg-white border border-[#D0DAE8] rounded-xl p-4 animate-pulse">
                 <div className="w-2/3 h-6 bg-[#D0DAE8] rounded mb-3" />
                 <div className="w-1/2 h-4 bg-[#E8F0FA] rounded mb-2" />
@@ -1079,23 +1206,35 @@ function UploadPage() {
             </div>
           )}
 
-          {!isFetching && tasks.length === 0 && (
+          {!actualIsFetching && actualTasks.length === 0 && (
             <div className="text-center py-16 text-[#476788]">
               <Icon name="calendar_month" className="!text-5xl mb-3 opacity-30 mx-auto" />
-              <p className="font-body-md text-body-md">Tidak ada jadwal patroli untuk hari ini</p>
-              <p className="text-sm text-[#64748B] mt-1">Cek Tugas Saya untuk melihat jadwal Anda</p>
+              <p className="font-body-md text-body-md">
+                {expectedKecamatanList.length > 0
+                  ? `Jadwal patroli hari ini: ${expectedKecamatanList.join(", ")}`
+                  : "Tidak ada jadwal patroli untuk hari ini"}
+              </p>
+              <p className="text-sm text-[#64748B] mt-1">
+                {expectedKecamatanList.length > 0
+                  ? "Namun belum ada survey task yang dibuat untuk kecamatan ini. Hubungi admin untuk membuat task."
+                  : "Cek Tugas Saya untuk melihat jadwal Anda"}
+              </p>
+              <button
+                type="button"
+                onClick={handleClearCache}
+                className="mt-4 px-4 py-2 bg-red-500 text-white text-xs rounded-lg hover:bg-red-600"
+              >
+                🔄 Clear Cache & Refresh
+              </button>
             </div>
           )}
 
-          {!isFetching && task && (
+          {!actualIsFetching && task && (
             <div className="mt-4 md:grid md:grid-cols-2 md:gap-5 md:items-start">
               {/* ── Map ── */}
               <div className="md:sticky md:top-4">
                 {task.kecamatan ? (
-                  <PatrolMap
-                    kecamatan={task.kecamatan}
-                    height="240px"
-                  />
+                  <PatrolMap kecamatan={task.kecamatan} height="240px" />
                 ) : (
                   <div
                     className="w-full rounded-xl overflow-hidden border border-[#D0DAE8] bg-slate-50 flex items-center justify-center"
@@ -1124,7 +1263,9 @@ function UploadPage() {
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     {task.priority && (
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${PRIORITY_STYLES[task.priority] ?? ""}`}>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${PRIORITY_STYLES[task.priority] ?? ""}`}
+                      >
                         {task.priority}
                       </span>
                     )}
@@ -1186,14 +1327,12 @@ function UploadPage() {
           {!isFetching && task && (
             <div className="mt-3 text-center">
               <p className="text-[11px] text-[#94A3B8] flex items-center justify-center gap-1">
-                <Icon name="info" className="!text-[12px]" />
-                1 kecamatan ditugaskan untuk hari ini
+                <Icon name="info" className="!text-[12px]" />1 kecamatan ditugaskan untuk hari ini
               </p>
             </div>
           )}
         </div>
       </main>
-
     </PageLayout>
   );
 }

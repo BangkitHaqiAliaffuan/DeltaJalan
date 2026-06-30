@@ -56,8 +56,8 @@ export interface BatchResultData {
   totalDetections: number;
   overallSeverity: string;
   reportCode: string;
-  trustScore: number;
-  trustLabel: string;
+  trustScore?: number;
+  trustLabel?: string;
   duplicatePhotos?: { fileIndex: number; fileName: string }[];
   batchId?: string;
 }

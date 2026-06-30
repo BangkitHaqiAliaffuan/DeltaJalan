@@ -24,9 +24,7 @@ export function SubmissionQueue() {
 
       for (const item of pending) {
         try {
-          const url = item.type === "batch"
-            ? "/api/reports/batch"
-            : "/api/analyze";
+          const url = item.type === "batch" ? "/api/reports/batch" : "/api/analyze";
           const res = await fetch(url, {
             method: "POST",
             headers: { Authorization: `Bearer ${token}` },

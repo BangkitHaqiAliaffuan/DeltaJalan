@@ -2,10 +2,24 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recha
 import type { DistrictStat } from "@/lib/mockData";
 
 const COLORS = [
-  "#1e40af", "#E11D48", "#059669", "#D97706", "#7C3AED",
-  "#0891B2", "#DC2626", "#0D9488", "#9333EA", "#EA580C",
-  "#2563EB", "#16A34A", "#CA8A04", "#DB2777", "#4F46E5",
-  "#65A30D", "#0EA5E9", "#D946EF",
+  "#1e40af",
+  "#E11D48",
+  "#059669",
+  "#D97706",
+  "#7C3AED",
+  "#0891B2",
+  "#DC2626",
+  "#0D9488",
+  "#9333EA",
+  "#EA580C",
+  "#2563EB",
+  "#16A34A",
+  "#CA8A04",
+  "#DB2777",
+  "#4F46E5",
+  "#65A30D",
+  "#0EA5E9",
+  "#D946EF",
 ];
 
 interface CustomTooltipProps {
@@ -23,16 +37,13 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
       <p className="text-[#1e40af] font-bold text-lg mt-0.5">{total} laporan</p>
       <div className="flex items-center gap-3 mt-1.5 text-[11px] text-[#475569]">
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-[#E11D48]" />
-          B {d.rusak_berat}
+          <span className="w-2 h-2 rounded-full bg-[#E11D48]" />B {d.rusak_berat}
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-[#F97316]" />
-          S {d.rusak_sedang}
+          <span className="w-2 h-2 rounded-full bg-[#F97316]" />S {d.rusak_sedang}
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-[#F59E0B]" />
-          R {d.rusak_ringan}
+          <span className="w-2 h-2 rounded-full bg-[#F59E0B]" />R {d.rusak_ringan}
         </span>
       </div>
     </div>

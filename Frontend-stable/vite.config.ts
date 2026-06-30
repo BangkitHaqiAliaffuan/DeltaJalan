@@ -35,7 +35,9 @@ export default defineConfig({
   plugins: [
     injectLeafletGlobalPlugin(),
     VitePWA({
-      strategies: "generateSW",
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
       registerType: "autoUpdate",
       includeAssets: ["icons/*.png"],
       manifest: {
@@ -52,49 +54,18 @@ export default defineConfig({
           { src: "/logo.png", sizes: "248x247", type: "image/png" },
           { src: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
           { src: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
-          { src: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+          {
+            src: "/icons/icon-512x512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
+          },
         ],
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         navigateFallback: "/",
         navigateFallbackAllowlist: [/^(?!\/api\/).*/],
-        runtimeCaching: [
-          {
-            urlPattern: /^\/api\//,
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "api-v1",
-              expiration: { maxEntries: 100, maxAgeSeconds: 86400 },
-              networkTimeoutSeconds: 5,
-            },
-          },
-          {
-            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "images-v1",
-              expiration: { maxEntries: 200, maxAgeSeconds: 2592000 },
-            },
-          },
-          {
-            urlPattern: /\.(?:js|css|woff2?|ttf|eot)$/,
-            handler: "StaleWhileRevalidate",
-            options: {
-              cacheName: "static-v1",
-              expiration: { maxEntries: 100, maxAgeSeconds: 2592000 },
-            },
-          },
-          {
-            urlPattern: /(?:tile\.openstreetmap|unpkg|cdn\.jsdelivr|fonts\.(?:googleapis|gstaticache))\./,
-            handler: "StaleWhileRevalidate",
-            options: {
-              cacheName: "cdn-v1",
-              expiration: { maxEntries: 200 },
-            },
-          },
-        ],
-
       },
     }),
   ],

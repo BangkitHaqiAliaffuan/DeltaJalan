@@ -22,7 +22,7 @@ class UptdSeeder extends Seeder
         ]);
         Uptd::create([
             'nama' => 'UPTD Wilayah Pusat',
-            'kecamatan_wilayah' => ['Sidoarjo', 'Candi'],
+            'kecamatan_wilayah' => ['Sidoarjo', 'Buduran', 'Sedati'],
         ]);
         Uptd::create([
             'nama' => 'UPTD Wilayah Barat',
@@ -30,7 +30,7 @@ class UptdSeeder extends Seeder
         ]);
         Uptd::create([
             'nama' => 'UPTD Wilayah Timur',
-            'kecamatan_wilayah' => ['Tarik', 'Prambon'],
+            'kecamatan_wilayah' => ['Candi', 'Tarik', 'Prambon'],
         ]);
 
         $this->command->info('✅ UptdSeeder: 5 UPTD terdaftar.');

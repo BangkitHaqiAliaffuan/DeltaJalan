@@ -11,9 +11,7 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-export async function getFromCache(
-  key: string
-): Promise<[number, number][] | null> {
+export async function getFromCache(key: string): Promise<[number, number][] | null> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, "readonly");
@@ -23,10 +21,7 @@ export async function getFromCache(
   });
 }
 
-export async function saveToCache(
-  key: string,
-  polyline: [number, number][]
-): Promise<void> {
+export async function saveToCache(key: string, polyline: [number, number][]): Promise<void> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");

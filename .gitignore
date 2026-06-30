@@ -66,3 +66,25 @@ Frontend-stable/vite_stdout.txt
 
 # Photo data directory (not part of source)
 Photos EXIF/
+
+# ONNX model files (binary, too large for git)
+*.onnx
+
+# Backup/export dumps
+backup_*.json
+backend_POSTGRESQL/backup_reports/
+
+# Server runtime logs
+server_*.txt
+backend_AI/server_err.txt
+backend_AI/server_out.txt
+scripts/.ngrok.pid
+
+# Test/temp directories
+test_junction/
+backend_AI/compare_output/
+backend_AI/output_test/
+
+# Transient files
+summary.md
+exif-gps-android-issue.md

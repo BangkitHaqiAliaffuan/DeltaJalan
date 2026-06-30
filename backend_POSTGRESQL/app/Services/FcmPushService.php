@@ -79,20 +79,92 @@ class FcmPushService
 
     public function sendToUser(User $user, array $payload): void
     {
-        $subscriptions = PushSubscription::where('user_id', $user->id)
+        $tokens = PushSubscription::where('user_id', $user->id)
             ->where('type', 'fcm')
             ->whereNotNull('fcm_token')
-            ->get();
+            ->pluck('fcm_token')
+            ->toArray();
 
-        foreach ($subscriptions as $sub) {
-            $this->sendToToken($sub->fcm_token, $payload);
+        if (empty($tokens)) {
+            return;
         }
+
+        $this->sendToTokens($tokens, $payload);
     }
 
     public function sendToUsers(iterable $users, array $payload): void
     {
+        $userIds = [];
         foreach ($users as $user) {
-            $this->sendToUser($user, $payload);
+            $userIds[] = $user->id;
+        }
+
+        if (empty($userIds)) {
+            return;
+        }
+
+        $tokens = PushSubscription::whereIn('user_id', $userIds)
+            ->where('type', 'fcm')
+            ->whereNotNull('fcm_token')
+            ->pluck('fcm_token')
+            ->toArray();
+
+        if (empty($tokens)) {
+            return;
+        }
+
+        $this->sendToTokens($tokens, $payload);
+    }
+
+    private function buildMessage(array $payload): CloudMessage
+    {
+        return CloudMessage::new()
+            ->withNotification(Notification::create(
+                $payload['title'] ?? 'DeltaJalan',
+                $payload['body'] ?? ''
+            ))
+            ->withData($payload['data'] ?? [])
+            ->withAndroidConfig(
+                AndroidConfig::fromArray([
+                    'priority' => 'high',
+                    'notification' => [
+                        'channel_id' => $payload['android']['channel_id'] ?? 'delta_jalan_general',
+                        'sound' => 'default',
+                    ],
+                ])
+            );
+    }
+
+    private function sendToTokens(array $tokens, array $payload): void
+    {
+        try {
+            $message = $this->buildMessage($payload);
+
+            foreach (array_chunk(array_unique($tokens), 500) as $chunk) {
+                $report = $this->messaging()->sendMulticast($message, $chunk);
+
+                foreach ($report->failures()->getItems() as $failure) {
+                    $failedToken = $failure->target()->value();
+                    $error = $failure->error();
+
+                    if ($error instanceof NotFound) {
+                        Log::warning('FCM: Token not found (unregistered), deleting.', [
+                            'token' => substr($failedToken, 0, 20).'...',
+                        ]);
+                        PushSubscription::where('fcm_token', $failedToken)->delete();
+                    } else {
+                        Log::warning('FCM: Send failed for token.', [
+                            'token' => substr($failedToken, 0, 20).'...',
+                            'error' => $error->getMessage(),
+                        ]);
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::error('FCM: Multicast send failed.', [
+                'token_count' => count($tokens),
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 }

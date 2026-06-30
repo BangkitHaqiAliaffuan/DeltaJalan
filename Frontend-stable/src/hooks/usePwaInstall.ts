@@ -16,7 +16,9 @@ if (typeof window !== "undefined") {
 }
 
 export function usePwaInstall() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(_globalDeferredPrompt);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(
+    _globalDeferredPrompt,
+  );
   const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
@@ -24,7 +26,7 @@ export function usePwaInstall() {
 
     setIsStandalone(
       window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as any).standalone === true
+        (window.navigator as any).standalone === true,
     );
 
     const handler = (e: Event) => {
@@ -48,9 +50,9 @@ export function usePwaInstall() {
     // Fallback: arahkan user ke manual install
     alert(
       "Untuk menginstal aplikasi, buka menu browser dan pilih\n" +
-      (typeof window !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent)
-        ? '"Bagikan" → "Tambahkan ke Layar Utama"'
-        : '"Install" atau "Tambahkan ke Layar Utama"')
+        (typeof window !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent)
+          ? '"Bagikan" → "Tambahkan ke Layar Utama"'
+          : '"Install" atau "Tambahkan ke Layar Utama"'),
     );
     return false;
   }, [deferredPrompt]);

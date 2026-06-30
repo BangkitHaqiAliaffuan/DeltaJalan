@@ -77,20 +77,19 @@ function LoginPage() {
     <div className="relative min-h-[100dvh] w-full overflow-hidden">
       <div className="fixed inset-0 overflow-hidden">
         <div
-          className="absolute inset-0 bg-cover bg-center animate-slow-zoom"
+          className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: "url('/background.jpg')" }}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-[#1e40af]/80 to-[#0f2b6d]/90" />
       </div>
 
       <div className="relative z-10 min-h-[100dvh] flex items-center justify-center p-4">
-          <div className="w-full max-w-[360px] animate-fade-in">
+        <div className="w-full max-w-[360px] animate-fade-in">
           <div className="animate-slide-up">
             <div
               className="bg-white rounded-2xl overflow-hidden border-2 border-[#1e40af]"
               style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.3)" }}
             >
-
               <div className="flex flex-col items-center pt-8 pb-6 px-8">
                 <div className="w-16 h-16 rounded-xl bg-white shadow-md flex items-center justify-center mb-4">
                   <img src="/logo.png" alt="DeltaJalan" className="w-10 h-10" />
@@ -107,17 +106,31 @@ function LoginPage() {
                 {error && (
                   <div className="mb-4 flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
                     <Icon name="error" className="text-[#E11D48] !text-[18px] shrink-0 mt-0.5" />
-                    <p className="font-body-sm text-body-sm text-[#E11D48] leading-relaxed">{error}</p>
+                    <p className="font-body-sm text-body-sm text-[#E11D48] leading-relaxed">
+                      {error}
+                    </p>
                   </div>
                 )}
 
-                <form className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); handleLogin(); }}>
+                <form
+                  className="flex flex-col gap-4"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleLogin();
+                  }}
+                >
                   <div className="flex flex-col gap-1.5">
-                    <label className="font-label-md text-label-md font-semibold text-[#0F172A]" htmlFor="email">
+                    <label
+                      className="font-label-md text-label-md font-semibold text-[#0F172A]"
+                      htmlFor="email"
+                    >
                       Email
                     </label>
                     <div className="relative flex items-center">
-                      <Icon name="mail" className="absolute left-3.5 text-[#757684] !text-[18px] pointer-events-none" />
+                      <Icon
+                        name="mail"
+                        className="absolute left-3.5 text-[#757684] !text-[18px] pointer-events-none"
+                      />
                       <input
                         id="email"
                         type="email"
@@ -133,7 +146,10 @@ function LoginPage() {
 
                   <div className="flex flex-col gap-1.5">
                     <div className="flex justify-between items-center">
-                      <label className="font-label-md text-label-md font-semibold text-[#0F172A]" htmlFor="password">
+                      <label
+                        className="font-label-md text-label-md font-semibold text-[#0F172A]"
+                        htmlFor="password"
+                      >
                         Kata Sandi
                       </label>
                     </div>
@@ -154,13 +170,11 @@ function LoginPage() {
                         className="absolute right-3.5 text-[#757684] hover:text-[#475569] transition-colors"
                         aria-label={showPw ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
                       >
-                        <Icon name={showPw ? "visibility_off" : "visibility"} className="!text-[20px]" />
+                        <Icon
+                          name={showPw ? "visibility_off" : "visibility"}
+                          className="!text-[20px]"
+                        />
                       </button>
-                    </div>
-                    <div className="flex justify-end pt-0.5">
-                      <a className="text-[12px] font-medium text-[#475569] hover:text-[#1e40af] transition-colors" href="#">
-                        Lupa Password?
-                      </a>
                     </div>
                   </div>
 
@@ -184,7 +198,6 @@ function LoginPage() {
                   </button>
                 </form>
               </div>
-
             </div>
 
             <p className="text-center mt-6 text-[11px] text-white/50 font-medium tracking-wider">

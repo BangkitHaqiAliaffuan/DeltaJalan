@@ -82,7 +82,7 @@ export function ReportMap({ points, height = "220px", onPointClick }: ReportMapP
       map.setView([current[0].lat, current[0].lng], 16);
     } else {
       const group = L.featureGroup(markersRef.current);
-      map.fitBounds(group.getBounds().pad(0.2), { maxZoom: 16 });
+      map.fitBounds(group.getBounds().pad(0.2), { maxZoom: 16, animate: false });
     }
   }
 

@@ -7,21 +7,32 @@ import { getCurrentUser, getToken } from "@/lib/auth";
 import {
   getMockStats,
   getMockMonthlyTrend,
-  getMockUprStats,
+  getMockTeamStats,
   type DistrictStat,
   type MonthlyTrend,
 } from "@/lib/mockData";
 
 const MONTH_LABELS: Record<string, string> = {
-  "01": "Jan", "02": "Feb", "03": "Mar", "04": "Apr",
-  "05": "Mei", "06": "Jun", "07": "Jul", "08": "Agu",
-  "09": "Sep", "10": "Okt", "11": "Nov", "12": "Des",
+  "01": "Jan",
+  "02": "Feb",
+  "03": "Mar",
+  "04": "Apr",
+  "05": "Mei",
+  "06": "Jun",
+  "07": "Jul",
+  "08": "Agu",
+  "09": "Sep",
+  "10": "Okt",
+  "11": "Nov",
+  "12": "Des",
 };
 
 import { DistrictPieChart } from "@/components/charts/DistrictPieChart";
 import { MonthlyTrendChart } from "@/components/charts/MonthlyTrendChart";
 
-function parseMonthlyTrend(data: { bulan: string; total: number; selesai: number; rusak_berat: number }[]): MonthlyTrend[] {
+function parseMonthlyTrend(
+  data: { bulan: string; total: number; selesai: number; rusak_berat: number }[],
+): MonthlyTrend[] {
   return data.map((d) => {
     const parts = d.bulan.split("-");
     return {
@@ -55,9 +66,9 @@ interface StatsData {
   monthly_trend?: { bulan: string; total: number; selesai: number; rusak_berat: number }[];
 }
 
-interface UprStat {
-  upr_id: number;
-  upr_name: string;
+interface TeamStat {
+  team_id: string;
+  team_name: string;
   wilayah: string;
   total: number;
   sedang_diperbaiki: number;
@@ -77,7 +88,7 @@ function StatsPage() {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [districtStats, setDistrictStats] = useState<DistrictStat[]>([]);
   const [monthlyTrend, setMonthlyTrend] = useState<MonthlyTrend[]>([]);
-  const [uprStats, setUprStats] = useState<UprStat[]>([]);
+  const [uptdStats, setUptdStats] = useState<TeamStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -92,23 +103,23 @@ function StatsPage() {
     setLoading(true);
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const [statsRes, uprRes, mapRes] = await Promise.all([
+      const [statsRes, teamRes, mapRes] = await Promise.all([
         fetch(`${API_BASE_URL}/reports/stats`, { headers }),
-        fetch(`${API_BASE_URL}/reports/stats-by-upr`, { headers }),
+        fetch(`${API_BASE_URL}/reports/stats-by-team`, { headers }),
         fetch(`${API_BASE_URL}/reports/map-data`, { headers }),
       ]);
 
       let s: StatsData | null = null;
-      let u: UprStat[] = [];
+      let u: TeamStat[] = [];
       let d: DistrictStat[] = [];
 
       if (statsRes.ok) {
         const sj = await statsRes.json();
         if (sj.data) s = sj.data;
       }
-      if (uprRes.ok) {
-        const uj = await uprRes.json();
-        if (uj.data) u = uj.data;
+      if (teamRes.ok) {
+        const tj = await teamRes.json();
+        if (tj.data) u = tj.data;
       }
       if (mapRes.ok) {
         const mj = await mapRes.json();
@@ -136,13 +147,15 @@ function StatsPage() {
         };
         d = mock.districts;
       }
-      if (u.length === 0) u = getMockUprStats();
+      if (u.length === 0) u = getMockTeamStats();
       if (d.length === 0) d = getMockStats().districts;
 
       setStats(s);
       setDistrictStats(d);
-      setMonthlyTrend(s?.monthly_trend ? parseMonthlyTrend(s.monthly_trend) : getMockMonthlyTrend());
-      setUprStats(u);
+      setMonthlyTrend(
+        s?.monthly_trend ? parseMonthlyTrend(s.monthly_trend) : getMockMonthlyTrend(),
+      );
+      setUptdStats(u);
     } catch {
       const mock = getMockStats();
       setStats({
@@ -160,55 +173,58 @@ function StatsPage() {
         rusak_ringan: mock.rusak_ringan,
       });
       setDistrictStats(mock.districts);
-      setMonthlyTrend(mock.monthly_trend ? parseMonthlyTrend(mock.monthly_trend as any) : getMockMonthlyTrend());
-      setUprStats(getMockUprStats());
+      setMonthlyTrend(
+        mock.monthly_trend ? parseMonthlyTrend(mock.monthly_trend as any) : getMockMonthlyTrend(),
+      );
+      setUptdStats(getMockTeamStats());
       setError("Gagal memuat data dari server — menampilkan data contoh.");
     } finally {
       setLoading(false);
     }
   }
 
-  const totalLuas = uprStats.reduce((sum, u) => sum + u.total_luas_m2, 0);
-  const totalPanjang = uprStats.reduce((sum, u) => sum + u.total_panjang_m, 0);
-  const completionRate = stats && stats.total > 0 ? Math.round((stats.selesai / stats.total) * 100) : 0;
+  const totalLuas = uptdStats.reduce((sum, u) => sum + u.total_luas_m2, 0);
+  const totalPanjang = uptdStats.reduce((sum, u) => sum + u.total_panjang_m, 0);
+  const completionRate =
+    stats && stats.total > 0 ? Math.round((stats.selesai / stats.total) * 100) : 0;
 
   return (
     <PageLayout showBrand withBottomNav>
       <main className="pb-4 w-full">
         <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] p-6 text-white">
-            <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-xl font-bold tracking-tight">Statistik Laporan</h1>
+              <p className="text-sm text-blue-200 mt-1">
+                Ringkasan data laporan kerusakan jalan Kab. Sidoarjo
+              </p>
+            </div>
+            <div className="hidden sm:flex items-center gap-2 bg-white/15 rounded-lg px-4 py-2">
+              <Icon name="fact_check" className="!text-lg text-blue-200" />
+              <span className="text-sm font-semibold">
+                {stats ? `${stats.total} laporan` : "-"}
+              </span>
+            </div>
+          </div>
+          {stats && (
+            <div className="flex items-center gap-6 mt-4 pt-4 border-t border-white/20">
               <div>
-                <h1 className="text-xl font-bold tracking-tight">Statistik Laporan</h1>
-                <p className="text-sm text-blue-200 mt-1">
-                  Ringkasan data laporan kerusakan jalan Kab. Sidoarjo
-                </p>
+                <p className="text-3xl font-bold">{stats.total}</p>
+                <p className="text-xs text-blue-200 mt-0.5">Total Laporan</p>
               </div>
-              <div className="hidden sm:flex items-center gap-2 bg-white/15 rounded-lg px-4 py-2">
-                <Icon name="fact_check" className="!text-lg text-blue-200" />
-                <span className="text-sm font-semibold">
-                  {stats ? `${stats.total} laporan` : "-"}
-                </span>
+              <div>
+                <p className="text-3xl font-bold">{completionRate}%</p>
+                <p className="text-xs text-blue-200 mt-0.5">Tingkat Penyelesaian</p>
+              </div>
+              <div>
+                <p className="text-3xl font-bold">{uptdStats.length}</p>
+                <p className="text-xs text-blue-200 mt-0.5">UPTD</p>
               </div>
             </div>
-            {stats && (
-              <div className="flex items-center gap-6 mt-4 pt-4 border-t border-white/20">
-                <div>
-                  <p className="text-3xl font-bold">{stats.total}</p>
-                  <p className="text-xs text-blue-200 mt-0.5">Total Laporan</p>
-                </div>
-                <div>
-                  <p className="text-3xl font-bold">{completionRate}%</p>
-                  <p className="text-xs text-blue-200 mt-0.5">Tingkat Penyelesaian</p>
-                </div>
-                <div>
-                  <p className="text-3xl font-bold">{uprStats.length}</p>
-                  <p className="text-xs text-blue-200 mt-0.5">Tim Satgas</p>
-                </div>
-              </div>
-            )}
-          </section>
+          )}
+        </section>
 
-          <div className="max-w-5xl mx-auto px-4 pb-4 flex flex-col gap-6">
+        <div className="max-w-5xl mx-auto px-4 pb-4 flex flex-col gap-6">
           {error && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-3.5 text-sm text-amber-800 flex items-center gap-2.5">
               <Icon name="info" className="!text-lg text-amber-600 shrink-0" />
@@ -224,7 +240,10 @@ function StatsPage() {
                 <div className="w-32 h-4 bg-[#D0DAE8] rounded animate-pulse mb-3" />
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                   {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="bg-white border border-[#E2E8F0] rounded-xl p-4 animate-pulse">
+                    <div
+                      key={i}
+                      className="bg-white border border-[#E2E8F0] rounded-xl p-4 animate-pulse"
+                    >
                       <div className="flex items-center justify-between mb-2">
                         <div className="w-6 h-6 bg-[#D0DAE8] rounded" />
                         <div className="w-10 h-5 bg-[#D0DAE8] rounded" />
@@ -255,21 +274,18 @@ function StatsPage() {
                 </section>
                 <section>
                   <div className="w-36 h-4 bg-[#D0DAE8] rounded animate-pulse mb-3" />
-                  <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 space-y-4 animate-pulse">
-                    {Array.from({ length: 3 }).map((_, i) => (
-                      <div key={i} className="space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <div className="w-20 h-3.5 bg-[#D0DAE8] rounded" />
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-3.5 bg-[#D0DAE8] rounded" />
-                            <div className="w-10 h-3 bg-[#E8F0FA] rounded" />
-                          </div>
+                  <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 animate-pulse">
+                    <div className="flex items-center justify-center py-6">
+                      <div className="w-[180px] h-[180px] rounded-full bg-[#E8F0FA]" />
+                    </div>
+                    <div className="space-y-2.5 mt-2">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-[#D0DAE8]" />
+                          <div className="flex-1 h-3 bg-[#D0DAE8] rounded" />
+                          <div className="w-12 h-3 bg-[#E8F0FA] rounded" />
                         </div>
-                        <div className="w-full h-2.5 bg-[#E8F0FA] rounded-full" />
-                      </div>
-                    ))}
-                    <div className="pt-3 border-t border-[#E2E8F0]">
-                      <div className="w-40 h-3 bg-[#E8F0FA] rounded" />
+                      ))}
                     </div>
                   </div>
                 </section>
@@ -283,7 +299,7 @@ function StatsPage() {
                       <div
                         key={i}
                         className="flex-1 bg-[#E8F0FA] rounded-t"
-                        style={{ height: `${(i % 3 + 1) * 20 + 20}px` }}
+                        style={{ height: `${((i % 3) + 1) * 20 + 20}px` }}
                       />
                     ))}
                   </div>
@@ -294,12 +310,15 @@ function StatsPage() {
                   </div>
                 </div>
               </section>
-              {/* UPR stats skeleton */}
+              {/* UPTD stats skeleton */}
               <section>
                 <div className="w-28 h-4 bg-[#D0DAE8] rounded animate-pulse mb-3" />
                 <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden animate-pulse">
                   {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-3 p-3 border-b border-[#E2E8F0] last:border-b-0">
+                    <div
+                      key={i}
+                      className="flex items-center gap-3 p-3 border-b border-[#E2E8F0] last:border-b-0"
+                    >
                       <div className="w-1/3 h-3.5 bg-[#D0DAE8] rounded" />
                       <div className="w-1/6 h-3 bg-[#E8F0FA] rounded" />
                       <div className="w-1/6 h-3 bg-[#E8F0FA] rounded" />
@@ -314,25 +333,58 @@ function StatsPage() {
             <>
               {/* Status Cards */}
               <section>
-                <h2 className="text-[15px] font-bold text-[#0F172A] mb-3 flex items-center gap-2">
+                <h2 className="text-[15px] font-bold text-[#0F172A] mt-4 mb-3 flex items-center gap-2">
                   <Icon name="bar_chart" className="!text-lg text-[#1e40af]" />
                   Status Laporan
                 </h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                   {[
-                    { icon: "assignment", label: "Total", value: stats.total, color: "text-[#1e40af]" },
-                    { icon: "rate_review", label: "Menunggu Review", value: stats.menunggu_review, color: "text-[#D97706]" },
-                    { icon: "thumb_up", label: "Disetujui", value: stats.disetujui, color: "text-[#1e40af]" },
-                    { icon: "build", label: "Diperbaiki", value: stats.sedang_diperbaiki, color: "text-[#D97706]" },
-                    { icon: "check_circle", label: "Selesai", value: stats.selesai, color: "text-[#059669]" },
-                    { icon: "block", label: "Ditolak", value: stats.ditolak, color: "text-[#DC2626]" },
+                    {
+                      icon: "assignment",
+                      label: "Total",
+                      value: stats.total,
+                      color: "text-[#1e40af]",
+                    },
+                    {
+                      icon: "rate_review",
+                      label: "Menunggu Review",
+                      value: stats.menunggu_review,
+                      color: "text-[#D97706]",
+                    },
+                    {
+                      icon: "thumb_up",
+                      label: "Disetujui",
+                      value: stats.disetujui,
+                      color: "text-[#1e40af]",
+                    },
+                    {
+                      icon: "build",
+                      label: "Diperbaiki",
+                      value: stats.sedang_diperbaiki,
+                      color: "text-[#D97706]",
+                    },
+                    {
+                      icon: "check_circle",
+                      label: "Selesai",
+                      value: stats.selesai,
+                      color: "text-[#059669]",
+                    },
+                    {
+                      icon: "block",
+                      label: "Ditolak",
+                      value: stats.ditolak,
+                      color: "text-[#DC2626]",
+                    },
                   ].map((c) => (
                     <div
                       key={c.label}
                       className="bg-gradient-to-br from-[#EEF2FF] to-white border border-[#C7D2FE] rounded-xl p-4 flex flex-col items-center justify-center gap-1.5 aspect-square group transition-all duration-200 ease-out hover:scale-[1.03] hover:shadow-md hover:border-[#A5B4FC]"
                     >
                       <div className="flex items-center justify-center gap-1.5">
-                        <Icon name={c.icon} className={`${c.color} !text-2xl group-hover:scale-110 group-hover:-translate-y-0.5 transition-transform duration-200`} />
+                        <Icon
+                          name={c.icon}
+                          className={`${c.color} !text-2xl group-hover:scale-110 group-hover:-translate-y-0.5 transition-transform duration-200`}
+                        />
                         <span className={`text-2xl font-bold ${c.color}`}>{c.value}</span>
                       </div>
                       <p className={`text-sm font-medium ${c.color} opacity-80`}>{c.label}</p>
@@ -341,7 +393,7 @@ function StatsPage() {
                 </div>
               </section>
 
-              {/* Severity + Trust Score 2 kolom */}
+              {/* Severity + Per Kecamatan 2 kolom */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* Severity Distribution */}
                 <section>
@@ -352,11 +404,34 @@ function StatsPage() {
                   <div className="bg-white border border-[#E2E8F0] rounded-xl p-5">
                     <div className="flex flex-col gap-4">
                       {[
-                        { label: "Rusak Berat", value: stats.rusak_berat ?? 0, bar: "bg-[#E11D48]", text: "text-[#E11D48]", light: "bg-red-50" },
-                        { label: "Rusak Sedang", value: stats.rusak_sedang ?? 0, bar: "bg-[#F97316]", text: "text-[#F97316]", light: "bg-orange-50" },
-                        { label: "Rusak Ringan", value: stats.rusak_ringan ?? 0, bar: "bg-[#F59E0B]", text: "text-[#F59E0B]", light: "bg-amber-50" },
+                        {
+                          label: "Rusak Berat",
+                          value: stats.rusak_berat ?? 0,
+                          bar: "bg-[#E11D48]",
+                          text: "text-[#E11D48]",
+                          light: "bg-red-50",
+                        },
+                        {
+                          label: "Rusak Sedang",
+                          value: stats.rusak_sedang ?? 0,
+                          bar: "bg-[#F97316]",
+                          text: "text-[#F97316]",
+                          light: "bg-orange-50",
+                        },
+                        {
+                          label: "Rusak Ringan",
+                          value: stats.rusak_ringan ?? 0,
+                          bar: "bg-[#F59E0B]",
+                          text: "text-[#F59E0B]",
+                          light: "bg-amber-50",
+                        },
                       ].map((s) => {
-                        const max = Math.max(stats.rusak_berat ?? 0, stats.rusak_sedang ?? 0, stats.rusak_ringan ?? 0, 1);
+                        const max = Math.max(
+                          stats.rusak_berat ?? 0,
+                          stats.rusak_sedang ?? 0,
+                          stats.rusak_ringan ?? 0,
+                          1,
+                        );
                         return (
                           <div key={s.label}>
                             <div className="flex items-center justify-between mb-1.5">
@@ -364,7 +439,12 @@ function StatsPage() {
                               <div className="flex items-center gap-3">
                                 <span className={`text-sm font-bold ${s.text}`}>{s.value}</span>
                                 <span className="text-[11px] text-[#475569] w-10 text-right">
-                                  {pct(s.value, (stats.rusak_berat ?? 0) + (stats.rusak_sedang ?? 0) + (stats.rusak_ringan ?? 0))}
+                                  {pct(
+                                    s.value,
+                                    (stats.rusak_berat ?? 0) +
+                                      (stats.rusak_sedang ?? 0) +
+                                      (stats.rusak_ringan ?? 0),
+                                  )}
                                 </span>
                               </div>
                             </div>
@@ -381,62 +461,8 @@ function StatsPage() {
                   </div>
                 </section>
 
-                {/* Trust Score */}
-                <section>
-                  <h2 className="text-[15px] font-bold text-[#0F172A] mb-3 flex items-center gap-2">
-                    <Icon name="verified" className="!text-lg text-[#1e40af]" />
-                    Distribusi Trust Score
-                  </h2>
-                  <div className="bg-white border border-[#E2E8F0] rounded-xl p-5">
-                    <div className="flex flex-col gap-4">
-                      {[
-                        { label: "Kredibel", value: stats.trust_hijau, bar: "bg-[#10B981]", text: "text-[#10B981]" },
-                        { label: "Perlu Review", value: stats.trust_kuning, bar: "bg-[#F59E0B]", text: "text-[#F59E0B]" },
-                        { label: "Diragukan", value: stats.trust_merah, bar: "bg-[#E11D48]", text: "text-[#E11D48]" },
-                      ].map((t) => {
-                        const totalTrust = stats.trust_hijau + stats.trust_kuning + stats.trust_merah;
-                        const p = totalTrust > 0 ? Math.round((t.value / totalTrust) * 100) : 0;
-                        return (
-                          <div key={t.label}>
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className="text-sm font-medium text-[#0F172A]">{t.label}</span>
-                              <div className="flex items-center gap-3">
-                                <span className={`text-sm font-bold ${t.text}`}>{t.value}</span>
-                                <span className="text-[11px] text-[#475569] w-10 text-right">{p}%</span>
-                              </div>
-                            </div>
-                            <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full ${t.bar} transition-all duration-500`}
-                                style={{ width: `${p}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-4 pt-3 border-t border-[#E2E8F0] flex items-center justify-between text-xs text-[#475569]">
-                      <span>Skor kepercayaan sistem berdasarkan validasi data</span>
-                      <span className="font-semibold text-[#0F172A]">
-                        Rata-rata:{" "}
-                        {(() => {
-                          const totalTrust = stats.trust_hijau + stats.trust_kuning + stats.trust_merah;
-                          if (totalTrust === 0) return "-";
-                          const score = Math.round(
-                            (stats.trust_hijau * 100 + stats.trust_kuning * 60 + stats.trust_merah * 20) / totalTrust
-                          );
-                          return score + "%";
-                        })()}
-                      </span>
-                    </div>
-                  </div>
-                </section>
-              </div>
-
-              {/* Charts 2 kolom */}
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
                 {/* Pie Chart Kecamatan */}
-                <section className="lg:col-span-2">
+                <section>
                   <h2 className="text-[15px] font-bold text-[#0F172A] mb-3 flex items-center gap-2">
                     <Icon name="map" className="!text-lg text-[#1e40af]" />
                     Per Kecamatan
@@ -445,18 +471,18 @@ function StatsPage() {
                     <DistrictPieChart data={districtStats} />
                   </div>
                 </section>
-
-                {/* Trend Chart */}
-                <section className="lg:col-span-3">
-                  <h2 className="text-[15px] font-bold text-[#0F172A] mb-3 flex items-center gap-2">
-                    <Icon name="trending_up" className="!text-lg text-[#1e40af]" />
-                    Tren 6 Bulan
-                  </h2>
-                  <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
-                    <MonthlyTrendChart data={monthlyTrend} />
-                  </div>
-                </section>
               </div>
+
+              {/* Tren 6 Bulan — full width */}
+              <section>
+                <h2 className="text-[15px] font-bold text-[#0F172A] mb-3 flex items-center gap-2">
+                  <Icon name="trending_up" className="!text-lg text-[#1e40af]" />
+                  Tren 6 Bulan
+                </h2>
+                <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
+                  <MonthlyTrendChart data={monthlyTrend} />
+                </div>
+              </section>
 
               {/* Dimensi Kerusakan */}
               {(totalPanjang > 0 || totalLuas > 0) && (
@@ -468,19 +494,27 @@ function StatsPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-gradient-to-br from-[#EEF2FF] to-white border border-[#C7D2FE] rounded-xl p-5 group transition-all duration-200 ease-out hover:scale-[1.03] hover:shadow-md hover:border-[#A5B4FC]">
                       <div className="flex items-center gap-2 text-[#1e40af] mb-2">
-                        <Icon name="straighten" className="!text-2xl group-hover:scale-110 group-hover:-translate-y-0.5 transition-transform duration-200" />
+                        <Icon
+                          name="straighten"
+                          className="!text-2xl group-hover:scale-110 group-hover:-translate-y-0.5 transition-transform duration-200"
+                        />
                       </div>
                       <p className="text-2xl font-bold text-[#1e40af]">
-                        {totalPanjang.toLocaleString("id-ID")} <span className="text-sm font-medium">m</span>
+                        {totalPanjang.toLocaleString("id-ID")}{" "}
+                        <span className="text-sm font-medium">m</span>
                       </p>
                       <p className="text-xs text-[#475569] mt-1">Total Panjang Kerusakan</p>
                     </div>
                     <div className="bg-gradient-to-br from-[#EEF2FF] to-white border border-[#C7D2FE] rounded-xl p-5 group transition-all duration-200 ease-out hover:scale-[1.03] hover:shadow-md hover:border-[#A5B4FC]">
                       <div className="flex items-center gap-2 text-[#1e40af] mb-2">
-                        <Icon name="grid_view" className="!text-2xl group-hover:scale-110 group-hover:-translate-y-0.5 transition-transform duration-200" />
+                        <Icon
+                          name="grid_view"
+                          className="!text-2xl group-hover:scale-110 group-hover:-translate-y-0.5 transition-transform duration-200"
+                        />
                       </div>
                       <p className="text-2xl font-bold text-[#1e40af]">
-                        {totalLuas.toLocaleString("id-ID")} <span className="text-sm font-medium">m²</span>
+                        {totalLuas.toLocaleString("id-ID")}{" "}
+                        <span className="text-sm font-medium">m²</span>
                       </p>
                       <p className="text-xs text-[#475569] mt-1">Total Luas Kerusakan</p>
                     </div>
@@ -488,41 +522,64 @@ function StatsPage() {
                 </section>
               )}
 
-              {/* UPR Table */}
-              {uprStats.length > 0 && (
+              {/* UPTD Table */}
+              {uptdStats.length > 0 && (
                 <section>
                   <h2 className="text-[15px] font-bold text-[#0F172A] mb-3 flex items-center gap-2">
                     <Icon name="groups" className="!text-lg text-[#1e40af]" />
-                    Per UPR / Tim Satgas
+                    Per UPTD / Tim Satgas
                   </h2>
                   <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
-                            <th className="text-left px-5 py-3 font-semibold text-[#475569] text-[11px] uppercase tracking-wider">UPR</th>
-                            <th className="text-center px-3 py-3 font-semibold text-[#475569] text-[11px] uppercase tracking-wider">Total</th>
-                            <th className="text-center px-3 py-3 font-semibold text-[#475569] text-[11px] uppercase tracking-wider">Diproses</th>
-                            <th className="text-center px-3 py-3 font-semibold text-[#475569] text-[11px] uppercase tracking-wider">Selesai</th>
-                            <th className="text-center px-3 py-3 font-semibold text-[#475569] text-[11px] uppercase tracking-wider">Progress</th>
-                            <th className="text-right px-5 py-3 font-semibold text-[#475569] text-[11px] uppercase tracking-wider">Luas (m²)</th>
+                            <th className="text-left px-5 py-3 font-semibold text-[#475569] text-[11px] uppercase tracking-wider">
+                              UPTD
+                            </th>
+                            <th className="text-center px-3 py-3 font-semibold text-[#475569] text-[11px] uppercase tracking-wider">
+                              Total
+                            </th>
+                            <th className="text-center px-3 py-3 font-semibold text-[#475569] text-[11px] uppercase tracking-wider">
+                              Diproses
+                            </th>
+                            <th className="text-center px-3 py-3 font-semibold text-[#475569] text-[11px] uppercase tracking-wider">
+                              Selesai
+                            </th>
+                            <th className="text-center px-3 py-3 font-semibold text-[#475569] text-[11px] uppercase tracking-wider">
+                              Progress
+                            </th>
+                            <th className="text-right px-5 py-3 font-semibold text-[#475569] text-[11px] uppercase tracking-wider">
+                              Luas (m²)
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
-                          {uprStats.map((u, i) => {
-                            const progress = u.total > 0 ? Math.round((u.selesai / u.total) * 100) : 0;
+                          {uptdStats.map((u, i) => {
+                            const progress =
+                              u.total > 0 ? Math.round((u.selesai / u.total) * 100) : 0;
                             return (
                               <tr
-                                key={u.upr_id}
-                                className={`${i < uprStats.length - 1 ? "border-b border-[#E2E8F0]" : ""} hover:bg-[#F8FAFC] transition-colors`}
+                                key={u.team_id}
+                                className={`${i < uptdStats.length - 1 ? "border-b border-[#E2E8F0]" : ""} hover:bg-[#F8FAFC] transition-colors`}
                               >
                                 <td className="px-5 py-3.5">
-                                  <span className="font-semibold text-[#0F172A]">{u.upr_name}</span>
-                                  <span className="block text-[11px] text-[#475569] mt-0.5">{u.wilayah}</span>
+                                  <span className="font-semibold text-[#0F172A]">
+                                    {u.team_name}
+                                  </span>
+                                  <span className="block text-[11px] text-[#475569] mt-0.5">
+                                    {u.wilayah}
+                                  </span>
                                 </td>
-                                <td className="text-center px-3 py-3.5 text-[#0F172A] font-medium">{u.total}</td>
-                                <td className="text-center px-3 py-3.5 text-[#D97706] font-semibold">{u.sedang_diperbaiki}</td>
-                                <td className="text-center px-3 py-3.5 text-[#059669] font-semibold">{u.selesai}</td>
+                                <td className="text-center px-3 py-3.5 text-[#0F172A] font-medium">
+                                  {u.total}
+                                </td>
+                                <td className="text-center px-3 py-3.5 text-[#D97706] font-semibold">
+                                  {u.sedang_diperbaiki}
+                                </td>
+                                <td className="text-center px-3 py-3.5 text-[#059669] font-semibold">
+                                  {u.selesai}
+                                </td>
                                 <td className="px-3 py-3.5">
                                   <div className="flex items-center gap-2">
                                     <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -531,11 +588,15 @@ function StatsPage() {
                                         style={{ width: `${progress}%` }}
                                       />
                                     </div>
-                                    <span className="text-[11px] font-semibold text-[#475569] w-8 text-right">{progress}%</span>
+                                    <span className="text-[11px] font-semibold text-[#475569] w-8 text-right">
+                                      {progress}%
+                                    </span>
                                   </div>
                                 </td>
                                 <td className="text-right px-5 py-3.5 text-[#0F172A] font-mono text-xs">
-                                  {u.total_luas_m2.toLocaleString("id-ID", { maximumFractionDigits: 1 })}
+                                  {u.total_luas_m2.toLocaleString("id-ID", {
+                                    maximumFractionDigits: 1,
+                                  })}
                                 </td>
                               </tr>
                             );
@@ -546,8 +607,6 @@ function StatsPage() {
                   </div>
                 </section>
               )}
-
-
             </>
           ) : null}
         </div>

@@ -9,6 +9,9 @@ import { PatrolScheduleCard } from "@/components/jk/PatrolScheduleCard";
 import type { SurveyTask, PatrolSchedule } from "@/types/survey";
 import { API_BASE_URL } from "@/lib/aiStore";
 import { ReportCard } from "@/components/jk/ReportCard";
+import { ModalBase } from "@/components/jk/ModalBase";
+import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
+import { ProgressUpdateModal } from "@/components/jk/ProgressUpdateModal";
 import type { Laporan } from "@/types/laporan";
 import type { ActionButton } from "@/components/jk/report-card/types";
 
@@ -37,8 +40,18 @@ function todayFormatted(isClient: boolean): string {
   if (!isClient) return "";
   const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
   const months = [
-    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-    "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+    "Januari",
+    "Februari",
+    "Maret",
+    "April",
+    "Mei",
+    "Juni",
+    "Juli",
+    "Agustus",
+    "September",
+    "Oktober",
+    "November",
+    "Desember",
   ];
   const d = new Date();
   return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
@@ -55,7 +68,9 @@ function TugasSayaPage() {
   const today = todayStr();
   const teamId = user?.team_id;
 
-  useEffect(() => { setIsClient(true); }, []);
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     if (user?.role !== "petugas") navigate({ to: "/" });
@@ -67,9 +82,7 @@ function TugasSayaPage() {
     teamId ? { team_id: teamId, tanggal_patroli: today } : undefined,
   );
 
-  const schedulesQuery = usePatrolSchedules(
-    teamId ? { team_id: teamId } : undefined,
-  );
+  const schedulesQuery = usePatrolSchedules(teamId ? { team_id: teamId } : undefined);
   const schedules: PatrolSchedule[] = schedulesQuery.data?.data ?? [];
 
   // ── Perbaikan hooks ──
@@ -80,6 +93,14 @@ function TugasSayaPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<string>("semua");
   const [sortBy, setSortBy] = useState<string>("prioritas");
+  const [showEstimasi, setShowEstimasi] = useState(false);
+  const [estimasiHari, setEstimasiHari] = useState(7);
+  const [estimasiMode, setEstimasiMode] = useState<"same-day" | "multi-day">("same-day");
+  const [estimasiTargetId, setEstimasiTargetId] = useState<string | null>(null);
+  const [showMulaiConfirm, setShowMulaiConfirm] = useState(false);
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [progressTargetId, setProgressTargetId] = useState<string | null>(null);
+  const [progressTargetCode, setProgressTargetCode] = useState("");
 
   useEffect(() => {
     if (tab === "perbaikan") {
@@ -91,7 +112,7 @@ function TugasSayaPage() {
     setLoadingPerbaikan(true);
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const reportsRes = await fetch(`${API_BASE_URL}/reports?limit=50`, { headers });
+      const reportsRes = await fetch(`${API_BASE_URL}/reports?limit=50&team_tasks=1`, { headers });
       if (reportsRes.ok) {
         const json = await reportsRes.json();
         setLaporan(json.data ?? []);
@@ -106,14 +127,32 @@ function TugasSayaPage() {
   }
 
   async function handleMulai(id: string) {
-    setActionLoading(id);
+    const report = laporan.find((r) => r.id === id);
+    const isRingan = report?.overall_severity === "Rusak Ringan";
+    setEstimasiTargetId(id);
+    setEstimasiHari(isRingan ? 1 : 7);
+    setEstimasiMode(isRingan ? "same-day" : "multi-day");
+    setShowEstimasi(true);
+  }
+
+  function handleMulaiOpenConfirm() {
+    setShowMulaiConfirm(true);
+  }
+
+  async function handleMulaiConfirm() {
+    if (!estimasiTargetId) return;
+    setShowMulaiConfirm(false);
+    setActionLoading(estimasiTargetId);
     try {
-      const res = await fetch(`${API_BASE_URL}/reports/${id}/mulai`, {
+      const estimasiValue = estimasiMode === "same-day" ? null : estimasiHari;
+      const res = await fetch(`${API_BASE_URL}/reports/${estimasiTargetId}/mulai`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ estimasi_selesai_hari: estimasiValue }),
       });
       if (res.ok) {
+        setShowEstimasi(false);
+        setEstimasiTargetId(null);
         await loadReports();
       } else {
         const json = await res.json();
@@ -124,6 +163,12 @@ function TugasSayaPage() {
     } finally {
       setActionLoading(null);
     }
+  }
+
+  function handleProgressClick(id: string, code: string) {
+    setProgressTargetId(id);
+    setProgressTargetCode(code);
+    setShowProgressModal(true);
   }
 
   const byFilter = useMemo(() => {
@@ -146,7 +191,8 @@ function TugasSayaPage() {
       if (sortBy === "deadline") {
         const aDeadline = a.deadline_resolusi ?? a.deadline_review;
         const bDeadline = b.deadline_resolusi ?? b.deadline_review;
-        if (aDeadline && bDeadline) return new Date(aDeadline).getTime() - new Date(bDeadline).getTime();
+        if (aDeadline && bDeadline)
+          return new Date(aDeadline).getTime() - new Date(bDeadline).getTime();
         if (aDeadline) return -1;
         if (bDeadline) return 1;
       }
@@ -154,14 +200,14 @@ function TugasSayaPage() {
     };
   }, [sortBy]);
 
-  const { tugasDisetujui, tugasBerjalan, tugasSelesai, stats } = useMemo(() => {
-    const disetujui: typeof laporan = [];
+  const { tugasBaru, tugasBerjalan, tugasSelesai, stats } = useMemo(() => {
+    const baru: typeof laporan = [];
     const berjalan: typeof laporan = [];
     const selesai: typeof laporan = [];
     let berat = 0;
     for (const r of laporan) {
       const pass = byFilter(r);
-      if (r.status === "Disetujui" && pass) disetujui.push(r);
+      if (r.status === "Ditugaskan" && pass) baru.push(r);
       if (r.status === "Sedang Diperbaiki" && pass) berjalan.push(r);
       if (r.status === "Selesai" && pass) selesai.push(r);
 
@@ -170,14 +216,14 @@ function TugasSayaPage() {
     }
     const sort = (arr: typeof laporan) => arr.sort(sortFn);
     return {
-      tugasDisetujui: sort(disetujui),
+      tugasBaru: sort(baru),
       tugasBerjalan: sort(berjalan),
       tugasSelesai: sort(selesai),
       stats: { total: laporan.length, berat },
     };
   }, [laporan, byFilter, sortFn]);
 
-  const hasAny = tugasDisetujui.length > 0 || tugasBerjalan.length > 0 || tugasSelesai.length > 0;
+  const hasAny = tugasBaru.length > 0 || tugasBerjalan.length > 0 || tugasSelesai.length > 0;
 
   // ── No team guard ──
 
@@ -207,9 +253,7 @@ function TugasSayaPage() {
       <main className="pb-4">
         <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] p-6 text-white mb-6">
           <h1 className="text-xl font-bold tracking-tight">Tugas Saya</h1>
-          {user?.team_name && (
-            <p className="text-sm text-blue-200 mt-1">{user.team_name}</p>
-          )}
+          {user?.team_name && <p className="text-sm text-blue-200 mt-1">{user.team_name}</p>}
           <div className="flex gap-1 bg-white/20 rounded-lg p-1 mt-3">
             <button
               onClick={() => setTab("patroli")}
@@ -237,14 +281,8 @@ function TugasSayaPage() {
         <div className="max-w-5xl mx-auto px-4">
           {tab === "patroli" ? (
             <>
-              <PatrolScheduleCard
-                schedules={schedules}
-                isFetching={schedulesQuery.isFetching}
-              />
-              <PatroliSection
-                isFetching={isFetchingPatroli}
-                tasks={tasks}
-              />
+              <PatrolScheduleCard schedules={schedules} isFetching={schedulesQuery.isFetching} />
+              <PatroliSection isFetching={isFetchingPatroli} tasks={tasks} />
             </>
           ) : (
             <PerbaikanSection
@@ -255,17 +293,149 @@ function TugasSayaPage() {
               sortBy={sortBy}
               setSortBy={setSortBy}
               tugasBerjalan={tugasBerjalan}
-              tugasDisetujui={tugasDisetujui}
+              tugasBaru={tugasBaru}
               tugasSelesai={tugasSelesai}
               stats={stats}
               hasAny={hasAny}
               actionLoading={actionLoading}
               handleMulai={handleMulai}
               isClient={isClient}
+              onProgressClick={handleProgressClick}
             />
           )}
         </div>
       </main>
+
+      {showEstimasi && (
+        <ModalBase
+          onClose={() => { setShowEstimasi(false); setEstimasiTargetId(null); }}
+          icon="play_arrow"
+          badge="MULAI PENGERJAAN"
+          title="Estimasi Waktu Penyelesaian"
+          footer={
+            <>
+              <button
+                type="button"
+                disabled={actionLoading === estimasiTargetId}
+                onClick={handleMulaiOpenConfirm}
+                className="w-full h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-95 transition-all disabled:opacity-50"
+              >
+                {actionLoading === estimasiTargetId ? (
+                  "Memproses…"
+                ) : (
+                  <>
+                    <Icon name="play_arrow" className="!text-[18px]" />
+                    Mulai Pengerjaan
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowEstimasi(false); setEstimasiTargetId(null); }}
+                className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
+              >
+                Batal
+              </button>
+            </>
+          }
+        >
+          <div>
+            <p className="text-[13px] text-[#475569] mb-4 leading-relaxed">
+              Perkirakan waktu yang dibutuhkan untuk menyelesaikan perbaikan laporan ini.
+            </p>
+            <div className="space-y-3">
+              <label
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  estimasiMode === "same-day"
+                    ? "border-[#1A4F8A] bg-[#EFF6FF]"
+                    : "border-[#D0DAE8] bg-white"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="estimasi"
+                  checked={estimasiMode === "same-day"}
+                  onChange={() => setEstimasiMode("same-day")}
+                  className="accent-[#1A4F8A]"
+                />
+                <div>
+                  <p className="text-[13px] font-semibold text-[#0F172A]">Same day</p>
+                  <p className="text-[11px] text-[#64748B]">Selesai hari ini juga</p>
+                </div>
+              </label>
+              <label
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  estimasiMode === "multi-day"
+                    ? "border-[#1A4F8A] bg-[#EFF6FF]"
+                    : "border-[#D0DAE8] bg-white"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="estimasi"
+                  checked={estimasiMode === "multi-day"}
+                  onChange={() => setEstimasiMode("multi-day")}
+                  className="accent-[#1A4F8A]"
+                />
+                <div>
+                  <p className="text-[13px] font-semibold text-[#0F172A]">Estimasi hari</p>
+                  <p className="text-[11px] text-[#64748B]">Butuh beberapa hari pengerjaan</p>
+                </div>
+              </label>
+              {estimasiMode === "multi-day" && (
+                <div className="pl-8">
+                  <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">
+                    Berapa hari?
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={90}
+                    value={estimasiHari}
+                    onChange={(e) => setEstimasiHari(Math.max(1, Math.min(90, parseInt(e.target.value) || 7)))}
+                    className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </ModalBase>
+      )}
+
+      {/* ── Confirm Mulai ── */}
+      {estimasiTargetId && (
+        <ConfirmDialog
+          open={showMulaiConfirm}
+          title="Mulai Pengerjaan?"
+          message={
+            (() => {
+              const r = laporan.find((x) => x.id === estimasiTargetId);
+              const code = r?.report_code ?? estimasiTargetId;
+              const road = r?.road_name ?? "";
+              return `Mulai perbaikan ${code} — ${road}?${
+                estimasiMode === "same-day"
+                  ? "\nEstimasi: Selesai hari ini"
+                  : `\nEstimasi: ${estimasiHari} hari`
+              }`;
+            })()
+          }
+          confirmText="Ya, Mulai"
+          cancelText="Batal"
+          confirmLoading={actionLoading === estimasiTargetId}
+          onConfirm={handleMulaiConfirm}
+          onCancel={() => { setShowMulaiConfirm(false); setShowEstimasi(true); }}
+        />
+      )}
+
+      {showProgressModal && progressTargetId && (
+        <ProgressUpdateModal
+          reportId={progressTargetId}
+          reportCode={progressTargetCode}
+          token={token}
+          onClose={() => { setShowProgressModal(false); setProgressTargetId(null); setProgressTargetCode(""); }}
+          onSuccess={loadReports}
+        />
+      )}
     </PageLayout>
   );
 }
@@ -274,13 +444,7 @@ export default TugasSayaPage;
 
 // ── Patroli Section ──
 
-function PatroliSection({
-  isFetching,
-  tasks,
-}: {
-  isFetching: boolean;
-  tasks: SurveyTask[];
-}) {
+function PatroliSection({ isFetching, tasks }: { isFetching: boolean; tasks: SurveyTask[] }) {
   return (
     <>
       {isFetching && (
@@ -297,9 +461,7 @@ function PatroliSection({
       {!isFetching && tasks.length === 0 && (
         <div className="text-center py-12 text-[#476788]">
           <Icon name="inbox" className="!text-5xl mb-3 opacity-30" />
-          <p className="font-body-md text-body-md">
-            Tidak ada shift untuk hari ini
-          </p>
+          <p className="font-body-md text-body-md">Tidak ada shift untuk hari ini</p>
         </div>
       )}
 
@@ -307,7 +469,7 @@ function PatroliSection({
         {tasks.map((task) => (
           <Link
             key={task.id}
-            to="/detail-survei"
+            to="/detail-patroli"
             search={{ taskId: task.id }}
             className="bg-white border border-[#D0DAE8] rounded-xl p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 block"
           >
@@ -325,7 +487,9 @@ function PatroliSection({
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 {task.priority && (
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${PRIORITY_STYLES[task.priority] ?? ""}`}>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${PRIORITY_STYLES[task.priority] ?? ""}`}
+                  >
                     {task.priority}
                   </span>
                 )}
@@ -368,13 +532,14 @@ function PerbaikanSection({
   sortBy,
   setSortBy,
   tugasBerjalan,
-  tugasDisetujui,
+  tugasBaru,
   tugasSelesai,
   stats,
   hasAny,
   actionLoading,
   handleMulai,
   isClient,
+  onProgressClick,
 }: {
   loading: boolean;
   error: string;
@@ -383,13 +548,14 @@ function PerbaikanSection({
   sortBy: string;
   setSortBy: (s: string) => void;
   tugasBerjalan: Laporan[];
-  tugasDisetujui: Laporan[];
+  tugasBaru: Laporan[];
   tugasSelesai: Laporan[];
   stats: { total: number; berat: number };
   hasAny: boolean;
   actionLoading: string | null;
   handleMulai: (id: string) => Promise<void>;
   isClient: boolean;
+  onProgressClick: (id: string, code: string) => void;
 }) {
   if (loading) {
     return (
@@ -397,7 +563,10 @@ function PerbaikanSection({
         <section className="mb-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="rounded-xl p-4 flex flex-col items-center justify-center gap-1.5 aspect-square bg-[#EEF2FF] border border-[#C7D2FE] animate-pulse">
+              <div
+                key={i}
+                className="rounded-xl p-4 flex flex-col items-center justify-center gap-1.5 aspect-square bg-[#EEF2FF] border border-[#C7D2FE] animate-pulse"
+              >
                 <div className="w-8 h-8 bg-[#C7D2FE] rounded" />
                 <div className="w-16 h-7 bg-[#C7D2FE] rounded mt-1" />
                 <div className="w-24 h-4 bg-[#C7D2FE] rounded" />
@@ -407,7 +576,10 @@ function PerbaikanSection({
         </section>
         <section className="space-y-3 mb-6">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden animate-pulse">
+            <div
+              key={i}
+              className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden animate-pulse"
+            >
               <div className="flex flex-col md:flex-row">
                 <div className="w-full md:w-36 h-44 md:h-auto bg-[#E8F0FA]" />
                 <div className="flex-1 p-4 space-y-3">
@@ -437,13 +609,34 @@ function PerbaikanSection({
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
             { icon: "error", label: "Rusak Berat", value: stats.berat, color: "text-[#DC2626]" },
-            { icon: "sync", label: "Dalam Proses", value: tugasBerjalan.length, color: "text-[#D97706]" },
-            { icon: "check_circle", label: "Selesai Hari Ini", value: tugasSelesai.length, color: "text-[#059669]" },
-            { icon: "assignment", label: "Total Penugasan", value: stats.total, color: "text-[#1e40af]" },
+            {
+              icon: "sync",
+              label: "Dalam Proses",
+              value: tugasBerjalan.length,
+              color: "text-[#D97706]",
+            },
+            {
+              icon: "check_circle",
+              label: "Selesai Hari Ini",
+              value: tugasSelesai.length,
+              color: "text-[#059669]",
+            },
+            {
+              icon: "assignment",
+              label: "Total Penugasan",
+              value: stats.total,
+              color: "text-[#1e40af]",
+            },
           ].map((c) => (
-            <div key={c.label} className="bg-gradient-to-br from-[#EEF2FF] to-white border border-[#C7D2FE] rounded-xl p-4 flex flex-col items-center justify-center gap-1.5 aspect-square group transition-all duration-200 ease-out hover:scale-[1.03] hover:shadow-md hover:border-[#A5B4FC]">
+            <div
+              key={c.label}
+              className="bg-gradient-to-br from-[#EEF2FF] to-white border border-[#C7D2FE] rounded-xl p-4 flex flex-col items-center justify-center gap-1.5 aspect-square group transition-all duration-200 ease-out hover:scale-[1.03] hover:shadow-md hover:border-[#A5B4FC]"
+            >
               <div className="flex items-center justify-center gap-1.5">
-                <Icon name={c.icon} className={`${c.color} !text-2xl group-hover:scale-110 group-hover:-translate-y-0.5 transition-transform duration-200`} />
+                <Icon
+                  name={c.icon}
+                  className={`${c.color} !text-2xl group-hover:scale-110 group-hover:-translate-y-0.5 transition-transform duration-200`}
+                />
                 <span className={`text-2xl font-bold ${c.color}`}>{c.value}</span>
               </div>
               <p className={`text-sm font-medium ${c.color} opacity-80`}>{c.label}</p>
@@ -452,7 +645,9 @@ function PerbaikanSection({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 mt-4">
-          <span className="font-label-md text-label-md text-[#475569] font-semibold">Prioritas:</span>
+          <span className="font-label-md text-label-md text-[#475569] font-semibold">
+            Prioritas:
+          </span>
           {(["semua", "Rendah", "Sedang", "Tinggi"] as const).map((f) => (
             <button
               key={f}
@@ -501,6 +696,43 @@ function PerbaikanSection({
           </div>
         </div>
 
+        {tugasBaru.length > 0 && (
+          <div className="mb-6">
+            <h3 className="font-label-md font-bold text-[#0F172A] mb-3 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
+              Baru Ditugaskan ({tugasBaru.length})
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {tugasBaru.map((r) => {
+                const ac: ActionButton[] = [];
+                if (r.status === "Ditugaskan")
+                  ac.push({
+                    label: "Mulai",
+                    icon: "play_arrow",
+                    variant: "primary",
+                    onClick: () => handleMulai(r.id),
+                    disabled: actionLoading === r.id,
+                  });
+                ac.push({
+                  label: "Lihat Detail",
+                  icon: "arrow_forward",
+                  variant: "secondary",
+                  to: "/detail-report",
+                  search: { reportId: r.id },
+                });
+                return (
+                  <ReportCard
+                    key={r.id}
+                    report={r}
+                    options={{ showDeadline: true, isClient }}
+                    actions={ac}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {tugasBerjalan.length > 0 && (
           <div className="mb-6">
             <h3 className="font-label-md font-bold text-[#0F172A] mb-3 flex items-center gap-1.5">
@@ -510,28 +742,40 @@ function PerbaikanSection({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {tugasBerjalan.map((r) => {
                 const ac: ActionButton[] = [];
-                if (r.status === "Disetujui") ac.push({ label: "Mulai", icon: "play_arrow", variant: "primary", onClick: () => handleMulai(r.id), disabled: actionLoading === r.id });
-                if (r.status === "Sedang Diperbaiki") ac.push({ label: "Selesai", icon: "check_circle", variant: "primary", to: "/complete-report", search: { reportId: r.id } });
-                ac.push({ label: "Lihat Detail", icon: "arrow_forward", variant: "secondary", to: "/detail-report", search: { reportId: r.id } });
-                return <ReportCard key={r.id} report={r} options={{ showDeadline: true, isClient }} actions={ac} />;
-              })}
-            </div>
-          </div>
-        )}
-
-        {tugasDisetujui.length > 0 && (
-          <div className="mb-6">
-            <h3 className="font-label-md font-bold text-[#0F172A] mb-3 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
-              Siap Dikerjakan ({tugasDisetujui.length})
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {tugasDisetujui.map((r) => {
-                const ac: ActionButton[] = [];
-                if (r.status === "Disetujui") ac.push({ label: "Mulai", icon: "play_arrow", variant: "primary", onClick: () => handleMulai(r.id), disabled: actionLoading === r.id });
-                if (r.status === "Sedang Diperbaiki") ac.push({ label: "Selesai", icon: "check_circle", variant: "primary", to: "/complete-report", search: { reportId: r.id } });
-                ac.push({ label: "Lihat Detail", icon: "arrow_forward", variant: "secondary", to: "/detail-report", search: { reportId: r.id } });
-                return <ReportCard key={r.id} report={r} options={{ showDeadline: true, isClient }} actions={ac} />;
+                if (r.status === "Sedang Diperbaiki") {
+                  const hasProgress = (r.progress_updates_count ?? 0) > 0;
+                  if (hasProgress) {
+                    ac.push({
+                      label: "Selesai",
+                      icon: "check_circle",
+                      variant: "primary",
+                      to: "/complete-report",
+                      search: { reportId: r.id },
+                    });
+                  } else {
+                    ac.push({
+                      label: "Foto Progress",
+                      icon: "add_a_photo",
+                      variant: "primary",
+                      onClick: () => onProgressClick(r.id, r.report_code),
+                    });
+                  }
+                }
+                ac.push({
+                  label: "Lihat Detail",
+                  icon: "arrow_forward",
+                  variant: "secondary",
+                  to: "/detail-report",
+                  search: { reportId: r.id },
+                });
+                return (
+                  <ReportCard
+                    key={r.id}
+                    report={r}
+                    options={{ showDeadline: true, isClient }}
+                    actions={ac}
+                  />
+                );
               })}
             </div>
           </div>
@@ -544,7 +788,7 @@ function PerbaikanSection({
             </div>
             <p className="font-body-md font-semibold text-[#0F172A] mb-1">Belum ada tugas</p>
             <p className="font-body-sm text-body-sm text-[#475569]">
-              Laporan yang ditugaskan supervisor akan muncul di sini.
+              Laporan yang ditugaskan supervisor akan muncul di sini sebagai "Baru Ditugaskan".
             </p>
           </div>
         )}
@@ -557,8 +801,23 @@ function PerbaikanSection({
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {tugasSelesai.map((r) => {
-                const ac: ActionButton[] = [{ label: "Lihat Detail", icon: "arrow_forward", variant: "secondary", to: "/detail-report", search: { reportId: r.id } }];
-                return <ReportCard key={r.id} report={r} options={{ showDeadline: true, isClient }} actions={ac} />;
+                const ac: ActionButton[] = [
+                  {
+                    label: "Lihat Detail",
+                    icon: "arrow_forward",
+                    variant: "secondary",
+                    to: "/detail-report",
+                    search: { reportId: r.id },
+                  },
+                ];
+                return (
+                  <ReportCard
+                    key={r.id}
+                    report={r}
+                    options={{ showDeadline: true, isClient }}
+                    actions={ac}
+                  />
+                );
               })}
             </div>
           </div>

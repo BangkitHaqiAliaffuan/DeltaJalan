@@ -32,17 +32,69 @@ const ROAD_DAMAGE_URLS = [
 ];
 
 const KECAMATAN = [
-  "Sidoarjo", "Buduran", "Gedangan", "Sedati", "Waru",
-  "Taman", "Krian", "Balongbendo", "Wonoayu", "Sukodono",
-  "Candi", "Porong", "Krembung", "Tulangan", "Tanggulangin",
-  "Jabon", "Tarik", "Prambon",
-];
+  "Sidoarjo",
+  "Buduran",
+  "Gedangan",
+  "Sedati",
+  "Waru",
+  "Taman",
+  "Krian",
+  "Balongbendo",
+  "Wonoayu",
+  "Sukodono",
+  "Candi",
+  "Porong",
+  "Krembung",
+  "Tulangan",
+  "Tanggulangin",
+  "Jabon",
+  "Tarik",
+  "Prambon",
+] as const;
+
+/** Titik tengah GPS tiap kecamatan di Kabupaten Sidoarjo. */
+const KECAMATAN_GPS: Record<string, [number, number]> = {
+  Sidoarjo: [-7.4521, 112.7188],
+  Buduran: [-7.4207, 112.724],
+  Gedangan: [-7.3967, 112.6926],
+  Sedati: [-7.369, 112.7805],
+  Waru: [-7.3511, 112.7688],
+  Taman: [-7.3727, 112.6695],
+  Krian: [-7.4086, 112.5733],
+  Balongbendo: [-7.4418, 112.5295],
+  Wonoayu: [-7.469, 112.6238],
+  Sukodono: [-7.3892, 112.6461],
+  Candi: [-7.4946, 112.734],
+  Porong: [-7.5398, 112.6869],
+  Krembung: [-7.5213, 112.6272],
+  Tulangan: [-7.506, 112.6538],
+  Tanggulangin: [-7.5128, 112.7094],
+  Jabon: [-7.5734, 112.7509],
+  Tarik: [-7.4517, 112.5549],
+  Prambon: [-7.5425, 112.606],
+};
 
 const STATUSES = ["Menunggu Review", "Disetujui", "Sedang Diperbaiki", "Selesai"] as const;
 const SEVERITIES = ["Rusak Berat", "Rusak Sedang", "Rusak Ringan"] as const;
 
 function rand(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+/** Hasilkan koordinat acak dalam radius maxMeters dari titik pusat. */
+function nearbyGps(
+  centerLat: number,
+  centerLng: number,
+  maxMeters: number,
+): { lat: number; lng: number } {
+  const latPerMeter = 1.0 / 111320.0;
+  const lngPerMeter = 1.0 / (111320.0 * Math.cos((centerLat * Math.PI) / 180));
+  const angle = Math.random() * 2 * Math.PI;
+  const dist = Math.random() * maxMeters;
+  return {
+    lat: parseFloat((centerLat + Math.cos(angle) * dist * latPerMeter).toFixed(8)),
+    lng: parseFloat((centerLng + Math.sin(angle) * dist * lngPerMeter).toFixed(8)),
+  };
 }
 
 function pick<T>(arr: readonly T[]): T {
@@ -141,21 +193,70 @@ export function getMockStats() {
   };
 }
 
-export function getMockUprStats() {
+export function getMockTeamStats() {
   return [
-    { upr_id: 1, upr_name: "Satgas Utara", wilayah: "Waru, Sedati, Buduran", total: rand(10, 30), sedang_diperbaiki: rand(2, 8), selesai: rand(3, 12), total_panjang_m: rand(100, 500), total_luas_m2: rand(200, 800) },
-    { upr_id: 2, upr_name: "Satgas Selatan", wilayah: "Porong, Tanggulangin, Jabon", total: rand(10, 30), sedang_diperbaiki: rand(2, 8), selesai: rand(3, 12), total_panjang_m: rand(100, 500), total_luas_m2: rand(200, 800) },
-    { upr_id: 3, upr_name: "Satgas Barat", wilayah: "Krian, Balongbendo, Tarik", total: rand(10, 30), sedang_diperbaiki: rand(2, 8), selesai: rand(3, 12), total_panjang_m: rand(100, 500), total_luas_m2: rand(200, 800) },
-    { upr_id: 4, upr_name: "Satgas Timur", wilayah: "Sidoarjo, Candi, Tulangan", total: rand(10, 30), sedang_diperbaiki: rand(2, 8), selesai: rand(3, 12), total_panjang_m: rand(100, 500), total_luas_m2: rand(200, 800) },
+    {
+      team_id: "1",
+      team_name: "Satgas Utara",
+      wilayah: "Waru, Sedati, Buduran",
+      total: rand(10, 30),
+      sedang_diperbaiki: rand(2, 8),
+      selesai: rand(3, 12),
+      total_panjang_m: rand(100, 500),
+      total_luas_m2: rand(200, 800),
+    },
+    {
+      team_id: "2",
+      team_name: "Satgas Selatan",
+      wilayah: "Porong, Tanggulangin, Jabon",
+      total: rand(10, 30),
+      sedang_diperbaiki: rand(2, 8),
+      selesai: rand(3, 12),
+      total_panjang_m: rand(100, 500),
+      total_luas_m2: rand(200, 800),
+    },
+    {
+      team_id: "3",
+      team_name: "Satgas Barat",
+      wilayah: "Krian, Balongbendo, Tarik",
+      total: rand(10, 30),
+      sedang_diperbaiki: rand(2, 8),
+      selesai: rand(3, 12),
+      total_panjang_m: rand(100, 500),
+      total_luas_m2: rand(200, 800),
+    },
+    {
+      team_id: "4",
+      team_name: "Satgas Timur",
+      wilayah: "Sidoarjo, Candi, Tulangan",
+      total: rand(10, 30),
+      sedang_diperbaiki: rand(2, 8),
+      selesai: rand(3, 12),
+      total_panjang_m: rand(100, 500),
+      total_luas_m2: rand(200, 800),
+    },
   ];
 }
 
 const ROAD_NAMES = [
-  "Jl. Raya Porong", "Jl. Ahmad Yani", "Jl. Gajah Mada", "Jl. Majapahit",
-  "Jl. Pahlawan", "Jl. Diponegoro", "Jl. Jenggolo", "Jl. Thamrin",
-  "Jl. Sudirman", "Jl. Raya Buduran", "Jl. Raya Waru", "Jl. Raya Taman",
-  "Jl. Raya Krian", "Jl. Raya Candi", "Jl. Raya Tanggulangin",
-  "Jl. Raya Sedati", "Jl. Raya Sukodono", "Jl. Raya Wonoayu",
+  "Jl. Raya Porong",
+  "Jl. Ahmad Yani",
+  "Jl. Gajah Mada",
+  "Jl. Majapahit",
+  "Jl. Pahlawan",
+  "Jl. Diponegoro",
+  "Jl. Jenggolo",
+  "Jl. Thamrin",
+  "Jl. Sudirman",
+  "Jl. Raya Buduran",
+  "Jl. Raya Waru",
+  "Jl. Raya Taman",
+  "Jl. Raya Krian",
+  "Jl. Raya Candi",
+  "Jl. Raya Tanggulangin",
+  "Jl. Raya Sedati",
+  "Jl. Raya Sukodono",
+  "Jl. Raya Wonoayu",
 ];
 
 export interface MockPhoto {
@@ -199,20 +300,24 @@ export function getMockReports(count: number = 10): MockReport[] {
         created_at: date.toISOString(),
       });
     }
+    const district = pick(KECAMATAN);
+    const gps = nearbyGps(...(KECAMATAN_GPS[district] ?? [-7.4521, 112.7188]), 1500);
     reports.push({
       id: `mock-${seed}`,
       report_code: `LP-2026-${String(rand(1, 999)).padStart(5, "0")}`,
       road_name: pick(ROAD_NAMES),
-      district: pick(KECAMATAN),
+      district,
       status: pick(STATUSES),
       overall_severity: pick(SEVERITIES),
       first_photo_url: photos[0].image_original_url,
       photos_count: photos.length,
       photos,
       created_at: date.toISOString(),
-      latitude: -7.3 - Math.random() * 0.3,
-      longitude: 112.6 + Math.random() * 0.3,
+      latitude: gps.lat,
+      longitude: gps.lng,
     });
   }
-  return reports.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  return reports.sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
 }

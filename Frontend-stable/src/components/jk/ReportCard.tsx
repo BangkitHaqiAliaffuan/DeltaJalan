@@ -22,7 +22,7 @@ const SEVERITY_COLOR_MAP: Record<string, string> = {
   "Rusak Berat": "#E11D48",
   "Rusak Sedang": "#F97316",
   "Rusak Ringan": "#F59E0B",
-  "Baik": "#10B981",
+  Baik: "#10B981",
 };
 
 export function ReportCardSkeleton() {
@@ -49,11 +49,15 @@ export function ReportCardSkeleton() {
 
 export function ReportCard({ report, actions, options }: ReportCardProps) {
   const sc = getSeverityLabel(report.overall_severity ?? report.ai_severity);
-  const severityColor = SEVERITY_COLOR_MAP[report.overall_severity ?? report.ai_severity ?? ""] ?? "#64748B";
+  const severityColor =
+    SEVERITY_COLOR_MAP[report.overall_severity ?? report.ai_severity ?? ""] ?? "#64748B";
+  // ── TRUST SCORE [NONAKTIF] — trustLabel, trustColor hanya dipakai di showTrust block
   const trustLabel = (report.trust_label as TrustLabel) ?? "merah";
-  const trustColor = trustLabel === "hijau" ? "#059669" : trustLabel === "kuning" ? "#D97706" : "#DC2626";
+  const trustColor =
+    trustLabel === "hijau" ? "#059669" : trustLabel === "kuning" ? "#D97706" : "#DC2626";
   const isClient = options?.isClient ?? true;
-  const showTrust = options?.showTrust ?? true;
+  // ── TRUST SCORE [NONAKTIF] — default showTrust diubah ke false
+  const showTrust = options?.showTrust ?? false;
   const showDeadline = options?.showDeadline ?? false;
 
   const deadlineText = (() => {
@@ -69,11 +73,20 @@ export function ReportCard({ report, actions, options }: ReportCardProps) {
     const days = Math.floor(hours / 24);
     return `${days} hari`;
   })();
+  const deadlineColor = deadlineText === "Terlambat!" ? "#E11D48" : "#10B981";
 
   const isDuplicate = report.is_duplicate === true;
+  const isTerlambat =
+    showDeadline &&
+    (report.status_deadline === "terlambat" ||
+      report.terlambat_review === true ||
+      report.terlambat_resolusi === true ||
+      report.terlambat_mulai === true);
 
   return (
-    <div className={`bg-white border rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ease-out overflow-hidden flex flex-col ${isDuplicate ? 'border-[#F59E0B]' : 'border-[#E2E8F0]'}`}>
+    <div
+      className={`bg-white rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ease-out overflow-hidden flex flex-col ${isTerlambat ? "border-2 border-[#E11D48]" : isDuplicate ? "border border-[#F59E0B]" : "border border-[#E2E8F0]"}`}
+    >
       <Link to="/detail-report" search={{ reportId: report.id }} className="block group">
         <div className="aspect-[4/3] overflow-hidden bg-[#E8F0FA]">
           {report.first_photo_url ? (
@@ -96,11 +109,19 @@ export function ReportCard({ report, actions, options }: ReportCardProps) {
             <h4 className="text-[15px] font-bold text-[#0F172A] leading-tight line-clamp-2 flex-1">
               {report.road_name}
             </h4>
-            {isDuplicate && (
-              <span className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-[#D97706] border border-amber-200">
-                Duplikat
-              </span>
-            )}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {isTerlambat && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-red-50 text-[#E11D48] border border-red-200 whitespace-nowrap">
+                  <Icon name="timer_off" className="!text-[10px]" />
+                  Terlambat
+                </span>
+              )}
+              {isDuplicate && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-[#D97706] border border-amber-200">
+                  Duplikat
+                </span>
+              )}
+            </div>
           </div>
         </Link>
 
@@ -116,26 +137,60 @@ export function ReportCard({ report, actions, options }: ReportCardProps) {
 
         <div className="flex items-center gap-1.5">
           <span className={`w-2 h-2 rounded-full ${statusDotStyle(report.status)}`} />
-          <span className="text-[11px] font-semibold text-[#475569]">{displayStatus(report.status)}</span>
+          <span className="text-[11px] font-semibold text-[#475569]">
+            {displayStatus(report.status)}
+          </span>
         </div>
+
+        {report.status === "Ditolak" && (
+          <div className="flex items-center gap-1 text-[10px] text-[#94A3B8] mt-0.5">
+            <Icon name="info" className="!text-[10px] shrink-0" />
+            <span>Dihapus otomatis 3 hari setelah ditolak</span>
+          </div>
+        )}
 
         <div className="flex items-center gap-1 text-[10px] text-[#64748B]">
           <Icon name="location_on" className="!text-[12px] text-[#94A3B8] shrink-0" />
           <span className="truncate">{report.district ?? "-"}</span>
         </div>
 
+        {/* ── Mini Progress Bar ── */}
+        {report.status === "Sedang Diperbaiki" && report.estimasi_hari != null && report.estimasi_hari > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-semibold text-[#1A4F8A]">
+                Hari {Math.min((report.progress_updates_count ?? 0) + 1, report.estimasi_hari)}/{report.estimasi_hari}
+              </span>
+            </div>
+            <div className="w-full h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#1A4F8A] rounded-full"
+                style={{ width: `${Math.min(((report.progress_updates_count ?? 0) / report.estimasi_hari) * 100, 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         <div className="h-px bg-[#F1F5F9] -mx-4" />
 
         <div className="grid grid-cols-2 gap-y-2.5 gap-x-3 pt-1">
           <div>
-            <p className="text-[9px] font-bold text-[#94A3B8] uppercase tracking-[0.1em] mb-0.5">Tingkat</p>
+            <p className="text-[9px] font-bold text-[#94A3B8] uppercase tracking-[0.1em] mb-0.5">
+              Tingkat
+            </p>
             <div className="flex items-center gap-1">
-              <Icon name="warning" className="!text-[12px] shrink-0" style={{ color: severityColor }} />
+              <Icon
+                name="warning"
+                className="!text-[12px] shrink-0"
+                style={{ color: severityColor }}
+              />
               <span className="text-[11px] font-semibold text-[#0F172A] truncate">{sc.label}</span>
             </div>
           </div>
           <div>
-            <p className="text-[9px] font-bold text-[#94A3B8] uppercase tracking-[0.1em] mb-0.5">Dimensi</p>
+            <p className="text-[9px] font-bold text-[#94A3B8] uppercase tracking-[0.1em] mb-0.5">
+              Dimensi
+            </p>
             <div className="flex items-center gap-1">
               <Icon name="straighten" className="!text-[12px] text-[#64748B] shrink-0" />
               <span className="text-[11px] font-semibold text-[#0F172A]">
@@ -145,19 +200,50 @@ export function ReportCard({ report, actions, options }: ReportCardProps) {
               </span>
             </div>
           </div>
-          {showTrust && (
+          {(showTrust || (showDeadline && deadlineText)) && (
             <div>
-              <p className="text-[9px] font-bold text-[#94A3B8] uppercase tracking-[0.1em] mb-0.5">Kepercayaan</p>
-              <div className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: trustColor }} />
-                <span className="text-[11px] font-semibold" style={{ color: trustColor }}>
-                  {trustLabel === "hijau" ? "Kredibel" : trustLabel === "kuning" ? "Perlu Review" : "Diragukan"} {report.trust_score ?? 0}
-                </span>
-              </div>
+              {showTrust ? (
+                <>
+                  <p className="text-[9px] font-bold text-[#94A3B8] uppercase tracking-[0.1em] mb-0.5">
+                    Kepercayaan
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: trustColor }}
+                    />
+                    <span className="text-[11px] font-semibold" style={{ color: trustColor }}>
+                      {trustLabel === "hijau"
+                        ? "Kredibel"
+                        : trustLabel === "kuning"
+                          ? "Perlu Review"
+                          : "Diragukan"}{" "}
+                      {report.trust_score ?? 0}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-[9px] font-bold text-[#94A3B8] uppercase tracking-[0.1em] mb-0.5">
+                    Deadline
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: deadlineColor }}
+                    />
+                    <span className="text-[11px] font-semibold" style={{ color: deadlineColor }}>
+                      {deadlineText}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           )}
           <div>
-            <p className="text-[9px] font-bold text-[#94A3B8] uppercase tracking-[0.1em] mb-0.5">Pelapor</p>
+            <p className="text-[9px] font-bold text-[#94A3B8] uppercase tracking-[0.1em] mb-0.5">
+              Pelapor
+            </p>
             <div className="flex items-center gap-1">
               <Icon name="person" className="!text-[12px] text-[#64748B] shrink-0" />
               <span className="text-[11px] font-semibold text-[#0F172A] truncate">
@@ -169,25 +255,14 @@ export function ReportCard({ report, actions, options }: ReportCardProps) {
 
         <div className="flex-1" />
 
-        <div className="h-px bg-[#F1F5F9] -mx-4" />
-
-        <div className="flex items-center justify-between gap-2 pt-1">
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            {deadlineText && (
-              <span className="text-[10px] text-[#64748B] truncate">
-                Deadline: {deadlineText}
-              </span>
-            )}
-            {showDeadline && (report.status_deadline === "terlambat" || report.terlambat_review === true) && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-red-50 text-[#E11D48] border border-red-200 whitespace-nowrap shrink-0">
-                <Icon name="timer_off" className="!text-[10px]" />
-                Terlambat
-              </span>
-            )}
-          </div>
-
-          {actions && actions.length > 0 && <CardActions actions={actions} />}
-        </div>
+        {actions && actions.length > 0 && (
+          <>
+            <div className="h-px bg-[#F1F5F9] -mx-4" />
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <CardActions actions={actions} />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

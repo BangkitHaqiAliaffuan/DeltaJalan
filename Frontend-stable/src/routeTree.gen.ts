@@ -24,6 +24,7 @@ import { Route as HomeRouteImport } from './routes/home'
 import { Route as EditReportRouteImport } from './routes/edit-report'
 import { Route as DetailSurveiRouteImport } from './routes/detail-survei'
 import { Route as DetailReportRouteImport } from './routes/detail-report'
+import { Route as DetailPatroliRouteImport } from './routes/detail-patroli'
 import { Route as CompleteReportRouteImport } from './routes/complete-report'
 import { Route as AiResultRouteImport } from './routes/ai-result'
 import { Route as IndexRouteImport } from './routes/index'
@@ -114,6 +115,11 @@ const DetailReportRoute = DetailReportRouteImport.update({
   path: '/detail-report',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DetailPatroliRoute = DetailPatroliRouteImport.update({
+  id: '/detail-patroli',
+  path: '/detail-patroli',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CompleteReportRoute = CompleteReportRouteImport.update({
   id: '/complete-report',
   path: '/complete-report',
@@ -190,6 +196,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ai-result': typeof AiResultRoute
   '/complete-report': typeof CompleteReportRoute
+  '/detail-patroli': typeof DetailPatroliRoute
   '/detail-report': typeof DetailReportRoute
   '/detail-survei': typeof DetailSurveiRoute
   '/edit-report': typeof EditReportRoute
@@ -221,6 +228,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ai-result': typeof AiResultRoute
   '/complete-report': typeof CompleteReportRoute
+  '/detail-patroli': typeof DetailPatroliRoute
   '/detail-report': typeof DetailReportRoute
   '/detail-survei': typeof DetailSurveiRoute
   '/edit-report': typeof EditReportRoute
@@ -252,6 +260,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/ai-result': typeof AiResultRoute
   '/complete-report': typeof CompleteReportRoute
+  '/detail-patroli': typeof DetailPatroliRoute
   '/detail-report': typeof DetailReportRoute
   '/detail-survei': typeof DetailSurveiRoute
   '/edit-report': typeof EditReportRoute
@@ -285,6 +294,7 @@ export interface FileRouteTypes {
     | '/'
     | '/ai-result'
     | '/complete-report'
+    | '/detail-patroli'
     | '/detail-report'
     | '/detail-survei'
     | '/edit-report'
@@ -316,6 +326,7 @@ export interface FileRouteTypes {
     | '/'
     | '/ai-result'
     | '/complete-report'
+    | '/detail-patroli'
     | '/detail-report'
     | '/detail-survei'
     | '/edit-report'
@@ -346,6 +357,7 @@ export interface FileRouteTypes {
     | '/'
     | '/ai-result'
     | '/complete-report'
+    | '/detail-patroli'
     | '/detail-report'
     | '/detail-survei'
     | '/edit-report'
@@ -378,6 +390,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AiResultRoute: typeof AiResultRoute
   CompleteReportRoute: typeof CompleteReportRoute
+  DetailPatroliRoute: typeof DetailPatroliRoute
   DetailReportRoute: typeof DetailReportRoute
   DetailSurveiRoute: typeof DetailSurveiRoute
   EditReportRoute: typeof EditReportRoute
@@ -511,6 +524,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DetailReportRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/detail-patroli': {
+      id: '/detail-patroli'
+      path: '/detail-patroli'
+      fullPath: '/detail-patroli'
+      preLoaderRoute: typeof DetailPatroliRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/complete-report': {
       id: '/complete-report'
       path: '/complete-report'
@@ -630,6 +650,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AiResultRoute: AiResultRoute,
   CompleteReportRoute: CompleteReportRoute,
+  DetailPatroliRoute: DetailPatroliRoute,
   DetailReportRoute: DetailReportRoute,
   DetailSurveiRoute: DetailSurveiRoute,
   EditReportRoute: EditReportRoute,

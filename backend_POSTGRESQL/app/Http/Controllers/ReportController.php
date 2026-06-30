@@ -17,7 +17,7 @@ use App\Notifications\ReportRejectedNotification;
 use App\Notifications\ReportReopenedNotification;
 use App\Notifications\TeamAssignedNotification;
 use App\Notifications\TriageUpdatedNotification;
-use App\Services\TrustScoreService;
+// ── TRUST SCORE [NONAKTIF] — use App\Services\TrustScoreService;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -646,16 +646,7 @@ class ReportController extends Controller
             $gpsMismatchNotes = '[INFO] Foto tidak memuat GPS EXIF, jarak validasi menggunakan koordinat dari form manual atau Browser GPS.';
         }
 
-        // ── Hitung Trust Score ────────────────────────────────────────────
-        $trustResult = app(TrustScoreService::class)->calculate([
-            'exif_lat' => $exifGps ? $exifGps['lat'] : null,
-            'exif_lng' => $exifGps ? $exifGps['lng'] : null,
-            'road_name_matched' => $roadValidation['matched'],
-            'ai_detections' => $aiRawOutput ?? [],
-            'ai_context_valid' => ! empty($aiRawOutput) && count($aiRawOutput) > 0,
-            'fake_gps_suspected' => $fakeGpsSuspected,
-        ]);
-
+        // ── TRUST SCORE [NONAKTIF] — kalkulasi trust score dihapus
         // Gabungkan system notes
         $finalSystemNotes = implode(' | ', array_filter([
             $localSystemNotes,
@@ -668,7 +659,7 @@ class ReportController extends Controller
         // ── LANGKAH 5: Simpan ke database (DI DALAM transaction) ─────────
         // Hanya operasi DB — tidak ada HTTP/I/O lambat.
         try {
-            $report = DB::transaction(function () use ($validated, $imageFile, $imageHash, $resultPath, $totalDetections, $overallSeverity, $aiRawOutput, $finalSystemNotes, $trustResult, $duplicateOfId, $surveyTaskId) {
+            $report = DB::transaction(function () use ($validated, $imageFile, $imageHash, $resultPath, $totalDetections, $overallSeverity, $aiRawOutput, $finalSystemNotes, $duplicateOfId, $surveyTaskId) {
 
                 // ── 5a: Generate kode laporan unik ────────────────────────
                 $reportCode = $this->generateReportCode();
@@ -702,9 +693,7 @@ class ReportController extends Controller
                     'status' => 'Menunggu Review',
                     'priority' => $defaultPriority,
                     'system_notes' => $finalSystemNotes ?: null,
-                    'trust_score' => $trustResult['score'],
-                    'trust_label' => $trustResult['label'],
-                    'trust_breakdown' => $trustResult['breakdown'],
+                    // ── TRUST SCORE [NONAKTIF] — trust_score, trust_label, trust_breakdown dihapus
                     'kerusakan_panjang' => $validated['kerusakan_panjang'] ?? null,
                     'kerusakan_lebar' => $validated['kerusakan_lebar'] ?? null,
                     'catatan_petugas' => $validated['catatan'] ?? null,
@@ -754,8 +743,7 @@ class ReportController extends Controller
         Log::info('DeltaJalan: Laporan tunggal disimpan.', [
             'reporter_name' => $reporterName,
             'report_code' => $report->report_code,
-            'trust_score' => $report->trust_score,
-            'trust_label' => $report->trust_label,
+            // ── TRUST SCORE [NONAKTIF] — trust_score, trust_label dihapus dari log
             'daily_count' => $dailyCount,
         ]);
 
@@ -779,9 +767,7 @@ class ReportController extends Controller
                 'severity_color' => $report->severity_color,
                 'status' => $report->status,
                 'ai_raw_output' => $report->ai_raw_output,
-                // Trust score (sekarang tersedia untuk single upload juga)
-                'trust_score' => $report->trust_score,
-                'trust_label' => $report->trust_label,
+                // ── TRUST SCORE [NONAKTIF] — trust_score, trust_label dihapus dari response
                 // URL gambar yang bisa langsung dipakai oleh frontend React
                 'image_original_url' => $report->image_original_url,
                 'image_result_url' => $report->image_result_url,
@@ -806,8 +792,13 @@ class ReportController extends Controller
 
         $query = Report::query();
 
-        // Petugas melihat laporannya sendiri + laporan timnya
-        if ($user->role === 'petugas') {
+        // Filter khusus: hanya laporan tim (tab Perbaikan)
+        if ($request->boolean('team_tasks')) {
+            if ($user->team_id) {
+                $query->where('assigned_team_id', $user->team_id);
+                $query->whereNotIn('status', ['Diedit']);
+            }
+        } elseif ($user->role === 'petugas') {
             $query->where(function ($q) use ($user) {
                 $q->where('user_id', $user->id)
                   ->orWhere('assigned_team_id', $user->team_id);
@@ -841,9 +832,12 @@ class ReportController extends Controller
             });
         }
 
-        // Filter by Tim
-        if ($request->filled('upr_id')) {
-            $query->where('assigned_team_id', (int) $request->input('upr_id'));
+        // Filter by UPTD / Tim
+        if ($request->filled('uptd_id')) {
+            $teamIds = \App\Models\Team::where('uptd_id', $request->input('uptd_id'))->pluck('id');
+            $query->whereIn('assigned_team_id', $teamIds);
+        } elseif ($request->filled('upr_id')) {
+            $query->where('assigned_team_id', $request->input('upr_id'));
         }
 
         // Filter by severity
@@ -866,7 +860,8 @@ class ReportController extends Controller
             if ($statusDeadline === 'terlambat') {
                 $query->where(function ($q) {
                     $q->where('terlambat_review', true)
-                        ->orWhere('terlambat_resolusi', true);
+                        ->orWhere('terlambat_resolusi', true)
+                        ->orWhere('terlambat_mulai', true);
                 });
             } elseif ($statusDeadline === 'tepat_waktu') {
                 $query->where('terlambat_review', false)
@@ -892,6 +887,7 @@ class ReportController extends Controller
             ->skip(($page - 1) * $limit)
             ->take($limit)
             ->withCount('photos')
+            ->withCount('progressUpdates')
             ->with('firstPhoto')
             ->with('assignedTeam')
             ->with('duplicateOf.originalReport')
@@ -909,8 +905,7 @@ class ReportController extends Controller
                     'ai_severity' => $report->ai_severity,
                     'total_detections' => $report->total_detections,
                     'status' => $report->status,
-                    'trust_score' => $report->trust_score,
-                    'trust_label' => $report->trust_label,
+                    // ── TRUST SCORE [NONAKTIF] — trust_score, trust_label dihapus dari response index
                     'image_original_url' => $report->image_original_url,
                     'image_result_url' => $report->image_result_url,
                     'after_photo_url' => $report->after_photo_url,
@@ -924,6 +919,7 @@ class ReportController extends Controller
                     'kerusakan_lebar' => $report->kerusakan_lebar ? (float) $report->kerusakan_lebar : null,
                     'catatan_petugas' => $report->catatan_petugas,
                     'priority' => $report->priority,
+                    'estimasi_hari' => $report->estimasi_hari,
                     'batch_id' => $report->batch_id,
                     'photos_count' => $report->batch_id ? (int) $report->photos_count : 0,
                     'deadline_review' => $report->deadline_review?->toIso8601String(),
@@ -931,6 +927,7 @@ class ReportController extends Controller
                     'deadline_mulai' => $report->deadline_mulai?->toIso8601String(),
                     'terlambat_review' => $report->terlambat_review,
                     'terlambat_resolusi' => $report->terlambat_resolusi,
+                    'progress_updates_count' => (int) $report->progress_updates_count,
                     'terlambat_mulai' => $report->terlambat_mulai,
                     'ditugaskan_at' => $report->ditugaskan_at?->toIso8601String(),
                     'assignor_name' => $report->assignor_name,
@@ -956,7 +953,9 @@ class ReportController extends Controller
      */
     public function show(string $id): JsonResponse
     {
-        $report = Report::with(['photos', 'afterPhotos', 'statusLogs', 'duplicateOf.originalReport'])->find($id);
+        $report = Report::with(['photos', 'afterPhotos', 'statusLogs', 'duplicateOf.originalReport'])
+            ->withCount('progressUpdates')
+            ->find($id);
 
         if (! $report) {
             return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
@@ -986,9 +985,7 @@ class ReportController extends Controller
             'ai_severity' => $report->ai_severity,
             'total_detections' => $report->total_detections,
             'status' => $report->status,
-            'trust_score' => $report->trust_score,
-            'trust_label' => $report->trust_label,
-            'trust_breakdown' => $report->trust_breakdown,
+            // ── TRUST SCORE [NONAKTIF] — trust_score, trust_label, trust_breakdown dihapus dari response detail
             'system_notes' => $report->system_notes,
             'ai_raw_output' => $report->ai_raw_output,
             'image_original_url' => $report->image_original_url,
@@ -1017,6 +1014,8 @@ class ReportController extends Controller
             'terlambat_review' => $report->terlambat_review,
             'terlambat_resolusi' => $report->terlambat_resolusi,
             'terlambat_mulai' => $report->terlambat_mulai,
+            'estimasi_hari' => $report->estimasi_hari,
+            'progress_updates_count' => (int) $report->progress_updates_count,
             'status_deadline' => $report->terlambat_review || $report->terlambat_resolusi || $report->terlambat_mulai ? 'terlambat' : 'tepat_waktu',
             'kerusakan_panjang' => $report->kerusakan_panjang ? (float) $report->kerusakan_panjang : null,
             'kerusakan_lebar' => $report->kerusakan_lebar ? (float) $report->kerusakan_lebar : null,
@@ -1141,7 +1140,8 @@ class ReportController extends Controller
             'id', 'latitude', 'longitude', 'status',
             'overall_severity', 'ai_severity', 'road_name', 'district',
             'image_original_path', 'kerusakan_panjang', 'kerusakan_lebar',
-            'trust_score', 'created_at', 'assigned_team_id',
+            // ── TRUST SCORE [NONAKTIF] — 'trust_score' dihapus dari SELECT
+            'created_at', 'assigned_team_id',
         ])->with(['firstPhoto', 'assignedTeam'])->whereNotNull('latitude')->whereNotNull('longitude');
 
         // Filter query params
@@ -1176,8 +1176,11 @@ class ReportController extends Controller
             $query->where('district', $request->input('district'));
         }
 
-        if ($request->filled('upr_id')) {
-            $query->where('assigned_team_id', (int) $request->input('upr_id'));
+        if ($request->filled('uptd_id')) {
+            $teamIds = \App\Models\Team::where('uptd_id', $request->input('uptd_id'))->pluck('id');
+            $query->whereIn('assigned_team_id', $teamIds);
+        } elseif ($request->filled('upr_id')) {
+            $query->where('assigned_team_id', $request->input('upr_id'));
         }
 
         // Deadline filter: tampilkan laporan yang sudah > N hari tanpa selesai/ditolak
@@ -1570,7 +1573,7 @@ class ReportController extends Controller
                 'latitude' => 'required|numeric|between:-11,6',
                 'longitude' => 'required|numeric|between:95,141',
                 'koordinat_sumber' => 'required|in:exif,browser_gps,manual',
-                'fake_gps_suspected' => 'boolean',
+                // ── TRUST SCORE [NONAKTIF] — 'fake_gps_suspected' => 'boolean', dihapus dari validasi
                 'analyses' => 'required|json',
                 'kerusakan_panjang' => ['required', 'array', 'min:1'],
                 'kerusakan_panjang.*' => ['required', 'numeric', 'min:0', 'max:999999.99'],
@@ -1636,21 +1639,7 @@ class ReportController extends Controller
             }
         }
 
-        // ── Hitung trust score ────────────────────────────────────────────
-        $firstAnalysis = $analyses[0] ?? [];
-        $batchFakeGps = $validated['fake_gps_suspected'] ?? false;
-        if ($exifCloneSuspected) {
-            $batchFakeGps = true; // EXIF cloning = fake GPS
-        }
-        $trustResult = app(TrustScoreService::class)->calculate([
-            'exif_lat' => ! empty($firstAnalysis['has_exif_gps']) ? ($firstAnalysis['exif_lat'] ?? $validated['latitude']) : null,
-            'exif_lng' => ! empty($firstAnalysis['has_exif_gps']) ? ($firstAnalysis['exif_lng'] ?? $validated['longitude']) : null,
-            'road_name_matched' => $roadValidation['matched'],
-            'ai_detections' => $firstAnalysis['detections'] ?? [],
-            'ai_context_valid' => ! empty($firstAnalysis['detections']),
-            'fake_gps_suspected' => $batchFakeGps,
-        ]);
-
+        // ── TRUST SCORE [NONAKTIF] — kalkulasi trust score batch dihapus
         // Catat EXIF cloning di system notes main report nanti
         $batchNotes = null;
         if ($exifCloneSuspected) {
@@ -1676,7 +1665,7 @@ class ReportController extends Controller
         $duplicateOfId = $request->input('duplicate_of_id');
 
         try {
-            $result = DB::transaction(function () use ($validated, $analyses, $request, $trustResult, $roadValidation, $batchNotes, $imageHashes, $existingHashes, $duplicateOfId) {
+            $result = DB::transaction(function () use ($validated, $analyses, $request, $roadValidation, $batchNotes, $imageHashes, $existingHashes, $duplicateOfId) {
                 $severities = array_column($analyses, 'severity');
                 $aggSeverity = $this->aggregateSeverity($severities);
                 $severityMap = [
@@ -1696,9 +1685,7 @@ class ReportController extends Controller
                     'koordinat_sumber' => $validated['koordinat_sumber'],
                     'status' => 'Menunggu Review',
                     'batch_id' => $validated['batch_id'],
-                    'trust_score' => $trustResult['score'],
-                    'trust_label' => $trustResult['label'],
-                    'trust_breakdown' => $trustResult['breakdown'],
+                    // ── TRUST SCORE [NONAKTIF] — trust_score, trust_label, trust_breakdown dihapus dari batch create
                     'overall_severity' => $severityMap[$aggSeverity] ?? 'Baik',
                     'ai_severity' => $aggSeverity,
                     'system_notes' => $batchNotes,
@@ -1780,15 +1767,7 @@ class ReportController extends Controller
                         );
                     }
 
-                    $photoTrustResult = app(TrustScoreService::class)->calculate([
-                        'exif_lat' => $analysis['has_exif_gps'] ? $analysis['exif_lat'] : null,
-                        'exif_lng' => $analysis['has_exif_gps'] ? $analysis['exif_lng'] : null,
-                        'road_name_matched' => $roadValidation['matched'],
-                        'ai_detections' => $analysis['detections'] ?? [],
-                        'ai_context_valid' => ! empty($analysis['detections']),
-                        'fake_gps_suspected' => $analysis['gps_mismatch'] ?? false,
-                    ]);
-
+                    // ── TRUST SCORE [NONAKTIF] — per-photo trust score dihapus
                     $subNotes = null;
                     if (! empty($analysis['gps_mismatch'])) {
                         $dist = round($analysis['gps_distance_meters'] ?? 0);
@@ -1876,8 +1855,7 @@ class ReportController extends Controller
             'batch_id' => $validated['batch_id'],
             'main_report_code' => $mainReport->report_code,
             'photos_count' => $result['photos_count'],
-            'trust_score' => $trustResult['score'],
-            'trust_label' => $trustResult['label'],
+            // ── TRUST SCORE [NONAKTIF] — trust_score, trust_label dihapus dari batch log
             'reporter_name' => $reporterName,
             'daily_count' => $dailyCount,
             'exif_clone_suspect' => $exifCloneSuspected,
@@ -1888,8 +1866,7 @@ class ReportController extends Controller
             'main_report_id' => $mainReport->id,
             'main_report_code' => $mainReport->report_code,
             'photos_count' => $result['photos_count'],
-            'trust_score' => $trustResult['score'],
-            'trust_label' => $trustResult['label'],
+            // ── TRUST SCORE [NONAKTIF] — trust_score, trust_label dihapus dari batch response
             'overall_severity' => $mainReport->ai_severity,
             'road_matched' => $roadValidation['matched'],
             'duplicate_photos' => $result['duplicate_photos'] ?? [],
@@ -1916,6 +1893,7 @@ class ReportController extends Controller
                 $query->where('user_id', $user->id);
             }
 
+            // ── TRUST SCORE [NONAKTIF] — trust_hijau, trust_kuning, trust_merah dihapus dari stats SQL
             // Single grouped query replacing 12 individual COUNTs
             $agg = (clone $query)->selectRaw("
                 COUNT(*) as total,
@@ -1925,9 +1903,6 @@ class ReportController extends Controller
                 SUM(CASE WHEN status = 'Ditugaskan' THEN 1 ELSE 0 END) as ditugaskan,
                 SUM(CASE WHEN status = 'Sedang Diperbaiki' THEN 1 ELSE 0 END) as sedang_diperbaiki,
                 SUM(CASE WHEN status = 'Selesai' THEN 1 ELSE 0 END) as selesai,
-                SUM(CASE WHEN trust_label = 'hijau' THEN 1 ELSE 0 END) as trust_hijau,
-                SUM(CASE WHEN trust_label = 'kuning' THEN 1 ELSE 0 END) as trust_kuning,
-                SUM(CASE WHEN trust_label = 'merah' THEN 1 ELSE 0 END) as trust_merah,
                 SUM(CASE WHEN overall_severity::text = 'Rusak Berat' OR LOWER(ai_severity) = 'berat' THEN 1 ELSE 0 END) as rusak_berat,
                 SUM(CASE WHEN overall_severity::text = 'Rusak Sedang' OR LOWER(ai_severity) = 'sedang' THEN 1 ELSE 0 END) as rusak_sedang,
                 SUM(CASE WHEN overall_severity::text = 'Rusak Ringan' OR LOWER(ai_severity) = 'ringan' THEN 1 ELSE 0 END) as rusak_ringan
@@ -1980,9 +1955,7 @@ class ReportController extends Controller
                 'ditugaskan' => (int) $agg->ditugaskan,
                 'sedang_diperbaiki' => (int) $agg->sedang_diperbaiki,
                 'selesai' => (int) $agg->selesai,
-                'trust_hijau' => (int) $agg->trust_hijau,
-                'trust_kuning' => (int) $agg->trust_kuning,
-                'trust_merah' => (int) $agg->trust_merah,
+                // ── TRUST SCORE [NONAKTIF] — trust_hijau, trust_kuning, trust_merah dihapus dari stats response
                 'rusak_berat' => (int) $agg->rusak_berat,
                 'rusak_sedang' => (int) $agg->rusak_sedang,
                 'rusak_ringan' => (int) $agg->rusak_ringan,
@@ -2031,7 +2004,6 @@ class ReportController extends Controller
         $now = now();
         $finalPriority = $priority ?? $report->priority;
         $assignmentStartHours = (int) config("deadline.{$finalPriority}.assignment_start_hours", 48);
-        $resolutionHours = (int) config("deadline.{$finalPriority}.hours", 72);
 
         $report->update([
             'status' => 'Ditugaskan',
@@ -2040,7 +2012,6 @@ class ReportController extends Controller
             'assigned_at' => $now,
             'ditugaskan_at' => $now,
             'deadline_mulai' => $now->copy()->addHours($assignmentStartHours),
-            'deadline_resolusi' => $now->copy()->addHours($resolutionHours),
             'system_notes' => $report->system_notes
                 ? $report->system_notes.' | [APPROVED] Disetujui oleh '.auth()->user()->name
                 : '[APPROVED] Disetujui oleh '.auth()->user()->name,
@@ -2182,17 +2153,6 @@ class ReportController extends Controller
     // ── Closing & Assignment ──────────────────────────────────────────────
 
     /**
-     * GET /api/uprs
-     * Daftar tim satgas yang aktif.
-     */
-    public function getTeams(): JsonResponse
-    {
-        $teams = Team::where('is_active', true)->get(['id', 'name', 'wilayah', 'leader_name', 'phone']);
-
-        return response()->json(['success' => true, 'data' => $uprs]);
-    }
-
-    /**
      * POST /api/reports/{id}/mulai
      * Satgas memulai perbaikan — status "Ditugaskan" → "Sedang Diperbaiki".
      */
@@ -2222,11 +2182,20 @@ class ReportController extends Controller
 
         $validated = $request->validate([
             'catatan' => 'nullable|string|max:500',
+            'estimasi_selesai_hari' => 'nullable|integer|min:1|max:90',
         ]);
+
+        $resolutionHours = $validated['estimasi_selesai_hari']
+            ? (int) $validated['estimasi_selesai_hari'] * 24
+            : (int) config("deadline.{$report->priority}.resolution_hours", 168);
 
         $report->update([
             'status' => 'Sedang Diperbaiki',
             'perbaikan_dimulai_at' => now(),
+            'estimasi_hari' => $validated['estimasi_selesai_hari'],
+            'deadline_resolusi' => now()->copy()->addHours($resolutionHours),
+            'terlambat_mulai' => false,
+            'terlambat_resolusi' => false,
             'catatan_petugas' => $validated['catatan'] ?? $report->catatan_petugas,
             'system_notes' => $report->system_notes
                 ? $report->system_notes.' | [MULAI] Perbaikan dimulai oleh '.$user->name
@@ -2604,67 +2573,6 @@ class ReportController extends Controller
     }
 
     /**
-     * GET /api/reports/ringkasan-deadline
-     * Agregasi status deadline (tepat_waktu, mendekati, terlambat) per priority.
-     */
-    public function ringkasanDeadline(): JsonResponse
-    {
-        $summary = Report::selectRaw("
-            priority,
-            COUNT(*) as total,
-            SUM(CASE WHEN terlambat_review = true OR terlambat_resolusi = true THEN 1 ELSE 0 END) as terlambat,
-            SUM(CASE
-                WHEN terlambat_review = false AND terlambat_resolusi = false
-                    AND (
-                        deadline_review IS NULL
-                        OR deadline_review > NOW()
-                        OR status IN ('Selesai', 'Ditolak')
-                    )
-                    AND (
-                        deadline_resolusi IS NULL
-                        OR deadline_resolusi > NOW()
-                        OR status = 'Selesai'
-                    )
-                THEN 1 ELSE 0 END
-            ) as tepat_waktu
-        ")
-            ->whereIn('priority', ['Tinggi', 'Sedang', 'Rendah'])
-            ->groupBy('priority')
-            ->get()
-            ->keyBy('priority');
-
-        $perPriority = [];
-        $totals = ['total' => 0, 'tepat_waktu' => 0, 'mendekati' => 0, 'terlambat' => 0];
-
-        foreach (['Tinggi', 'Sedang', 'Rendah'] as $p) {
-            $row = $summary[$p] ?? null;
-            $t = (int) ($row->total ?? 0);
-            $b = (int) ($row->terlambat ?? 0);
-            $o = (int) ($row->tepat_waktu ?? 0);
-            $w = max(0, $t - $b - $o);
-
-            $perPriority[$p] = [
-                'total' => $t,
-                'tepat_waktu' => $o,
-                'mendekati' => $w,
-                'terlambat' => $b,
-            ];
-            $totals['total'] += $t;
-            $totals['tepat_waktu'] += $o;
-            $totals['mendekati'] += $w;
-            $totals['terlambat'] += $b;
-        }
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'per_priority' => $perPriority,
-                'total' => $totals,
-            ],
-        ]);
-    }
-
-    /**
      * POST /api/reports/{id}/reopen
      * Re-open laporan yang sudah selesai — balik ke "Sedang Diperbaiki".
      */
@@ -2932,9 +2840,6 @@ class ReportController extends Controller
         if (! empty($validated['priority'])) {
             $updateData['priority'] = $validated['priority'];
             $updateData['deadline_review'] = Report::hitungDeadlineReview($validated['priority']);
-            if (in_array($report->status, ['Disetujui', 'Sedang Diperbaiki', 'Selesai'])) {
-                $updateData['deadline_resolusi'] = Report::hitungDeadlineResolusi($validated['priority']);
-            }
         }
         if (! empty($validated['severity'])) {
             $updateData['overall_severity'] = $validated['severity'];

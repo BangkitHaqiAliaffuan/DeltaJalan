@@ -104,7 +104,6 @@ class GeneratePatrolTasks extends Command
                 $kecIndex++;
 
                 $exists = SurveyTask::where('team_id', $schedule->team_id)
-                    ->where('kecamatan', $kec)
                     ->where('tanggal_patroli', $tanggal)
                     ->where('status', 'aktif')
                     ->exists();
@@ -115,8 +114,8 @@ class GeneratePatrolTasks extends Command
                         'team_id' => $schedule->team_id,
                         'kecamatan' => $kec,
                         'tanggal_patroli' => $tanggal,
-                        'jam_mulai' => '07:00',
-                        'jam_selesai' => '16:00',
+                        'jam_mulai' => $schedule->jam_mulai ?? '09:00',
+                        'jam_selesai' => $schedule->jam_selesai ?? '16:00',
                         'alasan_tugas' => $schedule->alasan_tugas ?? 'rutin',
                         'status' => 'aktif',
                         'created_at' => now(),

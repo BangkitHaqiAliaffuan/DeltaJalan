@@ -37,7 +37,20 @@ export function formatDateRelative(dateStr: string, client: boolean): string {
       return `Hari ini, ${h}:${m}`;
     }
     if (days === 1) return "Kemarin";
-    const months = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "Mei",
+      "Jun",
+      "Jul",
+      "Agu",
+      "Sep",
+      "Okt",
+      "Nov",
+      "Des",
+    ];
     return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
   } catch {
     return dateStr;
@@ -52,9 +65,7 @@ export function severityLabel(severity?: string | null): string {
   return severity ?? "";
 }
 
-export function severityBadgeStyle(
-  severity?: string | null,
-): string {
+export function severityBadgeStyle(severity?: string | null): string {
   const s = (severity ?? "").toLowerCase();
   if (s.includes("berat")) return "bg-[#E11D48] text-white";
   if (s.includes("sedang")) return "bg-orange-50 text-[#F97316] border border-orange-200";
@@ -111,8 +122,7 @@ export function displayStatus(status: string): string {
 
 export function getSeverityLabel(severity?: string | null): { chip: string; label: string } {
   const s = (severity ?? "").toLowerCase();
-  if (s.includes("berat"))
-    return { chip: "bg-[#E11D48] text-white", label: "Rusak Berat" };
+  if (s.includes("berat")) return { chip: "bg-[#E11D48] text-white", label: "Rusak Berat" };
   if (s.includes("sedang"))
     return { chip: "bg-orange-50 text-[#F97316] border border-orange-200", label: "Rusak Sedang" };
   if (s.includes("ringan"))
@@ -120,10 +130,7 @@ export function getSeverityLabel(severity?: string | null): { chip: string; labe
   return { chip: "bg-slate-50 text-[#64748B] border border-slate-200", label: severity ?? "Baik" };
 }
 
-export function haversineDistance(
-  lat1: number, lng1: number,
-  lat2: number, lng2: number,
-): number {
+export function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);

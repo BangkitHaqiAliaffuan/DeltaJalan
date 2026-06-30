@@ -10,7 +10,7 @@ export interface PickPhotosOptions {
 }
 
 export interface PermissionState {
-  accessMediaLocation: 'granted' | 'denied' | 'prompt';
+  accessMediaLocation: "granted" | "denied" | "prompt";
 }
 
 export interface PhotoExifGpsPlugin {

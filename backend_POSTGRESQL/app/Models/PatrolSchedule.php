@@ -21,6 +21,8 @@ class PatrolSchedule extends Model
         'end_date',
         'alasan_tugas',
         'status',
+        'jam_mulai',
+        'jam_selesai',
         'created_by',
     ];
 

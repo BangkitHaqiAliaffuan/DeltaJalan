@@ -3,6 +3,8 @@
 namespace App\Services;
 
 /**
+ * ── TRUST SCORE [NONAKTIF] ──
+ *
  * TrustScoreService
  *
  * Menghitung trust score (0-100) untuk setiap laporan kerusakan jalan

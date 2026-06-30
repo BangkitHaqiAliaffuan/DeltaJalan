@@ -28,9 +28,7 @@ export function PageLayout({
   const content = fullPage ? (
     <div className="flex-1">{children}</div>
   ) : onRefresh ? (
-    <PullToRefresh onRefresh={onRefresh}>
-      {children}
-    </PullToRefresh>
+    <PullToRefresh onRefresh={onRefresh}>{children}</PullToRefresh>
   ) : (
     <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
   );
@@ -41,7 +39,11 @@ export function PageLayout({
         <ConnectionBanner />
         <TopBar {...{ title, back, right, showBrand }} />
         {content}
-        {withBottomNav && <div className="shrink-0 sticky bottom-0 z-10"><BottomNav /></div>}
+        {withBottomNav && (
+          <div className="shrink-0 sticky bottom-0 z-10">
+            <BottomNav />
+          </div>
+        )}
       </div>
     </AppLayout>
   );

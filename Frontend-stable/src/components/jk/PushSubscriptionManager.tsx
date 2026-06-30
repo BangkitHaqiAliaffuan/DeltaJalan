@@ -84,17 +84,21 @@ export function PushSubscriptionManager() {
   // Auto-request permission & subscribe on mount if not yet decided
   useEffect(() => {
     if (!supported) return;
-    if (Notification.permission !== "default") return;
     if (!getToken()) return;
 
-    Notification.requestPermission().then((perm) => {
-      setPermission(perm);
-      if (perm === "granted") {
-        doSubscribe().then((ok) => {
-          if (ok) setSubscribed(true);
-        });
+    const trySubscribe = async () => {
+      if (Notification.permission === "default") {
+        const perm = await Notification.requestPermission();
+        setPermission(perm);
+        if (perm !== "granted") return;
+      } else if (Notification.permission !== "granted") {
+        return;
       }
-    });
+      const ok = await doSubscribe();
+      if (ok) setSubscribed(true);
+    };
+
+    trySubscribe();
   }, [supported]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSubscribe() {

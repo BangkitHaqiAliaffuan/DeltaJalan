@@ -12,6 +12,7 @@ import hashlib
 import time
 import argparse
 from pathlib import Path
+import concurrent.futures
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="JalanKita AI API Server")
@@ -129,6 +130,9 @@ BOX_COLORS = {
 
 SEVERITY_RANK = {"Baik": 0, "Rusak Ringan": 1, "Rusak Sedang": 2, "Rusak Berat": 3}
 
+SEVERITY_THRESHOLD_BERAT = 2.5
+SEVERITY_THRESHOLD_SEDANG = 1.5
+
 # SHA-256 result cache — TTL 1 jam
 INFERENCE_CACHE = {}
 CACHE_TTL = 3600
@@ -229,6 +233,170 @@ def _weighted_boxes_fusion(boxes_per_model, conf_type="max", iou_thr=0.5):
     return result
 
 
+def _suppress_contained_boxes(detections, containment_ratio=0.7):
+    """
+    Suppress detections whose bounding box is substantially contained
+    within a larger detection of the same class.
+
+    This handles the case where one model outputs a large bbox and
+    another model outputs a small bbox for the same object. WBF with
+    a standard IoU threshold (e.g. 0.5) can miss this because IoU
+    between a small contained box and a much larger box can be very low.
+    """
+    if not detections:
+        return []
+
+    sorted_dets = sorted(detections, key=lambda b: (b[3] - b[1]) * (b[2] - b[0]), reverse=True)
+
+    keep = []
+    for det in sorted_dets:
+        x1, y1, x2, y2, conf, cls = det
+        area = (x2 - x1) * (y2 - y1)
+
+        suppressed = False
+        for kept in keep:
+            kx1, ky1, kx2, ky2, _, kcls = kept
+            if cls != kcls:
+                continue
+
+            ix1 = max(x1, kx1)
+            iy1 = max(y1, ky1)
+            ix2 = min(x2, kx2)
+            iy2 = min(y2, ky2)
+
+            if ix2 <= ix1 or iy2 <= iy1:
+                continue
+
+            inter_area = (ix2 - ix1) * (iy2 - iy1)
+            if inter_area / area >= containment_ratio:
+                suppressed = True
+                break
+
+        if not suppressed:
+            keep.append(det)
+
+    return keep
+
+
+# ---------------------------------------------------------------------------
+#  NEW SEVERITY SCORING
+# ---------------------------------------------------------------------------
+
+def compute_severity_new(detections: list, img_w: int, img_h: int):
+    """
+    Severity scoring yang robust terhadap variasi angle/distance foto.
+    
+    Primary:   Class composition (invariant)
+    Secondary: Detection count (mostly invariant)
+    Tertiary:  Class diversity (invariant)
+    Quaternary: Confidence (mostly invariant)
+    Quinary:   Area ratio (minor, hanya kasus ekstrim)
+    """
+    if not detections:
+        return "Baik", 0.0, {}
+
+    n = len(detections)
+    classes = [d["class"] for d in detections]
+    confs = [d["confidence"] for d in detections]
+    avg_conf = sum(confs) / n
+
+    score = 0.0
+    details = {}
+
+    # ── 1. Class-based base score ──────────────────────────────────────────
+    has_lubang = "Lubang" in classes
+    has_buaya  = "Retak Kulit Buaya" in classes
+    has_memanjang = "Retak Memanjang" in classes
+    has_melintang = "Retak Melintang" in classes
+    has_crack = has_memanjang or has_melintang
+
+    if has_lubang and has_buaya:
+        score += 2.5
+        details["class_base"] = "lubang+buaya(2.5)"
+    elif has_lubang:
+        score += 1.8
+        details["class_base"] = "lubang(1.8)"
+    elif has_buaya:
+        score += 1.2
+        details["class_base"] = "buaya(1.2)"
+    elif has_crack:
+        score += 0.6
+        details["class_base"] = "crack(0.6)"
+    else:
+        details["class_base"] = "unknown(0)"
+
+    # ── 2. Detection count bonus ───────────────────────────────────────────
+    count_bonus = 0.0
+    if n >= 5:
+        count_bonus = 1.0
+    elif n >= 3:
+        count_bonus = 0.5
+    elif n == 1 and score < 1.0:
+        count_bonus = -0.2
+
+    if count_bonus != 0:
+        score += count_bonus
+        details["count_bonus"] = f"{n}det({count_bonus:+.1f})"
+
+    # ── 3. Class diversity bonus ───────────────────────────────────────────
+    unique_classes = len(set(classes))
+    diversity_bonus = 0.0
+    if unique_classes >= 3:
+        diversity_bonus = 0.5
+    elif unique_classes >= 2:
+        diversity_bonus = 0.2
+
+    if diversity_bonus:
+        score += diversity_bonus
+        details["diversity"] = f"{unique_classes}cls({diversity_bonus:+.1f})"
+
+    # ── 4. Confidence penalty (softened for WBF ensemble) ──────────────────
+    if avg_conf < 0.12:
+        score = max(0, score - 0.4)
+        details["conf_penalty"] = f"avg_conf={avg_conf:.2f}(-0.4)"
+    elif avg_conf < 0.20:
+        score = max(0, score - 0.2)
+        details["conf_penalty"] = f"avg_conf={avg_conf:.2f}(-0.2)"
+
+    # ── 5. Area ratio — minor modifier, hanya kasus ekstrim ────────────────
+    max_area_ratio = 0.0
+    total_area = 0
+    for d in detections:
+        b = d["bbox"]
+        area = (b["x2"] - b["x1"]) * (b["y2"] - b["y1"])
+        total_area += area
+        ratio = area / (img_w * img_h)
+        if ratio > max_area_ratio:
+            max_area_ratio = ratio
+
+    coverage = total_area / (img_w * img_h)
+    area_bonus = 0.0
+
+    if max_area_ratio > 0.40:
+        area_bonus += 0.5
+    elif max_area_ratio > 0.20:
+        area_bonus += 0.3
+
+    if coverage > 0.40:
+        area_bonus += 0.5
+    elif coverage > 0.25:
+        area_bonus += 0.3
+
+    if area_bonus:
+        score += area_bonus
+        details["area"] = f"max={max_area_ratio:.1%} cov={coverage:.1%}(+{area_bonus:.1f})"
+
+    # ── Map score to severity ──────────────────────────────────────────────
+    if score >= SEVERITY_THRESHOLD_BERAT:
+        severity = "Rusak Berat"
+    elif score >= SEVERITY_THRESHOLD_SEDANG:
+        severity = "Rusak Sedang"
+    else:
+        severity = "Rusak Ringan"
+
+    return severity, round(score, 2), details
+
+
 # ---------------------------------------------------------------------------
 #  Drawing for merged boxes
 # ---------------------------------------------------------------------------
@@ -268,7 +436,7 @@ def _draw_merged_detections(img_cv: np.ndarray, merged_boxes: list) -> tuple:
             "area_px":        area_px,
         })
 
-    _, buf = cv2.imencode(".jpg", img_cv, [cv2.IMWRITE_JPEG_QUALITY, 90])
+    _, buf = cv2.imencode(".jpg", img_cv, [cv2.IMWRITE_JPEG_QUALITY, 75])
     img_b64 = base64.b64encode(buf).decode()
 
     if detections:
@@ -336,7 +504,7 @@ async def analyze(
     img_hash = _compute_sha256(contents)
     cached = INFERENCE_CACHE.get(img_hash)
     if cached and (time.time() - cached["ts"]) < CACHE_TTL:
-        resp = {k: cached[k] for k in ("detections", "total", "overall_severity", "status")}
+        resp = {k: cached[k] for k in ("detections", "total", "overall_severity", "severity_score", "severity_detail", "status")}
         if include_image:
             resp["image_result"] = cached["image_result"]
         return JSONResponse(resp)
@@ -344,7 +512,7 @@ async def analyze(
     try:
         img = Image.open(io.BytesIO(contents)).convert("RGB")
         img = ImageOps.exif_transpose(img)
-        MAX_DIM = 1280
+        MAX_DIM = 640
         w, h = img.size
         if max(w, h) > MAX_DIM:
             scale = MAX_DIM / max(w, h)
@@ -353,37 +521,47 @@ async def analyze(
         return JSONResponse({"status": "error", "message": "File bukan gambar yang valid"}, status_code=400)
 
     img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+    h_resized, w_resized = img_cv.shape[:2]
 
     if MODE == "ensemble":
-        # Ensemble mode: run both models and merge
-        r_a = model_a.predict(source=img, conf=CONF_THRESHOLD, iou=WBF_IOU_THR, verbose=False)[0]
-        r_b = model_b.predict(source=img, conf=CONF_THRESHOLD, iou=WBF_IOU_THR, verbose=False)[0]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            future_a = executor.submit(model_a.predict, source=img, conf=CONF_THRESHOLD, iou=WBF_IOU_THR, verbose=False)
+            future_b = executor.submit(model_b.predict, source=img, conf=CONF_THRESHOLD, iou=WBF_IOU_THR, verbose=False)
+            
+            r_a = future_a.result()[0]
+            r_b = future_b.result()[0]
 
         boxes_a = _extract_boxes(r_a)
         boxes_b = _extract_boxes(r_b)
         boxes_b = _remap_boxes(boxes_b, OLD_TO_BEST)
 
         merged = _weighted_boxes_fusion([boxes_a, boxes_b], conf_type=CONF_TYPE, iou_thr=WBF_IOU_THR)
+        merged = _suppress_contained_boxes(merged)
 
-        img_b64, detections, overall_severity = _draw_merged_detections(img_cv, merged)
+        img_b64, detections, _ = _draw_merged_detections(img_cv, merged)
     else:
-        # Single mode: run only one model
         results = model.predict(source=img, conf=CONF_THRESHOLD, iou=0.5, verbose=False)[0]
         boxes = _extract_boxes(results)
-        
-        img_b64, detections, overall_severity = _draw_merged_detections(img_cv, boxes)
+        boxes = _suppress_contained_boxes(boxes)
+
+        img_b64, detections, _ = _draw_merged_detections(img_cv, boxes)
+
+    # New severity scoring — override overall_severity
+    overall_severity, severity_score, severity_detail = compute_severity_new(detections, w_resized, h_resized)
 
     cache_entry = {
         "detections": detections,
         "total": len(detections),
         "overall_severity": overall_severity,
+        "severity_score": severity_score,
+        "severity_detail": severity_detail,
         "status": "success",
         "image_result": img_b64,
         "ts": time.time(),
     }
     INFERENCE_CACHE[img_hash] = cache_entry
 
-    resp = {k: cache_entry[k] for k in ("detections", "total", "overall_severity", "status")}
+    resp = {k: cache_entry[k] for k in ("detections", "total", "overall_severity", "severity_score", "severity_detail", "status")}
     if include_image:
         resp["image_result"] = img_b64
 

@@ -54,6 +54,13 @@ class UserSeeder extends Seeder
                 'wilayah' => 'Kec. Porong & Tanggulangin',
                 'nip' => '198812102012011004',
             ],
+            [
+                'name' => 'Dodi Kurniawan',
+                'email' => 'dodi.kurniawan@dispu.binamarga.go.id',
+                'role' => 'petugas',
+                'wilayah' => 'Kec. Candi, Sidoarjo, Tarik, Prambon',
+                'nip' => '199203102018061008',
+            ],
 
             // ── Supervisor ────────────────────────────────────────────────
             [
@@ -86,41 +93,13 @@ class UserSeeder extends Seeder
             ],
 
             // ── Petugas (tugas ganda: patroli + perbaikan) ───────────────
-            [
-                'name' => 'Ahmad Hidayat',
-                'email' => 'ahmad.hidayat@dispu.binamarga.go.id',
-                'role' => 'petugas',
-                'wilayah' => 'Waru, Sedati, Buduran, Gedangan',
-                'nip' => '199001012015031005',
-            ],
-            [
-                'name' => 'Rudi Hartono',
-                'email' => 'rudi.hartono@dispu.binamarga.go.id',
-                'role' => 'petugas',
-                'wilayah' => 'Porong, Krembung, Tulangan, Tanggulangin, Jabon',
-                'nip' => '199102152016041006',
-            ],
-            [
-                'name' => 'Slamet Riyadi',
-                'email' => 'slamet.riyadi@dispu.binamarga.go.id',
-                'role' => 'petugas',
-                'wilayah' => 'Taman, Krian, Balongbendo, Wonoayu, Sukodono',
-                'nip' => '198807202017051007',
-            ],
-            [
-                'name' => 'Dodi Kurniawan',
-                'email' => 'dodi.kurniawan@dispu.binamarga.go.id',
-                'role' => 'petugas',
-                'wilayah' => 'Candi, Sidoarjo, Tarik, Prambon',
-                'nip' => '199203102018061008',
-            ],
         ];
 
         foreach ($users as $data) {
             User::create([...$data, 'password' => $password]);
         }
 
-        $this->command->info('✅ UserSeeder: 13 user berhasil dibuat (1 admin + 4 supervisor + 8 petugas).');
+        $this->command->info('✅ UserSeeder: 10 user berhasil dibuat (1 admin + 4 supervisor + 5 petugas).');
         $this->command->info('   Email: @dispu.binamarga.go.id');
         $this->command->info('   Password semua akun: password123');
     }

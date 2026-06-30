@@ -1,6 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { API_BASE_URL } from "@/lib/aiStore";
-import type { Laporan, MapStats, DistrictSummary, RingkasanDeadlineResponse } from "@/types/laporan";
+import type {
+  Laporan,
+  MapStats,
+  DistrictSummary,
+} from "@/types/laporan";
 
 import { apiFetch } from "@/lib/api";
 
@@ -32,8 +36,7 @@ export interface StatsResponse {
 export function useStats(token: string) {
   return useQuery({
     queryKey: ["stats"],
-    queryFn: () =>
-      authFetch<StatsResponse>(`${API_BASE_URL}/reports/stats`, token),
+    queryFn: () => authFetch<StatsResponse>(`${API_BASE_URL}/reports/stats`, token),
     enabled: !!token,
     staleTime: 120_000,
     refetchInterval: 120_000,
@@ -61,7 +64,7 @@ interface MapFilters {
   status: string[];
   severity: string[];
   district: string;
-  upr_id: string;
+  uptd_id: string;
   deadline_hari: string;
   status_deadline: string;
 }
@@ -74,7 +77,7 @@ export function useMapData(token: string, filters: MapFilters) {
       if (filters.status.length > 0) params.set("status", filters.status.join(","));
       if (filters.severity.length > 0) params.set("severity", filters.severity.join(","));
       if (filters.district) params.set("district", filters.district);
-      if (filters.upr_id) params.set("upr_id", filters.upr_id);
+      if (filters.uptd_id) params.set("uptd_id", filters.uptd_id);
       if (filters.deadline_hari) params.set("deadline_hari", filters.deadline_hari);
       if (filters.status_deadline) params.set("status_deadline", filters.status_deadline);
       const qs = params.toString();
@@ -88,32 +91,22 @@ export function useMapData(token: string, filters: MapFilters) {
   });
 }
 
-interface UprItem {
-  id: number;
+interface TeamItem {
+  id: string;
   name: string;
   wilayah?: string;
+  uptd?: { id: string; nama: string; kecamatan_wilayah: string[] };
 }
 
-export function useRingkasanDeadline(token: string) {
+export function useTeams(token: string) {
   return useQuery({
-    queryKey: ["ringkasan-deadline"],
-    queryFn: () =>
-      authFetch<RingkasanDeadlineResponse>(`${API_BASE_URL}/reports/ringkasan-deadline`, token),
-    enabled: !!token,
-    staleTime: 300_000,
-    refetchInterval: 300_000,
-  });
-}
-
-export function useUprs(token: string) {
-  return useQuery({
-    queryKey: ["uprs"],
+    queryKey: ["teams"],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE_URL}/uprs`, {
+      const res = await fetch(`${API_BASE_URL}/teams?limit=100`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json();
-      return (json.data ?? json.uprs ?? []) as UprItem[];
+      return (json.data ?? []) as TeamItem[];
     },
     enabled: !!token,
     staleTime: 120_000,
@@ -123,17 +116,16 @@ export function useUprs(token: string) {
 export function useAllReports(token: string, limit = 20) {
   return useQuery({
     queryKey: ["reports", "all", limit],
-    queryFn: () =>
-      authFetch<Laporan[]>(`${API_BASE_URL}/reports?limit=${limit}`, token),
+    queryFn: () => authFetch<Laporan[]>(`${API_BASE_URL}/reports?limit=${limit}`, token),
     enabled: !!token,
     staleTime: 120_000,
     refetchInterval: 120_000,
   });
 }
 
-export interface UprStat {
-  upr_id: number;
-  upr_name: string;
+export interface TeamStat {
+  team_id: string;
+  team_name: string;
   wilayah: string;
   total: number;
   sedang_diperbaiki: number;
@@ -142,11 +134,10 @@ export interface UprStat {
   total_luas_m2: number;
 }
 
-export function useUprStats(token: string) {
+export function useTeamStats(token: string) {
   return useQuery({
-    queryKey: ["upr-stats"],
-    queryFn: () =>
-      authFetch<UprStat[]>(`${API_BASE_URL}/reports/stats-by-upr`, token),
+    queryKey: ["team-stats"],
+    queryFn: () => authFetch<TeamStat[]>(`${API_BASE_URL}/reports/stats-by-team`, token),
     enabled: !!token,
     staleTime: 300_000,
     refetchInterval: 300_000,

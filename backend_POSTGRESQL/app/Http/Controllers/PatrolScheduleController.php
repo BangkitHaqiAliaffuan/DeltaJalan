@@ -44,7 +44,6 @@ class PatrolScheduleController extends Controller
                 $kecIndex++;
 
                 $exists = SurveyTask::where('team_id', $schedule->team_id)
-                    ->where('kecamatan', $kec)
                     ->where('tanggal_patroli', $tanggal)
                     ->where('status', 'aktif')
                     ->exists();
@@ -55,8 +54,8 @@ class PatrolScheduleController extends Controller
                         'team_id' => $schedule->team_id,
                         'kecamatan' => $kec,
                         'tanggal_patroli' => $tanggal,
-                        'jam_mulai' => '07:00',
-                        'jam_selesai' => '16:00',
+                        'jam_mulai' => $schedule->jam_mulai ?? '09:00',
+                        'jam_selesai' => $schedule->jam_selesai ?? '16:00',
                         'alasan_tugas' => $schedule->alasan_tugas ?? 'rutin',
                         'status' => 'aktif',
                         'created_at' => now(),
@@ -124,6 +123,8 @@ class PatrolScheduleController extends Controller
             'start_date' => 'required|date|after_or_equal:today',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'alasan_tugas' => 'nullable|string|in:rutin,tindak_lanjut,pengaduan',
+            'jam_mulai' => 'nullable|string|date_format:H:i',
+            'jam_selesai' => 'nullable|string|date_format:H:i',
         ]);
 
         if (isset($validated['kecamatan_list'])) {
@@ -131,12 +132,11 @@ class PatrolScheduleController extends Controller
         }
 
         $duplicate = PatrolSchedule::where('team_id', $validated['team_id'])
-            ->where('start_date', $validated['start_date'])
             ->where('status', 'aktif')
             ->exists();
 
         if ($duplicate) {
-            return response()->json(['message' => 'Jadwal dengan tim, tanggal mulai, dan hari yang sama sudah ada.'], 409);
+            return response()->json(['message' => 'Tim satgas ini sudah memiliki jadwal aktif.'], 409);
         }
 
         $schedule = DB::transaction(function () use ($validated, $user) {
@@ -207,6 +207,8 @@ class PatrolScheduleController extends Controller
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'alasan_tugas' => 'nullable|string|in:rutin,tindak_lanjut,pengaduan',
             'status' => 'sometimes|string|in:aktif,nonaktif',
+            'jam_mulai' => 'nullable|string|date_format:H:i',
+            'jam_selesai' => 'nullable|string|date_format:H:i',
         ]);
 
         if (isset($validated['kecamatan_list'])) {

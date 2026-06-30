@@ -14,7 +14,7 @@ import {
   haversineDistance,
   formatDistance,
 } from "@/lib/format";
-import type { Laporan, TimelineEvent, TrustLabel, ProgressUpdate } from "@/types/laporan";
+import type { Laporan, TimelineEvent, ProgressUpdate } from "@/types/laporan";
 import { ReportMap, type ReportMapPoint } from "@/components/jk/ReportMap";
 import { TimelineCard } from "@/components/jk/TimelineCard";
 import { ProgressTimeline } from "@/components/jk/ProgressTimeline";
@@ -22,7 +22,9 @@ import { ProgressUpdateModal } from "@/components/jk/ProgressUpdateModal";
 import { BeforeAfterSlider } from "@/components/jk/BeforeAfterSlider";
 import { Portal } from "@/components/jk/Portal";
 import { ModalBase } from "@/components/jk/ModalBase";
-import { TrustBadge } from "@/components/jk/TrustBadge";
+import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
+import { formatCountdown, hitungProgress } from "@/lib/deadline";
+// ── TRUST SCORE [NONAKTIF] — import { TrustBadge } from "@/components/jk/TrustBadge";
 
 export const Route = createFileRoute("/detail-report")({
   component: DetailReportPage,
@@ -56,6 +58,8 @@ function DetailReportPage() {
   const user = getCurrentUser();
   const userRole = user?.role ?? "petugas";
   const [backPath, setBackPath] = useState("/tugas-saya");
+  const [isClient, setIsClient] = useState(false);
+  useEffect(() => { setIsClient(true); }, []);
   useEffect(() => {
     setBackPath(userRole === "supervisor" ? "/supervisor" : "/tugas-saya");
   }, [userRole]);
@@ -74,6 +78,17 @@ function DetailReportPage() {
   const [showApproval, setShowApproval] = useState(false);
   const [progressUpdates, setProgressUpdates] = useState<ProgressUpdate[]>([]);
   const [showProgressModal, setShowProgressModal] = useState(false);
+  const [showEstimasi, setShowEstimasi] = useState(false);
+  const [estimasiHari, setEstimasiHari] = useState(7);
+  const [estimasiMode, setEstimasiMode] = useState<"same-day" | "multi-day">("same-day");
+  const [showMulaiConfirm, setShowMulaiConfirm] = useState(false);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    if (!report || ["Selesai", "Ditolak"].includes(report.status)) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [report?.status]);
 
   useEffect(() => {
     if (!reportId) {
@@ -208,16 +223,27 @@ function DetailReportPage() {
 
   async function handleMulaiEksekusi() {
     if (!report) return;
+    setShowEstimasi(false);
+    setShowMulaiConfirm(true);
+  }
+
+  async function handleMulaiConfirm() {
+    if (!report) return;
+    setShowMulaiConfirm(false);
     setActionLoading(true);
     try {
+      const estimasiValue = estimasiMode === "same-day" ? null : estimasiHari;
       const res = await fetch(`${API_BASE_URL}/reports/${report.id}/mulai`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ estimasi_selesai_hari: estimasiValue }),
       });
       const json = await res.json();
       setActionMsg(json.message ?? (res.ok ? "Pengerjaan dimulai" : "Gagal"));
-      if (res.ok) await refreshReport();
+      if (res.ok) {
+        setShowEstimasi(false);
+        await refreshReport();
+      }
     } catch {
       setActionMsg("Kesalahan jaringan.");
     } finally {
@@ -413,7 +439,12 @@ function DetailReportPage() {
           <button
             type="button"
             disabled={actionLoading}
-            onClick={handleMulaiEksekusi}
+            onClick={() => {
+              const isRingan = report?.overall_severity === "Rusak Ringan";
+              setEstimasiMode(isRingan ? "same-day" : "multi-day");
+              setEstimasiHari(isRingan ? 1 : 7);
+              setShowEstimasi(true);
+            }}
             className="w-full py-2.5 md:py-3 min-h-[40px] bg-[#1A4F8A] text-white rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm"
           >
             {actionLoading ? (
@@ -605,13 +636,7 @@ function DetailReportPage() {
               <span className={`w-2 h-2 rounded-full ${statusDotStyle(report.status ?? "")}`} />
               {displayStatus(report.status ?? "-")}
             </span>
-            {report.trust_label && (
-              <TrustBadge
-                score={report.trust_score ?? 0}
-                label={report.trust_label as TrustLabel}
-                compact
-              />
-            )}
+            <DeadlineCard report={report} isClient={isClient} now={now} compact />
           </div>
 
           {/* ── Info Jalan ── */}
@@ -645,6 +670,33 @@ function DetailReportPage() {
 
           {/* ── Timeline Perbaikan ── */}
           {hasTimeline && <TimelineCard events={statusHistory} />}
+
+          {/* ── Progress Bar (estimasi_hari > 0) ── */}
+          {report.estimasi_hari != null && report.estimasi_hari > 0 && (
+            <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-label-md text-[13px] font-bold text-[#0F172A] flex items-center gap-1.5">
+                  <Icon name="progress_activity" className="!text-lg text-[#1A4F8A]" />
+                  Progress Perbaikan
+                </h3>
+                <span className="text-[12px] font-semibold text-[#1A4F8A]">
+                  Hari {Math.min(progressUpdates.length + 1, report.estimasi_hari)} dari {report.estimasi_hari}
+                </span>
+              </div>
+              <div className="w-full h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[#1A4F8A] rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min((progressUpdates.length / report.estimasi_hari) * 100, 100)}%` }}
+                />
+              </div>
+              {progressUpdates.length >= report.estimasi_hari && (
+                <p className="text-[11px] text-[#10B981] font-medium mt-1.5 flex items-center gap-1">
+                  <Icon name="check_circle" className="!text-[14px]" />
+                  Estimasi terpenuhi, silakan selesaikan laporan
+                </p>
+              )}
+            </div>
+          )}
 
           {/* ── Progress Timeline ── */}
           {progressUpdates.length > 0 && <ProgressTimeline updates={progressUpdates} />}
@@ -847,6 +899,123 @@ function DetailReportPage() {
         </ModalBase>
       )}
 
+      {/* ── Estimasi Modal (mulai perbaikan) ── */}
+      {showEstimasi && report && (
+        <ModalBase
+          onClose={() => setShowEstimasi(false)}
+          icon="play_arrow"
+          badge="MULAI PENGERJAAN"
+          title="Estimasi Waktu Penyelesaian"
+          footer={
+            <>
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={handleMulaiEksekusi}
+                className="w-full h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-95 transition-all disabled:opacity-50"
+              >
+                {actionLoading ? (
+                  "Memproses…"
+                ) : (
+                  <>
+                    <Icon name="play_arrow" className="!text-[18px]" />
+                    Mulai Pengerjaan
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowEstimasi(false)}
+                className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
+              >
+                Batal
+              </button>
+            </>
+          }
+        >
+          <div>
+            <p className="text-[13px] text-[#475569] mb-4 leading-relaxed">
+              Perkirakan waktu yang dibutuhkan untuk menyelesaikan perbaikan laporan ini.
+            </p>
+            <div className="space-y-3">
+              <label
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  estimasiMode === "same-day"
+                    ? "border-[#1A4F8A] bg-[#EFF6FF]"
+                    : "border-[#D0DAE8] bg-white"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="estimasi"
+                  checked={estimasiMode === "same-day"}
+                  onChange={() => setEstimasiMode("same-day")}
+                  className="accent-[#1A4F8A]"
+                />
+                <div>
+                  <p className="text-[13px] font-semibold text-[#0F172A]">Same day</p>
+                  <p className="text-[11px] text-[#64748B]">Selesai hari ini juga</p>
+                </div>
+              </label>
+              <label
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  estimasiMode === "multi-day"
+                    ? "border-[#1A4F8A] bg-[#EFF6FF]"
+                    : "border-[#D0DAE8] bg-white"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="estimasi"
+                  checked={estimasiMode === "multi-day"}
+                  onChange={() => setEstimasiMode("multi-day")}
+                  className="accent-[#1A4F8A]"
+                />
+                <div>
+                  <p className="text-[13px] font-semibold text-[#0F172A]">Estimasi hari</p>
+                  <p className="text-[11px] text-[#64748B]">Butuh beberapa hari pengerjaan</p>
+                </div>
+              </label>
+              {estimasiMode === "multi-day" && (
+                <div className="pl-8">
+                  <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">
+                    Berapa hari?
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={90}
+                    value={estimasiHari}
+                    onChange={(e) => setEstimasiHari(Math.max(1, Math.min(90, parseInt(e.target.value) || 7)))}
+                    className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </ModalBase>
+      )}
+
+      {/* ── Confirm Mulai Modal ── */}
+      <ConfirmDialog
+        open={showMulaiConfirm}
+        title="Mulai Pengerjaan?"
+        message={
+          report
+            ? `Mulai perbaikan ${report.report_code} — ${report.road_name}?${
+                estimasiMode === "same-day"
+                  ? "\nEstimasi: Selesai hari ini"
+                  : `\nEstimasi: ${estimasiHari} hari`
+              }`
+            : ""
+        }
+        confirmText="Ya, Mulai"
+        cancelText="Batal"
+        confirmLoading={actionLoading}
+        onConfirm={handleMulaiConfirm}
+        onCancel={() => { setShowMulaiConfirm(false); setShowEstimasi(true); }}
+      />
+
       {/* ── Progress Update Modal ── */}
       {showProgressModal && report && (
         <ProgressUpdateModal
@@ -874,6 +1043,199 @@ function FooterWrapper({ children }: { children: React.ReactNode }) {
     <footer className="fixed bottom-0 left-0 right-0 md:left-64 z-30 bg-white border-t border-[#E2E8F0] shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
       <div className="px-4 md:px-6 py-3 md:py-4 flex flex-col gap-2 md:gap-3">{children}</div>
     </footer>
+  );
+}
+
+function DeadlineCard({
+  report,
+  isClient,
+  now,
+  compact,
+}: {
+  report: Laporan;
+  isClient: boolean;
+  now: number;
+  compact?: boolean;
+}) {
+  const status = report.status ?? "";
+
+  function pilihDeadline(): { deadline: string; label: string; icon: string } | null {
+    if (["Menunggu Review", "Ditinjau"].includes(status) && report.deadline_review) {
+      return { deadline: report.deadline_review, label: "Deadline Review", icon: "rate_review" };
+    }
+    if (["Disetujui", "Ditugaskan"].includes(status) && report.deadline_mulai) {
+      return { deadline: report.deadline_mulai, label: "Deadline Mulai", icon: "play_arrow" };
+    }
+    if (status === "Sedang Diperbaiki" && report.deadline_resolusi) {
+      return { deadline: report.deadline_resolusi, label: "Deadline Resolusi", icon: "build" };
+    }
+    if (["Selesai", "Ditolak"].includes(status)) {
+      const last =
+        report.deadline_resolusi || report.deadline_mulai || report.deadline_review;
+      if (last) return { deadline: last, label: "Deadline", icon: "check_circle" };
+      return null;
+    }
+    return null;
+  }
+
+  const info = pilihDeadline();
+  if (!info) return null;
+
+  const deadlineDate = new Date(info.deadline);
+  const sisaMs = deadlineDate.getTime() - now;
+  const isSelesai = ["Selesai", "Ditolak"].includes(status);
+
+  function getStartTime(): string {
+    if (status === "Sedang Diperbaiki")
+      return report.perbaikan_dimulai_at || report.created_at;
+    if (["Disetujui", "Ditugaskan"].includes(status))
+      return report.assigned_at || report.created_at;
+    return report.created_at;
+  }
+
+  const startTime = getStartTime();
+
+  const terlambatFlag =
+    (status === "Sedang Diperbaiki" && report.terlambat_resolusi) ||
+    (["Disetujui", "Ditugaskan"].includes(status) && report.terlambat_mulai) ||
+    (["Menunggu Review", "Ditinjau"].includes(status) && report.terlambat_review);
+
+  let deadlineStatus: "tepat_waktu" | "mendekati" | "terlambat" | "selesai" = "tepat_waktu";
+  if (isSelesai) {
+    deadlineStatus = "selesai";
+  } else if (terlambatFlag || sisaMs < 0) {
+    deadlineStatus = "terlambat";
+  } else if (isClient) {
+    const startMs = new Date(startTime).getTime();
+    const totalMs = deadlineDate.getTime() - startMs || 1;
+    const warningWindow = Math.max(8, totalMs * 0.25);
+    if (sisaMs < warningWindow && sisaMs > 0) {
+      deadlineStatus = "mendekati";
+    }
+  }
+
+  const colorMap = {
+    tepat_waktu: {
+      dot: "bg-[#10B981]",
+      text: "text-[#10B981]",
+      bg: "bg-emerald-50 border-emerald-200",
+      hex: "#10B981",
+      label: "Tepat Waktu",
+    },
+    mendekati: {
+      dot: "bg-[#F59E0B]",
+      text: "text-[#F59E0B]",
+      bg: "bg-amber-50 border-amber-200",
+      hex: "#F59E0B",
+      label: "Mendekati",
+    },
+    terlambat: {
+      dot: "bg-[#E11D48]",
+      text: "text-[#E11D48]",
+      bg: "bg-red-50 border-red-200",
+      hex: "#E11D48",
+      label: "Terlewat",
+    },
+    selesai: {
+      dot: "bg-[#64748B]",
+      text: "text-[#64748B]",
+      bg: "bg-slate-50 border-slate-200",
+      hex: "#64748B",
+      label: "Selesai",
+    },
+  };
+  const colors = colorMap[deadlineStatus];
+
+  const { persen } = hitungProgress(info.deadline, startTime, now);
+
+  if (compact) {
+    return (
+      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-[#E2E8F0]">
+        <Icon name={info.icon} className="!text-[14px] text-[#64748B]" />
+        <span className="text-[#475569]">{info.label}:</span>
+        <span className={`font-bold ${colors.text}`}>
+          {isClient ? formatCountdown(sisaMs) : "Memuat..."}
+        </span>
+        <span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
+        <span className={colors.text}>{colors.label}</span>
+      </span>
+    );
+  }
+
+  function formatHariTanggal(iso: string): string {
+    const d = new Date(iso);
+    const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+    const months = [
+      "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+      "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+    ];
+    const dayName = days[d.getDay()];
+    const date = d.getDate();
+    const month = months[d.getMonth()];
+    const year = d.getFullYear();
+    const hour = d.getHours().toString().padStart(2, "0");
+    const min = d.getMinutes().toString().padStart(2, "0");
+    return `${dayName}, ${date} ${month} ${year} pukul ${hour}:${min} WIB`;
+  }
+
+  return (
+    <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Icon name="timer" className="!text-[18px] text-[#64748B]" />
+          <h3 className="font-label-md text-[13px] font-bold text-[#0F172A]">Batas Waktu</h3>
+        </div>
+        <span
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${colors.bg} ${colors.text}`}
+        >
+          <span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
+          {colors.label}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2 mb-3">
+        <Icon name={info.icon} className="!text-[16px] text-[#64748B]" />
+        <span className="text-[12px] font-semibold text-[#0F172A]">{info.label}</span>
+      </div>
+
+      <p className="text-[13px] text-[#0F172A] mb-3">{formatHariTanggal(info.deadline)}</p>
+
+      {!isSelesai && (
+        <div className="flex items-center gap-3 mb-3">
+          <div className="flex-1 h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-1000 ease-linear"
+              style={{ width: `${persen}%`, backgroundColor: colors.hex }}
+            />
+          </div>
+          <span className={`text-[11px] font-semibold ${colors.text}`}>
+            {Math.round(persen)}%
+          </span>
+        </div>
+      )}
+
+      <div className="border-t border-[#E2E8F0] pt-3">
+        {isSelesai ? (
+          <div>
+            <span className="text-[12px] text-[#64748B]">
+              Tidak ada tenggat aktif
+            </span>
+            {status === "Ditolak" && (
+              <div className="flex items-center gap-1 mt-2 text-[11px] text-[#94A3B8]">
+                <Icon name="info" className="!text-[12px] shrink-0" />
+                <span>Dihapus otomatis 3 hari setelah ditolak</span>
+              </div>
+            )}
+          </div>
+        ) : !isClient ? (
+          <span className="text-[12px] text-[#64748B]">Memuat...</span>
+        ) : (
+          <span className={`text-[15px] font-bold ${colors.text}`}>
+            {formatCountdown(sisaMs)}
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 

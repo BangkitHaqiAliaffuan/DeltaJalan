@@ -1,14 +1,13 @@
-import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router";
 import { Icon } from "./Icon";
-import { getCurrentUser, getToken, clearAuth } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
 import { useEffect, useState } from "react";
 
 const PETUGAS_ITEMS = [
   { to: "/home", icon: "home", label: "Beranda" },
-  { to: "/tugas-saya", icon: "assignment", label: "Tugas Saya" },
+  { to: "/tugas-saya", icon: "assignment", label: "Tugas" },
   { to: "/map", icon: "map", label: "Peta" },
-  { to: "/upload", icon: "cloud_upload", label: "Upload" },
-  { to: "/my-reports", icon: "description", label: "Laporan Saya" },
+  { to: "/my-reports", icon: "description", label: "Laporan" },
 ] as const;
 
 const SUPERVISOR_ITEMS = [
@@ -20,36 +19,22 @@ const SUPERVISOR_ITEMS = [
 
 export function BottomNav() {
   const { pathname } = useLocation();
-  const navigate = useNavigate();
   const [user, setUser] = useState<ReturnType<typeof getCurrentUser>>(null);
 
   useEffect(() => {
     setUser(getCurrentUser());
   }, []);
 
-  async function handleLogout() {
-    const token = getToken();
-    if (token) {
-      try {
-        await fetch("/api/auth/logout", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      } catch {}
-    }
-    clearAuth();
-    navigate({ to: "/" });
-  }
-
   if (!user) return null;
 
-  const items =
-    user?.role === "supervisor"
-      ? SUPERVISOR_ITEMS
-      : PETUGAS_ITEMS;
+  const isPetugas = user?.role === "petugas";
+  const items = isPetugas ? PETUGAS_ITEMS : SUPERVISOR_ITEMS;
 
   return (
-    <nav className="shrink-0 md:hidden w-full max-w-[430px] flex justify-around items-center px-2 bg-white h-16 border-t border-[#D0DAE8]" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+    <nav
+      className="shrink-0 md:hidden w-full max-w-[430px] relative flex justify-around items-center px-2 bg-white h-16 border-t border-[#D0DAE8]"
+      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+    >
       {items.map((it) => {
         const active = pathname === it.to;
         return (
@@ -65,14 +50,17 @@ export function BottomNav() {
           </Link>
         );
       })}
-      <button
-        type="button"
-        onClick={handleLogout}
-        className="flex flex-col items-center justify-center h-full px-2 transition-all active:scale-95 text-on-surface-variant"
-      >
-        <Icon name="logout" />
-        <span className="font-label-sm text-label-sm">Keluar</span>
-      </button>
+
+      {isPetugas && (
+        <Link
+          to="/upload"
+          className={`absolute left-1/2 -translate-x-1/2 -top-5 w-12 h-12 rounded-full flex items-center justify-center shadow-lg shadow-primary/30 transition-transform active:scale-90 z-10 ${
+            pathname === "/upload" ? "bg-primary-dark" : "bg-primary"
+          }`}
+        >
+          <Icon name="add" className="!text-2xl font-bold text-white" />
+        </Link>
+      )}
     </nav>
   );
 }
