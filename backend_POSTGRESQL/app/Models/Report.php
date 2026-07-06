@@ -81,8 +81,6 @@ class Report extends Model
         'assigned_team_id',
         'assigned_at',
         'ditugaskan_at',
-        'deadline_mulai',
-        'terlambat_mulai',
         'assignor_name',
         'catatan_petugas',
         // Dimensi kerusakan
@@ -99,6 +97,9 @@ class Report extends Model
         'terlambat_resolusi',
         // Survey task link
         'survey_task_id',
+        // Source & description (warga)
+        'source',
+        'description',
     ];
 
     /**
@@ -121,12 +122,10 @@ class Report extends Model
         'perbaikan_selesai_at' => 'datetime',
         'assigned_at' => 'datetime',
         'ditugaskan_at' => 'datetime',
-        'deadline_mulai' => 'datetime',
         'deadline_review' => 'datetime',
         'deadline_resolusi' => 'datetime',
         'terlambat_review' => 'boolean',
         'terlambat_resolusi' => 'boolean',
-        'terlambat_mulai' => 'boolean',
     ];
 
     /**
@@ -135,8 +134,8 @@ class Report extends Model
      */
     protected $attributes = [
         'total_detections' => 0,
-        'overall_severity' => 'Baik',
         'status' => 'Menunggu Review',
+        'source' => 'petugas',
         'priority' => 'Sedang',
     ];
 
@@ -197,8 +196,10 @@ class Report extends Model
      */
     public const STATUS_VALUES = [
         'Menunggu Review',
+        'Menunggu Verifikasi',
         'Disetujui',
         'Ditolak',
+        'Hasil AI',
         'Ditugaskan',
         'Sedang Diperbaiki',
         'Selesai',
@@ -330,16 +331,6 @@ class Report extends Model
     public static function hitungDeadlineResolusi(string $priority): Carbon
     {
         $hours = config("deadline.{$priority}.resolution_hours", 168);
-
-        return now()->addHours((int) $hours);
-    }
-
-    /**
-     * Hitung deadline mulai kerja berdasarkan priority.
-     */
-    public static function hitungDeadlineMulai(string $priority): Carbon
-    {
-        $hours = config("deadline.{$priority}.assignment_start_hours", 48);
 
         return now()->addHours((int) $hours);
     }

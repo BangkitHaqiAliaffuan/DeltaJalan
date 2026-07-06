@@ -1,4 +1,4 @@
-export type UserRole = "petugas" | "supervisor" | "admin";
+export type UserRole = "petugas" | "supervisor" | "admin" | "warga";
 
 export interface User {
   id: number;
@@ -11,6 +11,8 @@ export interface User {
   initials: string;
   team_id: string | null;
   team_name: string | null;
+  phone?: string | null;
+  address?: string | null;
 }
 
 const TOKEN_KEY = "jalankita_token";
@@ -88,3 +90,39 @@ export function isLoggedIn(): boolean {
 
 /** @deprecated Gunakan saveAuth() */
 export function setCurrentUser(role: UserRole): void {}
+
+export interface RegisterData {
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+  password_confirmation: string;
+}
+
+export interface RegisterResult {
+  success: boolean;
+  message: string;
+  errors?: Record<string, string[]>;
+}
+
+export async function registerUser(data: RegisterData): Promise<RegisterResult> {
+  try {
+    const { apiFetch } = await import("@/lib/api");
+    const res = await apiFetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      return {
+        success: false,
+        message: result.message ?? "Registrasi gagal. Silakan coba lagi.",
+        errors: result.errors,
+      };
+    }
+    return { success: true, message: result.message };
+  } catch {
+    return { success: false, message: "Tidak dapat terhubung ke server." };
+  }
+}

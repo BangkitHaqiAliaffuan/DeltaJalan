@@ -118,55 +118,29 @@ Prior run inspection: use **`list_runs`** / **`get_run`** / **`get_steps`** / **
 
 Full context: https://docs.tinyfish.ai/for-coding-agents and https://docs.tinyfish.ai/llms-full.txt
 
-## RTK + TinyFish: token-optimized web fetching
+## RTK (Rust Token Killer)
 
-RTK (Rust Token Killer) is integrated with TinyFish to minimize token waste from web content. The pipeline is: TinyFish raw content → `scripts/tinyfish-rtk.ps1` → RTK filters → token-optimized output.
+RTK v0.43.0 is installed as an OpenCode plugin. It transparently compresses bash command outputs (git, npm, ls, cargo, etc.) by 60-90% before they reach context.
 
-### Optimization pipeline
+- **Plugin**: `~/.config/opencode/plugins/rtk.ts` — auto-rewrites bash commands
+- **Binary**: `~/.local/bin/rtk`
+- **Check savings**: `rtk gain` or `rtk gain --history`
+- **Config**: `~/.config/rtk/config.toml`
+- **Source**: https://www.rtk-ai.app/
 
-When fetching web content, ALWAYS pipe TinyFish results through the optimizer:
+### Dual boot notes
 
-```powershell
-# Fetch and auto-optimize (best for most cases — TinyFish fetch already strips HTML)
-# Just pass the result directly — TinyFish already returns clean text
+| OS | RTK mode | Init command |
+|---|---|---|
+| **Linux** (native) | Hook auto-rewrite | `rtk init -g --opencode` (already done) |
+| **Windows** (native) | CLAUDE.md fallback | `rtk init -g --opencode` (run on Windows) |
 
-# For verbose results, strip known boilerplate:
-# The optimizer auto-strips: nav/footer/header blocks, cookie/privacy banners,
-# ads/sponsored sections, empty lines, HTML tags, duplicate lines
-```
+- On **Linux**, bash commands like `git status` are transparently rewritten to `rtk git status` — no manual prefix needed.
+- On **Windows**, RTK falls back to CLAUDE.md injection mode (no auto-rewrite). The TinyFish optimizer at `scripts/tinyfish-rtk.ps1` is available for manual optimization.
 
-The optimizer at `scripts/tinyfish-rtk.ps1` runs automatically when content is fetched. It:
-- Strips HTML tags (`-StripHtml` flag)
-- Aggressively removes navigation, footer, header, aside, script, style blocks
-- Filters cookie/privacy/TOS banners and ads
-- Deduplicates lines
-- Caps at 100 lines / 500 chars per line by default
-- Shows a stats footer with line/char counts
+### Token savings tracking
 
-The RTK proxy at `~/.config/opencode/plugins/rtk.ts` also rewrites `curl`/`iwr` commands through RTK's built-in filters for additional savings.
-
-### Token-efficient TinyFish patterns
-
-| Pattern | Why |
-|---|---|
-| Use `fetch_content` with specific URLs (not search results) | `fetch_content` returns clean text; `search` returns ranked links |
-| For `search`, limit queries to 3-5 keywords | Fewer results = fewer tokens |
-| Ask TinyFish for "concise" or "summary" format | `fetch_content` supports `format: text` which is cleaner |
-| Prefer `fetch_content` over `run_web_automation` for reading | Automation is 1 credit/step; fetch is 1 credit/15 URLs |
-| For 2+ URLs, use `batch_create`/`batch_status` | Single batch context vs multiple calls |
-| Do NOT pipe TinyFish results through `curl`/`wget` | Duplicates work — TinyFish already fetched the content |
-
-### Saved tokens tracking
-
-RTK tracks all savings automatically. Check with:
 ```bash
 rtk gain            # dashboard
 rtk gain --history  # per-command breakdown
 ```
-
-### When to bypass optimization
-
-Don't optimize when:
-- The raw HTML structure is needed (e.g., scraping specific attributes)
-- The content is already short (< 20 lines)
-- Debugging TinyFish response format

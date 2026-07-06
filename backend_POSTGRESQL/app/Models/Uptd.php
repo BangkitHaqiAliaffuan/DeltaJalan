@@ -25,4 +25,17 @@ class Uptd extends Model
     {
         return $this->hasMany(Team::class, 'uptd_id');
     }
+
+    public static function resolveTeamIdByDistrict(string $district): ?string
+    {
+        $uptd = self::whereJsonContains('kecamatan_wilayah', $district)->first();
+
+        if (! $uptd) {
+            return null;
+        }
+
+        $team = $uptd->teams()->first();
+
+        return $team?->id;
+    }
 }

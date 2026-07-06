@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\Report;
-use App\Models\Team;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -29,21 +28,6 @@ class DeadlineTestSeeder extends Seeder
             });
         $this->command->info("1a. deadline_review diisi: {$reviewFilled} laporan");
 
-        // 1b. deadline_mulai — for assigned/in-progress/completed reports
-        $mulaiFilled = 0;
-        Report::whereNull('deadline_mulai')
-            ->whereIn('status', ['Ditugaskan', 'Sedang Diperbaiki', 'Selesai'])
-            ->each(function (Report $report) use (&$mulaiFilled) {
-                $hours = (int) config("deadline.{$report->priority}.assignment_start_hours", 48);
-                $base = $report->ditugaskan_at ?? $report->assigned_at ?? $report->created_at;
-                $report->update([
-                    'deadline_mulai' => $base->copy()->addHours($hours),
-                    'terlambat_mulai' => false,
-                ]);
-                $mulaiFilled++;
-            });
-        $this->command->info("1b. deadline_mulai diisi: {$mulaiFilled} laporan");
-
         // 1c. deadline_resolusi — for in-progress/completed reports
         $resolusiFilled = 0;
         Report::whereNull('deadline_resolusi')
@@ -60,7 +44,6 @@ class DeadlineTestSeeder extends Seeder
         $this->command->info("1c. deadline_resolusi diisi: {$resolusiFilled} laporan");
 
         $totalWithDeadlines = Report::whereNotNull('deadline_review')
-            ->orWhereNotNull('deadline_mulai')
             ->orWhereNotNull('deadline_resolusi')
             ->count();
         $this->command->info("Blok 1 selesai. {$totalWithDeadlines} laporan sekarang memiliki deadline.");
@@ -115,8 +98,6 @@ class DeadlineTestSeeder extends Seeder
                 'assigned_team_id' => $teamId,
                 'assigned_at' => $ditugaskanAt,
                 'ditugaskan_at' => $ditugaskanAt,
-                'deadline_mulai' => $now->copy()->subHours(rand(2, 24)),
-                'terlambat_mulai' => true,
                 'perbaikan_dimulai_at' => $mulaiAt,
                 'deadline_resolusi' => $now->copy()->addMinutes(2),
                 'terlambat_resolusi' => false,
@@ -154,8 +135,6 @@ class DeadlineTestSeeder extends Seeder
                 'assigned_team_id' => $teamId,
                 'assigned_at' => $ditugaskanAt,
                 'ditugaskan_at' => $ditugaskanAt,
-                'deadline_mulai' => $now->copy()->subHours(rand(1, 24)),
-                'terlambat_mulai' => true,
                 'perbaikan_dimulai_at' => $mulaiAt,
                 'deadline_resolusi' => $now->copy()->addMinutes(2),
                 'terlambat_resolusi' => false,
@@ -175,14 +154,14 @@ class DeadlineTestSeeder extends Seeder
         $this->command->info(" Waktu seed         : {$now->format('Y-m-d H:i:s')}");
         $this->command->warn('───────────────────────────────────────────────────────');
         $this->command->warn(' 1. SEGERA (seed + 0)');
-        $this->command->info("    -> php artisan deadline:check");
-        $this->command->info("    -> Warnings: 6 (semua dalam window 2 menit)");
-        $this->command->info("    -> Notif FCM + database terkirim untuk 6 laporan");
+        $this->command->info('    -> php artisan deadline:check');
+        $this->command->info('    -> Warnings: 6 (semua dalam window 2 menit)');
+        $this->command->info('    -> Notif FCM + database terkirim untuk 6 laporan');
         $this->command->warn('───────────────────────────────────────────────────────');
         $this->command->warn(" 2. {$t2->format('Y-m-d H:i:s')}  (seed + 2 menit)");
-        $this->command->info("    -> php artisan deadline:check");
-        $this->command->info("    -> Resolusi: 6 (semua overdue)");
-        $this->command->info("    -> Buka halaman detail report -> badge Terlambat");
+        $this->command->info('    -> php artisan deadline:check');
+        $this->command->info('    -> Resolusi: 6 (semua overdue)');
+        $this->command->info('    -> Buka halaman detail report -> badge Terlambat');
         $this->command->warn('───────────────────────────────────────────────────────');
         $this->command->warn(' Catatan:');
         $this->command->warn(' - Warnings menurun tiap run karena dedup via notifikasi.');

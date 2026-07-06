@@ -10,6 +10,8 @@ interface ConfirmDialogProps {
   confirmLoading?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  icon?: string;
+  confirmClassName?: string;
 }
 
 export function ConfirmDialog({
@@ -21,13 +23,15 @@ export function ConfirmDialog({
   confirmLoading,
   onConfirm,
   onCancel,
+  icon = "delete",
+  confirmClassName = "flex-1 px-4 py-2.5 text-[13px] font-bold text-white bg-[#E11D48] rounded-xl hover:bg-[#BE123C] disabled:opacity-40 transition-all flex items-center justify-center gap-1.5",
 }: ConfirmDialogProps) {
   if (!open) return null;
 
   return (
     <ModalBase
       onClose={onCancel}
-      icon="delete"
+      icon={icon}
       badge="KONFIRMASI"
       title={title}
       footer={
@@ -42,13 +46,13 @@ export function ConfirmDialog({
           <button
             onClick={onConfirm}
             disabled={confirmLoading}
-            className="flex-1 px-4 py-2.5 text-[13px] font-bold text-white bg-[#E11D48] rounded-xl hover:bg-[#BE123C] disabled:opacity-40 transition-all flex items-center justify-center gap-1.5"
+            className={confirmClassName}
           >
             {confirmLoading ? (
               <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
               <>
-                <Icon name="delete" className="!text-[14px]" />
+                <Icon name={icon} className="!text-[14px]" />
                 {confirmText}
               </>
             )}

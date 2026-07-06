@@ -1,24 +1,24 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { Icon } from "@/components/jk/Icon";
 import { useState, useEffect } from "react";
 import { saveAuth, isLoggedIn, getCurrentUser } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 
 export const Route = createFileRoute("/")({
-  component: LoginPage,
+  component: WargaLoginPage,
   head: () => ({
     meta: [
-      { title: "Masuk — DeltaJalan" },
+      { title: "Masuk — DeltaJalan Warga" },
       {
         name: "description",
         content:
-          "Masuk ke DeltaJalan — sistem pelaporan kerusakan jalan Dinas PU Bina Marga Sidoarjo.",
+          "Masuk untuk melaporkan kerusakan jalan di Kabupaten Sidoarjo.",
       },
     ],
   }),
 });
 
-function LoginPage() {
+function WargaLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -33,7 +33,9 @@ function LoginPage() {
           ? "/admin/dashboard"
           : user?.role === "supervisor"
             ? "/supervisor"
-            : "/home";
+            : user?.role === "warga"
+              ? "/warga"
+              : "/home";
       navigate({ to: path });
     }
   }, [navigate]);
@@ -60,11 +62,13 @@ function LoginPage() {
       saveAuth(data.user, data.token);
 
       const path =
-        data.user.role === "admin"
-          ? "/admin/dashboard"
-          : data.user.role === "supervisor"
-            ? "/supervisor"
-            : "/home";
+        data.user.role === "warga"
+          ? "/warga"
+          : data.user.role === "admin"
+            ? "/admin/dashboard"
+            : data.user.role === "supervisor"
+              ? "/supervisor"
+              : "/home";
       navigate({ to: path });
     } catch {
       setError("Tidak dapat terhubung ke server. Pastikan server berjalan.");
@@ -98,7 +102,7 @@ function LoginPage() {
                   DeltaJalan
                 </h1>
                 <p className="text-center mt-2 font-body-sm text-body-sm text-[#475569] max-w-[280px] leading-relaxed">
-                  Sistem Informasi Jalan Raya — Dinas PU Bina Marga
+                  Laporkan kerusakan jalan — Dinas PU Bina Marga Sidoarjo
                 </p>
               </div>
 
@@ -136,7 +140,7 @@ function LoginPage() {
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="email@domain.com"
+                        placeholder="nama@email.com"
                         autoComplete="email"
                         className="w-full h-11 pl-10 pr-4 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af] transition-all duration-200"
                         onKeyDown={(e) => e.key === "Enter" && handleLogin()}
@@ -145,14 +149,12 @@ function LoginPage() {
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <div className="flex justify-between items-center">
-                      <label
-                        className="font-label-md text-label-md font-semibold text-[#0F172A]"
-                        htmlFor="password"
-                      >
-                        Kata Sandi
-                      </label>
-                    </div>
+                    <label
+                      className="font-label-md text-label-md font-semibold text-[#0F172A]"
+                      htmlFor="password"
+                    >
+                      Kata Sandi
+                    </label>
                     <div className="relative flex items-center">
                       <input
                         id="password"
@@ -161,7 +163,7 @@ function LoginPage() {
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
                         autoComplete="current-password"
-                        className="w-full h-11 pl-4 pr-11 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af] transition-all duration-200"
+                        className="w-full h-11 pl-4 pr-11 border border-[#c4c5d4] rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af] transition-all duration-200"
                         onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                       />
                       <button
@@ -197,6 +199,29 @@ function LoginPage() {
                     )}
                   </button>
                 </form>
+
+                <div className="flex flex-col items-center gap-2 mt-5">
+                  <Link
+                    to="/daftar"
+                    className="font-label-sm text-label-sm text-[#1e40af] hover:text-[#2e68d8] font-semibold transition-colors"
+                  >
+                    Belum punya akun? Daftar di sini
+                  </Link>
+                  <Link
+                    to="/lacak"
+                    className="font-label-sm text-label-sm text-[#475569] hover:text-[#1e40af] transition-colors flex items-center gap-1"
+                  >
+                    <Icon name="search" className="!text-[16px]" />
+                    Lacak laporan tanpa login
+                  </Link>
+                  <Link
+                    to="/login-petugas"
+                    className="font-label-sm text-label-sm text-[#475569] hover:text-[#1e40af] transition-colors flex items-center gap-1 mt-1"
+                  >
+                    <Icon name="badge" className="!text-[16px]" />
+                    Masuk sebagai Petugas
+                  </Link>
+                </div>
               </div>
             </div>
 

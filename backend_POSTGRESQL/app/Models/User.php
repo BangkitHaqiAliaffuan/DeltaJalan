@@ -18,6 +18,9 @@ class User extends Authenticatable
         'role',
         'wilayah',
         'nip',
+        'phone',
+        'address',
+        'registration_ip',
     ];
 
     protected $hidden = [
@@ -64,6 +67,8 @@ class User extends Authenticatable
             'admin' => 'Administrator',
             'supervisor' => 'Supervisor',
             'petugas' => 'Petugas',
+            'petugas_eksekusi' => 'Petugas Eksekusi',
+            'warga' => 'Warga',
             default => 'Petugas Lapangan',
         };
     }

@@ -80,3 +80,12 @@ createRoot(rootEl).render(
     <RouterProvider router={router} />
   </ErrorBoundary>,
 );
+
+if (
+  "serviceWorker" in navigator
+  && !(window.Capacitor?.isNativePlatform?.() === true)
+) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js", { scope: "/" });
+  });
+}

@@ -8,6 +8,11 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import type { Plugin } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
+// ────────────────────────────────────────────────────────────────────────────
+//  Build environment detection
+// ────────────────────────────────────────────────────────────────────────────
+const isVercel = process.env.VERCEL === "1";
+
 // Injects `import L from 'leaflet'` into the leaflet.markercluster UMD bundle.
 // The plugin references the global `L` variable inside its factory body without declaring
 // it — in Vite's ESM/CJS transform pipeline the global is never defined, causing
@@ -26,12 +31,15 @@ function injectLeafletGlobalPlugin(): Plugin {
   };
 }
 
-// Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-// @cloudflare/vite-plugin builds from this — wrangler.jsonc main alone is insufficient.
 export default defineConfig({
-  tanstackStart: {
-    server: { entry: "server" },
-  },
+  // Nonaktifkan Cloudflare plugin di Vercel (dikonflik dengan SPA mode)
+  cloudflare: !isVercel,
+
+  // Vercel: SPA mode (static output). Local: SSR.
+  tanstackStart: isVercel
+    ? { spa: { enabled: true } }
+    : { server: { entry: "server" } },
+
   plugins: [
     injectLeafletGlobalPlugin(),
     VitePWA({
@@ -40,6 +48,7 @@ export default defineConfig({
       filename: "sw.ts",
       registerType: "autoUpdate",
       includeAssets: ["icons/*.png"],
+      devOptions: { enabled: true },
       manifest: {
         name: "DeltaJalan - Sistem Pelaporan Kerusakan Jalan",
         short_name: "DeltaJalan",
@@ -72,11 +81,9 @@ export default defineConfig({
   vite: {
     server: {
       host: true,
-      port: 5173, // Frontend dev server di port 3000 (Laravel pakai 8080)
-      strictPort: true, // Gagal jika port 3000 sudah dipakai, jangan auto-increment
-      allowedHosts: ["magnetize-divisibly-humorous.ngrok-free.dev"], // Mengizinkan ngrok menembus pengaman host
-      // Proxy /api/* ke Laravel backend (port 8080)
-      // Ini menghindari CORS karena request diteruskan server-to-server oleh Vite
+      port: 5173,
+      strictPort: true,
+      allowedHosts: ["polite-socks-live.loca.lt"],
       proxy: {
         "/api": {
           target: "http://localhost:8080",
@@ -87,6 +94,12 @@ export default defineConfig({
           target: "http://localhost:8080",
           changeOrigin: true,
           secure: false,
+          configure: (proxy) => {
+            proxy.on("proxyRes", (proxyRes) => {
+              proxyRes.headers["Access-Control-Allow-Origin"] = "*";
+              proxyRes.headers["Cross-Origin-Resource-Policy"] = "cross-origin";
+            });
+          },
         },
       },
     },

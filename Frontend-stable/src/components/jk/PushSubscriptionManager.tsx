@@ -9,22 +9,38 @@ function base64UrlToUint8Array(base64Url: string): BufferSource {
   return Uint8Array.from(raw, (c) => c.charCodeAt(0));
 }
 
+async function ensureSw(): Promise<ServiceWorkerRegistration | null> {
+  try {
+    const existing = await navigator.serviceWorker.getRegistration();
+    if (existing) return existing;
+    return await navigator.serviceWorker.register("/sw.js", { type: "module" });
+  } catch (err) {
+    console.error("[SW] Gagal register service worker:", err);
+    return null;
+  }
+}
+
 async function doSubscribe(): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE_URL}/push/vapid-key`, {
       headers: { Authorization: `Bearer ${getToken()}` },
     });
+    if (!res.ok) {
+      console.error("[PushSubscribe] Gagal fetch VAPID key:", res.status, res.statusText);
+      return false;
+    }
     const json = await res.json();
     const publicKey = base64UrlToUint8Array(json.data.public_key);
 
-    const reg = await navigator.serviceWorker.ready;
+    const reg = await ensureSw();
+    if (!reg) return false;
     const sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: publicKey,
     });
 
     const subJson = sub.toJSON();
-    await fetch(`${API_BASE_URL}/push/subscribe`, {
+    const saveRes = await fetch(`${API_BASE_URL}/push/subscribe`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -36,21 +52,25 @@ async function doSubscribe(): Promise<boolean> {
         auth_key: subJson.keys!.auth,
       }),
     });
-
-    return true;
-  } catch {
+    if (!saveRes.ok) {
+      console.error("[PushSubscribe] Gagal simpan subscription:", saveRes.status, saveRes.statusText);
+    }
+    return saveRes.ok;
+  } catch (err) {
+    console.error("[PushSubscribe]", err);
     return false;
   }
 }
 
-async function doUnsubscribe(): Promise<void> {
+async function doUnsubscribe(): Promise<boolean> {
   try {
-    const reg = await navigator.serviceWorker.ready;
+    const reg = await ensureSw();
+    if (!reg) return false;
     const sub = await reg.pushManager.getSubscription();
-    if (!sub) return;
+    if (!sub) return true;
     const endpoint = sub.endpoint;
     await sub.unsubscribe();
-    await fetch(`${API_BASE_URL}/push/unsubscribe`, {
+    const res = await fetch(`${API_BASE_URL}/push/unsubscribe`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -58,8 +78,13 @@ async function doUnsubscribe(): Promise<void> {
       },
       body: JSON.stringify({ endpoint }),
     });
-  } catch {
-    // silent
+    if (!res.ok) {
+      console.error("[PushUnsubscribe] Gagal:", res.status, res.statusText);
+    }
+    return res.ok;
+  } catch (err) {
+    console.error("[PushUnsubscribe]", err);
+    return false;
   }
 }
 
@@ -67,6 +92,8 @@ export function PushSubscriptionManager() {
   const [supported, setSupported] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission>("default");
   const [subscribed, setSubscribed] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!("Notification" in window && "serviceWorker" in navigator && "PushManager" in window)) {
@@ -75,8 +102,8 @@ export function PushSubscriptionManager() {
     setSupported(true);
     setPermission(Notification.permission);
 
-    navigator.serviceWorker.ready
-      .then((reg) => reg.pushManager.getSubscription())
+    ensureSw()
+      .then((reg) => reg?.pushManager.getSubscription() ?? null)
       .then((sub) => setSubscribed(!!sub))
       .catch(() => setSubscribed(false));
   }, []);
@@ -102,42 +129,66 @@ export function PushSubscriptionManager() {
   }, [supported]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSubscribe() {
+    setLoading(true);
+    setError("");
     const perm = await Notification.requestPermission();
     setPermission(perm);
-    if (perm !== "granted") return;
+    if (perm !== "granted") {
+      setLoading(false);
+      return;
+    }
     const ok = await doSubscribe();
-    if (ok) setSubscribed(true);
+    if (ok) {
+      setSubscribed(true);
+    } else {
+      setError("Gagal mengaktifkan — lihat konsol untuk detail");
+    }
+    setLoading(false);
   }
 
   async function handleUnsubscribe() {
-    await doUnsubscribe();
-    setSubscribed(false);
+    setLoading(true);
+    setError("");
+    const ok = await doUnsubscribe();
+    if (ok) {
+      setSubscribed(false);
+    } else {
+      setError("Gagal menonaktifkan — lihat konsol untuk detail");
+    }
+    setLoading(false);
   }
 
   if (!supported) return null;
 
   return (
-    <div className="flex items-center gap-2">
-      {permission === "denied" ? (
-        <span className="text-[11px] text-on-surface-variant">
-          Notifikasi diblokir — atur ulang di pengaturan browser
-        </span>
-      ) : subscribed ? (
-        <button
-          type="button"
-          onClick={handleUnsubscribe}
-          className="text-[11px] text-primary font-medium hover:underline"
-        >
-          Nonaktifkan notifikasi push
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={handleSubscribe}
-          className="text-[11px] text-primary font-medium hover:underline"
-        >
-          Aktifkan notifikasi push
-        </button>
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-2">
+        {permission === "denied" ? (
+          <span className="text-[11px] text-on-surface-variant">
+            Notifikasi diblokir
+          </span>
+        ) : subscribed ? (
+          <button
+            type="button"
+            onClick={handleUnsubscribe}
+            disabled={loading}
+            className="text-[11px] text-primary font-medium hover:underline disabled:opacity-50"
+          >
+            {loading ? "Proses..." : "Nonaktifkan notifikasi push"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleSubscribe}
+            disabled={loading}
+            className="text-[11px] text-primary font-medium hover:underline disabled:opacity-50"
+          >
+            {loading ? "Proses..." : "Aktifkan notifikasi push"}
+          </button>
+        )}
+      </div>
+      {error && (
+        <span className="text-[10px] text-red-500">{error}</span>
       )}
     </div>
   );

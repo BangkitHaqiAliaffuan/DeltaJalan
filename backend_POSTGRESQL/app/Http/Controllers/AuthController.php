@@ -85,6 +85,48 @@ class AuthController extends Controller
         ], 200);
     }
 
+    /**
+     * Register warga.
+     */
+    public function register(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'name' => ['required', 'string', 'max:100'],
+                'email' => ['required', 'email', 'unique:users,email'],
+                'phone' => ['required', 'string', 'regex:/^08[0-9]{8,13}$/'],
+                'password' => ['required', 'string', 'min:8', 'confirmed'],
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'phone' => $validated['phone'],
+            'password' => Hash::make($validated['password']),
+            'role' => 'warga',
+            'registration_ip' => $request->ip(),
+            'email_verified_at' => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Registrasi berhasil. Silakan login.',
+            'data' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+            ],
+        ], 201);
+    }
+
     public function logout(Request $request): JsonResponse
     {
         $request->user()->currentAccessToken()->delete();

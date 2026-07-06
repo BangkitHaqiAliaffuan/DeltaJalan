@@ -36,6 +36,42 @@ function getKecamatanCenter(kec: string): { lat: number; lng: number } | null {
   return { lat: (s + n) / 2, lng: (w + e) / 2 };
 }
 
+function isPatrolDay(date: Date, schedule: PatrolSchedule): boolean {
+  const dayNames = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
+  const dayName = dayNames[date.getDay()];
+  if (!schedule.hari.includes(dayName as Hari)) return false;
+
+  switch (schedule.frekuensi) {
+    case "dua_mingguan": {
+      const startWeekStart = new Date(schedule.start_date);
+      startWeekStart.setDate(startWeekStart.getDate() - startWeekStart.getDay());
+      startWeekStart.setHours(0, 0, 0, 0);
+      const dateWeekStart = new Date(date);
+      dateWeekStart.setDate(dateWeekStart.getDate() - dateWeekStart.getDay());
+      dateWeekStart.setHours(0, 0, 0, 0);
+      const weeks = Math.floor(
+        (dateWeekStart.getTime() - startWeekStart.getTime()) / (7 * 86400000)
+      );
+      return weeks % 2 === 0;
+    }
+    case "bulanan": {
+      const firstOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+      const targetDay = date.getDay();
+      let firstOccurrence = new Date(firstOfMonth);
+      while (firstOccurrence.getDay() !== targetDay) {
+        firstOccurrence.setDate(firstOccurrence.getDate() + 1);
+      }
+      return (
+        firstOccurrence.getFullYear() === date.getFullYear() &&
+        firstOccurrence.getMonth() === date.getMonth() &&
+        firstOccurrence.getDate() === date.getDate()
+      );
+    }
+    default:
+      return true;
+  }
+}
+
 function formatDateId(dateStr: string): string {
   const months = [
     "Januari",
@@ -119,7 +155,7 @@ export function PatrolScheduleCard({
         const rawKec = s.kecamatan_list ?? [];
         const rawHari = s.hari ?? [];
         const [hariList, kecList] = sortHariWithKec(rawHari, rawKec);
-        const todayActive = hariList.includes(todayHari as Hari);
+        const todayActive = isPatrolDay(new Date(), s) && hariList.includes(todayHari as Hari);
         const todayIdx = hariList.indexOf(todayHari as Hari);
         const todayKec = todayActive ? kecList[todayIdx] : null;
 

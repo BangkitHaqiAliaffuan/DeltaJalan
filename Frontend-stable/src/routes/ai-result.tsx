@@ -33,6 +33,10 @@ import "leaflet/dist/leaflet.css";
 
 export const Route = createFileRoute("/ai-result")({
   component: AiResultPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    reportId: search.reportId as string | undefined,
+    review: search.review as string | undefined,
+  }),
   head: () => ({ meta: [{ title: "Hasil Deteksi AI — DeltaJalan" }] }),
 });
 
@@ -303,6 +307,7 @@ function reconstructAnalyses(photos: BatchPhotoResult[]): string {
     detections: p.detections.map((d) => ({
       type: d.class,
       confidence: d.confidence,
+      severity: d.severity,
       bbox: [d.bbox.x1, d.bbox.y1, d.bbox.x2, d.bbox.y2],
     })),
     severity: p.severity,
@@ -318,6 +323,7 @@ function reconstructAnalyses(photos: BatchPhotoResult[]): string {
 
 function AiResultPage() {
   const navigate = useNavigate();
+  const { reportId: reportReviewId } = Route.useSearch();
   const user = getCurrentUser();
   const result = getAiResult();
   const formData = getFormData();
@@ -422,10 +428,11 @@ function AiResultPage() {
   }
 
   useEffect(() => {
+    if (reportReviewId) return;
     const gpsLat = isBatch ? (batchResult!.photos[0]?.lat ?? formData?.lat) : formData?.lat;
     const gpsLng = isBatch ? (batchResult!.photos[0]?.lng ?? formData?.lng) : formData?.lng;
     if (!gpsLat || !gpsLng) return;
-    if (editNamaJalan && editNamaJalan !== formData?.namaJalan) return;
+    if (editNamaJalan) return;
     setGpsRoadLoading(true);
 
     (async () => {
@@ -447,7 +454,7 @@ function AiResultPage() {
       }
       setGpsRoadLoading(false);
     })();
-  }, [isBatch, gpsKey]);
+  }, [isBatch, gpsKey, reportReviewId]);
 
   // ── 2-detik Timer ───────────────────────────────────────────────────────
   const [confirmEnabled, setConfirmEnabled] = useState(false);
@@ -663,6 +670,31 @@ function AiResultPage() {
 
   async function handleConfirm() {
     if (!formData) return;
+
+    // ── Supervisor review mode ─────────────────────────────────────────────
+    if (reportReviewId) {
+      setSubmitState("loading");
+      setSubmitError("");
+      await new Promise((r) => setTimeout(r, 0));
+      try {
+        const token = getToken() ?? "";
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? "/api"}/reports/${reportReviewId}/confirm-ai`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message ?? "Gagal mengonfirmasi AI");
+        }
+        setSubmitState("success");
+        clearAiStore();
+        setTimeout(() => navigate({ to: "/supervisor" }), 1500);
+      } catch (err) {
+        setSubmitState("error");
+        setSubmitError(err instanceof Error ? err.message : "Terjadi kesalahan");
+      }
+      return;
+    }
 
     // ── Pre-validate (synchronous, before loading state) ─────────────────
     if (isBatch) {
@@ -944,7 +976,7 @@ function AiResultPage() {
             ? `Hasil Batch (${batchResult!.photos.length} Foto)`
             : "Hasil Deteksi AI"
       }
-      back="/upload"
+      back={reportReviewId ? `/detail-report?reportId=${reportReviewId}` : "/upload"}
     >
       <main className="px-4 pt-4 pb-6 w-full">
         <div
@@ -994,14 +1026,16 @@ function AiResultPage() {
                         isActive={activeIdx === idx}
                         onClick={() => setActiveIdx(idx)}
                       />
-                      <button
-                        type="button"
-                        onClick={() => handleReplacePhoto(idx)}
-                        disabled={gantiFotoLoading}
-                        className="text-[10px] font-bold text-primary hover:text-primary-container disabled:opacity-40"
-                      >
-                        Ganti
-                      </button>
+                      {!reportReviewId && (
+                        <button
+                          type="button"
+                          onClick={() => handleReplacePhoto(idx)}
+                          disabled={gantiFotoLoading}
+                          className="text-[10px] font-bold text-primary hover:text-primary-container disabled:opacity-40"
+                        >
+                          Ganti
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1018,14 +1052,16 @@ function AiResultPage() {
                       <span className="font-id-code text-[11px] text-on-surface-variant truncate max-w-[120px]">
                         Foto {activeIdx + 1}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => handleReplacePhoto(activeIdx)}
-                        disabled={gantiFotoLoading}
-                        className="text-[11px] font-bold text-primary hover:text-primary-container border border-primary-container rounded px-2 py-0.5 disabled:opacity-40"
-                      >
-                        {gantiFotoLoading ? "..." : "Ganti Foto"}
-                      </button>
+                      {!reportReviewId && (
+                        <button
+                          type="button"
+                          onClick={() => handleReplacePhoto(activeIdx)}
+                          disabled={gantiFotoLoading}
+                          className="text-[11px] font-bold text-primary hover:text-primary-container border border-primary-container rounded px-2 py-0.5 disabled:opacity-40"
+                        >
+                          {gantiFotoLoading ? "..." : "Ganti Foto"}
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1170,7 +1206,8 @@ function AiResultPage() {
                       value={currPanjang}
                       onChange={(e) => setCurrPanjang(e.target.value)}
                       placeholder="0.0"
-                      className="w-full px-3 py-2.5 border border-[#D0DAE8] rounded-lg font-body-md text-[14px] bg-white text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      disabled={!!reportReviewId}
+                      className="w-full px-3 py-2.5 border border-[#D0DAE8] rounded-lg font-body-md text-[14px] bg-white text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:bg-[#F1F5F9] disabled:cursor-not-allowed"
                     />
                   </div>
                   <div>
@@ -1184,7 +1221,8 @@ function AiResultPage() {
                       value={currLebar}
                       onChange={(e) => setCurrLebar(e.target.value)}
                       placeholder="0.0"
-                      className="w-full px-3 py-2.5 border border-[#D0DAE8] rounded-lg font-body-md text-[14px] bg-white text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                      disabled={!!reportReviewId}
+                      className="w-full px-3 py-2.5 border border-[#D0DAE8] rounded-lg font-body-md text-[14px] bg-white text-on-surface focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:bg-[#F1F5F9] disabled:cursor-not-allowed"
                     />
                   </div>
                 </div>
@@ -1215,7 +1253,8 @@ function AiResultPage() {
                       value={editNamaJalan}
                       onChange={(e) => setEditNamaJalan(e.target.value)}
                       placeholder="Nama jalan..."
-                      className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-[13px] text-on-surface focus:outline-none focus:ring-2 focus:ring-primary"
+                      disabled={!!reportReviewId}
+                      className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-[13px] text-on-surface focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-[#F1F5F9] disabled:cursor-not-allowed"
                     />
                   </div>
                   <div className="col-span-3">
@@ -1234,7 +1273,8 @@ function AiResultPage() {
                       value={editKecamatan}
                       onChange={(e) => setEditKecamatan(e.target.value)}
                       placeholder="Kecamatan..."
-                      className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-[13px] text-on-surface focus:outline-none focus:ring-2 focus:ring-primary"
+                      disabled={!!reportReviewId}
+                      className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-[13px] text-on-surface focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-[#F1F5F9] disabled:cursor-not-allowed"
                     />
                   </div>
                   <div>
@@ -1283,12 +1323,13 @@ function AiResultPage() {
                   onChange={(e) => setEditCatatan(e.target.value)}
                   placeholder="Tambahkan catatan (opsional)..."
                   rows={3}
-                  className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-[13px] text-on-surface focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                  disabled={!!reportReviewId}
+                  className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-[13px] text-on-surface focus:outline-none focus:ring-2 focus:ring-primary resize-none disabled:bg-[#F1F5F9] disabled:cursor-not-allowed"
                 />
               </section>
 
               {/* ── Ganti Foto button (single mode) ── */}
-              {!isBatch && (
+              {!isBatch && !reportReviewId && (
                 <button
                   type="button"
                   onClick={() => handleReplacePhoto(null)}
@@ -1337,6 +1378,11 @@ function AiResultPage() {
                       <Icon name="timer" className="!text-[20px]" />
                       Konfirmasi dalam {countdown} detik...
                     </>
+                  ) : reportReviewId ? (
+                    <>
+                      <Icon name="check_circle" className="!text-[20px]" />
+                      Konfirmasi & Tugaskan Tim
+                    </>
                   ) : (
                     <>
                       <Icon name="check_circle" className="!text-[20px]" />
@@ -1346,12 +1392,16 @@ function AiResultPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigate({ to: "/upload" })}
+                  onClick={() =>
+                    reportReviewId
+                      ? navigate({ to: "/detail-report", search: { reportId: reportReviewId } })
+                      : navigate({ to: "/upload" })
+                  }
                   disabled={submitState === "loading"}
                   className="w-full h-11 border border-primary-container text-primary-container rounded-lg flex items-center justify-center gap-2 font-label-md text-[14px] font-bold hover:bg-primary-container/5 transition-colors"
                 >
-                  <Icon name="refresh" className="!text-[20px]" />
-                  {isBatch ? "Upload Batch Baru" : "Analisis Ulang dengan Foto Baru"}
+                  <Icon name={reportReviewId ? "arrow_back" : "refresh"} className="!text-[20px]" />
+                  {reportReviewId ? "Kembali ke Detail" : isBatch ? "Upload Batch Baru" : "Analisis Ulang dengan Foto Baru"}
                 </button>
               </div>
             </>

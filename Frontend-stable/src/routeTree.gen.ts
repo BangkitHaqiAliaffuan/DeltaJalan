@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WargaRouteImport } from './routes/warga'
 import { Route as UploadRouteImport } from './routes/upload'
 import { Route as TugasSurveiRouteImport } from './routes/tugas-survei'
 import { Route as TugasSayaRouteImport } from './routes/tugas-saya'
@@ -20,16 +21,23 @@ import { Route as PetugasEksekusiRouteImport } from './routes/petugas-eksekusi'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as MyReportsRouteImport } from './routes/my-reports'
 import { Route as MapRouteImport } from './routes/map'
+import { Route as LoginPetugasRouteImport } from './routes/login-petugas'
+import { Route as LacakRouteImport } from './routes/lacak'
 import { Route as HomeRouteImport } from './routes/home'
 import { Route as EditReportRouteImport } from './routes/edit-report'
 import { Route as DetailSurveiRouteImport } from './routes/detail-survei'
 import { Route as DetailReportRouteImport } from './routes/detail-report'
 import { Route as DetailPatroliRouteImport } from './routes/detail-patroli'
+import { Route as DaftarRouteImport } from './routes/daftar'
 import { Route as CompleteReportRouteImport } from './routes/complete-report'
 import { Route as AiResultRouteImport } from './routes/ai-result'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as WargaIndexRouteImport } from './routes/warga/index'
 import { Route as SupervisorIndexRouteImport } from './routes/supervisor/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as WargaPetaRouteImport } from './routes/warga/peta'
+import { Route as WargaLaporanRouteImport } from './routes/warga/laporan'
+import { Route as WargaLaporRouteImport } from './routes/warga/lapor'
 import { Route as SupervisorPatrolScheduleRouteImport } from './routes/supervisor/patrol-schedule'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as AdminTeamsRouteImport } from './routes/admin/teams'
@@ -39,7 +47,16 @@ import { Route as AdminExportRouteImport } from './routes/admin/export'
 import { Route as AdminDashboardRouteImport } from './routes/admin/dashboard'
 import { Route as AdminConfigRouteImport } from './routes/admin/config'
 import { Route as AdminActivityRouteImport } from './routes/admin/activity'
+import { Route as WargaLaporanIndexRouteImport } from './routes/warga/laporan/index'
+import { Route as SupervisorPatrolScheduleIndexRouteImport } from './routes/supervisor/patrol-schedule/index'
+import { Route as WargaLaporanIdRouteImport } from './routes/warga/laporan/$id'
+import { Route as SupervisorPatrolScheduleDetailRouteImport } from './routes/supervisor/patrol-schedule.detail'
 
+const WargaRoute = WargaRouteImport.update({
+  id: '/warga',
+  path: '/warga',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UploadRoute = UploadRouteImport.update({
   id: '/upload',
   path: '/upload',
@@ -95,6 +112,16 @@ const MapRoute = MapRouteImport.update({
   path: '/map',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginPetugasRoute = LoginPetugasRouteImport.update({
+  id: '/login-petugas',
+  path: '/login-petugas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LacakRoute = LacakRouteImport.update({
+  id: '/lacak',
+  path: '/lacak',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HomeRoute = HomeRouteImport.update({
   id: '/home',
   path: '/home',
@@ -120,6 +147,11 @@ const DetailPatroliRoute = DetailPatroliRouteImport.update({
   path: '/detail-patroli',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DaftarRoute = DaftarRouteImport.update({
+  id: '/daftar',
+  path: '/daftar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CompleteReportRoute = CompleteReportRouteImport.update({
   id: '/complete-report',
   path: '/complete-report',
@@ -135,6 +167,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WargaIndexRoute = WargaIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => WargaRoute,
+} as any)
 const SupervisorIndexRoute = SupervisorIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -144,6 +181,21 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/admin/',
   path: '/admin/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const WargaPetaRoute = WargaPetaRouteImport.update({
+  id: '/peta',
+  path: '/peta',
+  getParentRoute: () => WargaRoute,
+} as any)
+const WargaLaporanRoute = WargaLaporanRouteImport.update({
+  id: '/laporan',
+  path: '/laporan',
+  getParentRoute: () => WargaRoute,
+} as any)
+const WargaLaporRoute = WargaLaporRouteImport.update({
+  id: '/lapor',
+  path: '/lapor',
+  getParentRoute: () => WargaRoute,
 } as any)
 const SupervisorPatrolScheduleRoute =
   SupervisorPatrolScheduleRouteImport.update({
@@ -191,16 +243,41 @@ const AdminActivityRoute = AdminActivityRouteImport.update({
   path: '/admin/activity',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WargaLaporanIndexRoute = WargaLaporanIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => WargaLaporanRoute,
+} as any)
+const SupervisorPatrolScheduleIndexRoute =
+  SupervisorPatrolScheduleIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => SupervisorPatrolScheduleRoute,
+  } as any)
+const WargaLaporanIdRoute = WargaLaporanIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => WargaLaporanRoute,
+} as any)
+const SupervisorPatrolScheduleDetailRoute =
+  SupervisorPatrolScheduleDetailRouteImport.update({
+    id: '/detail',
+    path: '/detail',
+    getParentRoute: () => SupervisorPatrolScheduleRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ai-result': typeof AiResultRoute
   '/complete-report': typeof CompleteReportRoute
+  '/daftar': typeof DaftarRoute
   '/detail-patroli': typeof DetailPatroliRoute
   '/detail-report': typeof DetailReportRoute
   '/detail-survei': typeof DetailSurveiRoute
   '/edit-report': typeof EditReportRoute
   '/home': typeof HomeRoute
+  '/lacak': typeof LacakRoute
+  '/login-petugas': typeof LoginPetugasRoute
   '/map': typeof MapRoute
   '/my-reports': typeof MyReportsRoute
   '/notifications': typeof NotificationsRoute
@@ -212,6 +289,7 @@ export interface FileRoutesByFullPath {
   '/tugas-saya': typeof TugasSayaRoute
   '/tugas-survei': typeof TugasSurveiRoute
   '/upload': typeof UploadRoute
+  '/warga': typeof WargaRouteWithChildren
   '/admin/activity': typeof AdminActivityRoute
   '/admin/config': typeof AdminConfigRoute
   '/admin/dashboard': typeof AdminDashboardRoute
@@ -220,19 +298,30 @@ export interface FileRoutesByFullPath {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/teams': typeof AdminTeamsRoute
   '/admin/users': typeof AdminUsersRoute
-  '/supervisor/patrol-schedule': typeof SupervisorPatrolScheduleRoute
+  '/supervisor/patrol-schedule': typeof SupervisorPatrolScheduleRouteWithChildren
+  '/warga/lapor': typeof WargaLaporRoute
+  '/warga/laporan': typeof WargaLaporanRouteWithChildren
+  '/warga/peta': typeof WargaPetaRoute
   '/admin/': typeof AdminIndexRoute
   '/supervisor/': typeof SupervisorIndexRoute
+  '/warga/': typeof WargaIndexRoute
+  '/supervisor/patrol-schedule/detail': typeof SupervisorPatrolScheduleDetailRoute
+  '/warga/laporan/$id': typeof WargaLaporanIdRoute
+  '/supervisor/patrol-schedule/': typeof SupervisorPatrolScheduleIndexRoute
+  '/warga/laporan/': typeof WargaLaporanIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ai-result': typeof AiResultRoute
   '/complete-report': typeof CompleteReportRoute
+  '/daftar': typeof DaftarRoute
   '/detail-patroli': typeof DetailPatroliRoute
   '/detail-report': typeof DetailReportRoute
   '/detail-survei': typeof DetailSurveiRoute
   '/edit-report': typeof EditReportRoute
   '/home': typeof HomeRoute
+  '/lacak': typeof LacakRoute
+  '/login-petugas': typeof LoginPetugasRoute
   '/map': typeof MapRoute
   '/my-reports': typeof MyReportsRoute
   '/notifications': typeof NotificationsRoute
@@ -251,20 +340,29 @@ export interface FileRoutesByTo {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/teams': typeof AdminTeamsRoute
   '/admin/users': typeof AdminUsersRoute
-  '/supervisor/patrol-schedule': typeof SupervisorPatrolScheduleRoute
+  '/warga/lapor': typeof WargaLaporRoute
+  '/warga/peta': typeof WargaPetaRoute
   '/admin': typeof AdminIndexRoute
   '/supervisor': typeof SupervisorIndexRoute
+  '/warga': typeof WargaIndexRoute
+  '/supervisor/patrol-schedule/detail': typeof SupervisorPatrolScheduleDetailRoute
+  '/warga/laporan/$id': typeof WargaLaporanIdRoute
+  '/supervisor/patrol-schedule': typeof SupervisorPatrolScheduleIndexRoute
+  '/warga/laporan': typeof WargaLaporanIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/ai-result': typeof AiResultRoute
   '/complete-report': typeof CompleteReportRoute
+  '/daftar': typeof DaftarRoute
   '/detail-patroli': typeof DetailPatroliRoute
   '/detail-report': typeof DetailReportRoute
   '/detail-survei': typeof DetailSurveiRoute
   '/edit-report': typeof EditReportRoute
   '/home': typeof HomeRoute
+  '/lacak': typeof LacakRoute
+  '/login-petugas': typeof LoginPetugasRoute
   '/map': typeof MapRoute
   '/my-reports': typeof MyReportsRoute
   '/notifications': typeof NotificationsRoute
@@ -276,6 +374,7 @@ export interface FileRoutesById {
   '/tugas-saya': typeof TugasSayaRoute
   '/tugas-survei': typeof TugasSurveiRoute
   '/upload': typeof UploadRoute
+  '/warga': typeof WargaRouteWithChildren
   '/admin/activity': typeof AdminActivityRoute
   '/admin/config': typeof AdminConfigRoute
   '/admin/dashboard': typeof AdminDashboardRoute
@@ -284,9 +383,17 @@ export interface FileRoutesById {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/teams': typeof AdminTeamsRoute
   '/admin/users': typeof AdminUsersRoute
-  '/supervisor/patrol-schedule': typeof SupervisorPatrolScheduleRoute
+  '/supervisor/patrol-schedule': typeof SupervisorPatrolScheduleRouteWithChildren
+  '/warga/lapor': typeof WargaLaporRoute
+  '/warga/laporan': typeof WargaLaporanRouteWithChildren
+  '/warga/peta': typeof WargaPetaRoute
   '/admin/': typeof AdminIndexRoute
   '/supervisor/': typeof SupervisorIndexRoute
+  '/warga/': typeof WargaIndexRoute
+  '/supervisor/patrol-schedule/detail': typeof SupervisorPatrolScheduleDetailRoute
+  '/warga/laporan/$id': typeof WargaLaporanIdRoute
+  '/supervisor/patrol-schedule/': typeof SupervisorPatrolScheduleIndexRoute
+  '/warga/laporan/': typeof WargaLaporanIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -294,11 +401,14 @@ export interface FileRouteTypes {
     | '/'
     | '/ai-result'
     | '/complete-report'
+    | '/daftar'
     | '/detail-patroli'
     | '/detail-report'
     | '/detail-survei'
     | '/edit-report'
     | '/home'
+    | '/lacak'
+    | '/login-petugas'
     | '/map'
     | '/my-reports'
     | '/notifications'
@@ -310,6 +420,7 @@ export interface FileRouteTypes {
     | '/tugas-saya'
     | '/tugas-survei'
     | '/upload'
+    | '/warga'
     | '/admin/activity'
     | '/admin/config'
     | '/admin/dashboard'
@@ -319,18 +430,29 @@ export interface FileRouteTypes {
     | '/admin/teams'
     | '/admin/users'
     | '/supervisor/patrol-schedule'
+    | '/warga/lapor'
+    | '/warga/laporan'
+    | '/warga/peta'
     | '/admin/'
     | '/supervisor/'
+    | '/warga/'
+    | '/supervisor/patrol-schedule/detail'
+    | '/warga/laporan/$id'
+    | '/supervisor/patrol-schedule/'
+    | '/warga/laporan/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/ai-result'
     | '/complete-report'
+    | '/daftar'
     | '/detail-patroli'
     | '/detail-report'
     | '/detail-survei'
     | '/edit-report'
     | '/home'
+    | '/lacak'
+    | '/login-petugas'
     | '/map'
     | '/my-reports'
     | '/notifications'
@@ -349,19 +471,28 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/teams'
     | '/admin/users'
-    | '/supervisor/patrol-schedule'
+    | '/warga/lapor'
+    | '/warga/peta'
     | '/admin'
     | '/supervisor'
+    | '/warga'
+    | '/supervisor/patrol-schedule/detail'
+    | '/warga/laporan/$id'
+    | '/supervisor/patrol-schedule'
+    | '/warga/laporan'
   id:
     | '__root__'
     | '/'
     | '/ai-result'
     | '/complete-report'
+    | '/daftar'
     | '/detail-patroli'
     | '/detail-report'
     | '/detail-survei'
     | '/edit-report'
     | '/home'
+    | '/lacak'
+    | '/login-petugas'
     | '/map'
     | '/my-reports'
     | '/notifications'
@@ -373,6 +504,7 @@ export interface FileRouteTypes {
     | '/tugas-saya'
     | '/tugas-survei'
     | '/upload'
+    | '/warga'
     | '/admin/activity'
     | '/admin/config'
     | '/admin/dashboard'
@@ -382,19 +514,30 @@ export interface FileRouteTypes {
     | '/admin/teams'
     | '/admin/users'
     | '/supervisor/patrol-schedule'
+    | '/warga/lapor'
+    | '/warga/laporan'
+    | '/warga/peta'
     | '/admin/'
     | '/supervisor/'
+    | '/warga/'
+    | '/supervisor/patrol-schedule/detail'
+    | '/warga/laporan/$id'
+    | '/supervisor/patrol-schedule/'
+    | '/warga/laporan/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AiResultRoute: typeof AiResultRoute
   CompleteReportRoute: typeof CompleteReportRoute
+  DaftarRoute: typeof DaftarRoute
   DetailPatroliRoute: typeof DetailPatroliRoute
   DetailReportRoute: typeof DetailReportRoute
   DetailSurveiRoute: typeof DetailSurveiRoute
   EditReportRoute: typeof EditReportRoute
   HomeRoute: typeof HomeRoute
+  LacakRoute: typeof LacakRoute
+  LoginPetugasRoute: typeof LoginPetugasRoute
   MapRoute: typeof MapRoute
   MyReportsRoute: typeof MyReportsRoute
   NotificationsRoute: typeof NotificationsRoute
@@ -406,6 +549,7 @@ export interface RootRouteChildren {
   TugasSayaRoute: typeof TugasSayaRoute
   TugasSurveiRoute: typeof TugasSurveiRoute
   UploadRoute: typeof UploadRoute
+  WargaRoute: typeof WargaRouteWithChildren
   AdminActivityRoute: typeof AdminActivityRoute
   AdminConfigRoute: typeof AdminConfigRoute
   AdminDashboardRoute: typeof AdminDashboardRoute
@@ -419,6 +563,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/warga': {
+      id: '/warga'
+      path: '/warga'
+      fullPath: '/warga'
+      preLoaderRoute: typeof WargaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/upload': {
       id: '/upload'
       path: '/upload'
@@ -496,6 +647,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MapRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login-petugas': {
+      id: '/login-petugas'
+      path: '/login-petugas'
+      fullPath: '/login-petugas'
+      preLoaderRoute: typeof LoginPetugasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lacak': {
+      id: '/lacak'
+      path: '/lacak'
+      fullPath: '/lacak'
+      preLoaderRoute: typeof LacakRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/home': {
       id: '/home'
       path: '/home'
@@ -531,6 +696,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DetailPatroliRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/daftar': {
+      id: '/daftar'
+      path: '/daftar'
+      fullPath: '/daftar'
+      preLoaderRoute: typeof DaftarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/complete-report': {
       id: '/complete-report'
       path: '/complete-report'
@@ -552,6 +724,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/warga/': {
+      id: '/warga/'
+      path: '/'
+      fullPath: '/warga/'
+      preLoaderRoute: typeof WargaIndexRouteImport
+      parentRoute: typeof WargaRoute
+    }
     '/supervisor/': {
       id: '/supervisor/'
       path: '/'
@@ -565,6 +744,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/warga/peta': {
+      id: '/warga/peta'
+      path: '/peta'
+      fullPath: '/warga/peta'
+      preLoaderRoute: typeof WargaPetaRouteImport
+      parentRoute: typeof WargaRoute
+    }
+    '/warga/laporan': {
+      id: '/warga/laporan'
+      path: '/laporan'
+      fullPath: '/warga/laporan'
+      preLoaderRoute: typeof WargaLaporanRouteImport
+      parentRoute: typeof WargaRoute
+    }
+    '/warga/lapor': {
+      id: '/warga/lapor'
+      path: '/lapor'
+      fullPath: '/warga/lapor'
+      preLoaderRoute: typeof WargaLaporRouteImport
+      parentRoute: typeof WargaRoute
     }
     '/supervisor/patrol-schedule': {
       id: '/supervisor/patrol-schedule'
@@ -629,16 +829,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminActivityRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/warga/laporan/': {
+      id: '/warga/laporan/'
+      path: '/'
+      fullPath: '/warga/laporan/'
+      preLoaderRoute: typeof WargaLaporanIndexRouteImport
+      parentRoute: typeof WargaLaporanRoute
+    }
+    '/supervisor/patrol-schedule/': {
+      id: '/supervisor/patrol-schedule/'
+      path: '/'
+      fullPath: '/supervisor/patrol-schedule/'
+      preLoaderRoute: typeof SupervisorPatrolScheduleIndexRouteImport
+      parentRoute: typeof SupervisorPatrolScheduleRoute
+    }
+    '/warga/laporan/$id': {
+      id: '/warga/laporan/$id'
+      path: '/$id'
+      fullPath: '/warga/laporan/$id'
+      preLoaderRoute: typeof WargaLaporanIdRouteImport
+      parentRoute: typeof WargaLaporanRoute
+    }
+    '/supervisor/patrol-schedule/detail': {
+      id: '/supervisor/patrol-schedule/detail'
+      path: '/detail'
+      fullPath: '/supervisor/patrol-schedule/detail'
+      preLoaderRoute: typeof SupervisorPatrolScheduleDetailRouteImport
+      parentRoute: typeof SupervisorPatrolScheduleRoute
+    }
   }
 }
 
+interface SupervisorPatrolScheduleRouteChildren {
+  SupervisorPatrolScheduleDetailRoute: typeof SupervisorPatrolScheduleDetailRoute
+  SupervisorPatrolScheduleIndexRoute: typeof SupervisorPatrolScheduleIndexRoute
+}
+
+const SupervisorPatrolScheduleRouteChildren: SupervisorPatrolScheduleRouteChildren =
+  {
+    SupervisorPatrolScheduleDetailRoute: SupervisorPatrolScheduleDetailRoute,
+    SupervisorPatrolScheduleIndexRoute: SupervisorPatrolScheduleIndexRoute,
+  }
+
+const SupervisorPatrolScheduleRouteWithChildren =
+  SupervisorPatrolScheduleRoute._addFileChildren(
+    SupervisorPatrolScheduleRouteChildren,
+  )
+
 interface SupervisorRouteChildren {
-  SupervisorPatrolScheduleRoute: typeof SupervisorPatrolScheduleRoute
+  SupervisorPatrolScheduleRoute: typeof SupervisorPatrolScheduleRouteWithChildren
   SupervisorIndexRoute: typeof SupervisorIndexRoute
 }
 
 const SupervisorRouteChildren: SupervisorRouteChildren = {
-  SupervisorPatrolScheduleRoute: SupervisorPatrolScheduleRoute,
+  SupervisorPatrolScheduleRoute: SupervisorPatrolScheduleRouteWithChildren,
   SupervisorIndexRoute: SupervisorIndexRoute,
 }
 
@@ -646,15 +890,48 @@ const SupervisorRouteWithChildren = SupervisorRoute._addFileChildren(
   SupervisorRouteChildren,
 )
 
+interface WargaLaporanRouteChildren {
+  WargaLaporanIdRoute: typeof WargaLaporanIdRoute
+  WargaLaporanIndexRoute: typeof WargaLaporanIndexRoute
+}
+
+const WargaLaporanRouteChildren: WargaLaporanRouteChildren = {
+  WargaLaporanIdRoute: WargaLaporanIdRoute,
+  WargaLaporanIndexRoute: WargaLaporanIndexRoute,
+}
+
+const WargaLaporanRouteWithChildren = WargaLaporanRoute._addFileChildren(
+  WargaLaporanRouteChildren,
+)
+
+interface WargaRouteChildren {
+  WargaLaporRoute: typeof WargaLaporRoute
+  WargaLaporanRoute: typeof WargaLaporanRouteWithChildren
+  WargaPetaRoute: typeof WargaPetaRoute
+  WargaIndexRoute: typeof WargaIndexRoute
+}
+
+const WargaRouteChildren: WargaRouteChildren = {
+  WargaLaporRoute: WargaLaporRoute,
+  WargaLaporanRoute: WargaLaporanRouteWithChildren,
+  WargaPetaRoute: WargaPetaRoute,
+  WargaIndexRoute: WargaIndexRoute,
+}
+
+const WargaRouteWithChildren = WargaRoute._addFileChildren(WargaRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AiResultRoute: AiResultRoute,
   CompleteReportRoute: CompleteReportRoute,
+  DaftarRoute: DaftarRoute,
   DetailPatroliRoute: DetailPatroliRoute,
   DetailReportRoute: DetailReportRoute,
   DetailSurveiRoute: DetailSurveiRoute,
   EditReportRoute: EditReportRoute,
   HomeRoute: HomeRoute,
+  LacakRoute: LacakRoute,
+  LoginPetugasRoute: LoginPetugasRoute,
   MapRoute: MapRoute,
   MyReportsRoute: MyReportsRoute,
   NotificationsRoute: NotificationsRoute,
@@ -666,6 +943,7 @@ const rootRouteChildren: RootRouteChildren = {
   TugasSayaRoute: TugasSayaRoute,
   TugasSurveiRoute: TugasSurveiRoute,
   UploadRoute: UploadRoute,
+  WargaRoute: WargaRouteWithChildren,
   AdminActivityRoute: AdminActivityRoute,
   AdminConfigRoute: AdminConfigRoute,
   AdminDashboardRoute: AdminDashboardRoute,
@@ -679,3 +957,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

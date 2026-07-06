@@ -15,26 +15,27 @@ use Illuminate\Support\Str;
 
 class PatrolScheduleController extends Controller
 {
-    private const DAY_MAP = [
-        'Minggu' => 0, 'Senin' => 1, 'Selasa' => 2, 'Rabu' => 3,
-        'Kamis' => 4, 'Jumat' => 5, 'Sabtu' => 6,
-    ];
-
     private function generateTasks(PatrolSchedule $schedule, Carbon $start, Carbon $end): int
     {
-        $dayNumbers = array_map(fn ($d) => self::DAY_MAP[$d] ?? -1, $schedule->hari);
-        $dayNumbers = array_filter($dayNumbers, fn ($n) => $n >= 0);
-
         $current = $start->copy()->startOfDay();
         $endDate = $end->copy()->startOfDay();
         $count = 0;
         $batch = [];
         $kecList = $schedule->kecamatan_list ?? [];
         $kecCount = count($kecList);
+
         $kecIndex = 0;
+        $tempCursor = Carbon::parse($schedule->start_date)->startOfDay();
+        $genStartCursor = $start->copy()->startOfDay();
+        while ($tempCursor < $genStartCursor) {
+            if ($schedule->isPatrolDay($tempCursor)) {
+                $kecIndex++;
+            }
+            $tempCursor->addDay();
+        }
 
         while ($current <= $endDate) {
-            if (in_array((int) $current->format('w'), $dayNumbers)) {
+            if ($schedule->isPatrolDay($current)) {
                 if ($kecCount === 0) {
                     break;
                 }
@@ -180,6 +181,14 @@ class PatrolScheduleController extends Controller
         if (! $schedule) {
             return response()->json(['message' => 'Jadwal tidak ditemukan.'], 404);
         }
+
+        $endDate = $schedule->end_date ?? now()->addYear()->format('Y-m-d');
+        $schedule->load(['team.surveyTasks' => function ($q) use ($schedule, $endDate) {
+            $q->where('status', 'aktif')
+                ->whereBetween('tanggal_patroli', [$schedule->start_date, $endDate])
+                ->withCount('reports')
+                ->orderBy('tanggal_patroli', 'asc');
+        }]);
 
         return response()->json(['data' => $schedule]);
     }
@@ -345,12 +354,11 @@ class PatrolScheduleController extends Controller
             'hari.*' => 'required|string|in:Senin,Selasa,Rabu,Kamis,Jumat,Sabtu,Minggu',
             'kecamatan_list' => 'required|array|min:1',
             'kecamatan_list.*' => 'required|string|max:100',
+            'frekuensi' => 'sometimes|string|in:setiap_minggu,dua_mingguan,bulanan',
             'start_date' => 'required|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
         ]);
 
-        $dayNumbers = array_map(fn ($d) => self::DAY_MAP[$d] ?? -1, $validated['hari']);
-        $dayNumbers = array_filter($dayNumbers, fn ($n) => $n >= 0);
         $kecamatanCount = count(array_unique($validated['kecamatan_list']));
 
         $start = Carbon::parse($validated['start_date']);
@@ -358,12 +366,22 @@ class PatrolScheduleController extends Controller
             ? Carbon::parse($validated['end_date'])
             : $start->copy()->addWeeks(2)->endOfDay();
 
+        $dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        $hariSet = array_flip($validated['hari']);
+        $frekuensi = $validated['frekuensi'] ?? 'setiap_minggu';
+
         $taskCount = 0;
         $kecIndex = 0;
-        $current = $start->copy();
+        $current = $start->copy()->startOfDay();
         while ($current <= $end) {
-            if (in_array((int) $current->format('w'), $dayNumbers)) {
-                if ($kecamatanCount > 0) {
+            $dayName = $dayNames[(int) $current->format('w')];
+            if (isset($hariSet[$dayName])) {
+                $isPatrol = match ($frekuensi) {
+                    'dua_mingguan' => $this->weekIndexSincePreview($start, $current) % 2 === 0,
+                    'bulanan' => $this->isFirstWeekdayInMonthPreview($current),
+                    default => true,
+                };
+                if ($isPatrol && $kecamatanCount > 0) {
                     $taskCount++;
                     $kecIndex++;
                 }
@@ -374,7 +392,7 @@ class PatrolScheduleController extends Controller
         return response()->json([
             'preview' => [
                 'total_hari' => $start->diffInDays($end) + 1,
-                'hari_patroli' => count($dayNumbers),
+                'hari_patroli' => count($validated['hari']),
                 'kecamatan_count' => $kecamatanCount,
                 'estimated_tasks' => $taskCount,
                 'start_date' => $start->format('Y-m-d'),
@@ -396,5 +414,22 @@ class PatrolScheduleController extends Controller
                 period: $period,
             ));
         }
+    }
+
+    private function weekIndexSincePreview(Carbon $start, Carbon $date): int
+    {
+        $startWeekStart = $start->copy()->startOfWeek();
+
+        return (int) $startWeekStart->diffInWeeks($date->copy()->startOfWeek());
+    }
+
+    private function isFirstWeekdayInMonthPreview(Carbon $date): bool
+    {
+        $dayOfWeek = (int) $date->format('w');
+        $firstOfMonth = $date->copy()->startOfMonth();
+        $diff = ($dayOfWeek - (int) $firstOfMonth->format('w') + 7) % 7;
+        $firstOccurrence = $firstOfMonth->addDays($diff);
+
+        return $firstOccurrence->format('Y-m-d') === $date->format('Y-m-d');
     }
 }

@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { getCurrentUser, getToken } from "@/lib/auth";
@@ -27,6 +27,7 @@ import {
 } from "@/lib/validatePhotoDate";
 import { FraudWarningModal } from "@/components/jk/FraudWarningModal";
 import { compressImage } from "@/lib/compressImage";
+import type { PatrolSchedule } from "@/types/survey";
 
 export const Route = createFileRoute("/upload")({
   component: UploadPage,
@@ -101,46 +102,83 @@ function UploadPage() {
     teamId ? { team_id: teamId, tanggal_patroli: today } : undefined,
   );
 
-  // Get patrol schedules (more accurate for today's schedule)
-  const schedulesQuery = usePatrolSchedules(teamId ? { team_id: teamId } : undefined);
-  const schedules = (schedulesQuery.data as { data?: any[] } | undefined)?.data ?? [];
+  const actualTasks = tasks;
+  const actualIsFetching = isFetching;
 
-  // Helper function to get today's day name in Indonesian
-  function todayHariName(): string {
-    const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
-    return days[new Date().getDay()];
+  const schedulesQuery = usePatrolSchedules(
+    teamId ? { team_id: teamId } : undefined,
+  );
+  const schedules: PatrolSchedule[] =
+    (schedulesQuery.data as { data?: PatrolSchedule[] })?.data ?? [];
+
+  function isPatrolDay(date: Date, schedule: PatrolSchedule): boolean {
+    const dayNames = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
+    const dayName = dayNames[date.getDay()];
+    if (!schedule.hari.includes(dayName as any)) return false;
+
+    switch (schedule.frekuensi) {
+      case "dua_mingguan": {
+        const startWeekStart = new Date(schedule.start_date);
+        startWeekStart.setDate(startWeekStart.getDate() - startWeekStart.getDay());
+        startWeekStart.setHours(0, 0, 0, 0);
+        const dateWeekStart = new Date(date);
+        dateWeekStart.setDate(dateWeekStart.getDate() - dateWeekStart.getDay());
+        dateWeekStart.setHours(0, 0, 0, 0);
+        const weeks = Math.floor(
+          (dateWeekStart.getTime() - startWeekStart.getTime()) / (7 * 86400000)
+        );
+        return weeks % 2 === 0;
+      }
+      case "bulanan": {
+        const firstOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+        const targetDay = date.getDay();
+        let firstOccurrence = new Date(firstOfMonth);
+        while (firstOccurrence.getDay() !== targetDay) {
+          firstOccurrence.setDate(firstOccurrence.getDate() + 1);
+        }
+        return (
+          firstOccurrence.getFullYear() === date.getFullYear() &&
+          firstOccurrence.getMonth() === date.getMonth() &&
+          firstOccurrence.getDate() === date.getDate()
+        );
+      }
+      default:
+        return true;
+    }
   }
 
-  // Filter schedules to get today's expected kecamatan from patrol schedules
-  const todayHari = todayHariName();
-  const expectedKecamatanList = schedules
-    .filter((schedule: any) => {
-      const hariList = schedule.hari ?? [];
-      return hariList.includes(todayHari);
-    })
-    .map((schedule: any) => {
-      const hariList = schedule.hari ?? [];
-      const kecamatanList = schedule.kecamatan_list ?? [];
-      const todayIndex = hariList.indexOf(todayHari);
-      return kecamatanList[todayIndex];
-    })
-    .filter(Boolean);
+  function getPatrolDaysCount(schedule: PatrolSchedule, targetDate: Date): number {
+    const start = new Date(schedule.start_date);
+    let count = 0;
+    const cursor = new Date(start);
+    cursor.setHours(0, 0, 0, 0);
+    const target = new Date(targetDate);
+    target.setHours(0, 0, 0, 0);
+    while (cursor <= target) {
+      if (isPatrolDay(cursor, schedule)) count++;
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return count;
+  }
 
-  // Filter survey tasks to only show those matching today's patrol schedule
-  // If patrol schedule says "Buduran" for today, only show Buduran tasks
-  const filteredTasks =
-    expectedKecamatanList.length > 0
-      ? tasks.filter((task: any) => {
-          const taskKec = task.kecamatan ?? "";
-          return expectedKecamatanList.includes(taskKec);
-        })
-      : tasks;
+  const sortedTasks = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const expected = new Set<string>();
+    for (const s of schedules) {
+      const patrolDays = getPatrolDaysCount(s, today);
+      const idx = (patrolDays - 1) % (s.kecamatan_list?.length ?? 1);
+      if (idx >= 0) expected.add(s.kecamatan_list[idx]);
+    }
+    if (expected.size === 0) return actualTasks;
+    return [...actualTasks].sort((a, b) => {
+      const aMatch = expected.has(a.kecamatan ?? "") ? 0 : 1;
+      const bMatch = expected.has(b.kecamatan ?? "") ? 0 : 1;
+      return aMatch - bMatch;
+    });
+  }, [actualTasks, schedules]);
 
-  // Use filtered tasks based on patrol schedule
-  const actualTasks = filteredTasks;
-  const actualIsFetching = isFetching || schedulesQuery.isFetching;
-
-  // Find activeTask from the filtered actualTasks, not from unfiltered tasks
+  // Find activeTask from today's survey tasks
   const activeTask = taskId ? actualTasks.find((t: any) => t.id === taskId) : null;
 
   function handleClearCache() {
@@ -1146,7 +1184,7 @@ function UploadPage() {
 
   // ── List mode ──
 
-  const task = actualTasks[0]; // Use actualTasks instead of tasks
+  const task = sortedTasks[0];
 
   function formatDate(dateStr: string) {
     const d = new Date(dateStr);
@@ -1209,16 +1247,8 @@ function UploadPage() {
           {!actualIsFetching && actualTasks.length === 0 && (
             <div className="text-center py-16 text-[#476788]">
               <Icon name="calendar_month" className="!text-5xl mb-3 opacity-30 mx-auto" />
-              <p className="font-body-md text-body-md">
-                {expectedKecamatanList.length > 0
-                  ? `Jadwal patroli hari ini: ${expectedKecamatanList.join(", ")}`
-                  : "Tidak ada jadwal patroli untuk hari ini"}
-              </p>
-              <p className="text-sm text-[#64748B] mt-1">
-                {expectedKecamatanList.length > 0
-                  ? "Namun belum ada survey task yang dibuat untuk kecamatan ini. Hubungi admin untuk membuat task."
-                  : "Cek Tugas Saya untuk melihat jadwal Anda"}
-              </p>
+              <p className="font-body-md text-body-md">Tidak ada jadwal patroli untuk hari ini</p>
+              <p className="text-sm text-[#64748B] mt-1">Cek Tugas Saya untuk melihat jadwal Anda</p>
               <button
                 type="button"
                 onClick={handleClearCache}
@@ -1327,7 +1357,7 @@ function UploadPage() {
           {!isFetching && task && (
             <div className="mt-3 text-center">
               <p className="text-[11px] text-[#94A3B8] flex items-center justify-center gap-1">
-                <Icon name="info" className="!text-[12px]" />1 kecamatan ditugaskan untuk hari ini
+                <Icon name="info" className="!text-[12px]" />{actualTasks.length} kecamatan ditugaskan untuk hari ini
               </p>
             </div>
           )}

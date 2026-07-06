@@ -92,6 +92,8 @@ export interface PatrolSchedule {
   end_date: string | null;
   alasan_tugas: string;
   status: "aktif" | "nonaktif";
+  jam_mulai?: string | null;
+  jam_selesai?: string | null;
   created_by: number;
   created_at: string;
   updated_at: string;

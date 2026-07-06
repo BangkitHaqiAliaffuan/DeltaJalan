@@ -10,6 +10,7 @@ use App\Services\FcmPushService;
 use App\Services\WebPushService;
 use Illuminate\Notifications\ChannelManager;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -22,6 +23,8 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        URL::useOrigin(config('app.url'));
+
         Report::observe(ReportObserver::class);
 
         Notification::resolved(function (ChannelManager $manager) {

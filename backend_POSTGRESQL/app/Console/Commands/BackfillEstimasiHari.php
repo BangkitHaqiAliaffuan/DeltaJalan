@@ -25,8 +25,7 @@ class BackfillEstimasiHari extends Command
                 // Selesai dengan timestamp → hitung durasi aktual
                 $report->status === 'Selesai'
                     && $report->perbaikan_dimulai_at
-                    && $report->perbaikan_selesai_at
-                    => max(1, (int) ceil(
+                    && $report->perbaikan_selesai_at => max(1, (int) ceil(
                         $report->perbaikan_dimulai_at->diffInHours($report->perbaikan_selesai_at) / 24
                     )),
 

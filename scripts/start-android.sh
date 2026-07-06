@@ -33,12 +33,14 @@ done
 
 NGROK_PID=""
 LARAVEL_PID=""
+QUEUE_PID=""
 NGROK_URL=""
 OLD_BACKEND_NGROK=""
 OLD_FRONTEND_URL=""
 ADDED_FRONTEND_URL=false
 NGROK_RESTART_COUNT=0
 LARAVEL_RESTART_COUNT=0
+QUEUE_RESTART_COUNT=0
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -198,6 +200,12 @@ cleanup() {
     write_step "OK" "Laravel dihentikan"
   fi
 
+  if [ -n "$QUEUE_PID" ]; then
+    kill "$QUEUE_PID" 2>/dev/null || true
+    wait "$QUEUE_PID" 2>/dev/null || true
+    write_step "OK" "Queue worker dihentikan"
+  fi
+
   if [ -n "$OLD_BACKEND_NGROK" ]; then
     set_env_value "$BACKEND_ENV" "NGROK_URL" "$OLD_BACKEND_NGROK" >/dev/null 2>&1
     write_step "OK" "NGROK_URL dikembalikan ke $OLD_BACKEND_NGROK"
@@ -263,6 +271,13 @@ if [ "$BUILD_ONLY" != true ]; then
     write_step "X" "Laravel gagal (port $LARAVEL_PORT tidak terbuka setelah 30 detik)"
     wait_for_enter; exit 1
   fi
+
+  # ── Start Queue Worker ────────────────────────────────────────────────────
+  write_step "---" "Menjalankan queue worker..."
+  cd "$BACKEND_DIR"
+  php artisan queue:work --sleep=3 --tries=3 --max-time=3600 > /dev/null 2>&1 &
+  QUEUE_PID=$!
+  write_step "OK" "Queue worker berjalan (PID $QUEUE_PID)"
   echo ""
 
   # ── Start ngrok ────────────────────────────────────────────────────────────
@@ -402,6 +417,7 @@ write_step "OK" "Semua service berjalan!"
 echo ""
 echo "   Ngrok:      $NGROK_URL"
 echo "   Laravel:    http://localhost:$LARAVEL_PORT"
+echo "   Queue:      PID $QUEUE_PID"
 echo "   API:        $API_URL"
 echo ""
 echo "   Backend CORS auto-update via NGROK_URL di .env"
@@ -444,6 +460,18 @@ while true; do
       fi
     fi
     
+    # Check Queue Worker
+    if ! check_process_alive "$QUEUE_PID" "Queue"; then
+      QUEUE_RESTART_COUNT=$((QUEUE_RESTART_COUNT + 1))
+      write_step "W" "Queue worker mati (restart #$QUEUE_RESTART_COUNT) — restarting..."
+      log_to_file "RESTART: Queue worker died, attempting restart #$QUEUE_RESTART_COUNT"
+      cd "$BACKEND_DIR"
+      php artisan queue:work --sleep=3 --tries=3 --max-time=3600 > /dev/null 2>&1 &
+      QUEUE_PID=$!
+      log_to_file "RESTART: New Queue PID: $QUEUE_PID"
+      write_step "OK" "Queue worker berhasil restart (PID $QUEUE_PID)"
+    fi
+
     # Check ngrok process AND health
     if ! check_process_alive "$NGROK_PID" "ngrok"; then
       NGROK_RESTART_COUNT=$((NGROK_RESTART_COUNT + 1))

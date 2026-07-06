@@ -34,9 +34,11 @@ export interface TrustBreakdown {
 // ── AI Analysis ────────────────────────────────────────────────────────────
 
 export interface AIDetection {
-  type: string;
+  type?: string;
+  class?: string;
   confidence: number;
-  bbox: number[];
+  severity?: string;
+  bbox?: number[];
 }
 
 export interface AIAnalysisResult {
@@ -89,7 +91,7 @@ export interface Laporan {
   trust_label: TrustLabel;
   trust_breakdown?: TrustBreakdown;
   ai_severity?: SeverityLevel | null;
-  overall_severity?: string;
+  overall_severity?: string | null;
   ai_raw_output?: unknown[] | null;
   total_detections?: number;
   system_notes?: string | null;
@@ -125,12 +127,10 @@ export interface Laporan {
   estimasi_hari?: number | null;
   // Deadline & terlambat flags
   deadline_review?: string | null;
-  deadline_mulai?: string | null;
   deadline_resolusi?: string | null;
   status_deadline?: string;
   terlambat_review?: boolean;
   terlambat_resolusi?: boolean;
-  terlambat_mulai?: boolean;
 
   // Duplikasi
   is_duplicate?: boolean;
@@ -153,6 +153,10 @@ export interface Laporan {
   // Timeline riwayat status
   status_history?: TimelineEvent[];
 
+  // Source & description
+  source?: string;
+  description?: string | null;
+
   // Progress updates count (from server withCount)
   progress_updates_count?: number;
 }
@@ -164,6 +168,7 @@ export interface ReportPhoto {
   ai_severity?: string | null;
   ai_confidence?: number | null;
   total_detections?: number;
+  ai_raw_output?: AIDetection[] | { detections: AIDetection[]; model?: string } | null;
   latitude: number | null;
   longitude: number | null;
   image_original_url?: string | null;
@@ -182,8 +187,9 @@ export interface ProgressUpdate {
   foto_url: string | null;
   catatan: string | null;
   user_name: string | null;
-      created_at: string | null;
-      progress_updates_count?: number;
+  created_at: string | null;
+  day_number: number;
+  progress_updates_count?: number;
 }
 
 export interface ProgressUpdateResponse {
@@ -252,6 +258,7 @@ export interface MapStats {
 
 export interface LaporanMarker {
   id: string;
+  user_id?: number | null;
   latitude: number;
   longitude: number;
   status: string;

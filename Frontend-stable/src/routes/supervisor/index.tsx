@@ -21,6 +21,8 @@ export const Route = createFileRoute("/supervisor/")({
 interface SupervisorStats {
   total: number;
   menunggu_review: number;
+  menunggu_verifikasi: number;
+  hasil_ai: number;
   disetujui: number;
   ditolak: number;
   ditugaskan: number;
@@ -46,6 +48,10 @@ function SupervisorDashboard() {
       navigate({ to: "/" });
     }
   }, [user, navigate]);
+
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: ["reports"] });
+  }, [queryClient]);
 
   const { data: stats, isFetching: statsFetching } = useStats(token);
   const { data: uptdStats = [], isFetching: uptdFetching } = useTeamStats(token);
@@ -79,6 +85,7 @@ function SupervisorDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterUptd, setFilterUptd] = useState("");
+  const [filterSource, setFilterSource] = useState("");
   const [filterSeverity, setFilterSeverity] = useState("");
   const [filterSla, setFilterSla] = useState("");
 
@@ -86,7 +93,7 @@ function SupervisorDashboard() {
 
   useEffect(() => {
     setPage(1);
-  }, [activeTab, searchQuery, filterStatus, filterUptd, filterSeverity, filterSla]);
+  }, [activeTab, searchQuery, filterStatus, filterUptd, filterSource, filterSeverity, filterSla]);
 
   const [exportMonth, setExportMonth] = useState(1);
   const [exportYear, setExportYear] = useState(2026);
@@ -107,17 +114,17 @@ function SupervisorDashboard() {
     p.set("limit", "20");
 
     if (activeTab === "menunggu") p.set("sort_by", "deadline_review");
-    else if (activeTab === "ditugaskan") p.set("sort_by", "deadline_mulai");
     else if (activeTab === "disetujui" || activeTab === "sedang_diperbaiki")
       p.set("sort_by", "deadline_resolusi");
 
     if (searchQuery) p.set("q", searchQuery);
     if (filterStatus) p.set("status", filterStatus);
     if (filterUptd) p.set("uptd_id", filterUptd);
+    if (filterSource) p.set("source", filterSource);
     if (filterSeverity) p.set("severity", filterSeverity);
     if (filterSla) p.set("status_deadline", filterSla);
     return p.toString();
-  }, [activeTab, page, searchQuery, filterStatus, filterUptd, filterSeverity, filterSla]);
+  }, [activeTab, page, searchQuery, filterStatus, filterUptd, filterSource, filterSeverity, filterSla]);
 
   const { data: paginatedResponse, isFetching } = useQuery({
     queryKey: ["reports", "paginated", paginatedParams],
@@ -136,6 +143,7 @@ function SupervisorDashboard() {
     },
     enabled: !!token,
     staleTime: 15_000,
+    refetchOnMount: 'always',
   });
 
   const teamToUptdMap = useMemo(() => {
@@ -308,16 +316,16 @@ function SupervisorDashboard() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                 {[
                   {
-                    label: "Menunggu Review",
-                    value: stats?.menunggu_review,
+                    label: "Perlu Review",
+                    value: (stats?.menunggu_review ?? 0) + (stats?.menunggu_verifikasi ?? 0),
                     icon: "rate_review",
                     color: "text-[#D97706]",
                   },
                   {
-                    label: "Disetujui",
-                    value: stats?.disetujui,
-                    icon: "check_circle",
-                    color: "text-[#1e40af]",
+                    label: "Menunggu Verifikasi",
+                    value: stats?.menunggu_verifikasi,
+                    icon: "pending_actions",
+                    color: "text-[#7C3AED]",
                   },
                   {
                     label: "Ditugaskan",
@@ -529,6 +537,16 @@ function SupervisorDashboard() {
                 ))}
               </select>
               <select
+                value={filterSource}
+                onChange={(e) => setFilterSource(e.target.value)}
+                className="text-xs px-2 py-1.5 border border-[#D0DAE8] rounded-lg bg-white outline-none text-[#0F1623]"
+              >
+                <option value="">Semua sumber</option>
+                <option value="warga">Warga</option>
+                <option value="petugas">Petugas</option>
+                <option value="telegram">Telegram</option>
+              </select>
+              <select
                 value={filterSeverity}
                 onChange={(e) => setFilterSeverity(e.target.value)}
                 className="text-xs px-2 py-1.5 border border-[#D0DAE8] rounded-lg bg-white outline-none text-[#0F1623]"
@@ -555,7 +573,7 @@ function SupervisorDashboard() {
           <section className="px-4 flex-1">
             <div className="flex gap-2 mb-3 overflow-x-auto no-scrollbar">
               {[
-                { key: "menunggu", label: "Perlu Review", count: stats?.menunggu_review },
+                { key: "menunggu", label: "Perlu Review", count: (stats?.menunggu_review ?? 0) + (stats?.menunggu_verifikasi ?? 0) },
                 { key: "disetujui", label: "Disetujui", count: stats?.disetujui },
                 { key: "ditugaskan", label: "Ditugaskan", count: stats?.ditugaskan },
                 { key: "sedang_diperbaiki", label: "Diperbaiki", count: stats?.sedang_diperbaiki },
@@ -569,6 +587,7 @@ function SupervisorDashboard() {
                     setSearchQuery("");
                     setFilterStatus("");
                     setFilterUptd("");
+                    setFilterSource("");
                     setFilterSeverity("");
                     setPage(1);
                   }}

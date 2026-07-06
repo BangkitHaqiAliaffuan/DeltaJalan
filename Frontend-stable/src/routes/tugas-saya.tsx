@@ -389,11 +389,17 @@ function TugasSayaPage() {
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     min={1}
                     max={90}
                     value={estimasiHari}
-                    onChange={(e) => setEstimasiHari(Math.max(1, Math.min(90, parseInt(e.target.value) || 7)))}
-                    className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === "") { setEstimasiHari(1); return; }
+                      const num = parseInt(raw, 10);
+                      if (!isNaN(num)) setEstimasiHari(Math.max(1, Math.min(90, num)));
+                    }}
+                    className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A] appearance-none [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden"
                   />
                 </div>
               )}
@@ -424,6 +430,8 @@ function TugasSayaPage() {
           confirmLoading={actionLoading === estimasiTargetId}
           onConfirm={handleMulaiConfirm}
           onCancel={() => { setShowMulaiConfirm(false); setShowEstimasi(true); }}
+          icon="play_arrow"
+          confirmClassName="flex-1 px-4 py-2.5 text-[13px] font-bold text-white bg-[#1A4F8A] rounded-xl hover:bg-[#153d6e] disabled:opacity-40 transition-all flex items-center justify-center gap-1.5"
         />
       )}
 

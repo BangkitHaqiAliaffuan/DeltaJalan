@@ -26,7 +26,10 @@ export function ReportMap({ points, height = "220px", onPointClick }: ReportMapP
   const LRef = useRef<typeof import("leaflet") | null>(null);
   const isImportingRef = useRef(false);
   const pointsRef = useRef(points);
-  pointsRef.current = points;
+
+  useEffect(() => {
+    pointsRef.current = points;
+  }, [points]);
 
   function syncMarkers(L: typeof import("leaflet"), map: import("leaflet").Map) {
     const current = pointsRef.current;

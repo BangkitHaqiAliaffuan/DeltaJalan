@@ -1,0 +1,52 @@
+services:
+  php:
+    build:
+      context: ./backend_POSTGRESQL
+      dockerfile: Dockerfile
+    container_name: jalankita-php
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend_POSTGRESQL:/var/www
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=jalankita
+      - DB_USERNAME=jalankita
+      - DB_PASSWORD=jalankita123
+      - FASTAPI_URL=http://host.docker.internal:8000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - jalankita
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    container_name: jalankita-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: jalankita
+      POSTGRES_USER: jalankita
+      POSTGRES_PASSWORD: jalankita123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jalankita"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - jalankita
+    restart: unless-stopped
+
+networks:
+  jalankita:
+    driver: bridge
+
+volumes:
+  postgres_data:

@@ -65,7 +65,7 @@ export default defineConfig({
     host: true,
     port: 5173,
     strictPort: true,
-    allowedHosts: ["magnetize-divisibly-humorous.ngrok-free.dev"],
+    allowedHosts: ["empty-feet-grab.loca.lt ","magnetize-divisibly-humorous.ngrok-free.dev"],
     proxy: {
       "/api": {
         target: "http://localhost:8080",

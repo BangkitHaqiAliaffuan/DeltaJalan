@@ -20,7 +20,9 @@ class SurveyTaskController extends Controller
 
         $query = SurveyTask::with('team')
             ->withCount('reports')
-            ->orderBy('created_at', 'desc');
+            ->orderBy('created_at', 'desc')
+            ->orderBy('tanggal_patroli', 'asc')
+            ->orderBy('kecamatan', 'asc');
 
         if ($request->filled('team_id')) {
             $query->where('team_id', $request->team_id);

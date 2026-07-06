@@ -10,12 +10,13 @@ import {
   displayStatus,
 } from "@/lib/format";
 import type { Laporan, TrustLabel } from "@/types/laporan";
-import type { ActionButton, ReportCardOptions } from "@/components/jk/report-card/types";
+import type { ActionButton, ReportCardOptions, CardLink } from "@/components/jk/report-card/types";
 
 interface ReportCardProps {
   report: Laporan;
   actions?: ActionButton[];
   options?: ReportCardOptions;
+  cardLink?: CardLink;
 }
 
 const SEVERITY_COLOR_MAP: Record<string, string> = {
@@ -47,7 +48,7 @@ export function ReportCardSkeleton() {
   );
 }
 
-export function ReportCard({ report, actions, options }: ReportCardProps) {
+export function ReportCard({ report, actions, options, cardLink }: ReportCardProps) {
   const sc = getSeverityLabel(report.overall_severity ?? report.ai_severity);
   const severityColor =
     SEVERITY_COLOR_MAP[report.overall_severity ?? report.ai_severity ?? ""] ?? "#64748B";
@@ -80,14 +81,28 @@ export function ReportCard({ report, actions, options }: ReportCardProps) {
     showDeadline &&
     (report.status_deadline === "terlambat" ||
       report.terlambat_review === true ||
-      report.terlambat_resolusi === true ||
-      report.terlambat_mulai === true);
+      report.terlambat_resolusi === true);
+
+  const rootClassName = `bg-white rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ease-out overflow-hidden flex flex-col ${isTerlambat ? "border-2 border-[#E11D48]" : isDuplicate ? "border border-[#F59E0B]" : "border border-[#E2E8F0]"}`;
+
+  const Wrapper = cardLink ? Link : 'div';
+  const wrapperProps = cardLink
+    ? { to: cardLink.to, params: cardLink.params, search: cardLink.search, className: rootClassName }
+    : { className: rootClassName };
+
+  const ImageLink = cardLink ? 'div' : Link;
+  const imageLinkProps = cardLink
+    ? { className: 'block group' }
+    : { to: '/detail-report', search: { reportId: report.id }, className: 'block group' };
+
+  const HeaderLink = cardLink ? 'div' : Link;
+  const headerLinkProps = cardLink
+    ? { className: 'no-underline block' }
+    : { to: '/detail-report', search: { reportId: report.id }, className: 'no-underline block' };
 
   return (
-    <div
-      className={`bg-white rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ease-out overflow-hidden flex flex-col ${isTerlambat ? "border-2 border-[#E11D48]" : isDuplicate ? "border border-[#F59E0B]" : "border border-[#E2E8F0]"}`}
-    >
-      <Link to="/detail-report" search={{ reportId: report.id }} className="block group">
+    <Wrapper {...(wrapperProps as any)}>
+      <ImageLink {...(imageLinkProps as any)}>
         <div className="aspect-[4/3] overflow-hidden bg-[#E8F0FA]">
           {report.first_photo_url ? (
             <SafeImage
@@ -101,10 +116,10 @@ export function ReportCard({ report, actions, options }: ReportCardProps) {
             </div>
           )}
         </div>
-      </Link>
+      </ImageLink>
 
       <div className="flex-1 flex flex-col p-4 gap-2">
-        <Link to="/detail-report" search={{ reportId: report.id }} className="no-underline block">
+        <HeaderLink {...(headerLinkProps as any)}>
           <div className="flex items-start gap-2">
             <h4 className="text-[15px] font-bold text-[#0F172A] leading-tight line-clamp-2 flex-1">
               {report.road_name}
@@ -121,9 +136,14 @@ export function ReportCard({ report, actions, options }: ReportCardProps) {
                   Duplikat
                 </span>
               )}
+              {report.source === "warga" && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-50 text-[#7C3AED] border border-purple-200">
+                  Warga
+                </span>
+              )}
             </div>
           </div>
-        </Link>
+        </HeaderLink>
 
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] font-bold text-[#1e40af] font-mono tracking-tight">
@@ -264,6 +284,6 @@ export function ReportCard({ report, actions, options }: ReportCardProps) {
           </>
         )}
       </div>
-    </div>
+    </Wrapper>
   );
 }

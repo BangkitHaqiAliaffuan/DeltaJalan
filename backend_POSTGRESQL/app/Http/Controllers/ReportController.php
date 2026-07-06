@@ -8,26 +8,29 @@ use App\Models\ReportDuplicate;
 use App\Models\ReportPhoto;
 use App\Models\StatusLog;
 use App\Models\Team;
+use App\Models\Uptd;
 use App\Models\User;
 use App\Notifications\BulkActionNotification;
+use App\Notifications\ProgressUpdateNotification;
 use App\Notifications\RepairCompletedNotification;
+use App\Notifications\RepairStartedNotification;
 use App\Notifications\ReportApprovedNotification;
 use App\Notifications\ReportEditedNotification;
 use App\Notifications\ReportRejectedNotification;
 use App\Notifications\ReportReopenedNotification;
+// ── TRUST SCORE [NONAKTIF] — use App\Services\TrustScoreService;
 use App\Notifications\TeamAssignedNotification;
 use App\Notifications\TriageUpdatedNotification;
-// ── TRUST SCORE [NONAKTIF] — use App\Services\TrustScoreService;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use lsolesen\pel\PelJpeg;
 use lsolesen\pel\PelTag;
@@ -801,7 +804,7 @@ class ReportController extends Controller
         } elseif ($user->role === 'petugas') {
             $query->where(function ($q) use ($user) {
                 $q->where('user_id', $user->id)
-                  ->orWhere('assigned_team_id', $user->team_id);
+                    ->orWhere('assigned_team_id', $user->team_id);
             });
             $query->whereNotIn('status', ['Diedit']);
         }
@@ -816,10 +819,20 @@ class ReportController extends Controller
             $status = str_replace('_', ' ', $request->input('status'));
             $lower = strtolower($status);
             if ($lower === 'menunggu review') {
-                $query->whereIn('status', ['Menunggu Review', 'Ditinjau']);
+                $statuses = ['Menunggu Review', 'Ditinjau'];
+                // Supervisor "Perlu Review" tab includes warga reports
+                if ($user->role === 'supervisor') {
+                    $statuses[] = 'Menunggu Verifikasi';
+                }
+                $query->whereIn('status', $statuses);
             } else {
                 $query->whereRaw('LOWER(status::text) = ?', [$lower]);
             }
+        }
+
+        // Filter by source (warga/petugas)
+        if ($request->filled('source')) {
+            $query->where('source', $request->input('source'));
         }
 
         // Search — cari berdasarkan report_code, road_name, reporter_name
@@ -834,7 +847,7 @@ class ReportController extends Controller
 
         // Filter by UPTD / Tim
         if ($request->filled('uptd_id')) {
-            $teamIds = \App\Models\Team::where('uptd_id', $request->input('uptd_id'))->pluck('id');
+            $teamIds = Team::where('uptd_id', $request->input('uptd_id'))->pluck('id');
             $query->whereIn('assigned_team_id', $teamIds);
         } elseif ($request->filled('upr_id')) {
             $query->where('assigned_team_id', $request->input('upr_id'));
@@ -860,8 +873,7 @@ class ReportController extends Controller
             if ($statusDeadline === 'terlambat') {
                 $query->where(function ($q) {
                     $q->where('terlambat_review', true)
-                        ->orWhere('terlambat_resolusi', true)
-                        ->orWhere('terlambat_mulai', true);
+                        ->orWhere('terlambat_resolusi', true);
                 });
             } elseif ($statusDeadline === 'tepat_waktu') {
                 $query->where('terlambat_review', false)
@@ -905,6 +917,8 @@ class ReportController extends Controller
                     'ai_severity' => $report->ai_severity,
                     'total_detections' => $report->total_detections,
                     'status' => $report->status,
+                    'source' => $report->source,
+                    'description' => $report->description,
                     // ── TRUST SCORE [NONAKTIF] — trust_score, trust_label dihapus dari response index
                     'image_original_url' => $report->image_original_url,
                     'image_result_url' => $report->image_result_url,
@@ -924,14 +938,12 @@ class ReportController extends Controller
                     'photos_count' => $report->batch_id ? (int) $report->photos_count : 0,
                     'deadline_review' => $report->deadline_review?->toIso8601String(),
                     'deadline_resolusi' => $report->deadline_resolusi?->toIso8601String(),
-                    'deadline_mulai' => $report->deadline_mulai?->toIso8601String(),
                     'terlambat_review' => $report->terlambat_review,
                     'terlambat_resolusi' => $report->terlambat_resolusi,
                     'progress_updates_count' => (int) $report->progress_updates_count,
-                    'terlambat_mulai' => $report->terlambat_mulai,
                     'ditugaskan_at' => $report->ditugaskan_at?->toIso8601String(),
                     'assignor_name' => $report->assignor_name,
-            'status_deadline' => $report->terlambat_review || $report->terlambat_resolusi || $report->terlambat_mulai ? 'terlambat' : 'tepat_waktu',
+                    'status_deadline' => $report->terlambat_review || $report->terlambat_resolusi ? 'terlambat' : 'tepat_waktu',
                     'is_duplicate' => $report->relationLoaded('duplicateOf') && $report->duplicateOf !== null,
                     'duplicate_score' => $report->relationLoaded('duplicateOf') && $report->duplicateOf ? (float) $report->duplicateOf->score : null,
                     'created_at' => $report->created_at?->toIso8601String(),
@@ -985,6 +997,8 @@ class ReportController extends Controller
             'ai_severity' => $report->ai_severity,
             'total_detections' => $report->total_detections,
             'status' => $report->status,
+            'source' => $report->source,
+            'description' => $report->description,
             // ── TRUST SCORE [NONAKTIF] — trust_score, trust_label, trust_breakdown dihapus dari response detail
             'system_notes' => $report->system_notes,
             'ai_raw_output' => $report->ai_raw_output,
@@ -1004,8 +1018,6 @@ class ReportController extends Controller
             'assigned_team_name' => $report->assignedTeam?->name,
             'assigned_at' => $report->assigned_at?->toIso8601String(),
             'ditugaskan_at' => $report->ditugaskan_at?->toIso8601String(),
-            'deadline_mulai' => $report->deadline_mulai?->toIso8601String(),
-            'terlambat_mulai' => $report->terlambat_mulai,
             'assignor_name' => $report->assignor_name,
             'catatan_petugas' => $report->catatan_petugas,
             'priority' => $report->priority,
@@ -1013,10 +1025,9 @@ class ReportController extends Controller
             'deadline_resolusi' => $report->deadline_resolusi?->toIso8601String(),
             'terlambat_review' => $report->terlambat_review,
             'terlambat_resolusi' => $report->terlambat_resolusi,
-            'terlambat_mulai' => $report->terlambat_mulai,
             'estimasi_hari' => $report->estimasi_hari,
             'progress_updates_count' => (int) $report->progress_updates_count,
-            'status_deadline' => $report->terlambat_review || $report->terlambat_resolusi || $report->terlambat_mulai ? 'terlambat' : 'tepat_waktu',
+            'status_deadline' => $report->terlambat_review || $report->terlambat_resolusi ? 'terlambat' : 'tepat_waktu',
             'kerusakan_panjang' => $report->kerusakan_panjang ? (float) $report->kerusakan_panjang : null,
             'kerusakan_lebar' => $report->kerusakan_lebar ? (float) $report->kerusakan_lebar : null,
             'batch_id' => $report->batch_id,
@@ -1029,6 +1040,7 @@ class ReportController extends Controller
                 'ai_severity' => $p->ai_severity,
                 'ai_confidence' => $p->ai_confidence ? (float) $p->ai_confidence : null,
                 'total_detections' => $p->total_detections,
+                'ai_raw_output' => $p->ai_raw_output,
                 'latitude' => $p->latitude ? (float) $p->latitude : null,
                 'longitude' => $p->longitude ? (float) $p->longitude : null,
                 'image_original_url' => $p->image_original_url,
@@ -1040,6 +1052,8 @@ class ReportController extends Controller
                 'created_at' => $p->created_at?->toIso8601String(),
             ]),
             // Duplikasi — informasi jika laporan ini diduga duplikat
+            'source' => $report->source,
+            'description' => $report->description,
             'duplicate_of' => $report->duplicateOf ? [
                 'id' => $report->duplicateOf->originalReport?->id,
                 'report_code' => $report->duplicateOf->originalReport?->report_code,
@@ -1137,7 +1151,7 @@ class ReportController extends Controller
 
         // 2. Laporan ringan untuk marker
         $query = Report::select([
-            'id', 'latitude', 'longitude', 'status',
+            'id', 'user_id', 'latitude', 'longitude', 'status',
             'overall_severity', 'ai_severity', 'road_name', 'district',
             'image_original_path', 'kerusakan_panjang', 'kerusakan_lebar',
             // ── TRUST SCORE [NONAKTIF] — 'trust_score' dihapus dari SELECT
@@ -1177,7 +1191,7 @@ class ReportController extends Controller
         }
 
         if ($request->filled('uptd_id')) {
-            $teamIds = \App\Models\Team::where('uptd_id', $request->input('uptd_id'))->pluck('id');
+            $teamIds = Team::where('uptd_id', $request->input('uptd_id'))->pluck('id');
             $query->whereIn('assigned_team_id', $teamIds);
         } elseif ($request->filled('upr_id')) {
             $query->where('assigned_team_id', $request->input('upr_id'));
@@ -1259,6 +1273,7 @@ class ReportController extends Controller
             SUM(CASE WHEN overall_severity::text = 'Rusak Sedang' OR LOWER(ai_severity) = 'sedang' THEN 1 ELSE 0 END) as sedang,
             SUM(CASE WHEN overall_severity::text = 'Rusak Ringan' OR LOWER(ai_severity) = 'ringan' THEN 1 ELSE 0 END) as ringan,
             SUM(CASE WHEN status IN ('Menunggu Review', 'Ditinjau') THEN 1 ELSE 0 END) as menunggu_review,
+            SUM(CASE WHEN status = 'Menunggu Verifikasi' THEN 1 ELSE 0 END) as menunggu_verifikasi,
             SUM(CASE WHEN status = 'Disetujui' THEN 1 ELSE 0 END) as disetujui,
             SUM(CASE WHEN status = 'Sedang Diperbaiki' THEN 1 ELSE 0 END) as sedang_diperbaiki,
             SUM(CASE WHEN status = 'Selesai' THEN 1 ELSE 0 END) as selesai,
@@ -1665,7 +1680,7 @@ class ReportController extends Controller
         $duplicateOfId = $request->input('duplicate_of_id');
 
         try {
-            $result = DB::transaction(function () use ($validated, $analyses, $request, $roadValidation, $batchNotes, $imageHashes, $existingHashes, $duplicateOfId) {
+            $result = DB::transaction(function () use ($validated, $analyses, $request, $batchNotes, $imageHashes, $existingHashes, $duplicateOfId) {
                 $severities = array_column($analyses, 'severity');
                 $aggSeverity = $this->aggregateSeverity($severities);
                 $severityMap = [
@@ -1788,6 +1803,9 @@ class ReportController extends Controller
                         'ai_severity' => $analysis['severity'] ?? 'ringan',
                         'ai_confidence' => $analysis['confidence'] ?? null,
                         'total_detections' => count($analysis['detections'] ?? []),
+                        'ai_raw_output' => ! empty($analysis['detections'])
+                            ? $analysis['detections']
+                            : null,
                         'kerusakan_panjang' => $validated['kerusakan_panjang'][$idx] ?? null,
                         'kerusakan_lebar' => $validated['kerusakan_lebar'][$idx] ?? null,
                         'system_notes' => $subNotes,
@@ -1898,8 +1916,10 @@ class ReportController extends Controller
             $agg = (clone $query)->selectRaw("
                 COUNT(*) as total,
                 SUM(CASE WHEN status IN ('Menunggu Review', 'Ditinjau') THEN 1 ELSE 0 END) as menunggu_review,
+                SUM(CASE WHEN status = 'Menunggu Verifikasi' THEN 1 ELSE 0 END) as menunggu_verifikasi,
                 SUM(CASE WHEN status = 'Disetujui' THEN 1 ELSE 0 END) as disetujui,
                 SUM(CASE WHEN status = 'Ditolak' THEN 1 ELSE 0 END) as ditolak,
+                SUM(CASE WHEN status = 'Hasil AI' THEN 1 ELSE 0 END) as hasil_ai,
                 SUM(CASE WHEN status = 'Ditugaskan' THEN 1 ELSE 0 END) as ditugaskan,
                 SUM(CASE WHEN status = 'Sedang Diperbaiki' THEN 1 ELSE 0 END) as sedang_diperbaiki,
                 SUM(CASE WHEN status = 'Selesai' THEN 1 ELSE 0 END) as selesai,
@@ -1950,8 +1970,10 @@ class ReportController extends Controller
             return [
                 'total' => (int) $agg->total,
                 'menunggu_review' => (int) $agg->menunggu_review,
+                'menunggu_verifikasi' => (int) $agg->menunggu_verifikasi,
                 'disetujui' => (int) $agg->disetujui,
                 'ditolak' => (int) $agg->ditolak,
+                'hasil_ai' => (int) $agg->hasil_ai,
                 'ditugaskan' => (int) $agg->ditugaskan,
                 'sedang_diperbaiki' => (int) $agg->sedang_diperbaiki,
                 'selesai' => (int) $agg->selesai,
@@ -1980,7 +2002,12 @@ class ReportController extends Controller
             return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
         }
 
-        if (! in_array($report->status, ['Menunggu Review', 'Ditinjau'])) {
+        // Warga reports start at "Menunggu Verifikasi"; petugas reports at "Menunggu Review"
+        $allowedStatuses = in_array($report->source, ['warga', 'telegram'])
+            ? ['Menunggu Verifikasi', 'Menunggu Review', 'Ditinjau']
+            : ['Menunggu Review', 'Ditinjau'];
+
+        if (! in_array($report->status, $allowedStatuses)) {
             return response()->json([
                 'success' => false,
                 'message' => "Laporan dengan status \"{$report->status}\" tidak dapat disetujui.",
@@ -1992,7 +2019,43 @@ class ReportController extends Controller
             $priority = null;
         }
 
-        // Auto-assign tim pelapor
+        $now = now();
+        $finalPriority = $priority ?? $report->priority;
+
+        if (in_array($report->source, ['warga', 'telegram'])) {
+            // Warga/Telegram: set status Hasil AI + dispatch AI analysis.
+            // Team assignment happens at confirmation step (confirmAiResult).
+            $report->update([
+                'status' => 'Hasil AI',
+                'priority' => $finalPriority,
+                'system_notes' => $report->system_notes
+                    ? $report->system_notes.' | [APPROVED] Disetujui oleh '.auth()->user()->name
+                    : '[APPROVED] Disetujui oleh '.auth()->user()->name,
+            ]);
+
+            Log::info('DeltaJalan: Laporan warga/telegram disetujui, AI analysis dimulai.', [
+                'report_id' => $report->id,
+                'report_code' => $report->report_code,
+                'approved_by' => auth()->user()->name,
+            ]);
+
+            // Notifikasi ke pelapor
+            $reporter = User::find($report->user_id);
+            if ($reporter) {
+                $reporter->notify(new ReportApprovedNotification($report, auth()->user()->name));
+            }
+
+            // AI analysis dilakukan foreground dari frontend via /analyze-ai
+            return response()->json([
+                'success' => true,
+                'message' => 'Laporan disetujui. Analisis AI sedang berjalan.',
+                'data' => [
+                    'status' => 'Hasil AI',
+                ],
+            ]);
+        }
+
+        // Petugas: auto-assign tim pelapor
         $reporter = User::find($report->user_id);
         if (! $reporter || ! $reporter->team_id) {
             return response()->json([
@@ -2001,17 +2064,12 @@ class ReportController extends Controller
             ], 422);
         }
 
-        $now = now();
-        $finalPriority = $priority ?? $report->priority;
-        $assignmentStartHours = (int) config("deadline.{$finalPriority}.assignment_start_hours", 48);
-
         $report->update([
             'status' => 'Ditugaskan',
             'priority' => $finalPriority,
             'assigned_team_id' => $reporter->team_id,
             'assigned_at' => $now,
             'ditugaskan_at' => $now,
-            'deadline_mulai' => $now->copy()->addHours($assignmentStartHours),
             'system_notes' => $report->system_notes
                 ? $report->system_notes.' | [APPROVED] Disetujui oleh '.auth()->user()->name
                 : '[APPROVED] Disetujui oleh '.auth()->user()->name,
@@ -2044,7 +2102,159 @@ class ReportController extends Controller
             'data' => [
                 'status' => $report->status,
                 'assigned_team_id' => $reporter->team_id,
-                'deadline_mulai' => $report->deadline_mulai?->toIso8601String(),
+            ],
+        ]);
+    }
+
+    /**
+     * POST /api/reports/{id}/analyze-ai
+     * Analisis AI foreground untuk laporan warga/telegram.
+     * Memanggil FastAPI secara sinkron dan langsung menyimpan hasilnya.
+     */
+    public function analyzeReport(Request $request, string $id): JsonResponse
+    {
+        $report = Report::find($id);
+        if (! $report) {
+            return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
+        }
+
+        if ($report->status !== 'Hasil AI') {
+            return response()->json([
+                'success' => false,
+                'message' => "Laporan dengan status \"{$report->status}\" tidak dapat dianalisis.",
+            ], 422);
+        }
+
+        $photo = $report->photos()->orderBy('id')->first();
+        if (! $photo || ! $photo->image_original_path) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tidak ada foto untuk dianalisis.',
+            ], 422);
+        }
+
+        $fullPath = Storage::disk('public')->path($photo->image_original_path);
+        if (! file_exists($fullPath)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'File foto tidak ditemukan di storage.',
+            ], 422);
+        }
+
+        $result = $this->callFastApiAnalyze($fullPath, $photo->image_original_name ?? 'photo.jpg');
+        if (! $result['success']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Analisis AI gagal: '.($result['error'] ?? 'Unknown error'),
+            ], 502);
+        }
+
+        $aiData = $result['data'];
+
+        // Simpan gambar hasil deteksi (bounding box)
+        $resultPath = null;
+        if (! empty($aiData['image_result'])) {
+            $resultPath = $this->saveBase64Image($aiData['image_result'], 'reports/results');
+        }
+
+        $report->update([
+            'ai_jenis_kerusakan' => $aiData['detection_type'] ?? $aiData['overall_severity'],
+            'ai_severity' => $aiData['overall_severity'],
+            'overall_severity' => $aiData['overall_severity'],
+            'ai_confidence' => $aiData['confidence'] ?? $aiData['max_confidence'] ?? null,
+            'total_detections' => $aiData['total_detections'] ?? 0,
+            'ai_raw_output' => $aiData['detections'] ?? $aiData,
+            'image_result_path' => $resultPath,
+        ]);
+
+        Log::info('DeltaJalan: Analisis AI laporan selesai (foreground).', [
+            'report_id' => $report->id,
+            'report_code' => $report->report_code,
+            'severity' => $aiData['overall_severity'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Analisis AI selesai.',
+            'data' => $aiData,
+        ]);
+    }
+
+    /**
+     * POST /api/reports/{id}/confirm-ai
+     * Supervisor mengonfirmasi hasil AI dan menugaskan tim satgas (auto-resolve by district).
+     * Hanya untuk laporan dengan status "Hasil AI".
+     */
+    public function confirmAiResult(Request $request, string $id): JsonResponse
+    {
+        $report = Report::find($id);
+        if (! $report) {
+            return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
+        }
+
+        if ($report->status !== 'Hasil AI') {
+            return response()->json([
+                'success' => false,
+                'message' => "Laporan dengan status \"{$report->status}\" tidak dapat dikonfirmasi.",
+            ], 422);
+        }
+
+        $now = now();
+
+        // Auto-resolve team by district
+        $teamId = Uptd::resolveTeamIdByDistrict($report->district);
+        if (! $teamId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tidak dapat menentukan tim satgas untuk kecamatan "'.$report->district.'".',
+            ], 422);
+        }
+
+        $team = Team::find($teamId);
+        if (! $team) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tim satgas tidak ditemukan.',
+            ], 422);
+        }
+
+        $report->update([
+            'status' => 'Ditugaskan',
+            'assigned_team_id' => $team->id,
+            'assigned_at' => $now,
+            'ditugaskan_at' => $now,
+            'system_notes' => $report->system_notes
+                ? $report->system_notes.' | [CONFIRMED] Dikonfirmasi oleh '.auth()->user()->name
+                : '[CONFIRMED] Dikonfirmasi oleh '.auth()->user()->name,
+        ]);
+
+        Log::info('DeltaJalan: Laporan warga/telegram dikonfirmasi & ditugaskan.', [
+            'report_id' => $report->id,
+            'report_code' => $report->report_code,
+            'confirmed_by' => auth()->user()->name,
+            'assigned_team_id' => $team->id,
+        ]);
+
+        // Notifikasi ke pelapor
+        $reporter = User::find($report->user_id);
+        if ($reporter) {
+            $reporter->notify(new ReportApprovedNotification($report, auth()->user()->name));
+        }
+
+        // Notifikasi ke anggota tim
+        $tim = User::where('role', 'petugas')
+            ->where('team_id', $team->id)
+            ->get();
+        foreach ($tim as $anggota) {
+            $anggota->notify(new TeamAssignedNotification($report, auth()->user()->name, $team->name));
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Laporan berhasil dikonfirmasi dan ditugaskan ke tim satgas.',
+            'data' => [
+                'status' => $report->status,
+                'assigned_team_id' => $team->id,
             ],
         ]);
     }
@@ -2060,7 +2270,7 @@ class ReportController extends Controller
             return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
         }
 
-        if (! in_array($report->status, ['Menunggu Review', 'Ditinjau'])) {
+        if (! in_array($report->status, ['Menunggu Verifikasi', 'Menunggu Review', 'Ditinjau'])) {
             return response()->json([
                 'success' => false,
                 'message' => "Laporan dengan status \"{$report->status}\" tidak dapat ditolak.",
@@ -2090,10 +2300,10 @@ class ReportController extends Controller
             'rejected_by' => auth()->user()->name,
         ]);
 
-        // Notifikasi ke pelapor
-        $petugas = User::where('name', $report->reporter_name)->first();
-        if ($petugas) {
-            $petugas->notify(new ReportRejectedNotification($report, auth()->user()->name, $alasan));
+        // Notifikasi ke pelapor (by user_id — works for both petugas and warga)
+        $reporter = User::find($report->user_id);
+        if ($reporter) {
+            $reporter->notify(new ReportRejectedNotification($report, auth()->user()->name, $alasan));
         }
 
         return response()->json([
@@ -2106,6 +2316,7 @@ class ReportController extends Controller
     /**
      * POST /api/reports/{id}/disposisi
      * Supervisor mendisposisi laporan untuk dikerjakan — "Sedang Diperbaiki".
+     *
      * @deprecated Gunakan assign() → mulai() workflow untuk akuntabilitas lebih baik.
      */
     public function disposisi(Request $request, string $id): JsonResponse
@@ -2185,16 +2396,22 @@ class ReportController extends Controller
             'estimasi_selesai_hari' => 'nullable|integer|min:1|max:90',
         ]);
 
-        $resolutionHours = $validated['estimasi_selesai_hari']
-            ? (int) $validated['estimasi_selesai_hari'] * 24
-            : (int) config("deadline.{$report->priority}.resolution_hours", 168);
+        $estimasiHari = $validated['estimasi_selesai_hari'];
+
+        if ($estimasiHari !== null) {
+            $deadline = now()->copy()->addHours((int) $estimasiHari * 24);
+        } else {
+            $endOfDay = now()->copy()->endOfDay();
+            $deadline = now()->diffInHours($endOfDay) >= 8
+                ? $endOfDay
+                : now()->copy()->addHours(24);
+        }
 
         $report->update([
             'status' => 'Sedang Diperbaiki',
             'perbaikan_dimulai_at' => now(),
-            'estimasi_hari' => $validated['estimasi_selesai_hari'],
-            'deadline_resolusi' => now()->copy()->addHours($resolutionHours),
-            'terlambat_mulai' => false,
+            'estimasi_hari' => $estimasiHari,
+            'deadline_resolusi' => $deadline,
             'terlambat_resolusi' => false,
             'catatan_petugas' => $validated['catatan'] ?? $report->catatan_petugas,
             'system_notes' => $report->system_notes
@@ -2212,7 +2429,7 @@ class ReportController extends Controller
         try {
             $supervisors = User::where('role', 'supervisor')->get();
             foreach ($supervisors as $supervisor) {
-                $supervisor->notify(new \App\Notifications\RepairStartedNotification($report, $user->name));
+                $supervisor->notify(new RepairStartedNotification($report, $user->name));
             }
         } catch (\Throwable $e) {
             Log::warning('Gagal mengirim notifikasi mulai ke supervisor: '.$e->getMessage());
@@ -2373,6 +2590,23 @@ class ReportController extends Controller
             'catatan' => 'nullable|string|max:1000',
         ]);
 
+        $foto = $validated['foto'];
+        $exifCheck = $this->validatePhotoDateExif($foto->getPathname());
+        if ($exifCheck['status'] !== 'valid' && $exifCheck['status'] !== 'no_exif_support') {
+            $statusMap = [
+                'too_old' => 'PHOTO_TOO_OLD',
+                'future_date' => 'PHOTO_FUTURE_DATE',
+                'no_exif_date' => 'PHOTO_NO_EXIF_DATE',
+                'exif_read_error' => 'PHOTO_EXIF_READ_ERROR',
+            ];
+
+            return response()->json([
+                'success' => false,
+                'message' => $exifCheck['message'],
+                'error_code' => $statusMap[$exifCheck['status']] ?? 'PHOTO_EXIF_ERROR',
+            ], 422);
+        }
+
         try {
             $folder = 'reports/progress';
             $ext = $validated['foto']->getClientOriginalExtension() ?: $validated['foto']->guessExtension() ?: 'jpg';
@@ -2396,7 +2630,7 @@ class ReportController extends Controller
                 $supervisors = User::where('role', 'supervisor')->get();
                 $msg = 'Progress baru pada '.$report->report_code.': '.($validated['catatan'] ?? 'foto terbaru');
                 foreach ($supervisors as $supervisor) {
-                    $supervisor->notify(new \App\Notifications\ProgressUpdateNotification($report, $user->name, $validated['catatan']));
+                    $supervisor->notify(new ProgressUpdateNotification($report, $user->name, $validated['catatan']));
                 }
             } catch (\Throwable $e) {
                 Log::warning('Gagal kirim notif progress: '.$e->getMessage());
@@ -2427,12 +2661,16 @@ class ReportController extends Controller
             return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
         }
 
+        $mulai = $report->perbaikan_dimulai_at;
         $updates = $report->progressUpdates()->with('user:id,name')->get()->map(fn ($u) => [
             'id' => $u->id,
             'foto_url' => $u->foto_url,
             'catatan' => $u->catatan,
             'user_name' => $u->user?->name,
             'created_at' => $u->created_at?->toIso8601String(),
+            'day_number' => $mulai
+                ? $mulai->copy()->startOfDay()->diffInDays($u->created_at->copy()->startOfDay()) + 1
+                : 1,
         ]);
 
         return response()->json([
@@ -2440,8 +2678,6 @@ class ReportController extends Controller
             'data' => $updates,
         ]);
     }
-
-
 
     /**
      * POST /api/reports/bulk-approve
@@ -3188,6 +3424,200 @@ class ReportController extends Controller
     }
 
     /**
+     * POST /api/test/extract-exif
+     *
+     * Ekstrak EXIF LENGKAP dari foto — public, tanpa auth.
+     * Untuk halaman diagnostic test-exif.html.
+     * Mengembalikan semua section: GPS, IFD0, EXIF Sub, COMPUTED, dll.
+     * Juga mencoba ExifTool (jika binary tersedia) sebagai gold standard.
+     *
+     * Request: multipart/form-data dengan field "image" (file JPEG/PNG, max 5MB)
+     * Response: { success: bool, gps: {lat, lng}|null, exif: {section}, exiftool: {...}|null, file: {...}, diagnostic: {...} }
+     */
+    public function extractFullExif(Request $request): JsonResponse
+    {
+        $request->validate([
+            'image' => ['required', 'file', 'mimes:jpeg,jpg,png,heic,heif', 'max:5120'],
+        ]);
+
+        $file = $request->file('image');
+        $filePath = $file->getPathname();
+        $ext = strtolower($file->getClientOriginalExtension());
+
+        $tStart = microtime(true);
+        $gps = $this->extractExifGps($filePath);
+        $phpParseTime = (microtime(true) - $tStart) * 1000;
+
+        $tStartExif = microtime(true);
+        $rawExif = @exif_read_data($filePath, 'ANY_TAG', true);
+        $exif = $rawExif !== false
+            ? $this->sanitizeExifForJson($rawExif)
+            : null;
+
+        $tStartXtool = microtime(true);
+        $exiftoolResult = $this->extractExifWithExifTool($filePath);
+        $exiftoolTime = (microtime(true) - $tStartXtool) * 1000;
+
+        return response()->json([
+            'success' => true,
+            'gps' => $gps,
+            'exif' => $exif,
+            'exiftool' => $exiftoolResult,
+            'file' => [
+                'name' => $file->getClientOriginalName(),
+                'size' => $file->getSize(),
+                'mime' => $file->getMimeType(),
+                'ext' => $ext,
+            ],
+            'diagnostic' => [
+                'php_parse_time_ms' => round($phpParseTime + (microtime(true) - $tStartExif) * 1000, 1),
+                'exiftool_time_ms' => round($exiftoolTime, 1),
+                'has_exiftool' => $exiftoolResult !== null,
+                'exec_available' => $this->isExecAvailable(),
+                'is_heic' => in_array($ext, ['heic', 'heif']),
+            ],
+        ]);
+    }
+
+    /**
+     * Coba ekstrak EXIF menggunakan ExifTool (Perl) — gold standard parsing.
+     * Return null jika binary tidak tersedia atau gagal.
+     */
+    private function extractExifWithExifTool(string $filePath): ?array
+    {
+        if (! $this->isExecAvailable()) {
+            return null;
+        }
+
+        $binary = $this->findExifToolBinary();
+        if (! $binary) {
+            return null;
+        }
+
+        $cmd = escapeshellcmd($binary)
+            .' -json -G -a'
+            .' '.escapeshellarg($filePath)
+            .' 2>&1';
+
+        try {
+            $output = shell_exec($cmd);
+            if ($output === null || $output === false) {
+                return null;
+            }
+
+            $data = json_decode($output, true);
+            if (! is_array($data) || empty($data)) {
+                return null;
+            }
+
+            $result = $data[0];
+            // Flatten group-prefixed keys into sections
+            $sectioned = [];
+            foreach ($result as $key => $value) {
+                if (str_contains($key, ':')) {
+                    [$group, $tag] = explode(':', $key, 2);
+                    $sectioned[$group][$tag] = $value;
+                } else {
+                    $sectioned['_root'][$key] = $value;
+                }
+            }
+
+            return $sectioned;
+        } catch (\Throwable $e) {
+            Log::warning('DeltaJalan: ExifTool gagal', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * Cari binary exiftool di system PATH + fallback ke path umum.
+     */
+    private function findExifToolBinary(): ?string
+    {
+        $cmd = PHP_OS_FAMILY === 'Windows'
+            ? 'where exiftool 2>NUL'
+            : 'which exiftool 2>/dev/null';
+
+        $path = trim((string) shell_exec($cmd));
+
+        if ($path !== '' && file_exists($path)) {
+            return $path;
+        }
+
+        // Fallback: cek path umum jika binary tidak di PATH
+        $commonPaths = PHP_OS_FAMILY === 'Windows'
+            ? [
+                'C:\ProgramData\chocolatey\bin\exiftool.exe',
+                'C:\Program Files\exiftool\exiftool.exe',
+                'C:\exiftool\exiftool.exe',
+            ]
+            : [
+                '/usr/bin/exiftool',
+                '/usr/local/bin/exiftool',
+                '/usr/share/perl5/vendor_perl/Image/ExifTool/exiftool',
+            ];
+
+        foreach ($commonPaths as $p) {
+            if (file_exists($p)) {
+                return $p;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Cek apakah exec/shell_exec tersedia (tidak di-disable di php.ini).
+     */
+    private function isExecAvailable(): bool
+    {
+        static $available = null;
+        if ($available !== null) {
+            return $available;
+        }
+
+        $disabled = explode(',', ini_get('disable_functions'));
+        $available = ! in_array('shell_exec', array_map('trim', $disabled));
+
+        return $available;
+    }
+
+    /**
+     * Rekursif sanitasi EXIF data agar JSON-safe.
+     * Buang null bytes, binary strings yang nggak perlu, konversi array ke string.
+     */
+    private function sanitizeExifForJson(mixed $data): mixed
+    {
+        if ($data === null) {
+            return null;
+        }
+        if (is_bool($data)) {
+            return $data;
+        }
+        if (is_int($data) || is_float($data)) {
+            return $data;
+        }
+        if (is_string($data)) {
+            $data = str_replace("\x00", '', $data);
+            $data = trim($data);
+            return $data === '' ? null : $data;
+        }
+        if (is_array($data)) {
+            // Skip thumbnail binary
+            if (isset($data['THUMBNAIL']) && ! is_array($data['THUMBNAIL'])) {
+                $data['THUMBNAIL'] = '['.strlen($data['THUMBNAIL']).' bytes binary]';
+            }
+            foreach ($data as $key => $value) {
+                $data[$key] = $this->sanitizeExifForJson($value);
+            }
+            // Remove null values for cleaner output
+            return array_filter($data, fn ($v) => $v !== null);
+        }
+
+        return (string) $data;
+    }
+
+    /**
      * Ekstrak koordinat GPS dari metadata EXIF foto.
      *
      * Strategy 1: PHP exif_read_data (fast path, works for most files).
@@ -3596,7 +4026,7 @@ class ReportController extends Controller
         }
 
         $validated = $request->validate([
-            'status' => ['required', 'string', 'in:Menunggu Review,Disetujui,Ditolak,Sedang Diperbaiki,Selesai'],
+            'status' => ['required', 'string', 'in:Menunggu Verifikasi,Menunggu Review,Disetujui,Ditolak,Hasil AI,Sedang Diperbaiki,Selesai'],
         ]);
 
         $old_status = $report->status;
@@ -3637,7 +4067,7 @@ class ReportController extends Controller
         ]);
     }
 
-    private function savePhotoToStorage(\Illuminate\Http\UploadedFile $file, string $filename): ?string
+    private function savePhotoToStorage(UploadedFile $file, string $filename): ?string
     {
         try {
             $path = $file->storeAs(self::ORIGINALS_FOLDER, $filename, 'public');

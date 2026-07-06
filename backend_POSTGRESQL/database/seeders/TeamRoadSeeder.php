@@ -80,7 +80,7 @@ class TeamRoadSeeder extends Seeder
                 continue;
             }
             foreach ($roads as $r) {
-                $key = $team->id . '_' . $r[1];
+                $key = $team->id.'_'.$r[1];
                 $dateCounter[$key] = ($dateCounter[$key] ?? 6) + 1;
                 SurveyTask::create([
                     'road_name' => $r[0],

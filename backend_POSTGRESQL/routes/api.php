@@ -13,7 +13,9 @@ use App\Http\Controllers\SettingController;
 use App\Http\Controllers\StatusLogController;
 use App\Http\Controllers\SurveyTaskController;
 use App\Http\Controllers\TeamController;
+use App\Http\Controllers\TelegramWebhookController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WargaReportController;
 use App\Http\Controllers\WorkerLocationController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -51,8 +53,15 @@ Route::get('/v1/reports/check-duplicate', [ReportController::class, 'checkDuplic
 
 // ── Auth routes (public) ──────────────────────────────────────────────────
 Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
 Route::get('/auth/me', [AuthController::class, 'me'])->middleware('auth:sanctum');
+
+/**
+ * POST /api/reports/track
+ * Lacak laporan secara publik menggunakan kode laporan (tidak perlu login).
+ */
+Route::post('/reports/track', [WargaReportController::class, 'track']);
 
 // ── Routes yang memerlukan autentikasi Sanctum ────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
@@ -128,6 +137,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/reports/{id}/approve', [ReportController::class, 'approve']);
 
     /**
+     * POST /api/reports/{id}/analyze-ai
+     * Analisis AI foreground — panggil FastAPI sinkron, simpan hasil.
+     */
+    Route::post('/reports/{id}/analyze-ai', [ReportController::class, 'analyzeReport']);
+
+    /**
+     * POST /api/reports/{id}/confirm-ai
+     * Supervisor mengonfirmasi hasil AI dan menugaskan tim satgas.
+     */
+    Route::post('/reports/{id}/confirm-ai', [ReportController::class, 'confirmAiResult']);
+
+    /**
      * POST /api/reports/{id}/tolak
      * Supervisor menolak laporan dengan alasan.
      */
@@ -162,8 +183,6 @@ Route::middleware('auth:sanctum')->group(function () {
      * Daftar progress updates untuk timeline.
      */
     Route::get('/reports/{id}/progress', [ReportController::class, 'getProgress']);
-
-
 
     /**
      * POST /api/reports/bulk-approve
@@ -304,7 +323,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/teams/{id}/roads', [TeamController::class, 'assignRoads']);
     Route::delete('/teams/{id}/roads/{taskId}', [TeamController::class, 'unassignRoad']);
 
-    // ── Reverse Geocode (OSM Nominatim + local roads) ──────────────────────
+        // ── Reverse Geocode (OSM Nominatim + local roads) ──────────────────────
     Route::get('/v1/reverse-geocode', ReverseGeocodeController::class);
 
     // ── Roads (OSM data) ────────────────────────────────────────────────────
@@ -322,4 +341,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/users/{id}', [UserController::class, 'show']);
     Route::put('/users/{id}', [UserController::class, 'update']);
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
+
+    // ── Warga Reports ─────────────────────────────────────────────────────
+    Route::post('/warga/reports', [WargaReportController::class, 'store'])
+        ->middleware('role:warga');
+    Route::get('/warga/reports', [WargaReportController::class, 'index'])
+        ->middleware('role:warga');
+    Route::get('/warga/reports/{id}', [WargaReportController::class, 'show'])
+        ->middleware('role:warga');
 });
+
+// ── EXIF Test (public, untuk halaman test-exif.html) ──────────────────────────
+Route::post('/test/extract-exif', [ReportController::class, 'extractFullExif']);
+
+// ── Telegram Bot Webhook (public) ────────────────────────────────────────────
+Route::post('/telegram/webhook', [TelegramWebhookController::class, 'handle']);

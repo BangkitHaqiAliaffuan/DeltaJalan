@@ -106,6 +106,7 @@ export function statusDotStyle(status: string): string {
   const map: Record<string, string> = {
     "Menunggu Review": "bg-[#F59E0B]",
     Ditinjau: "bg-[#F59E0B]",
+    "Hasil AI": "bg-[#7C3AED]",
     Disetujui: "bg-[#2563EB]",
     Ditolak: "bg-[#E11D48] animate-pulse",
     "Sedang Diperbaiki": "bg-[#F97316]",
@@ -122,6 +123,7 @@ export function displayStatus(status: string): string {
 
 export function getSeverityLabel(severity?: string | null): { chip: string; label: string } {
   const s = (severity ?? "").toLowerCase();
+  if (!s) return { chip: "bg-slate-100 text-slate-500 border border-slate-200", label: "Belum Dianalisis" };
   if (s.includes("berat")) return { chip: "bg-[#E11D48] text-white", label: "Rusak Berat" };
   if (s.includes("sedang"))
     return { chip: "bg-orange-50 text-[#F97316] border border-orange-200", label: "Rusak Sedang" };
@@ -139,6 +141,20 @@ export function haversineDistance(lat1: number, lng1: number, lat2: number, lng2
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+export function getStatusBadge(status: string): { label: string; color: string } {
+  const map: Record<string, { label: string; color: string }> = {
+    "Menunggu Verifikasi": { label: "Menunggu Verifikasi", color: "bg-yellow-100 text-yellow-800" },
+    "Menunggu Review": { label: "Menunggu Review", color: "bg-yellow-100 text-yellow-800" },
+    "Ditinjau": { label: "Ditinjau", color: "bg-blue-100 text-blue-800" },
+    "Hasil AI": { label: "Hasil AI", color: "bg-purple-100 text-purple-800" },
+    "Disetujui": { label: "Disetujui", color: "bg-green-100 text-green-800" },
+    "Ditolak": { label: "Ditolak", color: "bg-red-100 text-red-800" },
+    "Sedang Diperbaiki": { label: "Sedang Diperbaiki", color: "bg-orange-100 text-orange-800" },
+    "Selesai": { label: "Selesai", color: "bg-green-100 text-green-800" },
+  };
+  return map[status] ?? { label: status || "Unknown", color: "bg-gray-100 text-gray-800" };
 }
 
 export function formatDistance(meters: number): string {

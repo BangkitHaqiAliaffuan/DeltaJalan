@@ -26,11 +26,18 @@ const SUPERVISOR_MENU: MenuItem[] = [
   { icon: "calendar_month", label: "Jadwal Patroli", to: "/supervisor/patrol-schedule" },
 ];
 
+const WARGA_MENU: MenuItem[] = [
+  { icon: "home", label: "Beranda", to: "/warga" },
+  { icon: "map", label: "Peta", to: "/warga/peta" },
+  { icon: "cloud_upload", label: "Upload", to: "/warga/lapor" },
+  { icon: "description", label: "Laporan Saya", to: "/warga/laporan" },
+];
+
 export function Sidebar() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
-  const menuItems = user?.role === "supervisor" ? SUPERVISOR_MENU : PETUGAS_MENU;
+  const menuItems = user?.role === "supervisor" ? SUPERVISOR_MENU : user?.role === "warga" ? WARGA_MENU : PETUGAS_MENU;
 
   useEffect(() => {
     setUser(getCurrentUser());
@@ -159,7 +166,7 @@ export function Sidebar() {
                 className="text-white/60 text-[11px] truncate leading-tight capitalize"
                 style={{ fontFamily: "'Inter', sans-serif" }}
               >
-                {displayUser.role === "supervisor" ? "Supervisor" : "Petugas Lapangan"}
+                {displayUser.role === "supervisor" ? "Supervisor" : displayUser.role === "warga" ? "Warga" : "Petugas Lapangan"}
               </span>
             )}
           </div>

@@ -40,8 +40,7 @@ class PatrolMorningReminder extends Command
         $sent = 0;
 
         foreach ($schedules as $schedule) {
-            $hari = $schedule->hari ?? [];
-            if (! in_array($todayName, $hari)) {
+            if (! $schedule->isPatrolDay($today)) {
                 continue;
             }
 

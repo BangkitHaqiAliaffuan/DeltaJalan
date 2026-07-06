@@ -7,21 +7,31 @@ Internal road damage reporting app for Dinas PU Bina Marga Kabupaten Sidoarjo. 3
 ```
 Frontend-stable/          React 19 + TanStack Start SSR + Tailwind v4, Vite 7
 backend_POSTGRESQL/       Laravel 13 REST API (PHP 8.3, Sanctum, PostgreSQL)
+  ├─ Dockerfile            PHP 8.3 container build (Ubuntu Docker)
 backend_AI/               FastAPI + YOLOv8s (4 damage classes, port 8000)
-scripts/                  Dev/tunnel scripts (Git Bash, not PowerShell)
+scripts/                  Dev/tunnel scripts
+  ├─ start-tunnel.ps1         Windows (PowerShell)
+  ├─ start-android.sh         Linux native PHP
+  ├─ start-dev-with-ngrok.sh  Linux native PHP
+  ├─ start-ubuntu.sh          Ubuntu Docker (new)
+  └─ start-dev-ubuntu.sh      Ubuntu Docker dev helper (new)
+docker-compose.yml        PHP 8.3 + PostgreSQL 16 containers (Ubuntu Docker)
 ```
 
 Frontend Vite proxy forwards `/api/*` → `localhost:8080` (Laravel). Laravel forwards AI requests to FastAPI at `:8000`.
 
+**Dual boot note**: Ubuntu uses Docker for PHP+PostgreSQL; Windows uses native PHP.
+Scripts & `.env` are OS-specific — no cross-contamination.
+
 ## Mandatory rules
 
 - **Never** run `php artisan serve`, `npm run dev`, `vite`, or any dev server. User handles startup.
-- **Never** run `build:mobile`, `npx cap`, `python build.py`, `gradlew`, or any Android build. User runs `bash scripts/start-android.sh` exclusively.
+- **Never** run `build:mobile`, `npx cap`, `python build.py`, `gradlew`, or any Android build. User runs `bash scripts/start-android.sh` or `bash scripts/start-ubuntu.sh` exclusively.
 - **Never** run `migrate:fresh`, `migrate:reset`, `db:wipe`, or `DROP` without asking. Allowed: `migrate`, `db:seed`, `cache:clear`, `config:clear`.
 - **Never** run `migrate:fresh`, `migrate:reset`, `db:wipe`, or `DROP` even if you think you have user consent — always wait for the user to explicitly type the command before proceeding.
 - **Never** commit or push unless the user explicitly says "commit", "push", or "commit dan push". You may stage files.
 - Before any 10s+ command, warn the user with estimated duration.
-- Before writing code involving any library/framework, use Context7 (`resolve-library-id` + `query-docs`) and cite sources.
+- Before writing code involving any library/framework, use Context7 MCP (`resolve-library-id` → `query-docs`) and cite sources. See "Context7" section below.
 
 ## Dev commands
 
@@ -42,10 +52,19 @@ php vendor/bin/pint                  # Laravel Pint (PHP lint)
 # AI server (backend_AI/)
 cd backend_AI && pip install -r requirements.txt && python server.py  # :8000
 
-# All stacked
+# All stacked (Linux native)
 bash scripts/start-android.sh                       # Laravel + ngrok + .env update
 bash scripts/start-android.sh --rebuild              # + rebuild Capacitor APK
 bash scripts/start-dev-with-ngrok.sh --ngrok         # desktop dev + tunnel
+
+# Ubuntu (Docker) — pakai jika PHP 8.3 tidak tersedia native
+bash scripts/start-ubuntu.sh                        # Docker PHP + PostgreSQL + ngrok
+bash scripts/start-ubuntu.sh --rebuild               # + rebuild Capacitor APK
+bash scripts/start-dev-ubuntu.sh                    # desktop dev (FastAPI + Vite)
+bash scripts/start-dev-ubuntu.sh --ngrok             # + ngrok tunnel to Vite
+docker compose exec php php artisan {command}        # artisan via Docker
+docker compose logs php                              # Laravel logs
+docker compose exec php composer {command}           # composer via Docker
 ```
 
 ## Key structural facts
@@ -83,6 +102,22 @@ Password for all: `password123`
 ## VITE_API_BASE_URL is build-time embedded
 
 `VITE_API_BASE_URL` is baked into the JS bundle at build time. Changing `.env` alone does NOT update a running app. After changing `.env`, rebuild: `npm run build:mobile`.
+
+## TanStack Router gotchas
+
+### Child routes require `<Outlet />` in parent
+`foo.detail.tsx` (dot notation) creates a **child route** of `foo.tsx`. For the child to render, `foo.tsx` MUST have `<Outlet />`. Without it, navigating to `/foo/detail` renders only the parent component — the child never mounts.
+
+### Index route pattern for list + detail
+A page with a list view and a detail sub-view needs 3 files:
+```
+routes/supervisor/
+  foo.tsx               ← layout: <PageLayout><Outlet /></PageLayout>
+  foo/
+    index.tsx           ← index route (list page)
+  foo.detail.tsx        ← child route (detail page, no PageLayout — parent provides it)
+```
+The index route (`foo/index.tsx`) renders when the URL exactly matches `/foo`; child routes like `/foo/detail` render when their path matches inside the parent's `<Outlet />`.
 
 ## Non-obvious conventions
 
@@ -152,3 +187,25 @@ map.fitBounds(group.getBounds().pad(0.2), { maxZoom: 16, animate: false });
 ## Detection
 
 4 damage classes: Lubang, Retak Kulit Buaya, Retak Memanjang, Retak Melintang. Severity levels: Baik, Rusak Ringan, Rusak Sedang, Rusak Berat.
+
+## Context7 MCP
+
+Available as a remote MCP server in `opencode.json`. Use these tools for library/framework documentation instead of relying on training data:
+
+| Tool | Usage |
+|---|---|
+| `resolve-library-id` | Search for a library name to get a Context7-compatible ID (e.g. `/reactjs/react.dev`, `/vercel/next.js`) |
+| `query-docs` | Fetch documentation for a specific library ID + question |
+
+**Workflow**: Always call `resolve-library-id` first to get the exact ID, then `query-docs` with that ID. Call `query-docs` max 3x per question. Source: https://context7.com/docs/clients/opencode
+
+## RTK (Rust Token Killer)
+
+RTK v0.43.0 is installed as an OpenCode plugin. It transparently compresses bash command outputs (git, npm, ls, cargo, etc.) by 60-90% before they reach context.
+
+- **Plugin**: `~/.config/opencode/plugins/rtk.ts` — auto-rewrites bash commands
+- **Binary**: `~/.local/bin/rtk` — add to PATH via `export PATH="$HOME/.local/bin:$PATH"`
+- **Check savings**: `rtk gain` or `rtk gain --history`
+- **Config**: `~/.config/rtk/config.toml`
+
+Works on both Linux (native hook) and Windows (CLAUDE.md fallback). Source: https://www.rtk-ai.app/

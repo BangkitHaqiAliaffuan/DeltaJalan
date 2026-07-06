@@ -14,30 +14,25 @@ class PeringatanTerlambat extends Notification implements ShouldQueue
 
     public function __construct(
         public Report $report,
-        public string $type // 'review', 'resolution', atau 'mulai'
+        public string $type // 'review' atau 'resolution'
     ) {}
 
     public function via($notifiable): array
     {
-        return ['database', 'webpush', 'mail', 'fcm'];
+        return ['database', 'webpush', 'fcm'];
     }
 
     public function toMail($notifiable): MailMessage
     {
-        $isMulai = $this->type === 'mulai';
-        $isReview = ! $isMulai && $this->type === 'review';
+        $isReview = $this->type === 'review';
 
-        $subject = match ($this->type) {
-            'review' => '🚨 Deadline Terlewat — Review Laporan '.$this->report->report_code,
-            'mulai' => '🚨 Deadline Terlewat — Mulai Perbaikan '.$this->report->report_code,
-            default => '🚨 Deadline Terlewat — Perbaikan Laporan '.$this->report->report_code,
-        };
+        $subject = $isReview
+            ? '🚨 Deadline Terlewat — Review Laporan '.$this->report->report_code
+            : '🚨 Deadline Terlewat — Perbaikan Laporan '.$this->report->report_code;
 
-        [$deadlineLabel, $deadline] = $isMulai
-            ? ['Batas Mulai Perbaikan', $this->report->deadline_mulai]
-            : ($isReview
-                ? ['Batas Review', $this->report->deadline_review]
-                : ['Batas Perbaikan', $this->report->deadline_resolusi]);
+        [$deadlineLabel, $deadline] = $isReview
+            ? ['Batas Review', $this->report->deadline_review]
+            : ['Batas Perbaikan', $this->report->deadline_resolusi];
 
         return (new MailMessage)
             ->subject($subject)
@@ -54,11 +49,7 @@ class PeringatanTerlambat extends Notification implements ShouldQueue
 
     public function toWebPush($notifiable): array
     {
-        $label = match ($this->type) {
-            'review' => 'Review',
-            'mulai' => 'Mulai Perbaikan',
-            default => 'Perbaikan',
-        };
+        $label = $this->type === 'review' ? 'Review' : 'Perbaikan';
 
         return [
             'title' => "🚨 Deadline Terlewat — {$label}",
@@ -69,11 +60,7 @@ class PeringatanTerlambat extends Notification implements ShouldQueue
 
     public function toFcm($notifiable): array
     {
-        $label = match ($this->type) {
-            'review' => 'Review',
-            'mulai' => 'Mulai Perbaikan',
-            default => 'Perbaikan',
-        };
+        $label = $this->type === 'review' ? 'Review' : 'Perbaikan';
 
         return [
             'title' => 'Deadline Terlewat — '.$label,
@@ -92,7 +79,7 @@ class PeringatanTerlambat extends Notification implements ShouldQueue
     {
         return [
             'type' => 'deadline_terlambat',
-            'message' => "Deadline Terlewat: Laporan {$this->report->report_code} (prioritas {$this->report->priority}) telah melewati deadline ".match ($this->type) { 'review' => 'review', 'mulai' => 'mulai perbaikan', default => 'perbaikan' }.'.',
+            'message' => "Deadline Terlewat: Laporan {$this->report->report_code} (prioritas {$this->report->priority}) telah melewati deadline ".($this->type === 'review' ? 'review' : 'perbaikan').'.',
             'report_id' => $this->report->id,
             'report_code' => $this->report->report_code,
             'deadline_type' => $this->type,

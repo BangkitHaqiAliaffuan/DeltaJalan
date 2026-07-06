@@ -100,6 +100,7 @@ interface PetaInteraktifProps {
   onFilterChange: (filters: MapFilters) => void;
   onViewDetail?: (id: string) => void;
   userRole?: string;
+  currentUserId?: number | string | null;
   highlightReportId?: string;
 }
 
@@ -112,6 +113,7 @@ export function PetaInteraktif({
   onFilterChange,
   onViewDetail,
   userRole,
+  currentUserId,
   highlightReportId,
 }: PetaInteraktifProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -508,7 +510,16 @@ export function PetaInteraktif({
                     ${status}
                   </span>
                 </div>
-                ${userRole === "petugas" ? "" : `<button onclick="window.__mapViewDetail('${r.id}')" style="margin-top:4px;width:100%;padding:8px 0;background:#1A4F8A;color:white;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:background .2s;" onmouseover="this.style.background='#153d6e'" onmouseout="this.style.background='#1A4F8A'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>Lihat Detail</button>`}
+                ${(() => {
+                  const showDetail = userRole === "petugas"
+                    ? false
+                    : userRole === "warga"
+                      ? currentUserId != null && r.user_id != null && String(r.user_id) === String(currentUserId)
+                      : true;
+                  return showDetail
+                    ? `<button onclick="window.__mapViewDetail('${r.id}')" style="margin-top:4px;width:100%;padding:8px 0;background:#1A4F8A;color:white;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:background .2s;" onmouseover="this.style.background='#153d6e'" onmouseout="this.style.background='#1A4F8A'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>Lihat Detail</button>`
+                    : "";
+                })()}
               </div>
             </div>`,
         { maxWidth: 320, className: "" },
@@ -555,7 +566,7 @@ export function PetaInteraktif({
         }
       }
     }
-  }, [mapReports, mapReady, onViewDetail, highlightReportId]);
+  }, [mapReports, mapReady, onViewDetail, currentUserId, highlightReportId]);
 
   // ── Filter callbacks ──
   const updateFilter = useCallback(

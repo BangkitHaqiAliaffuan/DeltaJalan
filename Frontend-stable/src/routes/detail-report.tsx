@@ -1,11 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { SkeletonDetailReport } from "@/components/jk/Skeleton";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { SafeImage } from "@/components/jk/SafeImage";
 import { useBlobImage } from "@/hooks/useBlobImage";
-import { API_BASE_URL, normalizeSeverityKey } from "@/lib/aiStore";
+import { API_BASE_URL, normalizeSeverityKey, setAiResult, setFormData } from "@/lib/aiStore";
+import { AnalyzingOverlay, type AnalyzeStage } from "@/components/jk/AnalyzingOverlay";
 import { getToken, getCurrentUser } from "@/lib/auth";
 import {
   formatDate,
@@ -76,7 +77,9 @@ function DetailReportPage() {
   const [tolakAlasan, setTolakAlasan] = useState("");
   const [showTolak, setShowTolak] = useState(false);
   const [showApproval, setShowApproval] = useState(false);
+  const [analyzeStage, setAnalyzeStage] = useState<AnalyzeStage | null>(null);
   const [progressUpdates, setProgressUpdates] = useState<ProgressUpdate[]>([]);
+  const uniqueDays = new Set(progressUpdates.map((u) => u.day_number).filter(Boolean)).size;
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [showEstimasi, setShowEstimasi] = useState(false);
   const [estimasiHari, setEstimasiHari] = useState(7);
@@ -86,7 +89,7 @@ function DetailReportPage() {
 
   useEffect(() => {
     if (!report || ["Selesai", "Ditolak"].includes(report.status)) return;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    const timer = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(timer);
   }, [report?.status]);
 
@@ -147,7 +150,7 @@ function DetailReportPage() {
   // Supervisor: auto-set status to "Ditinjau" when viewing
   useEffect(() => {
     if (!reportId || userRole !== "supervisor") return;
-    if (!report || (report.status !== "Menunggu Review" && report.status !== "Ditinjau")) return;
+    if (!report || (report.status !== "Menunggu Verifikasi" && report.status !== "Menunggu Review" && report.status !== "Ditinjau")) return;
     fetch(`${API_BASE_URL}/reports/${reportId}/mulai-review`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
@@ -158,19 +161,109 @@ function DetailReportPage() {
     if (!report) return;
     setActionLoading(true);
     try {
+      const body: Record<string, unknown> = { priority };
       const res = await fetch(`${API_BASE_URL}/reports/${report.id}/approve`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ priority }),
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setActionMsg(json.message ?? "Gagal menyetujui.");
+        return;
+      }
+
+      const isWargaTelegram = report.source && ["warga", "telegram"].includes(report.source);
+
+      if (isWargaTelegram) {
+        setShowApproval(false);
+        setShowTolak(false);
+        setAnalyzeStage("analyzing");
+        await new Promise((r) => setTimeout(r, 0));
+
+        const aiRes = await fetch(`${API_BASE_URL}/reports/${report.id}/analyze-ai`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const aiJson = await aiRes.json();
+        if (!aiRes.ok) {
+          setActionMsg(aiJson.message ?? "Analisis AI gagal.");
+          setAnalyzeStage(null);
+          return;
+        }
+
+        setAnalyzeStage("processing");
+        await new Promise((r) => setTimeout(r, 300));
+
+        const aiData = aiJson.data;
+        const mappedDets = (aiData.detections ?? []).map((d: any) => ({
+          class: d.type ?? d.class,
+          severity: d.severity ?? aiData.overall_severity,
+          confidence: d.confidence,
+          bbox: d.bbox
+            ? { x1: d.bbox[0] ?? 0, y1: d.bbox[1] ?? 0, x2: d.bbox[2] ?? 0, y2: d.bbox[3] ?? 0 }
+            : { x1: 0, y1: 0, x2: 0, y2: 0 },
+        }));
+
+        setAiResult({
+          detections: mappedDets,
+          total: aiData.total_detections ?? mappedDets.length,
+          overall_severity: aiData.overall_severity,
+          image_result: aiData.image_result ?? "",
+          status: "success",
+        });
+
+        const reportRes = await fetch(`${API_BASE_URL}/reports/${report.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const reportJson = await reportRes.json();
+        const freshReport = reportJson.data ?? reportJson.report ?? reportJson;
+
+        setFormData({
+          namaJalan: freshReport.road_name ?? report.road_name,
+          kecamatan: freshReport.district ?? report.district,
+          tanggal: formatDate(freshReport.created_at ?? report.created_at),
+          catatan: freshReport.description ?? report.description ?? "",
+          previewUrl: freshReport.image_original_url ?? report.image_original_url ?? "",
+          fileName: (freshReport as any).image_original_name ?? "foto.jpg",
+          lat: Number(freshReport.latitude ?? report.latitude),
+          lng: Number(freshReport.longitude ?? report.longitude),
+          kerusakanPanjang: String(freshReport.kerusakan_panjang ?? ""),
+          kerusakanLebar: String(freshReport.kerusakan_lebar ?? ""),
+        });
+
+        setAnalyzeStage("complete");
+        await new Promise((r) => setTimeout(r, 500));
+
+        navigate({ to: "/ai-result", search: { reportId: report.id, review: "1" } });
+      } else {
+        await refreshReport();
+        setActionMsg(json.message ?? "Laporan disetujui.");
+        setShowApproval(false);
+        setShowTolak(false);
+      }
+    } catch {
+      setActionMsg("Kesalahan jaringan.");
+      setAnalyzeStage(null);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleConfirmAi() {
+    if (!report) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/reports/${report.id}/confirm-ai`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       });
       const json = await res.json();
       if (res.ok) {
         await refreshReport();
-        setActionMsg("Laporan disetujui dan tim ditugaskan.");
-        setShowApproval(false);
-        setShowTolak(false);
+        setActionMsg("Laporan dikonfirmasi dan tim ditugaskan.");
       } else {
-        setActionMsg(json.message ?? "Gagal menyetujui.");
+        setActionMsg(json.message ?? "Gagal mengonfirmasi.");
       }
     } catch {
       setActionMsg("Kesalahan jaringan.");
@@ -266,7 +359,7 @@ function DetailReportPage() {
       .catch(() => {});
   }
 
-  const mapPoints: ReportMapPoint[] = (() => {
+  const mapPoints = useMemo<ReportMapPoint[]>(() => {
     if (!report?.latitude || !report?.longitude) return [];
 
     const photoPoints = (report.photos ?? [])
@@ -281,7 +374,7 @@ function DetailReportPage() {
     if (photoPoints.length > 0) return photoPoints;
 
     return [{ lat: report.latitude, lng: report.longitude, label: report.road_name }];
-  })();
+  }, [report?.latitude, report?.longitude, report?.photos, report?.road_name]);
 
   const statusHistory: TimelineEvent[] = report?.status_history ?? [];
 
@@ -343,8 +436,9 @@ function DetailReportPage() {
       </Link>
     );
 
-    // Supervisor: Menunggu Review / Ditinjau → Setujui + Tolak
-    if (isSupervisor && (status === "Menunggu Review" || status === "Ditinjau")) {
+    // Supervisor: Menunggu Verifikasi / Menunggu Review / Ditinjau → Setujui + Tolak
+    if (isSupervisor && (status === "Menunggu Verifikasi" || status === "Menunggu Review" || status === "Ditinjau")) {
+      const isWargaTelegram = report?.source && ["warga", "telegram"].includes(report.source);
       return (
         <FooterWrapper>
           {actionMsg && (
@@ -362,8 +456,8 @@ function DetailReportPage() {
               "Memproses…"
             ) : (
               <>
-                <Icon name="check" className="!text-[20px]" />
-                Setujui &amp; Tugaskan Tim
+                <Icon name={isWargaTelegram ? "auto_awesome" : "check"} className="!text-[20px]" />
+                {isWargaTelegram ? "Setujui & Analisis AI" : "Setujui & Tugaskan Tim"}
               </>
             )}
           </button>
@@ -384,6 +478,37 @@ function DetailReportPage() {
               <Icon name="arrow_back" className="!text-[16px]" />
               Kembali
             </Link>
+          </div>
+        </FooterWrapper>
+      );
+    }
+
+    // Supervisor: Hasil AI → Konfirmasi & Tugaskan Tim
+    if (isSupervisor && status === "Hasil AI") {
+      return (
+        <FooterWrapper>
+          {actionMsg && (
+            <div className="px-3 py-2 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-[12px] text-[#0F172A] text-center">
+              {actionMsg}
+            </div>
+          )}
+          <button
+            type="button"
+            disabled={actionLoading}
+            onClick={handleConfirmAi}
+            className="w-full py-2.5 md:py-3 min-h-[40px] bg-[#1A4F8A] text-white rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm"
+          >
+            {actionLoading ? (
+              "Memproses…"
+            ) : (
+              <>
+                <Icon name="check" className="!text-[20px]" />
+                Konfirmasi & Tugaskan Tim
+              </>
+            )}
+          </button>
+          <div className="flex gap-3">
+            {showBack()}
           </div>
         </FooterWrapper>
       );
@@ -505,6 +630,7 @@ function DetailReportPage() {
   // ── Content ──
 
   return (
+    <>
     <PageLayout
       back={backPath}
       title="Detail Laporan"
@@ -582,6 +708,34 @@ function DetailReportPage() {
                             </span>
                           )}
                         </div>
+                        {(Array.isArray(photo.ai_raw_output)
+                            ? photo.ai_raw_output
+                            : photo.ai_raw_output?.detections
+                          )?.map((det, i) => {
+                          const dt = det.type || det.class || '';
+                          if (!dt) return null;
+                          const sev = det.severity ? normalizeSeverityKey(det.severity) : '';
+                          const isBerat = sev.includes('Berat');
+                          const isSedang = sev.includes('Sedang');
+                          return (
+                            <div key={i} className="flex items-center gap-1.5 text-[11px] text-[#475569]">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#1A4F8A]" />
+                              <span className="font-medium">{dt}</span>
+                              {sev && (
+                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                                  isBerat
+                                    ? 'bg-[#E11D48] text-white border-[#E11D48]'
+                                    : isSedang
+                                      ? 'bg-orange-50 text-[#F97316] border-orange-200'
+                                      : 'bg-amber-50 text-[#F59E0B] border-amber-200'
+                                }`}>
+                                  {sev}
+                                </span>
+                              )}
+                              <span>{(det.confidence * 100).toFixed(0)}%</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -636,6 +790,16 @@ function DetailReportPage() {
               <span className={`w-2 h-2 rounded-full ${statusDotStyle(report.status ?? "")}`} />
               {displayStatus(report.status ?? "-")}
             </span>
+            {report.source === "warga" && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-50 text-[#7C3AED] border border-purple-200 whitespace-nowrap">
+                Warga
+              </span>
+            )}
+            {report.source === "telegram" && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-sky-50 text-[#0284C7] border border-sky-200 whitespace-nowrap">
+                Telegram
+              </span>
+            )}
             <DeadlineCard report={report} isClient={isClient} now={now} compact />
           </div>
 
@@ -666,6 +830,17 @@ function DetailReportPage() {
               <InfoRow icon="person" value={report.reporter_name} />
               {report.report_code && <InfoRow icon="tag" value={report.report_code} />}
             </div>
+            {report.description && (
+              <div className="mt-3 pt-3 border-t border-[#E2E8F0]">
+                <p className="text-[11px] font-semibold text-[#475569] mb-1 flex items-center gap-1">
+                  <Icon name="description" className="!text-[14px]" />
+                  Deskripsi Laporan
+                </p>
+                <p className="text-[13px] text-[#0F172A] leading-relaxed whitespace-pre-wrap">
+                  {report.description}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* ── Timeline Perbaikan ── */}
@@ -680,16 +855,16 @@ function DetailReportPage() {
                   Progress Perbaikan
                 </h3>
                 <span className="text-[12px] font-semibold text-[#1A4F8A]">
-                  Hari {Math.min(progressUpdates.length + 1, report.estimasi_hari)} dari {report.estimasi_hari}
+                  Hari {Math.min(uniqueDays, report.estimasi_hari)} dari {report.estimasi_hari}
                 </span>
               </div>
               <div className="w-full h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
                 <div
                   className="h-full bg-[#1A4F8A] rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min((progressUpdates.length / report.estimasi_hari) * 100, 100)}%` }}
+                  style={{ width: `${Math.min((uniqueDays / report.estimasi_hari) * 100, 100)}%` }}
                 />
               </div>
-              {progressUpdates.length >= report.estimasi_hari && (
+              {uniqueDays >= report.estimasi_hari && (
                 <p className="text-[11px] text-[#10B981] font-medium mt-1.5 flex items-center gap-1">
                   <Icon name="check_circle" className="!text-[14px]" />
                   Estimasi terpenuhi, silakan selesaikan laporan
@@ -699,7 +874,7 @@ function DetailReportPage() {
           )}
 
           {/* ── Progress Timeline ── */}
-          {progressUpdates.length > 0 && <ProgressTimeline updates={progressUpdates} />}
+          {progressUpdates.length > 0 && <ProgressTimeline updates={progressUpdates} estimasiHari={report.estimasi_hari} />}
 
           {/* ── Lokasi ── */}
           {mapPoints.length > 0 && (
@@ -847,13 +1022,13 @@ function DetailReportPage() {
         </ModalBase>
       )}
 
-      {/* ── Approve Modal (hanya approve, tanpa satgas picker) ── */}
+      {/* ── Approve Modal ── */}
       {showApproval && (
         <ModalBase
           onClose={() => setShowApproval(false)}
           icon="check_circle"
-          badge="SETUJUI &amp; TUGASKAN"
-          title="Setujui &amp; Tugaskan Tim"
+          badge={["warga", "telegram"].includes(report?.source ?? "") ? "SETUJUI & ANALISIS" : "SETUJUI & TUGASKAN"}
+          title={["warga", "telegram"].includes(report?.source ?? "") ? "Setujui & Analisis AI" : "Setujui & Tugaskan Tim"}
           footer={
             <>
               <button
@@ -867,7 +1042,7 @@ function DetailReportPage() {
                 ) : (
                   <>
                     <Icon name="check" className="!text-[18px]" />
-                    Setujui &amp; Tugaskan
+                    {["warga", "telegram"].includes(report?.source ?? "") ? "Setujui & Analisis" : "Setujui & Tugaskan"}
                   </>
                 )}
               </button>
@@ -881,20 +1056,29 @@ function DetailReportPage() {
             </>
           }
         >
-          <div>
-            <p className="text-[13px] text-[#475569] mb-4 leading-relaxed">
-              Laporan akan disetujui dan secara otomatis ditugaskan ke tim pelapor.
-            </p>
-            <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Prioritas</label>
-            <select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value as "Rendah" | "Sedang" | "Tinggi")}
-              className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
-            >
-              <option value="Rendah">Rendah</option>
-              <option value="Sedang">Sedang</option>
-              <option value="Tinggi">Tinggi</option>
-            </select>
+          <div className="space-y-4">
+            {["warga", "telegram"].includes(report?.source ?? "") ? (
+              <p className="text-[13px] text-[#475569] leading-relaxed">
+                Laporan akan disetujui. Analisis AI akan berjalan otomatis di latar belakang.
+                Setelah selesai, Anda dapat mengonfirmasi hasil dan menugaskan tim satgas.
+              </p>
+            ) : (
+              <p className="text-[13px] text-[#475569] leading-relaxed">
+                Laporan akan disetujui dan secara otomatis ditugaskan ke tim pelapor.
+              </p>
+            )}
+            <div>
+              <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Prioritas</label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as "Rendah" | "Sedang" | "Tinggi")}
+                className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+              >
+                <option value="Rendah">Rendah</option>
+                <option value="Sedang">Sedang</option>
+                <option value="Tinggi">Tinggi</option>
+              </select>
+            </div>
           </div>
         </ModalBase>
       )}
@@ -983,11 +1167,17 @@ function DetailReportPage() {
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     min={1}
                     max={90}
                     value={estimasiHari}
-                    onChange={(e) => setEstimasiHari(Math.max(1, Math.min(90, parseInt(e.target.value) || 7)))}
-                    className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === "") { setEstimasiHari(1); return; }
+                      const num = parseInt(raw, 10);
+                      if (!isNaN(num)) setEstimasiHari(Math.max(1, Math.min(90, num)));
+                    }}
+                    className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A] appearance-none [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden"
                   />
                 </div>
               )}
@@ -1014,6 +1204,8 @@ function DetailReportPage() {
         confirmLoading={actionLoading}
         onConfirm={handleMulaiConfirm}
         onCancel={() => { setShowMulaiConfirm(false); setShowEstimasi(true); }}
+        icon="play_arrow"
+        confirmClassName="flex-1 px-4 py-2.5 text-[13px] font-bold text-white bg-[#1A4F8A] rounded-xl hover:bg-[#153d6e] disabled:opacity-40 transition-all flex items-center justify-center gap-1.5"
       />
 
       {/* ── Progress Update Modal ── */}
@@ -1033,6 +1225,13 @@ function DetailReportPage() {
         />
       )}
     </PageLayout>
+
+    {analyzeStage && (
+      <Portal>
+        <AnalyzingOverlay stage={analyzeStage} variant="single" />
+      </Portal>
+    )}
+  </>
   );
 }
 
@@ -1063,15 +1262,11 @@ function DeadlineCard({
     if (["Menunggu Review", "Ditinjau"].includes(status) && report.deadline_review) {
       return { deadline: report.deadline_review, label: "Deadline Review", icon: "rate_review" };
     }
-    if (["Disetujui", "Ditugaskan"].includes(status) && report.deadline_mulai) {
-      return { deadline: report.deadline_mulai, label: "Deadline Mulai", icon: "play_arrow" };
-    }
     if (status === "Sedang Diperbaiki" && report.deadline_resolusi) {
       return { deadline: report.deadline_resolusi, label: "Deadline Resolusi", icon: "build" };
     }
     if (["Selesai", "Ditolak"].includes(status)) {
-      const last =
-        report.deadline_resolusi || report.deadline_mulai || report.deadline_review;
+      const last = report.deadline_resolusi || report.deadline_review;
       if (last) return { deadline: last, label: "Deadline", icon: "check_circle" };
       return null;
     }
@@ -1097,7 +1292,6 @@ function DeadlineCard({
 
   const terlambatFlag =
     (status === "Sedang Diperbaiki" && report.terlambat_resolusi) ||
-    (["Disetujui", "Ditugaskan"].includes(status) && report.terlambat_mulai) ||
     (["Menunggu Review", "Ditinjau"].includes(status) && report.terlambat_review);
 
   let deadlineStatus: "tepat_waktu" | "mendekati" | "terlambat" | "selesai" = "tepat_waktu";

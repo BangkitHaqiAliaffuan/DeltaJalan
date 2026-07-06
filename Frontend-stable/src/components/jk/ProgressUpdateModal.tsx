@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ModalBase } from "@/components/jk/ModalBase";
 import { Icon } from "@/components/jk/Icon";
 import { API_BASE_URL } from "@/lib/aiStore";
+import { validatePhotoDate } from "@/lib/validatePhotoDate";
 
 interface ProgressUpdateModalProps {
   reportId: string;
@@ -37,6 +38,13 @@ export function ProgressUpdateModal({
       setError("Foto progress wajib diisi.");
       return;
     }
+
+    const dateValidation = await validatePhotoDate(foto);
+    if (dateValidation.status !== "valid") {
+      setError(dateValidation.message);
+      return;
+    }
+
     setLoading(true);
     setError("");
     try {

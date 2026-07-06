@@ -3,12 +3,13 @@
 namespace Database\Seeders;
 
 use App\Models\Report;
-use App\Models\ReportPhoto;
 use App\Models\ReportAfterPhoto;
+use App\Models\ReportPhoto;
 use App\Models\ReportProgressUpdate;
-use App\Models\Team;
-use App\Models\User;
+use App\Models\StatusLog;
 use App\Models\SurveyTask;
+use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -131,6 +132,7 @@ class ReportSeeder extends Seeder
         $dist = mt_rand() / mt_getrandmax() * $maxMeters;
         $dLat = cos($angle) * $dist * $latPerMeter;
         $dLng = sin($angle) * $dist * $lngPerMeter;
+
         return [
             round($centerLat + $dLat, 8),
             round($centerLng + $dLng, 8),
@@ -152,6 +154,7 @@ class ReportSeeder extends Seeder
 
         if ($petugasCount === 0) {
             $this->command->error('Tidak ada user petugas ditemukan. Jalankan UserSeeder dulu.');
+
             return;
         }
 
@@ -180,7 +183,7 @@ class ReportSeeder extends Seeder
         Storage::disk('public')->makeDirectory('reports/after');
         Storage::disk('public')->makeDirectory('reports/progress');
 
-        $sequence = Report::where('report_code', 'like', 'LP-' . date('Y') . '-%')
+        $sequence = Report::where('report_code', 'like', 'LP-'.date('Y').'-%')
             ->orderBy('report_code', 'desc')
             ->value('report_code');
         $nextNumber = $sequence ? ((int) substr($sequence, -5)) + 1 : 1;
@@ -188,7 +191,7 @@ class ReportSeeder extends Seeder
         $this->command->getOutput()->progressStart(60);
 
         for ($i = 0; $i < 60; $i++) {
-            $reportCode = 'LP-' . date('Y') . '-' . str_pad($nextNumber++, 5, '0', STR_PAD_LEFT);
+            $reportCode = 'LP-'.date('Y').'-'.str_pad($nextNumber++, 5, '0', STR_PAD_LEFT);
             $user = $petugas[$i % $petugasCount];
             $teamId = $teamsByUser[$user->id];
             $district = self::KECAMATAN[array_rand(self::KECAMATAN)];
@@ -217,12 +220,12 @@ class ReportSeeder extends Seeder
             $aiDamageType = self::DAMAGE_TYPES[array_rand(self::DAMAGE_TYPES)];
             $aiConfidence = round(0.65 + mt_rand() / mt_getrandmax() * 0.34, 3);
 
-            $deadlineReview = $this->calcDeadline($priority, 'review_hours', 72, $createdAt);
-            $deadlineMulai = $this->calcDeadline($priority, 'assignment_start_hours', 48, $ditugaskanAt ?? $createdAt);
-            $deadlineResolusi = $this->calcDeadline($priority, 'resolution_hours', 168, $perbaikanDimulaiAt ?? $ditugaskanAt ?? $createdAt);
+            // Supervisor names pool untuk status_logs
+            $supervisorNames = ['Budi Santoso', 'Siti Marlina', 'Hendra Kusuma', 'Fajar Nugroho'];
+            $supervisorName = $supervisorNames[array_rand($supervisorNames)];
 
             $needsAssignment = in_array($status, ['Disetujui', 'Ditugaskan', 'Sedang Diperbaiki', 'Selesai']);
-            $assignorName = $needsAssignment ? ['Budi Santoso', 'Siti Marlina', 'Hendra Kusuma', 'Fajar Nugroho'][array_rand([0, 1, 2, 3])] : null;
+            $assignorName = $needsAssignment ? $supervisorName : null;
             $assignedAt = $needsAssignment ? $createdAt->copy()->addHours(mt_rand(1, 48)) : null;
             $ditugaskanAt = in_array($status, ['Ditugaskan', 'Sedang Diperbaiki', 'Selesai'])
                 ? ($assignedAt ? $assignedAt->copy()->addHours(mt_rand(1, 24)) : null)
@@ -232,6 +235,14 @@ class ReportSeeder extends Seeder
                 : null;
             $perbaikanSelesaiAt = $status === 'Selesai'
                 ? ($perbaikanDimulaiAt ? $perbaikanDimulaiAt->copy()->addDays(mt_rand(2, 14)) : $createdAt->copy()->addDays(mt_rand(6, 14)))
+                : null;
+
+            $deadlineReview = $this->calcDeadline($priority, 'review_hours', 72, $createdAt);
+            $deadlineResolusi = $this->calcDeadline($priority, 'resolution_hours', 168, $perbaikanDimulaiAt ?? $ditugaskanAt ?? $createdAt);
+
+            // estimasi_hari: hanya untuk laporan yang sudah mulai perbaikan
+            $estimasiHari = in_array($status, ['Sedang Diperbaiki', 'Selesai'])
+                ? mt_rand(3, 30)
                 : null;
 
             $reportData = [
@@ -251,8 +262,8 @@ class ReportSeeder extends Seeder
                 'ai_severity' => $severityShort,
                 'ai_confidence' => $aiConfidence,
                 'system_notes' => match ($status) {
-                    'Ditolak' => 'Laporan ditolak: ' . ['Koordinat tidak valid', 'Foto tidak jelas', 'Bukan kerusakan jalan', 'Duplikat', 'Lainnya'][mt_rand(0, 4)],
-                    'Selesai' => 'Perbaikan selesai dilaksanakan oleh ' . $user->name,
+                    'Ditolak' => 'Laporan ditolak: '.['Koordinat tidak valid', 'Foto tidak jelas', 'Bukan kerusakan jalan', 'Duplikat', 'Lainnya'][mt_rand(0, 4)],
+                    'Selesai' => 'Perbaikan selesai dilaksanakan oleh '.$user->name,
                     default => 'Laporan dibuat melalui aplikasi JalanKita',
                 },
                 'catatan_petugas' => match (mt_rand(0, 3)) {
@@ -263,12 +274,11 @@ class ReportSeeder extends Seeder
                 },
                 'kerusakan_panjang' => round(0.5 + mt_rand() / mt_getrandmax() * 4.5, 2),
                 'kerusakan_lebar' => round(0.3 + mt_rand() / mt_getrandmax() * 2.7, 2),
+                'estimasi_hari' => $estimasiHari,
                 'deadline_review' => $deadlineReview,
                 'deadline_resolusi' => in_array($status, ['Sedang Diperbaiki', 'Selesai']) ? $deadlineResolusi : null,
-                'deadline_mulai' => in_array($status, ['Ditugaskan', 'Sedang Diperbaiki', 'Selesai']) ? $deadlineMulai : null,
                 'terlambat_review' => $deadlineReview->isPast() && in_array($status, ['Menunggu Review', 'Ditinjau']),
                 'terlambat_resolusi' => $deadlineResolusi?->isPast() && in_array($status, ['Sedang Diperbaiki', 'Selesai']),
-                'terlambat_mulai' => $deadlineMulai?->isPast() && in_array($status, ['Disetujui', 'Ditugaskan', 'Sedang Diperbaiki', 'Selesai']),
                 'assigned_team_id' => $needsAssignment ? $teamId : null,
                 'assigned_at' => $assignedAt,
                 'ditugaskan_at' => $ditugaskanAt,
@@ -287,20 +297,18 @@ class ReportSeeder extends Seeder
                 $reportData['image_original_path'] = $imagePath;
             }
 
-            if ($status === 'Baik') {
+            if ($severity === 'Baik') {
                 $reportData['total_detections'] = 0;
                 $reportData['ai_jenis_kerusakan'] = null;
                 $reportData['ai_severity'] = null;
                 $reportData['ai_confidence'] = null;
             }
 
-            $report = Report::create($reportData);
+            // ── Bypass ReportObserver agar tidak double-log dengan actor null ──
+            $report = Report::withoutEvents(fn () => Report::create($reportData));
 
-            if ($needsAssignment && $ditugaskanAt) {
-                $report->timestamps = false;
-                $report->update(['ditugaskan_at' => $ditugaskanAt]);
-                $report->timestamps = true;
-            }
+            // ── status_logs: INSERT manual dengan timeline & actor yang akurat ──
+            $this->insertStatusLogs($report->id, $status, $user->name, $supervisorName, $createdAt, $assignedAt, $ditugaskanAt, $perbaikanDimulaiAt, $perbaikanSelesaiAt);
 
             $photoCount = $isBatch ? mt_rand(3, 6) : mt_rand(1, 2);
 
@@ -325,7 +333,7 @@ class ReportSeeder extends Seeder
                     'report_id' => $report->id,
                     'reporter_name' => $user->name,
                     'image_original_path' => $photoPath,
-                    'image_hash' => hash('sha256', $report->id . $i . $j . time() . Str::random(8)),
+                    'image_hash' => hash('sha256', $report->id.$i.$j.time().Str::random(8)),
                     'latitude' => $photoLat,
                     'longitude' => $photoLng,
                     'koordinat_sumber' => 'exif',
@@ -365,26 +373,25 @@ class ReportSeeder extends Seeder
                     ReportAfterPhoto::create([
                         'report_id' => $report->id,
                         'file_path' => $afterPath,
-                        'file_hash' => hash('sha256', $report->id . '_after_' . $a . Str::random(4)),
+                        'file_hash' => hash('sha256', $report->id.'_after_'.$a.Str::random(4)),
                         'sort_order' => $a,
                         'created_at' => $perbaikanSelesaiAt ?? $createdAt,
                         'updated_at' => $perbaikanSelesaiAt ?? $createdAt,
                     ]);
                 }
 
-                $report->update([
+                // update after_photo di reports — bypass observer (tidak ada perubahan status)
+                Report::withoutEvents(fn () => $report->update([
                     'after_photo_path' => $afterPath ?? null,
-                    'after_photo_hash' => hash('sha256', $report->id . '_after'),
+                    'after_photo_hash' => hash('sha256', $report->id.'_after'),
                     'after_photo_notes' => 'Perbaikan selesai dilaksanakan',
-                ]);
+                ]));
             }
 
-            if ($status === 'Disetujui' && $teamId && isset($surveyByTeam[$teamId]) && count($surveyByTeam[$teamId]) > 0) {
+            $hasSurvey = $teamId && isset($surveyByTeam[$teamId]) && count($surveyByTeam[$teamId]) > 0;
+            if ($hasSurvey && in_array($status, ['Disetujui', 'Ditugaskan', 'Sedang Diperbaiki', 'Selesai'])) {
                 $st = $surveyByTeam[$teamId][mt_rand(0, count($surveyByTeam[$teamId]) - 1)];
-                $report->update(['survey_task_id' => $st->id]);
-            } elseif (in_array($status, ['Ditugaskan', 'Sedang Diperbaiki', 'Selesai']) && $teamId && isset($surveyByTeam[$teamId]) && count($surveyByTeam[$teamId]) > 0) {
-                $st = $surveyByTeam[$teamId][mt_rand(0, count($surveyByTeam[$teamId]) - 1)];
-                $report->update(['survey_task_id' => $st->id]);
+                Report::withoutEvents(fn () => $report->update(['survey_task_id' => $st->id]));
             }
 
             $this->command->getOutput()->progressAdvance();
@@ -400,32 +407,32 @@ class ReportSeeder extends Seeder
                 'status' => 'Menunggu Review', 'priority' => 'Tinggi', 'severity' => 'Rusak Ringan',
                 'createdAt' => now()->subMinutes(1430), // 23j 50m
                 'deadlineReview' => now()->addMinutes(10),
-                'deadline_resolusi' => null, 'deadline_mulai' => null,
-                'terlambat_review' => false, 'terlambat_resolusi' => false, 'terlambat_mulai' => false,
+                'deadline_resolusi' => null,
+                'terlambat_review' => false, 'terlambat_resolusi' => false,
             ],
             // Index 61: Menunggu Review, deadline review sudah lewat 5 menit
             [
                 'status' => 'Menunggu Review', 'priority' => 'Tinggi', 'severity' => 'Rusak Sedang',
                 'createdAt' => now()->subMinutes(1445), // 24j 5m
                 'deadlineReview' => now()->subMinutes(5),
-                'deadline_resolusi' => null, 'deadline_mulai' => null,
-                'terlambat_review' => true, 'terlambat_resolusi' => false, 'terlambat_mulai' => false,
+                'deadline_resolusi' => null,
+                'terlambat_review' => true, 'terlambat_resolusi' => false,
             ],
             // Index 62: Ditinjau, deadline review 30 menit lagi
             [
                 'status' => 'Ditinjau', 'priority' => 'Tinggi', 'severity' => 'Rusak Berat',
                 'createdAt' => now()->subMinutes(1410), // 23j 30m
                 'deadlineReview' => now()->addMinutes(30),
-                'deadline_resolusi' => null, 'deadline_mulai' => null,
-                'terlambat_review' => false, 'terlambat_resolusi' => false, 'terlambat_mulai' => false,
+                'deadline_resolusi' => null,
+                'terlambat_review' => false, 'terlambat_resolusi' => false,
             ],
             // Index 63: Sedang Diperbaiki, deadline resolusi 10 menit lagi
             [
                 'status' => 'Sedang Diperbaiki', 'priority' => 'Sedang', 'severity' => 'Rusak Sedang',
                 'createdAt' => now()->subDays(10),
                 'deadlineReview' => now()->subDays(7),
-                'deadline_resolusi' => now()->addMinutes(10), 'deadline_mulai' => now()->subDays(5),
-                'terlambat_review' => false, 'terlambat_resolusi' => false, 'terlambat_mulai' => false,
+                'deadline_resolusi' => now()->addMinutes(10),
+                'terlambat_review' => false, 'terlambat_resolusi' => false,
                 'perbaikanDimulaiAt' => now()->subDays(7),
             ],
             // Index 64: Sedang Diperbaiki, deadline resolusi sudah lewat 5 menit
@@ -433,8 +440,8 @@ class ReportSeeder extends Seeder
                 'status' => 'Sedang Diperbaiki', 'priority' => 'Tinggi', 'severity' => 'Rusak Berat',
                 'createdAt' => now()->subDays(6),
                 'deadlineReview' => now()->subDays(5),
-                'deadline_resolusi' => now()->subMinutes(5), 'deadline_mulai' => now()->subDays(3),
-                'terlambat_review' => false, 'terlambat_resolusi' => true, 'terlambat_mulai' => false,
+                'deadline_resolusi' => now()->subMinutes(5),
+                'terlambat_review' => false, 'terlambat_resolusi' => true,
                 'perbaikanDimulaiAt' => now()->subDays(3),
             ],
             // Index 65: Sedang Diperbaiki, deadline resolusi 30 menit lagi (Rendah)
@@ -442,8 +449,8 @@ class ReportSeeder extends Seeder
                 'status' => 'Sedang Diperbaiki', 'priority' => 'Rendah', 'severity' => 'Rusak Ringan',
                 'createdAt' => now()->subDays(21),
                 'deadlineReview' => now()->subDays(14),
-                'deadline_resolusi' => now()->addMinutes(30), 'deadline_mulai' => now()->subDays(15),
-                'terlambat_review' => false, 'terlambat_resolusi' => false, 'terlambat_mulai' => false,
+                'deadline_resolusi' => now()->addMinutes(30),
+                'terlambat_review' => false, 'terlambat_resolusi' => false,
                 'perbaikanDimulaiAt' => now()->subDays(14)->addMinutes(30),
             ],
             // Index 66: Ditugaskan, deadline mulai 10 menit lagi
@@ -451,18 +458,18 @@ class ReportSeeder extends Seeder
                 'status' => 'Ditugaskan', 'priority' => 'Tinggi', 'severity' => 'Rusak Sedang',
                 'createdAt' => now()->subDays(2)->subHours(2),
                 'deadlineReview' => now()->subDays(1),
-                'deadline_resolusi' => null, 'deadline_mulai' => now()->addMinutes(10),
-                'terlambat_review' => false, 'terlambat_resolusi' => false, 'terlambat_mulai' => false,
+                'deadline_resolusi' => null,
+                'terlambat_review' => false, 'terlambat_resolusi' => false,
                 'ditugaskanAt' => now()->subHours(23)->subMinutes(50),
                 'assignedAt' => now()->subDays(1)->subHours(2),
             ],
         ];
 
-        $this->command->warn('Menambahkan ' . count($specialConfigs) . ' laporan khusus dengan deadline dekat...');
+        $this->command->warn('Menambahkan '.count($specialConfigs).' laporan khusus dengan deadline dekat...');
         $this->command->getOutput()->progressStart(count($specialConfigs));
 
         foreach ($specialConfigs as $spIdx => $cfg) {
-            $reportCode = 'LP-' . date('Y') . '-' . str_pad($nextNumber++, 5, '0', STR_PAD_LEFT);
+            $reportCode = 'LP-'.date('Y').'-'.str_pad($nextNumber++, 5, '0', STR_PAD_LEFT);
             $user = $petugasAgus;
             $teamId = $teamsByUser[$user->id];
             $district = self::KECAMATAN[array_rand(self::KECAMATAN)];
@@ -473,18 +480,24 @@ class ReportSeeder extends Seeder
             $imagePath = $this->downloadImage($dirName, 'reports');
 
             $severityShort = match ($cfg['severity']) {
-                'Rusak Berat' => 'berat', 'Rusak Sedang' => 'sedang', default => 'ringan',
+                'Rusak Berat' => 'berat',
+                'Rusak Sedang' => 'sedang',
+                default => 'ringan',
             };
             $aiDamageType = self::DAMAGE_TYPES[array_rand(self::DAMAGE_TYPES)];
             $aiConfidence = round(0.65 + mt_rand() / mt_getrandmax() * 0.34, 3);
 
-            $report = Report::create([
+            // estimasi_hari untuk laporan khusus Sedang Diperbaiki
+            $spEstimasiHari = $cfg['status'] === 'Sedang Diperbaiki' ? mt_rand(3, 14) : null;
+
+            $report = Report::withoutEvents(fn () => Report::create([
                 'report_code' => $reportCode,
                 'user_id' => $user->id,
                 'reporter_name' => $user->name,
                 'road_name' => self::ROAD_NAMES[array_rand(self::ROAD_NAMES)],
                 'district' => $district,
-                'latitude' => $lat, 'longitude' => $lng,
+                'latitude' => $lat,
+                'longitude' => $lng,
                 'koordinat_sumber' => 'exif',
                 'total_detections' => mt_rand(1, 5),
                 'overall_severity' => $cfg['severity'],
@@ -497,12 +510,11 @@ class ReportSeeder extends Seeder
                 'catatan_petugas' => null,
                 'kerusakan_panjang' => round(0.5 + mt_rand() / mt_getrandmax() * 4.5, 2),
                 'kerusakan_lebar' => round(0.3 + mt_rand() / mt_getrandmax() * 2.7, 2),
+                'estimasi_hari' => $spEstimasiHari,
                 'deadline_review' => $cfg['deadlineReview'],
                 'deadline_resolusi' => $cfg['deadline_resolusi'],
-                'deadline_mulai' => $cfg['deadline_mulai'],
                 'terlambat_review' => $cfg['terlambat_review'],
                 'terlambat_resolusi' => $cfg['terlambat_resolusi'],
-                'terlambat_mulai' => $cfg['terlambat_mulai'],
                 'assigned_team_id' => in_array($cfg['status'], ['Ditugaskan', 'Sedang Diperbaiki']) ? $teamId : null,
                 'assigned_at' => $cfg['assignedAt'] ?? null,
                 'ditugaskan_at' => $cfg['ditugaskanAt'] ?? null,
@@ -513,7 +525,17 @@ class ReportSeeder extends Seeder
                 'image_original_path' => $imagePath,
                 'created_at' => $cfg['createdAt'],
                 'updated_at' => $cfg['createdAt'],
-            ]);
+            ]));
+
+            // status_logs manual untuk laporan khusus
+            $this->insertStatusLogs(
+                $report->id, $cfg['status'], $user->name, 'Budi Santoso',
+                $cfg['createdAt'],
+                $cfg['assignedAt'] ?? null,
+                $cfg['ditugaskanAt'] ?? null,
+                $cfg['perbaikanDimulaiAt'] ?? null,
+                null
+            );
 
             // 1 foto untuk setiap laporan khusus
             $photoDir = self::DATASET_DIRS[($spIdx + 5) % $dirCount];
@@ -522,8 +544,9 @@ class ReportSeeder extends Seeder
                 'report_id' => $report->id,
                 'reporter_name' => $user->name,
                 'image_original_path' => $photoPath,
-                'image_hash' => hash('sha256', $report->id . Str::random(8)),
-                'latitude' => $lat, 'longitude' => $lng,
+                'image_hash' => hash('sha256', $report->id.Str::random(8)),
+                'latitude' => $lat,
+                'longitude' => $lng,
                 'koordinat_sumber' => 'exif',
                 'ai_jenis_kerusakan' => self::DAMAGE_TYPES[array_rand(self::DAMAGE_TYPES)],
                 'ai_severity' => $severityShort,
@@ -539,14 +562,170 @@ class ReportSeeder extends Seeder
             // Survey task link
             if ($teamId && isset($surveyByTeam[$teamId]) && count($surveyByTeam[$teamId]) > 0) {
                 $st = $surveyByTeam[$teamId][mt_rand(0, count($surveyByTeam[$teamId]) - 1)];
-                $report->update(['survey_task_id' => $st->id]);
+                Report::withoutEvents(fn () => $report->update(['survey_task_id' => $st->id]));
             }
 
             $this->command->getOutput()->progressAdvance();
         }
 
         $this->command->getOutput()->progressFinish();
-        $this->command->info("\n✓ " . count($specialConfigs) . " laporan khusus deadline dekat berhasil ditambahkan.");
+        $this->command->info("\n✓ ".count($specialConfigs).' laporan khusus deadline dekat berhasil ditambahkan.');
+    }
+
+    // ── Helper: Insert status_logs manual per transisi ─────────────────────────
+
+    /**
+     * Insert status_logs sesuai transisi status laporan.
+     * Tiap transisi memiliki actor + timestamp yang akurat.
+     *
+     * Alur nyata (approve() langsung jadi Ditugaskan, tidak ada Disetujui murni):
+     *   Laporan baru         → Menunggu Review  (petugas)
+     *   supervisor review    → Ditinjau         (supervisor)
+     *   supervisor approve   → Ditugaskan       (supervisor, bukan Disetujui)
+     *   petugas mulai        → Sedang Diperbaiki (petugas)
+     *   petugas selesai      → Selesai           (petugas)
+     *
+     * Status Disetujui & Ditolak tidak bisa dicapai lewat workflow normal:
+     *   Disetujui → hanya via bulkApprove (set Disetujui tanpa auto-assign)
+     *   Ditolak   → via tolak()
+     */
+    private function insertStatusLogs(
+        string $reportId,
+        string $finalStatus,
+        string $petugasName,
+        string $supervisorName,
+        Carbon $createdAt,
+        ?Carbon $assignedAt,
+        ?Carbon $ditugaskanAt,
+        ?Carbon $perbaikanDimulaiAt,
+        ?Carbon $perbaikanSelesaiAt,
+    ): void {
+        $logs = [];
+
+        // 1. Laporan dibuat → Menunggu Review
+        $logs[] = [
+            'id' => (string) Str::uuid(),
+            'report_id' => $reportId,
+            'old_status' => null,
+            'new_status' => 'Menunggu Review',
+            'actor_name' => $petugasName,
+            'actor_role' => 'petugas',
+            'notes' => 'Laporan dibuat',
+            'created_at' => $createdAt->toDateTimeString(),
+        ];
+
+        if ($finalStatus === 'Menunggu Review') {
+            StatusLog::insert($logs);
+
+            return;
+        }
+
+        // 2. Supervisor mulai review → Ditinjau
+        $ditinjauAt = ($assignedAt ?? $createdAt->copy()->addHours(mt_rand(2, 12)))->toDateTimeString();
+        $logs[] = [
+            'id' => (string) Str::uuid(),
+            'report_id' => $reportId,
+            'old_status' => 'Menunggu Review',
+            'new_status' => 'Ditinjau',
+            'actor_name' => $supervisorName,
+            'actor_role' => 'supervisor',
+            'notes' => 'Laporan sedang direview',
+            'created_at' => $ditinjauAt,
+        ];
+
+        if ($finalStatus === 'Ditinjau') {
+            StatusLog::insert($logs);
+
+            return;
+        }
+
+        // 3a. Ditolak
+        if ($finalStatus === 'Ditolak') {
+            $alasanPool = ['Koordinat tidak valid', 'Foto tidak jelas', 'Bukan kerusakan jalan', 'Duplikat laporan'];
+            $logs[] = [
+                'id' => (string) Str::uuid(),
+                'report_id' => $reportId,
+                'old_status' => 'Ditinjau',
+                'new_status' => 'Ditolak',
+                'actor_name' => $supervisorName,
+                'actor_role' => 'supervisor',
+                'notes' => $alasanPool[array_rand($alasanPool)],
+                'created_at' => $ditinjauAt,
+            ];
+            StatusLog::insert($logs);
+
+            return;
+        }
+
+        // 3b. Disetujui (via bulkApprove — tidak auto-assign)
+        if ($finalStatus === 'Disetujui') {
+            $logs[] = [
+                'id' => (string) Str::uuid(),
+                'report_id' => $reportId,
+                'old_status' => 'Ditinjau',
+                'new_status' => 'Disetujui',
+                'actor_name' => $supervisorName,
+                'actor_role' => 'supervisor',
+                'notes' => 'Laporan disetujui, menunggu penugasan tim',
+                'created_at' => ($assignedAt ?? $createdAt->copy()->addHours(mt_rand(4, 24)))->toDateTimeString(),
+            ];
+            StatusLog::insert($logs);
+
+            return;
+        }
+
+        // 4. Ditugaskan (approve() langsung → Ditugaskan)
+        $ditugaskanTs = ($ditugaskanAt ?? $assignedAt ?? $createdAt->copy()->addHours(mt_rand(4, 48)))->toDateTimeString();
+        $logs[] = [
+            'id' => (string) Str::uuid(),
+            'report_id' => $reportId,
+            'old_status' => 'Ditinjau',
+            'new_status' => 'Ditugaskan',
+            'actor_name' => $supervisorName,
+            'actor_role' => 'supervisor',
+            'notes' => 'Disetujui dan ditugaskan ke tim',
+            'created_at' => $ditugaskanTs,
+        ];
+
+        if ($finalStatus === 'Ditugaskan') {
+            StatusLog::insert($logs);
+
+            return;
+        }
+
+        // 5. Sedang Diperbaiki
+        $mulaiTs = ($perbaikanDimulaiAt ?? $createdAt->copy()->addDays(mt_rand(1, 3)))->toDateTimeString();
+        $logs[] = [
+            'id' => (string) Str::uuid(),
+            'report_id' => $reportId,
+            'old_status' => 'Ditugaskan',
+            'new_status' => 'Sedang Diperbaiki',
+            'actor_name' => $petugasName,
+            'actor_role' => 'petugas',
+            'notes' => 'Pengerjaan perbaikan dimulai',
+            'created_at' => $mulaiTs,
+        ];
+
+        if ($finalStatus === 'Sedang Diperbaiki') {
+            StatusLog::insert($logs);
+
+            return;
+        }
+
+        // 6. Selesai
+        $selesaiTs = ($perbaikanSelesaiAt ?? $createdAt->copy()->addDays(mt_rand(5, 14)))->toDateTimeString();
+        $logs[] = [
+            'id' => (string) Str::uuid(),
+            'report_id' => $reportId,
+            'old_status' => 'Sedang Diperbaiki',
+            'new_status' => 'Selesai',
+            'actor_name' => $petugasName,
+            'actor_role' => 'petugas',
+            'notes' => 'Perbaikan selesai dilaksanakan',
+            'created_at' => $selesaiTs,
+        ];
+
+        StatusLog::insert($logs);
     }
 
     private function downloadImage(string $dirName, string $subdir): string
@@ -554,14 +733,15 @@ class ReportSeeder extends Seeder
         $url = "https://raw.githubusercontent.com/biankatpas/Cracks-and-Potholes-in-Road-Images-Dataset/master/Dataset/{$dirName}/{$dirName}_RAW.jpg";
 
         if (isset($this->downloaded[$url])) {
-            $filename = Str::uuid() . '.jpg';
-            $path = $subdir . '/' . $filename;
+            $filename = Str::uuid().'.jpg';
+            $path = $subdir.'/'.$filename;
             Storage::disk('public')->put($path, $this->downloaded[$url]);
+
             return $path;
         }
 
-        $filename = Str::uuid() . '.jpg';
-        $path = $subdir . '/' . $filename;
+        $filename = Str::uuid().'.jpg';
+        $path = $subdir.'/'.$filename;
 
         $context = stream_context_create([
             'http' => [
@@ -601,12 +781,14 @@ class ReportSeeder extends Seeder
         $imageData = ob_get_clean();
         imagedestroy($img);
         Storage::disk('public')->put($path, $imageData);
+
         return $path;
     }
 
-    private function calcDeadline(string $priority, string $key, int $default, \Carbon\Carbon $fromDate): \Carbon\Carbon
+    private function calcDeadline(string $priority, string $key, int $default, Carbon $fromDate): Carbon
     {
         $hours = config("deadline.{$priority}.{$key}", $default);
+
         return $fromDate->copy()->addHours((int) $hours);
     }
 
@@ -626,6 +808,7 @@ class ReportSeeder extends Seeder
                 ],
             ];
         }
+
         return ['detections' => $detections, 'model' => 'yolov8s_ensemble'];
     }
 }

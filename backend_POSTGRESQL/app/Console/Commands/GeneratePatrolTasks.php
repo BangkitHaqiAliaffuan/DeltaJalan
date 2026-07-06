@@ -19,11 +19,6 @@ class GeneratePatrolTasks extends Command
 
     protected $description = 'Generate survey tasks from active patrol schedules';
 
-    private const DAY_MAP = [
-        'Minggu' => 0, 'Senin' => 1, 'Selasa' => 2, 'Rabu' => 3,
-        'Kamis' => 4, 'Jumat' => 5, 'Sabtu' => 6,
-    ];
-
     public function handle(): int
     {
         $days = (int) $this->option('days');
@@ -56,10 +51,7 @@ class GeneratePatrolTasks extends Command
                 ? min($end, Carbon::parse($schedule->end_date)->endOfDay())
                 : $end;
 
-            $dayNumbers = array_map(fn ($d) => self::DAY_MAP[$d] ?? -1, $schedule->hari ?? []);
-            $dayNumbers = array_filter($dayNumbers, fn ($n) => $n >= 0);
-
-            $generated = $this->generateForSchedule($schedule, $scheduleStart, $scheduleEnd, $dayNumbers);
+            $generated = $this->generateForSchedule($schedule, $scheduleStart, $scheduleEnd);
             $totalGenerated += $generated;
 
             if ($generated > 0) {
@@ -83,7 +75,7 @@ class GeneratePatrolTasks extends Command
         return 0;
     }
 
-    private function generateForSchedule(PatrolSchedule $schedule, Carbon $start, Carbon $end, array $dayNumbers): int
+    private function generateForSchedule(PatrolSchedule $schedule, Carbon $start, Carbon $end): int
     {
         $current = $start->copy()->startOfDay();
         $endDate = $end->copy()->startOfDay();
@@ -91,10 +83,19 @@ class GeneratePatrolTasks extends Command
         $batch = [];
         $kecList = $schedule->kecamatan_list ?? [];
         $kecCount = count($kecList);
+
         $kecIndex = 0;
+        $tempCursor = Carbon::parse($schedule->start_date)->startOfDay();
+        $genStartCursor = $start->copy()->startOfDay();
+        while ($tempCursor < $genStartCursor) {
+            if ($schedule->isPatrolDay($tempCursor)) {
+                $kecIndex++;
+            }
+            $tempCursor->addDay();
+        }
 
         while ($current <= $endDate) {
-            if (in_array((int) $current->format('w'), $dayNumbers)) {
+            if ($schedule->isPatrolDay($current)) {
                 if ($kecCount === 0) {
                     break;
                 }

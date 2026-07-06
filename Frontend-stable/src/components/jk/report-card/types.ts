@@ -12,6 +12,12 @@ export interface ActionButton {
   disabled?: boolean;
 }
 
+export interface CardLink {
+  to: string;
+  params?: Record<string, string>;
+  search?: Record<string, string>;
+}
+
 export interface ReportCardOptions {
   showTrust?: boolean;
   showDeadline?: boolean;
@@ -22,4 +28,5 @@ export interface ReportCardProps {
   report: Laporan;
   actions?: ActionButton[];
   options?: ReportCardOptions;
+  cardLink?: CardLink;
 }

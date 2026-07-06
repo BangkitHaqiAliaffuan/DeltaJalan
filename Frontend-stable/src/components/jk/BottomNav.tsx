@@ -17,6 +17,12 @@ const SUPERVISOR_ITEMS = [
   { to: "/stats", icon: "bar_chart", label: "Statistik" },
 ] as const;
 
+const WARGA_ITEMS = [
+  { to: "/warga", icon: "home", label: "Beranda" },
+  { to: "/warga/peta", icon: "map", label: "Peta" },
+  { to: "/warga/laporan", icon: "description", label: "Laporan" },
+] as const;
+
 export function BottomNav() {
   const { pathname } = useLocation();
   const [user, setUser] = useState<ReturnType<typeof getCurrentUser>>(null);
@@ -27,8 +33,10 @@ export function BottomNav() {
 
   if (!user) return null;
 
-  const isPetugas = user?.role === "petugas";
-  const items = isPetugas ? PETUGAS_ITEMS : SUPERVISOR_ITEMS;
+  const role = user?.role;
+  const isPetugas = role === "petugas";
+  const isWarga = role === "warga";
+  const items = isWarga ? WARGA_ITEMS : (isPetugas ? PETUGAS_ITEMS : SUPERVISOR_ITEMS);
 
   return (
     <nav
@@ -51,11 +59,11 @@ export function BottomNav() {
         );
       })}
 
-      {isPetugas && (
+      {(isPetugas || isWarga) && (
         <Link
-          to="/upload"
+          to={isWarga ? "/warga/lapor" : "/upload"}
           className={`absolute left-1/2 -translate-x-1/2 -top-5 w-12 h-12 rounded-full flex items-center justify-center shadow-lg shadow-primary/30 transition-transform active:scale-90 z-10 ${
-            pathname === "/upload" ? "bg-primary-dark" : "bg-primary"
+            pathname === (isWarga ? "/warga/lapor" : "/upload") ? "bg-primary-dark" : "bg-primary"
           }`}
         >
           <Icon name="add" className="!text-2xl font-bold text-white" />
