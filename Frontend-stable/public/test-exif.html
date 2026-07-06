@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Test EXIF — JalanKita</title>
   <script src="https://cdn.jsdelivr.net/npm/exifr@latest/dist/exifr.min.js"></script>
+  <script>window.__API_BASE_URL__=null</script>
   <style>
     * { box-sizing: border-box; margin: 0; }
     body {
@@ -200,7 +201,11 @@ const serverInput = $('server'), infoBar = $('infoBar'), overallStatus = $('over
 
 function baseUrl() {
   let u = serverInput.value.trim().replace(/\/+$/, '');
-  return u;
+  if (u) return u;
+  if (window.__API_BASE_URL__) {
+    return window.__API_BASE_URL__.replace(/\/api\/?$/, '');
+  }
+  return '';
 }
 
 function esc(s) {
@@ -413,6 +418,11 @@ function renderServerXtool(data, containerId) {
 // ── Render Comparison ───────────────────────────────────────
 function renderComparison(client, server) {
   const el = $('compareContent');
+
+  if (!server) {
+    el.innerHTML = '<div class="error-box">❌ Server tidak merespon. Periksa input Server atau koneksi ke backend.</div>';
+    return;
+  }
 
   const cDef = client.default;
   const cFull = client.full;
