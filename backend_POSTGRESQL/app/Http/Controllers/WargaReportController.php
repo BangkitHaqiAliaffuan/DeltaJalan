@@ -292,7 +292,7 @@ class WargaReportController extends Controller
     {
         try {
             $validated = $request->validate([
-                'report_code' => ['required', 'string', 'max:30'],
+                'report_code' => ['required', 'string', 'max:20'],
             ]);
         } catch (ValidationException $e) {
             return response()->json([

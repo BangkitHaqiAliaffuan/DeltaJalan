@@ -195,9 +195,13 @@ function getApiBaseUrl(): string {
     typeof (window as Record<string, unknown>).Capacitor !== "undefined" &&
     (window as Record<string, unknown>).Capacitor.isNativePlatform?.() === true
   ) {
-    return import.meta.env.VITE_API_BASE_URL ?? "http://10.0.2.2:8080/api";
+    const url = import.meta.env.VITE_API_BASE_URL ?? "http://10.0.2.2:8080/api";
+    console.log("[DEBUG] getApiBaseUrl — Capacitor path, VITE_API_BASE_URL:", import.meta.env.VITE_API_BASE_URL, "→ returns:", url);
+    return url;
   }
-  return "/api";
+  const url = import.meta.env.VITE_API_BASE_URL ?? "/api";
+  console.log("[DEBUG] getApiBaseUrl — Browser path, VITE_API_BASE_URL:", import.meta.env.VITE_API_BASE_URL, "→ returns:", url);
+  return url;
 }
 
 export const API_BASE_URL = getApiBaseUrl();

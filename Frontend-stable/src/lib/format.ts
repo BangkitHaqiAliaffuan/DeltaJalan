@@ -104,6 +104,7 @@ export function statusBadgeStyle(status: string): string {
 
 export function statusDotStyle(status: string): string {
   const map: Record<string, string> = {
+    "Menunggu Verifikasi": "bg-[#F59E0B]",
     "Menunggu Review": "bg-[#F59E0B]",
     Ditinjau: "bg-[#F59E0B]",
     "Hasil AI": "bg-[#7C3AED]",
