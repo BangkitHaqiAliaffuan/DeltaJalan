@@ -6,7 +6,7 @@
   "scripts": {
     "predev": "vite build --config vite.config.sw.ts",
     "dev": "vite dev --config vite.config.dev.ts",
-    "build": "vite build --config vite.config.sw.ts && vite build && node -e \"require('fs').copyFileSync('dist/client/_shell.html','dist/client/index.html')\"",
+    "build": "vite build --config vite.config.sw.ts && vite build && node -e \"process.env.VERCEL&&require('fs').copyFileSync('dist/client/_shell.html','dist/client/index.html')\"",
     "build:dev": "vite build --mode development",
     "build:mobile": "vite build --config vite.config.sw.ts && python build.py --build-only",
     "build:sw": "vite build --config vite.config.sw.ts",

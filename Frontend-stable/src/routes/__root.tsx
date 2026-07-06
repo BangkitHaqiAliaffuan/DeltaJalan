@@ -130,7 +130,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <HeadContent />
-      {children}
+      <div id="root">{children}</div>
       <Scripts />
       <Toaster
         position="top-right"
