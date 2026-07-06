@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test EXIF — JalanKita</title>
+  <script src="https://cdn.jsdelivr.net/npm/exifr@latest/dist/exifr.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f1f5f9;
+      padding: 12px;
+    }
+    .container { max-width: 960px; margin: 0 auto; }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.1);
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    h1 { font-size: 1.15rem; color: #0f172a; }
+    .sub { font-size: .8rem; color: #64748b; margin-bottom: 12px; }
+
+    .upload-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .upload-row input[type=file] { flex: 1; min-width: 160px; padding: 7px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: .85rem; }
+    .upload-row button {
+      padding: 8px 18px; background: #2563eb; color: #fff; border: none; border-radius: 8px;
+      font-size: .85rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+    }
+    .upload-row button:disabled { opacity: .5; cursor: not-allowed; }
+    .upload-row button:hover:not(:disabled) { background: #1d4ed8; }
+
+    .server-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+    .server-row input { flex: 1; min-width: 140px; padding: 5px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: .78rem; }
+    .server-row label { font-size: .78rem; font-weight: 600; color: #475569; white-space: nowrap; }
+    .server-row button { padding: 5px 10px; background: #64748b; color: #fff; border: none; border-radius: 6px; font-size: .72rem; cursor: pointer; }
+
+    .info-bar {
+      display: flex; gap: 12px; flex-wrap: wrap; font-size: .78rem; color: #475569; margin-top: 8px;
+    }
+    .info-bar span { background: #f8fafc; padding: 2px 8px; border-radius: 4px; }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
+    .tab {
+      padding: 6px 14px; border-radius: 8px 8px 0 0; font-size: .78rem; font-weight: 600;
+      cursor: pointer; background: #f1f5f9; color: #64748b; border: 1px solid transparent; margin-bottom: -1px;
+    }
+    .tab.active { background: #fff; color: #0f172a; border-color: #e2e8f0; border-bottom-color: #fff; }
+    .tab:hover:not(.active) { background: #e2e8f0; }
+    .tab .ck { font-size: .65rem; margin-left: 4px; }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .section { margin-top: 12px; }
+    .section-title {
+      font-size: .82rem; font-weight: 700; color: #0f172a;
+      padding: 6px 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 6px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .badge {
+      font-size: .62rem; font-weight: 600; padding: 1px 7px; border-radius: 10px; display: inline-block;
+    }
+    .badge.client { background: #dbeafe; color: #1e40af; }
+    .badge.server { background: #fef3c7; color: #92400e; }
+    .badge.xtool { background: #e0e7ff; color: #4338ca; }
+    .badge.match { background: #dcfce7; color: #166534; }
+    .badge.na { background: #f1f5f9; color: #64748b; }
+
+    table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+    th, td { text-align: left; padding: 3px 6px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    th { color: #64748b; font-weight: 600; width: 130px; }
+    td { color: #0f172a; font-family: 'JetBrains Mono','Consolas',monospace; word-break: break-all; font-size: .76rem; }
+    .null { color: #94a3b8; font-style: italic; }
+    .found { color: #166534; font-weight: 600; }
+    .miss { color: #991b1b; }
+
+    .status-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: .72rem; font-weight: 600;
+    }
+    .status-badge.success { background: #dcfce7; color: #166534; }
+    .status-badge.error { background: #fee2e2; color: #991b1b; }
+    .status-badge.pending { background: #f1f5f9; color: #64748b; }
+
+    .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 640px) { .compare-grid { grid-template-columns: 1fr; } }
+    .col { padding-left: 8px; }
+    .col-client { border-left: 3px solid #3b82f6; }
+    .col-server { border-left: 3px solid #f59e0b; }
+    .col-xtool { border-left: 3px solid #6366f1; }
+
+    .gps-status { font-size: .8rem; margin: 6px 0; }
+    .error-box { background: #fef2f2; color: #991b1b; padding: 10px; border-radius: 8px; font-size: .78rem; margin-top: 6px; }
+    .warn-box { background: #fffbeb; color: #92400e; padding: 10px; border-radius: 8px; font-size: .78rem; margin-top: 6px; }
+    .info-box { background: #eff6ff; color: #1e40af; padding: 10px; border-radius: 8px; font-size: .78rem; margin-top: 6px; }
+
+    .d2 { font-size: .72rem; color: #64748b; }
+    .time { font-size: .7rem; color: #94a3b8; margin-top: 4px; }
+
+    /* Comparison Table */
+    .cmp { width: 100%; border-collapse: collapse; font-size: .76rem; }
+    .cmp th { background: #f8fafc; padding: 4px 6px; text-align: center; font-size: .7rem; font-weight: 600; border: 1px solid #e2e8f0; }
+    .cmp td { padding: 3px 6px; border: 1px solid #e2e8f0; text-align: center; font-size: .72rem; }
+    .cmp .lbl { text-align: left; font-weight: 600; color: #334155; width: 90px; }
+    .cmp .y { color: #166534; }
+    .cmp .n { color: #991b1b; }
+    .cmp .na { color: #cbd5e1; }
+
+    /* Loading skeleton */
+    .loading-placeholder { padding: 20px; text-align: center; color: #94a3b8; font-size: .82rem; }
+
+    .flex-between { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="card">
+    <h1>Test EXIF — JalanKita</h1>
+    <p class="sub">Diagnosa EXIF: Client (JS exifr) vs Server (PHP) vs ExifTool (gold standard)</p>
+
+    <div class="upload-row">
+      <input type="file" id="fileInput" accept="*/*" style="display:none">
+      <button id="btnTest">📁 Pilih File</button>
+      <input type="file" id="cameraInput" accept="image/jpeg,image/png,image/heic,image/heif" capture="environment" style="display:none">
+      <button id="btnCamera">📷 Kamera</button>
+    </div>
+    <div class="upload-row" style="margin-top:6px;gap:8px;font-size:.78rem;color:#64748b">
+      <span>📱 Android: Pilih File → file manager (EXIF ✅) · Kamera → langsung capture (EXIF ✅)</span>
+    </div>
+    <div class="server-row">
+      <label for="server">Server:</label>
+      <input id="server" type="text" placeholder="kosong → pakai origin halaman ini">
+      <button id="btnPing">Ping</button>
+    </div>
+    <div id="infoBar" class="info-bar"></div>
+  </div>
+
+  <div class="card">
+    <div class="flex-between">
+      <div class="section-title">Hasil Parsing EXIF</div>
+      <span id="overallStatus" class="status-badge pending">Menunggu foto</span>
+    </div>
+
+    <!-- Tabs -->
+    <div id="tabBar" class="tabs">
+      <div class="tab active" data-tab="compare">Perbandingan</div>
+      <div class="tab" data-tab="client-default">Client Default</div>
+      <div class="tab" data-tab="client-full">Client Full File</div>
+      <div class="tab" data-tab="client-whole">Client Whole File</div>
+      <div class="tab" data-tab="server-php">Server PHP</div>
+      <div class="tab" data-tab="server-xtool">Server ExifTool</div>
+    </div>
+
+    <!-- Tab: Perbandingan -->
+    <div id="tab-compare" class="tab-content active">
+      <div id="compareContent"><p class="d2" style="padding:16px;text-align:center">Upload foto untuk melihat perbandingan</p></div>
+    </div>
+
+    <!-- Tab: Client Default -->
+    <div id="tab-client-default" class="tab-content">
+      <div class="section-title"><span class="badge client">CLIENT</span> exifr default (chunked)</div>
+      <div id="clientDefaultContent"></div>
+    </div>
+
+    <!-- Tab: Client Full File -->
+    <div id="tab-client-full" class="tab-content">
+      <div class="section-title"><span class="badge client">CLIENT</span> exifr chunked: false</div>
+      <div id="clientFullContent"></div>
+    </div>
+
+    <!-- Tab: Client Whole File -->
+    <div id="tab-client-whole" class="tab-content">
+      <div class="section-title"><span class="badge client">CLIENT</span> exifr wholeFile: true</div>
+      <div id="clientWholeContent"></div>
+    </div>
+
+    <!-- Tab: Server PHP -->
+    <div id="tab-server-php" class="tab-content">
+      <div class="section-title"><span class="badge server">SERVER</span> PHP exif_read_data</div>
+      <div id="serverPhpContent"></div>
+    </div>
+
+    <!-- Tab: Server ExifTool -->
+    <div id="tab-server-xtool" class="tab-content">
+      <div class="section-title"><span class="badge xtool">EXIFTOOL</span> Perl ExifTool</div>
+      <div id="serverXtoolContent"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const fileInput = $('fileInput'), btnTest = $('btnTest'), btnPing = $('btnPing');
+const cameraInput = $('cameraInput'), btnCamera = $('btnCamera');
+const serverInput = $('server'), infoBar = $('infoBar'), overallStatus = $('overallStatus');
+
+function baseUrl() {
+  let u = serverInput.value.trim().replace(/\/+$/, '');
+  return u;
+}
+
+function esc(s) {
+  if (s == null) return '<span class="null">null</span>';
+  const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML;
+}
+
+// ── Tab switching ────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    $(`tab-${tab.dataset.tab}`).classList.add('active');
+  });
+});
+
+function switchTab(name) {
+  const tab = document.querySelector(`.tab[data-tab="${name}"]`);
+  if (tab) tab.click();
+}
+
+// ── Render helpers ───────────────────────────────────────────
+function renderGps(gps) {
+  if (!gps) return '<p class="null" style="font-size:.8rem">❌ Tidak ditemukan</p>';
+  let h = '<table>';
+  const keys = ['latitude', 'longitude', 'altitude'];
+  keys.forEach(k => {
+    if (gps[k] != null) h += `<tr><th>${k}</th><td class="found">${esc(gps[k])}</td></tr>`;
+  });
+  if (gps.latitude != null && gps.longitude != null) {
+    h += `<tr><th>Google Maps</th><td><a href="https://www.google.com/maps?q=${gps.latitude},${gps.longitude}" target="_blank" style="color:#2563eb;font-size:.72rem">Buka Maps</a></td></tr>`;
+  }
+  h += '</table>';
+  return h;
+}
+
+function renderExifTable(obj, skipKeys = []) {
+  if (!obj || typeof obj !== 'object' || Object.keys(obj).length === 0) {
+    return '<p class="null" style="font-size:.8rem">Tidak ada data</p>';
+  }
+  let h = '<table>';
+  Object.entries(obj).forEach(([k, v]) => {
+    if (skipKeys.includes(k) || v == null) return;
+    h += `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`;
+  });
+  h += '</table>';
+  return h;
+}
+
+function renderExifrGps(gps) {
+  if (!gps) return null;
+  return { latitude: gps.latitude, longitude: gps.longitude, altitude: gps.altitude };
+}
+
+function makeSection(title, content) {
+  return `<div class="section"><div class="section-title">${title}</div>${content}</div>`;
+}
+
+function fmtMs(ms) { return ms != null ? `${Math.round(ms)} ms` : '-'; }
+
+// ── Client-side exifr parsing (3 modes) ─────────────────────
+async function parseClient(file) {
+  const modes = [
+    { key: 'default', label: 'Default', fn: () => exifr.parse(file) },
+    { key: 'full', label: 'Full File', fn: () => exifr.parse(file, { chunked: false }) },
+    { key: 'whole', label: 'Whole File', fn: () => exifr.parse(file, { wholeFile: true }) },
+  ];
+  const results = {};
+  for (const m of modes) {
+    const t0 = performance.now();
+    try {
+      const gps = await exifr.gps(file);
+      const all = await m.fn();
+      results[m.key] = {
+        success: true,
+        gps: renderExifrGps(gps),
+        all,
+        time: performance.now() - t0,
+        tagCount: all ? Object.keys(all).length : 0,
+      };
+    } catch (e) {
+      results[m.key] = { success: false, error: e.message, time: performance.now() - t0 };
+    }
+  }
+  return results;
+}
+
+// ── Server-side ─────────────────────────────────────────────
+async function parseServer(file) {
+  const fd = new FormData();
+  fd.append('image', file);
+  const t0 = performance.now();
+  const res = await fetch(baseUrl() + '/api/test/extract-exif', { method: 'POST', body: fd });
+  const time = performance.now() - t0;
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return { ...(await res.json()), networkTime: time };
+}
+
+// ── Render single client mode ───────────────────────────────
+function renderClientMode(data, containerId) {
+  const el = $(containerId);
+  if (!data.success) {
+    el.innerHTML = `<div class="error-box">❌ ${esc(data.error)}</div>`;
+    return;
+  }
+  const parts = data.all || {};
+  let h = `<p class="time">⏱ ${Math.round(data.time)} ms · ${data.tagCount} tag</p>`;
+
+  // GPS
+  h += makeSection('📍 GPS', renderGps(data.gps));
+
+  // Camera
+  const cam = {};
+  ['Make','Model','Software'].forEach(k => { if (parts[k] != null) cam[k] = parts[k]; });
+  if (Object.keys(cam).length) h += makeSection('📷 Kamera', renderExifTable(cam));
+
+  // Date
+  const dt = {};
+  ['DateTimeOriginal','CreateDate','ModifyDate','DateTimeDigitized'].forEach(k => {
+    if (parts[k] != null) dt[k] = parts[k] instanceof Date ? parts[k].toISOString() : String(parts[k]);
+  });
+  if (Object.keys(dt).length) h += makeSection('📅 Tanggal', renderExifTable(dt));
+
+  // Image
+  const img = {};
+  ['ImageWidth','ImageHeight','Orientation','ExifImageWidth','ExifImageHeight'].forEach(k => {
+    if (parts[k] != null) img[k] = parts[k];
+  });
+  if (Object.keys(img).length) h += makeSection('🖼 Gambar', renderExifTable(img));
+
+  // EXIF Sub
+  const ex = {};
+  ['ExposureTime','FNumber','ISOSpeedRatings','FocalLength','Flash','ExposureProgram','MeteringMode','WhiteBalance'].forEach(k => {
+    if (parts[k] != null) ex[k] = parts[k];
+  });
+  if (Object.keys(ex).length) h += makeSection('⚙ EXIF Sub', renderExifTable(ex));
+
+  el.innerHTML = h;
+}
+
+// ── Render Server PHP ───────────────────────────────────────
+function renderServerPhp(data, containerId) {
+  const el = $(containerId);
+  if (!data.exif) {
+    el.innerHTML = '<div class="error-box">❌ PHP gagal membaca EXIF</div>';
+    return;
+  }
+  let h = `<p class="time">⏱ ${fmtMs(data.diagnostic?.php_parse_time_ms)}</p>`;
+
+  // GPS from extractExifGps
+  h += makeSection('📍 GPS', renderGps(data.gps ? { latitude: data.gps.lat, longitude: data.gps.lng } : null));
+
+  const exif = data.exif;
+
+  // IFD0
+  if (exif.IFD0 && Object.keys(exif.IFD0).length) {
+    h += makeSection('📷 IFD0 (Kamera)', renderExifTable(exif.IFD0, ['THUMBNAIL']));
+  }
+  // EXIF Sub
+  if (exif.EXIF && Object.keys(exif.EXIF).length) {
+    h += makeSection('⚙ EXIF Sub', renderExifTable(exif.EXIF));
+  }
+  // COMPUTED
+  if (exif.COMPUTED && Object.keys(exif.COMPUTED).length) {
+    h += makeSection('🧮 Computed', renderExifTable(exif.COMPUTED));
+  }
+  // GPS Raw
+  if (exif.GPS && Object.keys(exif.GPS).length) {
+    h += makeSection('🛰 GPS Raw', renderExifTable(exif.GPS));
+  }
+
+  el.innerHTML = h;
+}
+
+// ── Render Server ExifTool ──────────────────────────────────
+function renderServerXtool(data, containerId) {
+  const el = $(containerId);
+  if (!data.exiftool) {
+    const reason = data.diagnostic?.has_exiftool === false
+      ? '<div class="warn-box">⚠ ExifTool tidak terinstall di server.<br>Install: <code>apt install libimage-exiftool-perl</code> (Linux) atau <code>choco install exiftool</code> (Windows)</div>'
+      : '<div class="error-box">❌ ExifTool gagal membaca EXIF</div>';
+    el.innerHTML = reason;
+    return;
+  }
+  let h = `<p class="time">⏱ ${fmtMs(data.diagnostic?.exiftool_time_ms)}</p>`;
+
+  const xt = data.exiftool;
+  // EXIF section (includes GPS tags)
+  if (xt.EXIF && Object.keys(xt.EXIF).length) {
+    h += makeSection('⚙ EXIF', renderExifTable(xt.EXIF));
+  }
+  // MakerNotes / IFD0 / XMP
+  ['IFD0','MakerNotes','XMP','Composite'].forEach(s => {
+    if (xt[s] && Object.keys(xt[s]).length) {
+      h += makeSection(`📦 ${s}`, renderExifTable(xt[s]));
+    }
+  });
+  // Other sections
+  Object.keys(xt).forEach(s => {
+    if (['GPS','EXIF','IFD0','MakerNotes','XMP','Composite'].includes(s)) return;
+    if (typeof xt[s] === 'object' && xt[s] !== null) {
+      h += makeSection(`📎 ${s}`, renderExifTable(xt[s]));
+    }
+  });
+
+  el.innerHTML = h;
+}
+
+// ── Render Comparison ───────────────────────────────────────
+function renderComparison(client, server) {
+  const el = $('compareContent');
+
+  const cDef = client.default;
+  const cFull = client.full;
+  const cWhole = client.whole;
+  const sPhp = server;
+  const sXt = server.exiftool;
+
+  const hasGps = (c) => c?.success && c?.gps?.latitude != null;
+  const gpsLat = (c) => c?.success ? (c?.gps?.latitude ?? null) : null;
+  const gpsLng = (c) => c?.success ? (c?.gps?.longitude ?? null) : null;
+  const getTag = (c, tag) => c?.success && c?.all ? (c.all[tag] ?? null) : null;
+  const getServerTag = (section, tag) => {
+    if (!sPhp?.exif?.[section]) return null;
+    return sPhp.exif[section][tag] ?? null;
+  };
+  const getXtoolTag = (section, tag) => {
+    if (!sXt?.[section]) return null;
+    return sXt[section][tag] ?? null;
+  };
+
+  const modeMap = [
+    { label: 'Default', key: 'default', gps: hasGps(cDef), lat: gpsLat(cDef), lng: gpsLng(cDef), make: getTag(cDef, 'Make'), model: getTag(cDef, 'Model'), dt: getTag(cDef, 'DateTimeOriginal') },
+    { label: 'Full File', key: 'full', gps: hasGps(cFull), lat: gpsLat(cFull), lng: gpsLng(cFull), make: getTag(cFull, 'Make'), model: getTag(cFull, 'Model'), dt: getTag(cFull, 'DateTimeOriginal') },
+    { label: 'Whole File', key: 'whole', gps: hasGps(cWhole), lat: gpsLat(cWhole), lng: gpsLng(cWhole), make: getTag(cWhole, 'Make'), model: getTag(cWhole, 'Model'), dt: getTag(cWhole, 'DateTimeOriginal') },
+    { label: 'PHP Server', key: 'php', gps: sPhp?.gps != null, lat: sPhp?.gps?.lat ?? null, lng: sPhp?.gps?.lng ?? null, make: getServerTag('IFD0', 'Make'), model: getServerTag('IFD0', 'Model'), dt: getServerTag('EXIF', 'DateTimeOriginal') },
+    { label: 'ExifTool', key: 'xt', gps: sXt?.EXIF?.GPSLatitude != null, lat: sXt?.EXIF?.GPSLatitude ?? null, lng: sXt?.EXIF?.GPSLongitude ?? null, make: sXt?.EXIF?.Make ?? sXt?.IFD0?.Make ?? null, model: sXt?.EXIF?.Model ?? sXt?.IFD0?.Model ?? null, dt: sXt?.EXIF?.DateTimeOriginal ?? null },
+  ];
+
+  let h = '<table class="cmp">';
+  h += '<tr><th class="lbl">Tag</th>';
+  modeMap.forEach(m => { h += `<th>${esc(m.label)}</th>`; });
+  h += '</tr>';
+
+  // GPS status row
+  h += '<tr><td class="lbl">📍 GPS</td>';
+  modeMap.forEach(m => {
+    const cls = m.gps ? 'y' : (m.key === 'xt' ? 'na' : 'n');
+    const txt = m.gps ? '✅' : (m.key === 'xt' ? '—' : '❌');
+    h += `<td class="${cls}">${txt}</td>`;
+  });
+  h += '</tr>';
+
+  // Lat
+  h += '<tr><td class="lbl">Latitude</td>';
+  modeMap.forEach(m => {
+    h += `<td>${m.lat != null ? esc(m.lat) : '<span class="na">-</span>'}</td>`;
+  });
+  h += '</tr>';
+
+  // Lng
+  h += '<tr><td class="lbl">Longitude</td>';
+  modeMap.forEach(m => {
+    h += `<td>${m.lng != null ? esc(m.lng) : '<span class="na">-</span>'}</td>`;
+  });
+  h += '</tr>';
+
+  // Make
+  h += '<tr><td class="lbl">Make</td>';
+  modeMap.forEach(m => {
+    h += `<td>${m.make != null ? esc(m.make) : '<span class="na">-</span>'}</td>`;
+  });
+  h += '</tr>';
+
+  // Model
+  h += '<tr><td class="lbl">Model</td>';
+  modeMap.forEach(m => {
+    h += `<td>${m.model != null ? esc(m.model) : '<span class="na">-</span>'}</td>`;
+  });
+  h += '</tr>';
+
+  // DateTimeOriginal
+  h += '<tr><td class="lbl">DateTime</td>';
+  modeMap.forEach(m => {
+    const val = m.dt;
+    h += `<td>${val != null ? esc(val).slice(0, 25) : '<span class="na">-</span>'}</td>`;
+  });
+  h += '</tr>';
+
+  h += '</table>';
+
+  // Summary recommendation
+  h += '<div class="section"><div class="section-title">Kesimpulan</div>';
+
+  const gpsFoundAny = modeMap.some(m => m.gps);
+  const gpsFoundClient = modeMap.slice(0, 3).some(m => m.gps);
+  const gpsFoundServer = sPhp?.gps != null;
+  const gpsFoundXtool = sXt?.EXIF?.GPSLatitude != null;
+
+  if (!gpsFoundAny) {
+    h += '<div class="warn-box">⚠ GPS tidak ditemukan di SEMUA metode parsing. Foto ini mungkin memang tidak memiliki metadata GPS.</div>';
+  } else if (!gpsFoundClient && gpsFoundServer) {
+    h += '<div class="info-box">💡 GPS hanya terbaca di SERVER — exifr di browser gagal. Coba upgrade ke <code>chunked: false</code> atau <code>wholeFile: true</code> di kode production.</div>';
+  } else if (gpsFoundClient && !gpsFoundServer && gpsFoundXtool) {
+    h += '<div class="warn-box">⚠ GPS hanya terbaca di CLIENT dan EXIFTOOL — PHP exif_read_data gagal. File mungkin HEIC atau format non-standar.</div>';
+  } else if (gpsFoundAny) {
+    h += '<div class="info-box" style="background:#dcfce7;color:#166534">✅ GPS terbaca. Mode client yang berhasil bisa dipakai untuk production config exifr.</div>';
+  }
+
+  // ExifTool not available warning
+  if (!server.diagnostic?.has_exiftool) {
+    h += '<div class="warn-box" style="margin-top:8px">⚠ ExifTool tidak terinstall — hasil "gold standard" tidak tersedia untuk verifikasi. Install untuk diagnosa lebih akurat.</div>';
+  }
+
+  // HEIC warning
+  if (server.file?.ext && ['heic','heif'].includes(server.file.ext)) {
+    h += '<div class="warn-box" style="margin-top:8px">📦 Foto terdeteksi sebagai HEIC/HEIF — exifr & PHP punya support terbatas untuk format ini. ExifTool jadi gold standard.</div>';
+  }
+
+  h += '</div>';
+
+  // Raw response toggle
+  h += `<div style="margin-top:12px"><button onclick="toggleRaw()" style="font-size:.72rem;padding:4px 10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;color:#64748b">Lihat Raw JSON</button></div>`;
+  h += `<div id="rawJson" style="display:none;margin-top:8px"><pre style="font-size:.65rem;background:#1e293b;color:#e2e8f0;padding:12px;border-radius:8px;overflow-x:auto;max-height:400px">${esc(JSON.stringify({ client, server }, null, 2))}</pre></div>`;
+
+  el.innerHTML = h;
+}
+
+function toggleRaw() {
+  const el = $('rawJson');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+// ── Main test ───────────────────────────────────────────────
+async function runTest(file, sourceLabel) {
+  const source = sourceLabel || '📁 File';
+  btnTest.disabled = true;
+  btnCamera.disabled = true;
+  overallStatus.className = 'status-badge pending';
+  overallStatus.textContent = 'Memproses...';
+
+  // Show file info
+  const sizeKB = (file.size / 1024).toFixed(1);
+  const ext = file.name.split('.').pop()?.toLowerCase() || '?';
+  infoBar.innerHTML = `<span>${source}</span><span>📄 ${esc(file.name)}</span><span>📦 ${sizeKB} KB</span><span>🏷 ${esc(file.type || ext)}</span>`;
+
+  // Clear all tabs
+  ['clientDefault','clientFull','clientWhole','serverPhp','serverXtool','compare'].forEach(id => {
+    $(`${id}Content` ? id + 'Content' : id).innerHTML = '<p class="d2" style="padding:16px;text-align:center">Memproses...</p>';
+  });
+
+  // Parse client (3 modes)
+  const clientResults = await parseClient(file);
+
+  // Render client tabs
+  renderClientMode(clientResults.default, 'clientDefaultContent');
+  renderClientMode(clientResults.full, 'clientFullContent');
+  renderClientMode(clientResults.whole, 'clientWholeContent');
+
+  // Parse server
+  let serverResult = null;
+  try {
+    serverResult = await parseServer(file);
+    renderServerPhp(serverResult, 'serverPhpContent');
+    renderServerXtool(serverResult, 'serverXtoolContent');
+  } catch (e) {
+    const errHtml = `<div class="error-box">❌ Server error: ${esc(e.message)}<br>Pastikan backend running di ${esc(baseUrl())}</div>`;
+    $('serverPhpContent').innerHTML = errHtml;
+    $('serverXtoolContent').innerHTML = errHtml;
+  }
+
+  // Render comparison
+  renderComparison(clientResults, serverResult);
+
+  // Update overall status
+  const gpsOk = clientResults.default?.success && clientResults.default?.gps?.latitude != null;
+  const serverGpsOk = serverResult?.gps != null;
+  if (gpsOk || serverGpsOk) {
+    overallStatus.className = 'status-badge success';
+    overallStatus.textContent = '✅ GPS ditemukan';
+  } else {
+    overallStatus.className = 'status-badge error';
+    overallStatus.textContent = '❌ GPS tidak ditemukan';
+  }
+
+  // Auto-switch to comparison tab
+  switchTab('compare');
+
+  btnTest.disabled = false;
+  btnCamera.disabled = false;
+}
+
+btnTest.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files[0];
+  if (!file) return;
+  runTest(file, '📁 Pilih File');
+  fileInput.value = '';
+});
+
+btnCamera.addEventListener('click', () => cameraInput.click());
+cameraInput.addEventListener('change', () => {
+  const file = cameraInput.files[0];
+  if (!file) return;
+  runTest(file, '📷 Kamera');
+  cameraInput.value = '';
+});
+
+// ── Ping ─────────────────────────────────────────────────────
+btnPing.addEventListener('click', async () => {
+  try {
+    const r = await fetch(baseUrl() + '/api/ping');
+    const text = await r.text();
+    alert(`PING ${r.status}\n\n${text.slice(0, 300)}`);
+  } catch (e) {
+    alert('PING FAILED: ' + e.message);
+  }
+});
+</script>
+</body>
+</html>
