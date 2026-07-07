@@ -4,9 +4,11 @@ import { useRef, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-
-gsap.registerPlugin(ScrollTrigger);
+import Counter from "@/components/ui/Counter";
+import AnimatedContent from "@/components/reactbits/AnimatedContent";
+import SplitText from "@/components/reactbits/SplitText";
+import DecryptedText from "@/components/reactbits/DecryptedText";
+import SpotlightCard from "@/components/reactbits/SpotlightCard";
 
 export const Route = createFileRoute("/")({
   component: LandingPage,
@@ -43,21 +45,25 @@ const damageTypes = [
     icon: "landslide",
     title: "Lubang",
     desc: "Depresi lokal di permukaan perkerasan dengan diameter bervariasi, seringkali disebabkan oleh infiltrasi air.",
+    gradient: "from-[#1e40af] to-[#2e68d8]",
   },
   {
     icon: "grid_on",
     title: "Retak Kulit Buaya",
     desc: "Serangkaian retak saling terhubung membentuk pola poligonal menyerupai kulit buaya akibat kelelahan beban.",
+    gradient: "from-[#4338ca] to-[#6366f1]",
   },
   {
     icon: "view_column",
     title: "Retak Memanjang",
     desc: "Retakan yang sejajar dengan sumbu tengah jalan, biasanya disebabkan oleh sambungan konstruksi yang kurang sempurna.",
+    gradient: "from-[#0d9488] to-[#14b8a6]",
   },
   {
     icon: "view_stream",
     title: "Retak Melintang",
     desc: "Retakan yang melintasi lebar jalan secara tegak lurus, sering terjadi karena perubahan suhu ekstrim.",
+    gradient: "from-[#b45309] to-[#d97706]",
   },
 ];
 
@@ -66,16 +72,19 @@ const steps = [
     icon: "photo_camera",
     title: "Ambil Foto",
     desc: "Potret kondisi jalan yang rusak secara jelas untuk mempermudah identifikasi.",
+    number: 1,
   },
   {
     icon: "description",
     title: "Isi Laporan",
     desc: "Lengkapi data lokasi GPS dan deskripsi singkat mengenai tingkat kerusakan.",
+    number: 2,
   },
   {
     icon: "track_changes",
     title: "Pantau Status",
     desc: "Ikuti perkembangan perbaikan laporan Anda secara real-time melalui sistem kami.",
+    number: 3,
   },
 ];
 
@@ -129,46 +138,23 @@ const faqData = [
   },
 ];
 
-function CounterCell({ target, suffix, label, icon }: { target: number; suffix: string; label: string; icon: string }) {
-  const ref = useRef<HTMLParagraphElement>(null);
-
-  useEffect(() => {
-    if (!ref.current) return;
-    const obj = { v: 0 };
-    gsap.to(obj, {
-      v: target,
-      duration: 2,
-      ease: "power3.out",
-      onUpdate: () => {
-        if (ref.current) ref.current.textContent = Math.round(obj.v).toLocaleString() + suffix;
-      },
-    });
-  }, [target, suffix]);
-
+function StatCard({ target, suffix, label, icon }: { target: number; suffix: string; label: string; icon: string }) {
   return (
-    <div className="stat-card bg-[#f8fafc] rounded-xl p-5 md:p-6 text-center border border-[#e2e8f0] hover:border-[#1e40af]/20 hover:shadow-md transition-all">
+    <div className="!bg-white !border-[#c7d2fe] rounded-xl p-5 md:p-6 text-center border hover:!border-[#4338ca]/30 hover:shadow-md transition-all">
       <Icon name={icon} className="!text-[28px] text-[#1e40af] mb-3" />
-      <p ref={ref} className="font-headline-lg text-headline-lg font-extrabold text-[#0F172A]">
-        0
-      </p>
-      <p className="font-label-sm text-label-sm text-[#475569] mt-1">{label}</p>
+      <div className="font-headline-lg text-headline-lg font-extrabold text-[#0F172A] flex items-center justify-center">
+        <Counter value={target} fontSize={36} textColor="#0F172A" fontWeight={800} />
+        <span className="font-headline-lg text-headline-lg font-extrabold text-[#0F172A]">{suffix}</span>
+      </div>
+      <p className="font-label-sm text-label-sm text-[#3730a3] mt-1">{label}</p>
     </div>
   );
 }
 
 function LandingPage() {
   const heroRef = useRef<HTMLDivElement>(null);
-  const statsRef = useRef<HTMLDivElement>(null);
-  const tentangRef = useRef<HTMLDivElement>(null);
-  const stepsRef = useRef<HTMLDivElement>(null);
-  const damageRef = useRef<HTMLDivElement>(null);
-  const wilayahRef = useRef<HTMLDivElement>(null);
-  const testimoniRef = useRef<HTMLDivElement>(null);
-  const faqRef = useRef<HTMLDivElement>(null);
-  const ctaRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
   const [scrolled, setScrolled] = useState(false);
-
   const [testiIndex, setTestiIndex] = useState(0);
 
   const { data: statsRes } = useQuery({
@@ -187,52 +173,8 @@ function LandingPage() {
 
   useEffect(() => {
     const ctx = gsap.context(() => {
-      ScrollTrigger.config({ ignoreMobileResize: true });
-
-      gsap.from(".hero-title", { y: 80, opacity: 0, duration: 1.2, ease: "power4.out" });
-      gsap.from(".hero-sub", { y: 40, opacity: 0, duration: 1, ease: "power4.out", delay: 0.3 });
       gsap.from(".hero-buttons", { y: 30, opacity: 0, duration: 0.8, ease: "power3.out", delay: 0.6 });
       gsap.from(".hero-scroll", { opacity: 0, duration: 0.6, delay: 1.2 });
-
-      gsap.from(".stat-card", {
-        scrollTrigger: { trigger: statsRef.current, start: "top 85%", toggleActions: "play none none none" },
-        y: 50, opacity: 0, stagger: 0.15, duration: 0.8, ease: "power3.out",
-      });
-
-      gsap.from(".tentang-card", {
-        scrollTrigger: { trigger: tentangRef.current, start: "top 80%", toggleActions: "play none none none" },
-        y: 50, opacity: 0, stagger: 0.15, duration: 0.8, ease: "power3.out",
-      });
-
-      gsap.from(".step-card", {
-        scrollTrigger: { trigger: stepsRef.current, start: "top 80%", toggleActions: "play none none none" },
-        y: 60, opacity: 0, stagger: 0.2, duration: 0.8, ease: "power3.out",
-      });
-
-      gsap.from(".damage-card", {
-        scrollTrigger: { trigger: damageRef.current, start: "top 80%", toggleActions: "play none none none" },
-        y: 50, opacity: 0, stagger: 0.15, duration: 0.8, ease: "power3.out",
-      });
-
-      gsap.from(".wilayah-item", {
-        scrollTrigger: { trigger: wilayahRef.current, start: "top 85%", toggleActions: "play none none none" },
-        scale: 0, opacity: 0, stagger: 0.04, duration: 0.4, ease: "back.out(2)",
-      });
-
-      gsap.from(".testi-card", {
-        scrollTrigger: { trigger: testimoniRef.current, start: "top 80%", toggleActions: "play none none none" },
-        y: 40, opacity: 0, duration: 0.8, ease: "power3.out",
-      });
-
-      gsap.from(".faq-item", {
-        scrollTrigger: { trigger: faqRef.current, start: "top 85%", toggleActions: "play none none none" },
-        y: 30, opacity: 0, stagger: 0.1, duration: 0.6, ease: "power3.out",
-      });
-
-      gsap.from(".cta-content", {
-        scrollTrigger: { trigger: ctaRef.current, start: "top 85%", toggleActions: "play none none none" },
-        y: 40, opacity: 0, duration: 0.8, ease: "power3.out",
-      });
     });
 
     return () => ctx.revert();
@@ -247,7 +189,7 @@ function LandingPage() {
         ref={navRef}
         className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 md:px-12 transition-all duration-300 ${
           scrolled
-            ? "bg-white/90 backdrop-blur-md shadow-sm border-b border-[#e2e8f0]"
+            ? "bg-[#eef2ff]/90 backdrop-blur-md shadow-sm border-b border-[#c7d2fe]"
             : "bg-transparent"
         }`}
       >
@@ -260,13 +202,13 @@ function LandingPage() {
         <div className="hidden md:flex items-center gap-8">
           <Link
             to="/lacak"
-            className={`font-label-md text-label-md transition-colors ${scrolled ? "text-[#475569] hover:text-[#1e40af]" : "text-white/80 hover:text-white"}`}
+            className={`font-label-md text-label-md transition-colors ${scrolled ? "text-[#3730a3] hover:text-[#1e40af]" : "text-white/80 hover:text-white"}`}
           >
             Lacak Laporan
           </Link>
           <Link
             to="/login-petugas"
-            className={`font-label-md text-label-md transition-colors ${scrolled ? "text-[#475569] hover:text-[#1e40af]" : "text-white/80 hover:text-white"}`}
+            className={`font-label-md text-label-md transition-colors ${scrolled ? "text-[#3730a3] hover:text-[#1e40af]" : "text-white/80 hover:text-white"}`}
           >
             Petugas
           </Link>
@@ -303,17 +245,51 @@ function LandingPage() {
         </div>
 
         <div className="relative z-10 text-center px-6 max-w-3xl mx-auto">
-          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-4 py-1.5 mb-8">
-            <Icon name="verified" className="!text-[14px] text-white/80" />
-            <span className="font-label-sm text-label-sm text-white/80">Portal Resmi Kabupaten Sidoarjo</span>
+          <AnimatedContent distance={0} duration={0.8} initialOpacity={0} scale={0.95}>
+            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-4 py-1.5 mb-8">
+              <Icon name="verified" className="!text-[14px] text-white/80" />
+              <span className="font-label-sm text-label-sm text-white/80">Portal Resmi Kabupaten Sidoarjo</span>
+            </div>
+          </AnimatedContent>
+
+          <div className="mb-4 space-y-1">
+            <SplitText
+              text="Deteksi Cepat,"
+              tag="h1"
+              splitType="words"
+              className="font-headline-lg text-headline-lg md:text-[56px] md:leading-[64px] font-extrabold text-white tracking-tight block !text-white"
+              from={{ opacity: 0, y: 60, rotateX: -15 }}
+              to={{ opacity: 1, y: 0, rotateX: 0 }}
+              duration={1.2}
+              delay={40}
+              ease="power4.out"
+              threshold={1}
+            />
+            <SplitText
+              text="Penanganan Tepat"
+              tag="h1"
+              splitType="words"
+              className="font-headline-lg text-headline-lg md:text-[56px] md:leading-[64px] font-extrabold text-white tracking-tight block !text-white"
+              from={{ opacity: 0, y: 60, rotateX: -15 }}
+              to={{ opacity: 1, y: 0, rotateX: 0 }}
+              duration={1.2}
+              delay={60}
+              ease="power4.out"
+              threshold={1}
+            />
           </div>
-          <h1 className="hero-title font-headline-lg text-headline-lg md:text-[56px] md:leading-[64px] font-extrabold text-white tracking-tight">
-            Deteksi Cepat,<br />Penanganan Tepat
-          </h1>
-          <p className="hero-sub mt-5 font-body-lg text-body-lg md:text-[18px] text-white/70 max-w-xl mx-auto leading-relaxed">
-            Bersama-sama meningkatkan kualitas infrastruktur jalan di Sidoarjo.
-            Laporkan kerusakan jalan di sekitar Anda untuk respon yang lebih sigap.
-          </p>
+
+          <DecryptedText
+            text="Bersama-sama meningkatkan kualitas infrastruktur jalan di Sidoarjo. Laporkan kerusakan jalan di sekitar Anda untuk respon yang lebih sigap."
+            animateOn="view"
+            speed={30}
+            maxIterations={8}
+            sequential={true}
+            revealDirection="start"
+            className="text-white font-body-lg text-body-lg md:text-[18px]"
+            encryptedClassName="text-white/30 font-body-lg text-body-lg md:text-[18px]"
+          />
+
           <div className="hero-buttons mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
               to="/lapor"
@@ -341,264 +317,292 @@ function LandingPage() {
       </section>
 
       {/* ── STATS ── */}
-      <section ref={statsRef} className="py-16 md:py-20 px-6 bg-white">
-        <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-          <CounterCell target={stats?.kecamatan_count ?? 18} suffix="" label="Kecamatan" icon="location_city" />
-          <CounterCell target={stats?.total_reports ?? 0} suffix="+" label="Laporan" icon="description" />
-          <CounterCell target={stats?.completed_reports ?? 0} suffix="+" label="Selesai" icon="check_circle" />
-          <CounterCell target={stats?.in_progress ?? 0} suffix="+" label="Proses Aktif" icon="engineering" />
-        </div>
-      </section>
+      <AnimatedContent distance={60} duration={0.8}>
+        <section className="py-16 md:py-20 px-6 bg-white">
+          <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+            <StatCard target={stats?.kecamatan_count ?? 18} suffix="" label="Kecamatan" icon="location_city" />
+            <StatCard target={stats?.total_reports ?? 0} suffix="+" label="Laporan" icon="description" />
+            <StatCard target={stats?.completed_reports ?? 0} suffix="+" label="Selesai" icon="check_circle" />
+            <StatCard target={stats?.in_progress ?? 0} suffix="+" label="Proses Aktif" icon="engineering" />
+          </div>
+        </section>
+      </AnimatedContent>
 
       {/* ── TENTANG DELTAJALAN ── */}
-      <section ref={tentangRef} className="py-16 md:py-24 px-6 bg-[#f8fafc]">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-14">
-            <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A]">
-              Tentang DeltaJalan
-            </h2>
-            <p className="mt-3 font-body-md text-body-md text-[#475569] max-w-2xl mx-auto">
-              DeltaJalan adalah sistem informasi pelaporan dan monitoring kerusakan jalan terpadu
-              milik Dinas PU Bina Marga dan SDA Kabupaten Sidoarjo. Diciptakan untuk mempercepat
-              deteksi dan penanganan kerusakan jalan di seluruh wilayah Sidoarjo.
-            </p>
-          </div>
+      <AnimatedContent distance={60} duration={0.8}>
+        <section className="py-16 md:py-24 px-6 bg-[#eef2ff]">
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-14">
+              <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A]">
+                Tentang DeltaJalan
+              </h2>
+              <p className="mt-3 font-body-md text-body-md text-[#3730a3] max-w-2xl mx-auto">
+                DeltaJalan adalah sistem informasi pelaporan dan monitoring kerusakan jalan terpadu
+                milik Dinas PU Bina Marga dan SDA Kabupaten Sidoarjo. Diciptakan untuk mempercepat
+                deteksi dan penanganan kerusakan jalan di seluruh wilayah Sidoarjo.
+              </p>
+            </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {aboutFeatures.map((f) => (
-              <div key={f.title} className="tentang-card bg-white rounded-xl p-6 text-center border border-[#e2e8f0] hover:border-[#1e40af]/20 hover:shadow-md transition-all">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#1e40af] to-[#2e68d8] flex items-center justify-center mx-auto mb-4">
-                  <Icon name={f.icon} className="!text-[22px] text-white" />
-                </div>
-                <h3 className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-2">{f.title}</h3>
-                <p className="font-body-sm text-body-sm text-[#475569]">{f.desc}</p>
-              </div>
-            ))}
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {aboutFeatures.map((f) => (
+                <SpotlightCard
+                  key={f.title}
+                  className="!bg-white !border-[#c7d2fe] rounded-xl p-6 text-center hover:!border-[#4338ca]/30 transition-all"
+                  spotlightColor="rgba(99, 102, 241, 0.12)"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#1e40af] to-[#2e68d8] flex items-center justify-center mx-auto mb-4">
+                    <Icon name={f.icon} className="!text-[22px] text-white" />
+                  </div>
+                  <h3 className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-2">{f.title}</h3>
+                  <p className="font-body-sm text-body-sm text-[#3730a3]">{f.desc}</p>
+                </SpotlightCard>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </AnimatedContent>
 
       {/* ── CARA MELAPOR ── */}
-      <section ref={stepsRef} className="py-16 md:py-24 px-6 bg-white">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-14">
-            <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A]">
-              Cara Melapor
-            </h2>
-            <p className="mt-3 font-body-md text-body-md text-[#475569] max-w-lg mx-auto">
-              Tiga langkah mudah untuk berkontribusi dalam perbaikan jalan di Sidoarjo.
-            </p>
-          </div>
+      <AnimatedContent distance={60} duration={0.8}>
+        <section className="py-16 md:py-24 px-6 bg-white">
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-14">
+              <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A]">
+                Cara Melapor
+              </h2>
+              <p className="mt-3 font-body-md text-body-md text-[#3730a3] max-w-lg mx-auto">
+                Tiga langkah mudah untuk berkontribusi dalam perbaikan jalan di Sidoarjo.
+              </p>
+            </div>
 
-          <div className="grid md:grid-cols-3 gap-6 md:gap-8 relative">
-            <div className="hidden md:block absolute top-12 left-[calc(16.66%+24px)] right-[calc(16.66%+24px)] h-0.5 bg-gradient-to-r from-[#1e40af]/20 via-[#1e40af]/40 to-[#1e40af]/20" />
-            {steps.map((s, i) => (
-              <div key={s.title} className="step-card bg-[#f8fafc] rounded-xl p-6 md:p-8 text-center border border-[#e2e8f0] relative">
-                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#1e40af] to-[#2e68d8] flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#1e40af]/20">
-                  <span className="font-headline-md text-headline-md font-bold text-white">{i + 1}</span>
-                </div>
-                <Icon name={s.icon} className="!text-[32px] text-[#2e68d8] mb-3" />
-                <h3 className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-2">{s.title}</h3>
-                <p className="font-body-sm text-body-sm text-[#475569]">{s.desc}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="text-center mt-10">
-            <Link
-              to="/lapor"
-              className="inline-flex items-center gap-2 font-label-md text-label-md font-semibold text-[#1e40af] hover:text-[#2e68d8] transition-colors"
-            >
-              Mulai Laporkan Sekarang
-              <Icon name="arrow_forward" className="!text-[18px]" />
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ── KLASIFIKASI KERUSAKAN ── */}
-      <section ref={damageRef} className="py-16 md:py-24 px-6 bg-[#f8fafc]">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-14">
-            <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A]">
-              Klasifikasi Kerusakan
-            </h2>
-            <p className="mt-3 font-body-md text-body-md text-[#475569] max-w-lg mx-auto">
-              Pahami jenis-jenis kerusakan jalan untuk memberikan laporan yang lebih akurat.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6">
-            {damageTypes.map((d) => (
-              <div key={d.title} className="damage-card flex gap-5 bg-white rounded-xl p-6 border border-[#e2e8f0] hover:border-[#1e40af]/20 hover:shadow-md transition-all">
-                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#1e40af] to-[#2e68d8] flex items-center justify-center shrink-0 shadow-md">
-                  <Icon name={d.icon} className="!text-[26px] text-white" />
-                </div>
-                <div>
-                  <h3 className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-1.5">{d.title}</h3>
-                  <p className="font-body-sm text-body-sm text-[#475569] leading-relaxed">{d.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="text-center mt-10">
-            <Link
-              to="/lacak"
-              className="inline-flex items-center gap-2 font-label-md text-label-md font-semibold text-[#1e40af] hover:text-[#2e68d8] transition-colors"
-            >
-              <Icon name="description" className="!text-[18px]" />
-              Panduan Lengkap
-              <Icon name="arrow_forward" className="!text-[18px]" />
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ── CAKUPAN WILAYAH ── */}
-      <section ref={wilayahRef} className="py-16 md:py-24 px-6 bg-white">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-14">
-            <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A]">
-              Cakupan Wilayah
-            </h2>
-            <p className="mt-3 font-body-md text-body-md text-[#475569] max-w-lg mx-auto">
-              DeltaJalan melayani seluruh wilayah Kabupaten Sidoarjo yang terdiri dari 18 kecamatan.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-            {(stats?.kecamatan ?? []).map((k) => (
-              <div key={k} className="wilayah-item bg-[#f8fafc] rounded-lg px-3 py-2.5 text-center border border-[#e2e8f0] hover:border-[#1e40af]/30 hover:bg-[#1e40af]/5 transition-all">
-                <span className="font-label-sm text-label-sm text-[#0F172A] font-medium">{k}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── TESTIMONI / LAPORAN TERAKHIR ── */}
-      <section ref={testimoniRef} className="py-16 md:py-24 px-6 bg-[#f8fafc]">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-14">
-            <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A]">
-              Laporan Terakhir
-            </h2>
-            <p className="mt-3 font-body-md text-body-md text-[#475569] max-w-lg mx-auto">
-              Beberapa laporan yang telah berhasil ditangani oleh tim kami.
-            </p>
-          </div>
-
-          <div className="testi-card max-w-2xl mx-auto">
-            {activeTesti ? (
-              <div className="bg-white rounded-2xl p-8 border border-[#e2e8f0] shadow-sm">
-                <div className="flex items-center gap-2 text-[#10b981] mb-4">
-                  <Icon name="check_circle" className="!text-[18px]" />
-                  <span className="font-label-sm text-label-sm font-medium">{activeTesti.status}</span>
-                </div>
-                <p className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-2">
-                  {activeTesti.road_name}
-                </p>
-                <p className="font-body-sm text-body-sm text-[#475569] mb-4 line-clamp-3">
-                  {activeTesti.description || "Tidak ada deskripsi."}
-                </p>
-                <div className="flex items-center justify-between text-[#94a3b8] font-body-sm text-body-sm">
-                  <span className="flex items-center gap-1">
-                    <Icon name="location_on" className="!text-[14px]" />
-                    {activeTesti.district}
-                  </span>
-                  <span>{activeTesti.report_code}</span>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-white rounded-2xl p-8 border border-[#e2e8f0] shadow-sm text-center">
-                <Icon name="sentiment_satisfied" className="!text-[40px] text-[#94a3b8] mx-auto mb-3" />
-                <p className="font-body-md text-body-md text-[#475569]">Belum ada laporan yang selesai ditangani.</p>
-              </div>
-            )}
-
-            {testimonials.length > 1 && (
-              <div className="flex items-center justify-center gap-3 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setTestiIndex((p) => (p === 0 ? testimonials.length - 1 : p - 1))}
-                  className="w-10 h-10 rounded-full bg-white border border-[#e2e8f0] flex items-center justify-center hover:bg-[#f8fafc] hover:border-[#1e40af]/30 transition-all active:scale-95"
+            <div className="grid md:grid-cols-3 gap-6 md:gap-8 relative">
+              <div className="hidden md:block absolute top-12 left-[calc(16.66%+24px)] right-[calc(16.66%+24px)] h-0.5 bg-gradient-to-r from-[#1e40af]/20 via-[#4338ca]/40 to-[#1e40af]/20" />
+              {steps.map((s) => (
+                <SpotlightCard
+                  key={s.title}
+                  className="!bg-[#eef2ff] !border-[#c7d2fe] rounded-xl p-6 md:p-8 text-center relative"
+                  spotlightColor="rgba(99, 102, 241, 0.15)"
                 >
-                  <Icon name="chevron_left" className="!text-[18px] text-[#475569]" />
-                </button>
-                <span className="font-body-sm text-body-sm text-[#94a3b8]">
-                  {testiIndex + 1} / {testimonials.length}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setTestiIndex((p) => (p === testimonials.length - 1 ? 0 : p + 1))}
-                  className="w-10 h-10 rounded-full bg-white border border-[#e2e8f0] flex items-center justify-center hover:bg-[#f8fafc] hover:border-[#1e40af]/30 transition-all active:scale-95"
-                >
-                  <Icon name="chevron_right" className="!text-[18px] text-[#475569]" />
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#1e40af] to-[#2e68d8] flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#1e40af]/20">
+                    <span className="font-headline-md text-headline-md font-bold text-white">{s.number}</span>
+                  </div>
+                  <Icon name={s.icon} className="!text-[32px] text-[#4338ca] mb-3" />
+                  <h3 className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-2">{s.title}</h3>
+                  <p className="font-body-sm text-body-sm text-[#3730a3]">{s.desc}</p>
+                </SpotlightCard>
+              ))}
+            </div>
 
-      {/* ── FAQ ── */}
-      <section ref={faqRef} className="py-16 md:py-24 px-6 bg-white">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-14">
-            <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A]">
-              Pertanyaan Umum
-            </h2>
-            <p className="mt-3 font-body-md text-body-md text-[#475569] max-w-lg mx-auto">
-              Temukan jawaban atas pertanyaan yang sering diajukan tentang DeltaJalan.
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            {faqData.map((item) => (
-              <details key={item.q} className="faq-item group bg-[#f8fafc] rounded-xl border border-[#e2e8f0] open:border-[#1e40af]/20 open:shadow-sm transition-all">
-                <summary className="flex items-center justify-between px-6 py-4 cursor-pointer font-label-md text-label-md font-medium text-[#0F172A] list-none">
-                  {item.q}
-                  <Icon name="expand_more" className="!text-[20px] text-[#94a3b8] transition-transform duration-200 group-open:rotate-180" />
-                </summary>
-                <div className="px-6 pb-4">
-                  <p className="font-body-sm text-body-sm text-[#475569] leading-relaxed">{item.a}</p>
-                </div>
-              </details>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── CTA ── */}
-      <section ref={ctaRef} className="py-16 md:py-20 px-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="cta-content bg-gradient-to-br from-[#1e40af] to-[#0f2b6d] rounded-2xl p-10 md:p-14 text-center shadow-2xl shadow-[#1e40af]/25">
-            <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-white">
-              Mari Wujudkan Sidoarjo Tanpa Lubang
-            </h2>
-            <p className="mt-4 font-body-lg text-body-lg md:text-[18px] text-white/70 max-w-lg mx-auto">
-              Kontribusi Anda sangat berharga bagi keselamatan jutaan pengendara. Laporkan sekarang demi kenyamanan bersama.
-            </p>
-            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="text-center mt-10">
               <Link
                 to="/lapor"
-                className="inline-flex items-center gap-2 bg-white text-[#1e40af] font-label-md text-label-md font-semibold px-7 py-3.5 rounded-xl hover:shadow-xl active:scale-[0.97] transition-all"
+                className="inline-flex items-center gap-2 font-label-md text-label-md font-semibold text-[#1e40af] hover:text-[#2e68d8] transition-colors"
               >
-                <Icon name="add_circle" className="!text-[20px]" />
-                Mulai Lapor Sekarang
-              </Link>
-              <Link
-                to="/lacak"
-                className="inline-flex items-center gap-2 border-2 border-white/30 text-white font-label-md text-label-md font-semibold px-7 py-3.5 rounded-xl hover:bg-white/10 hover:border-white/50 active:scale-[0.97] transition-all"
-              >
-                <Icon name="phone" className="!text-[20px]" />
-                Hubungi Call Center
+                Mulai Laporkan Sekarang
+                <Icon name="arrow_forward" className="!text-[18px]" />
               </Link>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </AnimatedContent>
+
+      {/* ── KLASIFIKASI KERUSAKAN ── */}
+      <AnimatedContent distance={60} duration={0.8}>
+        <section className="py-16 md:py-24 px-6 bg-[#eef2ff]">
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-14">
+              <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A]">
+                Klasifikasi Kerusakan
+              </h2>
+              <p className="mt-3 font-body-md text-body-md text-[#3730a3] max-w-lg mx-auto">
+                Pahami jenis-jenis kerusakan jalan untuk memberikan laporan yang lebih akurat.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              {damageTypes.map((d) => (
+                <SpotlightCard
+                  key={d.title}
+                  className="!bg-white !border-[#c7d2fe] rounded-xl p-6 flex gap-5 hover:!border-[#4338ca]/30 transition-all"
+                  spotlightColor="rgba(99, 102, 241, 0.1)"
+                >
+                  <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${d.gradient} flex items-center justify-center shrink-0 shadow-md`}>
+                    <Icon name={d.icon} className="!text-[26px] text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-1.5">{d.title}</h3>
+                    <p className="font-body-sm text-body-sm text-[#3730a3] leading-relaxed">{d.desc}</p>
+                  </div>
+                </SpotlightCard>
+              ))}
+            </div>
+
+            <div className="text-center mt-10">
+              <Link
+                to="/lacak"
+                className="inline-flex items-center gap-2 font-label-md text-label-md font-semibold text-[#1e40af] hover:text-[#2e68d8] transition-colors"
+              >
+                <Icon name="description" className="!text-[18px]" />
+                Panduan Lengkap
+                <Icon name="arrow_forward" className="!text-[18px]" />
+              </Link>
+            </div>
+          </div>
+        </section>
+      </AnimatedContent>
+
+      {/* ── CAKUPAN WILAYAH ── */}
+      <AnimatedContent distance={60} duration={0.8}>
+        <section className="py-16 md:py-24 px-6 bg-white">
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-14">
+              <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A]">
+                Cakupan Wilayah
+              </h2>
+              <p className="mt-3 font-body-md text-body-md text-[#3730a3] max-w-lg mx-auto">
+                DeltaJalan melayani seluruh wilayah Kabupaten Sidoarjo yang terdiri dari 18 kecamatan.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+              {(stats?.kecamatan ?? []).map((k) => (
+                <div key={k} className="bg-[#eef2ff] rounded-lg px-3 py-2.5 text-center border border-[#c7d2fe] hover:border-[#4338ca]/30 hover:bg-[#1e40af]/5 transition-all">
+                  <span className="font-label-sm text-label-sm text-[#0F172A] font-medium">{k}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      </AnimatedContent>
+
+      {/* ── TESTIMONI / LAPORAN TERAKHIR ── */}
+      <AnimatedContent distance={60} duration={0.8}>
+        <section className="py-16 md:py-24 px-6 bg-[#eef2ff]">
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-14">
+              <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A]">
+                Laporan Terakhir
+              </h2>
+              <p className="mt-3 font-body-md text-body-md text-[#3730a3] max-w-lg mx-auto">
+                Beberapa laporan yang telah berhasil ditangani oleh tim kami.
+              </p>
+            </div>
+
+            <div className="max-w-2xl mx-auto">
+              {activeTesti ? (
+                <div className="bg-white rounded-2xl p-8 border border-[#c7d2fe] shadow-sm">
+                  <div className="flex items-center gap-2 text-[#10b981] mb-4">
+                    <Icon name="check_circle" className="!text-[18px]" />
+                    <span className="font-label-sm text-label-sm font-medium">{activeTesti.status}</span>
+                  </div>
+                  <p className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-2">
+                    {activeTesti.road_name}
+                  </p>
+                  <p className="font-body-sm text-body-sm text-[#3730a3] mb-4 line-clamp-3">
+                    {activeTesti.description || "Tidak ada deskripsi."}
+                  </p>
+                  <div className="flex items-center justify-between text-[#6366f1] font-body-sm text-body-sm">
+                    <span className="flex items-center gap-1">
+                      <Icon name="location_on" className="!text-[14px]" />
+                      {activeTesti.district}
+                    </span>
+                    <span>{activeTesti.report_code}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl p-8 border border-[#c7d2fe] shadow-sm text-center">
+                  <Icon name="sentiment_satisfied" className="!text-[40px] text-[#6366f1] mx-auto mb-3" />
+                  <p className="font-body-md text-body-md text-[#3730a3]">Belum ada laporan yang selesai ditangani.</p>
+                </div>
+              )}
+
+              {testimonials.length > 1 && (
+                <div className="flex items-center justify-center gap-3 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setTestiIndex((p) => (p === 0 ? testimonials.length - 1 : p - 1))}
+                    className="w-10 h-10 rounded-full bg-white border border-[#c7d2fe] flex items-center justify-center hover:bg-[#eef2ff] hover:border-[#4338ca]/30 transition-all active:scale-95"
+                  >
+                    <Icon name="chevron_left" className="!text-[18px] text-[#3730a3]" />
+                  </button>
+                  <span className="font-body-sm text-body-sm text-[#6366f1]">
+                    {testiIndex + 1} / {testimonials.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setTestiIndex((p) => (p === testimonials.length - 1 ? 0 : p + 1))}
+                    className="w-10 h-10 rounded-full bg-white border border-[#c7d2fe] flex items-center justify-center hover:bg-[#eef2ff] hover:border-[#4338ca]/30 transition-all active:scale-95"
+                  >
+                    <Icon name="chevron_right" className="!text-[18px] text-[#3730a3]" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      </AnimatedContent>
+
+      {/* ── FAQ ── */}
+      <AnimatedContent distance={60} duration={0.8}>
+        <section className="py-16 md:py-24 px-6 bg-white">
+          <div className="max-w-3xl mx-auto">
+            <div className="text-center mb-14">
+              <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A]">
+                Pertanyaan Umum
+              </h2>
+              <p className="mt-3 font-body-md text-body-md text-[#3730a3] max-w-lg mx-auto">
+                Temukan jawaban atas pertanyaan yang sering diajukan tentang DeltaJalan.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {faqData.map((item) => (
+                <details key={item.q} className="group bg-[#eef2ff] rounded-xl border border-[#c7d2fe] open:border-[#4338ca]/30 open:shadow-sm transition-all">
+                  <summary className="flex items-center justify-between px-6 py-4 cursor-pointer font-label-md text-label-md font-medium text-[#0F172A] list-none">
+                    {item.q}
+                    <Icon name="expand_more" className="!text-[20px] text-[#6366f1] transition-transform duration-200 group-open:rotate-180" />
+                  </summary>
+                  <div className="px-6 pb-4">
+                    <p className="font-body-sm text-body-sm text-[#3730a3] leading-relaxed">{item.a}</p>
+                  </div>
+                </details>
+              ))}
+            </div>
+          </div>
+        </section>
+      </AnimatedContent>
+
+      {/* ── CTA ── */}
+      <AnimatedContent distance={40} duration={0.8}>
+        <section className="py-16 md:py-20 px-6">
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-gradient-to-br from-[#1e40af] to-[#0f2b6d] rounded-2xl p-10 md:p-14 text-center shadow-2xl shadow-[#1e40af]/25">
+              <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-white">
+                Mari Wujudkan Sidoarjo Tanpa Lubang
+              </h2>
+              <p className="mt-4 font-body-lg text-body-lg md:text-[18px] text-white/70 max-w-lg mx-auto">
+                Kontribusi Anda sangat berharga bagi keselamatan jutaan pengendara. Laporkan sekarang demi kenyamanan bersama.
+              </p>
+              <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+                <Link
+                  to="/lapor"
+                  className="inline-flex items-center gap-2 bg-white text-[#1e40af] font-label-md text-label-md font-semibold px-7 py-3.5 rounded-xl hover:shadow-xl active:scale-[0.97] transition-all"
+                >
+                  <Icon name="add_circle" className="!text-[20px]" />
+                  Mulai Lapor Sekarang
+                </Link>
+                <Link
+                  to="/lacak"
+                  className="inline-flex items-center gap-2 border-2 border-white/30 text-white font-label-md text-label-md font-semibold px-7 py-3.5 rounded-xl hover:bg-white/10 hover:border-white/50 active:scale-[0.97] transition-all"
+                >
+                  <Icon name="phone" className="!text-[20px]" />
+                  Hubungi Call Center
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      </AnimatedContent>
 
       {/* ── FOOTER ── */}
       <footer className="bg-[#0f172a] text-white/60 px-6 py-12 md:py-16">

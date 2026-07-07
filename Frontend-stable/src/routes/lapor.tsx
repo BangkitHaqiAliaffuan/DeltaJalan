@@ -47,7 +47,8 @@ function PublicLaporPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState<{ reportCode: string } | null>(null);
 
-  const mobileCameraProps = getMobileCameraProps();
+  const cameraProps = getMobileCameraProps();
+  const isCameraMode = "capture" in cameraProps;
 
   async function applyCoordinates(lat: number, lng: number, source: "exif" | "geolocation") {
     setLatitude(lat.toFixed(6));
@@ -77,6 +78,15 @@ function PublicLaporPage() {
     const serverGps = await readExifGpsFromServer(file);
     if (serverGps?.latitude && serverGps?.longitude) {
       await applyCoordinates(serverGps.latitude, serverGps.longitude, "exif");
+      return;
+    }
+
+    if (!isCameraMode) {
+      const msg =
+        "Foto yang diunggah tidak memiliki data GPS. Gunakan kamera untuk mengambil foto langsung, " +
+        "atau aktifkan GPS perangkat sebelum memotret.";
+      setGeoError(msg);
+      setLocating(false);
       return;
     }
 
@@ -118,6 +128,10 @@ function PublicLaporPage() {
 
     if (locating) {
       setError("Tunggu hingga lokasi terdeteksi.");
+      return;
+    }
+    if (geoError) {
+      setError("Perbaiki error lokasi sebelum mengirim.");
       return;
     }
     if (!reporterName || !phone || !roadName || !district || !latitude || !longitude || !photo) {
@@ -246,7 +260,9 @@ function PublicLaporPage() {
                   <div className="flex flex-col items-center gap-2">
                     <Icon name="camera_alt" className="!text-4xl text-[#757684]" />
                     <p className="text-sm text-[#757684]">Ketuk untuk mengambil foto</p>
-                    <p className="text-xs text-[#757684]">JPEG/PNG, maks 5 MB</p>
+                    <p className="text-xs text-[#757684]">
+                      {isCameraMode ? "Kamera akan terbuka otomatis" : "Foto harus memiliki data GPS asli"}
+                    </p>
                   </div>
                 )}
               </div>
@@ -256,7 +272,7 @@ function PublicLaporPage() {
                 accept="image/jpeg,image/png"
                 onChange={handlePhotoChange}
                 className="hidden"
-                {...mobileCameraProps}
+                {...cameraProps}
               />
             </div>
 
