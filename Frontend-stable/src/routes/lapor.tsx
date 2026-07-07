@@ -350,10 +350,16 @@ function PublicLaporPage() {
                   Terisi otomatis {locationSource === "exif" ? "dari GPS foto" : "dari lokasi Anda"} — dapat diedit
                 </p>
               )}
+              {locationSource && !roadName && (
+                <p className="text-[11px] text-[#D97706] flex items-center gap-1 mb-1">
+                  <Icon name="warning" className="!text-[12px]" />
+                  Nama jalan tidak ditemukan di database — ketik manual
+                </p>
+              )}
               <input
                 value={roadName}
                 onChange={(e) => setRoadName(e.target.value)}
-                placeholder="Contoh: Jl. Raya Sidoarjo"
+                placeholder={locationSource && !roadName ? "Ketik nama jalan..." : "Contoh: Jl. Raya Sidoarjo"}
                 className="w-full h-11 px-4 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af]"
               />
             </div>
