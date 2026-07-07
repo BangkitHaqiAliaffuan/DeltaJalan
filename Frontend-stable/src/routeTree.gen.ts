@@ -20,8 +20,10 @@ import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as PetugasEksekusiRouteImport } from './routes/petugas-eksekusi'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as MyReportsRouteImport } from './routes/my-reports'
+import { Route as MasukRouteImport } from './routes/masuk'
 import { Route as MapRouteImport } from './routes/map'
 import { Route as LoginPetugasRouteImport } from './routes/login-petugas'
+import { Route as LaporRouteImport } from './routes/lapor'
 import { Route as LacakRouteImport } from './routes/lacak'
 import { Route as HomeRouteImport } from './routes/home'
 import { Route as EditReportRouteImport } from './routes/edit-report'
@@ -107,6 +109,11 @@ const MyReportsRoute = MyReportsRouteImport.update({
   path: '/my-reports',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MasukRoute = MasukRouteImport.update({
+  id: '/masuk',
+  path: '/masuk',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MapRoute = MapRouteImport.update({
   id: '/map',
   path: '/map',
@@ -115,6 +122,11 @@ const MapRoute = MapRouteImport.update({
 const LoginPetugasRoute = LoginPetugasRouteImport.update({
   id: '/login-petugas',
   path: '/login-petugas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LaporRoute = LaporRouteImport.update({
+  id: '/lapor',
+  path: '/lapor',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LacakRoute = LacakRouteImport.update({
@@ -277,8 +289,10 @@ export interface FileRoutesByFullPath {
   '/edit-report': typeof EditReportRoute
   '/home': typeof HomeRoute
   '/lacak': typeof LacakRoute
+  '/lapor': typeof LaporRoute
   '/login-petugas': typeof LoginPetugasRoute
   '/map': typeof MapRoute
+  '/masuk': typeof MasukRoute
   '/my-reports': typeof MyReportsRoute
   '/notifications': typeof NotificationsRoute
   '/petugas-eksekusi': typeof PetugasEksekusiRoute
@@ -321,8 +335,10 @@ export interface FileRoutesByTo {
   '/edit-report': typeof EditReportRoute
   '/home': typeof HomeRoute
   '/lacak': typeof LacakRoute
+  '/lapor': typeof LaporRoute
   '/login-petugas': typeof LoginPetugasRoute
   '/map': typeof MapRoute
+  '/masuk': typeof MasukRoute
   '/my-reports': typeof MyReportsRoute
   '/notifications': typeof NotificationsRoute
   '/petugas-eksekusi': typeof PetugasEksekusiRoute
@@ -362,8 +378,10 @@ export interface FileRoutesById {
   '/edit-report': typeof EditReportRoute
   '/home': typeof HomeRoute
   '/lacak': typeof LacakRoute
+  '/lapor': typeof LaporRoute
   '/login-petugas': typeof LoginPetugasRoute
   '/map': typeof MapRoute
+  '/masuk': typeof MasukRoute
   '/my-reports': typeof MyReportsRoute
   '/notifications': typeof NotificationsRoute
   '/petugas-eksekusi': typeof PetugasEksekusiRoute
@@ -408,8 +426,10 @@ export interface FileRouteTypes {
     | '/edit-report'
     | '/home'
     | '/lacak'
+    | '/lapor'
     | '/login-petugas'
     | '/map'
+    | '/masuk'
     | '/my-reports'
     | '/notifications'
     | '/petugas-eksekusi'
@@ -452,8 +472,10 @@ export interface FileRouteTypes {
     | '/edit-report'
     | '/home'
     | '/lacak'
+    | '/lapor'
     | '/login-petugas'
     | '/map'
+    | '/masuk'
     | '/my-reports'
     | '/notifications'
     | '/petugas-eksekusi'
@@ -492,8 +514,10 @@ export interface FileRouteTypes {
     | '/edit-report'
     | '/home'
     | '/lacak'
+    | '/lapor'
     | '/login-petugas'
     | '/map'
+    | '/masuk'
     | '/my-reports'
     | '/notifications'
     | '/petugas-eksekusi'
@@ -537,8 +561,10 @@ export interface RootRouteChildren {
   EditReportRoute: typeof EditReportRoute
   HomeRoute: typeof HomeRoute
   LacakRoute: typeof LacakRoute
+  LaporRoute: typeof LaporRoute
   LoginPetugasRoute: typeof LoginPetugasRoute
   MapRoute: typeof MapRoute
+  MasukRoute: typeof MasukRoute
   MyReportsRoute: typeof MyReportsRoute
   NotificationsRoute: typeof NotificationsRoute
   PetugasEksekusiRoute: typeof PetugasEksekusiRoute
@@ -640,6 +666,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MyReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/masuk': {
+      id: '/masuk'
+      path: '/masuk'
+      fullPath: '/masuk'
+      preLoaderRoute: typeof MasukRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/map': {
       id: '/map'
       path: '/map'
@@ -652,6 +685,13 @@ declare module '@tanstack/react-router' {
       path: '/login-petugas'
       fullPath: '/login-petugas'
       preLoaderRoute: typeof LoginPetugasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lapor': {
+      id: '/lapor'
+      path: '/lapor'
+      fullPath: '/lapor'
+      preLoaderRoute: typeof LaporRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lacak': {
@@ -931,8 +971,10 @@ const rootRouteChildren: RootRouteChildren = {
   EditReportRoute: EditReportRoute,
   HomeRoute: HomeRoute,
   LacakRoute: LacakRoute,
+  LaporRoute: LaporRoute,
   LoginPetugasRoute: LoginPetugasRoute,
   MapRoute: MapRoute,
+  MasukRoute: MasukRoute,
   MyReportsRoute: MyReportsRoute,
   NotificationsRoute: NotificationsRoute,
   PetugasEksekusiRoute: PetugasEksekusiRoute,
@@ -957,13 +999,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

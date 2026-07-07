@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Report;
 use App\Models\ReportPhoto;
 use App\Models\StatusLog;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -19,7 +20,7 @@ class WargaReportController extends Controller
 
     private const MAX_PHOTO_AGE_DAYS = 7;
 
-    private const DAILY_LIMIT = 5;
+    private const DAILY_LIMIT = 3;
 
     public function store(Request $request): JsonResponse
     {
@@ -53,6 +54,237 @@ class WargaReportController extends Controller
 
         $userId = auth()->id();
 
+        $dailyLimitResult = $this->checkDailyLimit($userId);
+        if ($dailyLimitResult !== null) {
+            return $dailyLimitResult;
+        }
+
+        return $this->processAndCreateReport($request, $validated, $userId);
+    }
+
+    /**
+     * POST /api/public/reports — No auth required.
+     * Auto-create warga user by phone number.
+     */
+    public function storePublic(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'phone' => ['required', 'string', 'regex:/^08[0-9]{8,13}$/'],
+                'reporter_name' => ['required', 'string', 'max:100'],
+                'road_name' => ['required', 'string', 'max:255'],
+                'district' => ['required', 'string', 'in:'.implode(',', $this->getKecamatanList())],
+                'latitude' => ['required', 'numeric', 'between:-11,6'],
+                'longitude' => ['required', 'numeric', 'between:95,141'],
+                'description' => ['nullable', 'string', 'max:2000'],
+                'image' => ['required', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
+                'kerusakan_panjang' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
+                'kerusakan_lebar' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data yang dikirim tidak valid.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
+        if (! $this->isInSidoarjo((float) $validated['latitude'], (float) $validated['longitude'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Koordinat berada di luar wilayah Kabupaten Sidoarjo.',
+                'error_code' => 'KOORDINAT_DILUAR_WILAYAH',
+            ], 422);
+        }
+
+        $phone = $validated['phone'];
+        $user = User::firstOrCreate(
+            ['email' => 'warga_'.$phone.'@jalankita.local'],
+            [
+                'name' => $validated['reporter_name'],
+                'phone' => $phone,
+                'password' => bcrypt(Str::random(32)),
+                'role' => 'warga',
+                'registration_ip' => $request->ip(),
+            ]
+        );
+
+        $dailyLimitResult = $this->checkDailyLimit($user->id);
+        if ($dailyLimitResult !== null) {
+            return $dailyLimitResult;
+        }
+
+        return $this->processAndCreateReport($request, $validated, $user->id);
+    }
+
+    /**
+     * GET /api/public/reports?phone=xxx — No auth required.
+     * Track reports by phone number.
+     */
+    public function indexByPhone(Request $request): JsonResponse
+    {
+        $phone = $request->query('phone');
+
+        if (! $phone || ! preg_match('/^08[0-9]{8,13}$/', $phone)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Nomor telepon tidak valid.',
+            ], 422);
+        }
+
+        $user = User::where('phone', $phone)->first();
+
+        if (! $user) {
+            return response()->json([
+                'success' => true,
+                'data' => [],
+                'meta' => ['total' => 0],
+            ]);
+        }
+
+        $perPage = min((int) $request->query('per_page', 10), 50);
+        $status = $request->query('status');
+
+        $query = Report::where('user_id', $user->id)
+            ->whereIn('source', ['warga', 'telegram'])
+            ->orderBy('created_at', 'desc');
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        $reports = $query->paginate($perPage);
+        $reports->getCollection()->each(fn ($r) => $r->append('first_photo_url'));
+
+        return response()->json([
+            'success' => true,
+            'data' => $reports->items(),
+            'meta' => [
+                'current_page' => $reports->currentPage(),
+                'last_page' => $reports->lastPage(),
+                'per_page' => $reports->perPage(),
+                'total' => $reports->total(),
+            ],
+        ]);
+    }
+
+    public function index(Request $request): JsonResponse
+    {
+        $perPage = min((int) $request->query('per_page', 10), 50);
+        $status = $request->query('status');
+
+        $query = Report::where('user_id', auth()->id())
+            ->whereIn('source', ['warga', 'telegram'])
+            ->orderBy('created_at', 'desc');
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        $reports = $query->paginate($perPage);
+        $reports->getCollection()->each(fn ($r) => $r->append('first_photo_url'));
+
+        return response()->json([
+            'success' => true,
+            'data' => $reports->items(),
+            'meta' => [
+                'current_page' => $reports->currentPage(),
+                'last_page' => $reports->lastPage(),
+                'per_page' => $reports->perPage(),
+                'total' => $reports->total(),
+            ],
+        ]);
+    }
+
+    public function show(string $id): JsonResponse
+    {
+        $report = Report::where('id', $id)
+            ->where('user_id', auth()->id())
+            ->whereIn('source', ['warga', 'telegram'])
+            ->with(['photos' => function ($q) {
+                $q->orderBy('sort_order');
+            }])
+            ->first();
+
+        if (! $report) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Laporan tidak ditemukan.',
+            ], 404);
+        }
+
+        $timeline = StatusLog::where('report_id', $report->id)
+            ->orderBy('created_at', 'asc')
+            ->get(['old_status', 'new_status', 'notes', 'created_at', 'user_id']);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'report' => $report->toArray(),
+                'timeline' => $timeline,
+            ],
+        ]);
+    }
+
+    public function track(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'report_code' => ['required', 'string', 'max:20'],
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kode laporan tidak valid.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
+        $report = Report::where('report_code', $validated['report_code'])
+            ->with(['photos' => function ($q) {
+                $q->orderBy('sort_order');
+            }])
+            ->first();
+
+        if (! $report) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Laporan dengan kode tersebut tidak ditemukan.',
+            ], 404);
+        }
+
+        $timeline = StatusLog::where('report_id', $report->id)
+            ->orderBy('created_at', 'asc')
+            ->get(['old_status', 'new_status', 'notes', 'created_at']);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'report' => [
+                    'id' => $report->id,
+                    'report_code' => $report->report_code,
+                    'road_name' => $report->road_name,
+                    'district' => $report->district,
+                    'status' => $report->status,
+                    'created_at' => $report->created_at?->toIso8601String(),
+                    'updated_at' => $report->updated_at?->toIso8601String(),
+                    'description' => $report->description,
+                    'photos' => $report->photos->map(function ($p) {
+                        return [
+                            'image_original_url' => $p->image_original_url,
+                            'created_at' => $p->created_at?->toIso8601String(),
+                        ];
+                    }),
+                ],
+                'timeline' => $timeline,
+            ],
+        ]);
+    }
+
+    // ── Shared Helpers ─────────────────────────────────────────────────
+
+    private function checkDailyLimit(int $userId): ?JsonResponse
+    {
         $todayCount = Report::where('user_id', $userId)
             ->whereDate('created_at', today())
             ->count();
@@ -65,6 +297,11 @@ class WargaReportController extends Controller
             ], 429);
         }
 
+        return null;
+    }
+
+    private function processAndCreateReport(Request $request, array $validated, int $userId): JsonResponse
+    {
         $imageFile = $request->file('image');
 
         $exifCheck = $this->validatePhotoDateExif($imageFile->getPathname());
@@ -228,119 +465,6 @@ class WargaReportController extends Controller
                 'debug' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
-    }
-
-    public function index(Request $request): JsonResponse
-    {
-        $perPage = min((int) $request->query('per_page', 10), 50);
-        $status = $request->query('status');
-
-        $query = Report::where('user_id', auth()->id())
-            ->whereIn('source', ['warga', 'telegram'])
-            ->orderBy('created_at', 'desc');
-
-        if ($status) {
-            $query->where('status', $status);
-        }
-
-        $reports = $query->paginate($perPage);
-        $reports->getCollection()->each(fn ($r) => $r->append('first_photo_url'));
-
-        return response()->json([
-            'success' => true,
-            'data' => $reports->items(),
-            'meta' => [
-                'current_page' => $reports->currentPage(),
-                'last_page' => $reports->lastPage(),
-                'per_page' => $reports->perPage(),
-                'total' => $reports->total(),
-            ],
-        ]);
-    }
-
-    public function show(string $id): JsonResponse
-    {
-        $report = Report::where('id', $id)
-            ->where('user_id', auth()->id())
-            ->whereIn('source', ['warga', 'telegram'])
-            ->with(['photos' => function ($q) {
-                $q->orderBy('sort_order');
-            }])
-            ->first();
-
-        if (! $report) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Laporan tidak ditemukan.',
-            ], 404);
-        }
-
-        $timeline = StatusLog::where('report_id', $report->id)
-            ->orderBy('created_at', 'asc')
-            ->get(['old_status', 'new_status', 'notes', 'created_at', 'user_id']);
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'report' => $report->toArray(),
-                'timeline' => $timeline,
-            ],
-        ]);
-    }
-
-    public function track(Request $request): JsonResponse
-    {
-        try {
-            $validated = $request->validate([
-                'report_code' => ['required', 'string', 'max:20'],
-            ]);
-        } catch (ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Kode laporan tidak valid.',
-                'errors' => $e->errors(),
-            ], 422);
-        }
-
-        $report = Report::where('report_code', $validated['report_code'])
-            ->with(['photos' => function ($q) {
-                $q->orderBy('sort_order');
-            }])
-            ->first();
-
-        if (! $report) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Laporan dengan kode tersebut tidak ditemukan.',
-            ], 404);
-        }
-
-        $timeline = StatusLog::where('report_id', $report->id)
-            ->orderBy('created_at', 'asc')
-            ->get(['old_status', 'new_status', 'notes', 'created_at']);
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'report' => [
-                    'id' => $report->id,
-                    'report_code' => $report->report_code,
-                    'road_name' => $report->road_name,
-                    'district' => $report->district,
-                    'status' => $report->status,
-                    'created_at' => $report->created_at?->toIso8601String(),
-                    'updated_at' => $report->updated_at?->toIso8601String(),
-                    'description' => $report->description,
-                    'photos' => $report->photos->map(function ($p) {
-                        return [
-                            'image_original_url' => $p->image_original_url,
-                            'created_at' => $p->created_at?->toIso8601String(),
-                        ];
-                    }),
-                ],
-                'timeline' => $timeline,
-            ],
-        ]);
     }
 
     // ── Helper Methods ──────────────────────────────────────────────────

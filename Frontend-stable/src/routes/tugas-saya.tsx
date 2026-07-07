@@ -73,7 +73,7 @@ function TugasSayaPage() {
   }, []);
 
   useEffect(() => {
-    if (user?.role !== "petugas") navigate({ to: "/" });
+    if (user?.role !== "petugas") navigate({ to: "/masuk" });
   }, [user, navigate]);
 
   // ── Patroli hooks ──

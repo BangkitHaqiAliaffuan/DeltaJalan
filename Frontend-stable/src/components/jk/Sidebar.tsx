@@ -64,7 +64,7 @@ export function Sidebar() {
       }
     }
     clearAuth();
-    navigate({ to: "/" });
+    navigate({ to: "/masuk" });
   }
 
   const { canInstall, install } = usePwaInstall();

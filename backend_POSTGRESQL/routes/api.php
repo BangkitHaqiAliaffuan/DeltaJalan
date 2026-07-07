@@ -63,6 +63,12 @@ Route::get('/auth/me', [AuthController::class, 'me'])->middleware('auth:sanctum'
  */
 Route::post('/reports/track', [WargaReportController::class, 'track'])->middleware('throttle:10,1');
 
+// ── Public Warga Reports (no auth) ─────────────────────────────────────
+Route::post('/public/reports', [WargaReportController::class, 'storePublic'])
+    ->middleware('throttle:10,1');
+Route::get('/public/reports', [WargaReportController::class, 'indexByPhone'])
+    ->middleware('throttle:10,1');
+
 // ── Routes yang memerlukan autentikasi Sanctum ────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
     /**

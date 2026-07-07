@@ -194,7 +194,7 @@ function LacakPage() {
 
             <div className="px-6 py-3 bg-gray-50 border-t border-[#E2E8F0] flex items-center justify-center">
               <Link
-                to="/"
+                to="/masuk"
                 className="font-label-sm text-label-sm text-[#475569] hover:text-[#1e40af] transition-colors flex items-center gap-1"
               >
                 <Icon name="arrow_back" className="!text-[16px]" />

@@ -54,7 +54,7 @@ export function TopBar({
       } catch {}
     }
     clearAuth();
-    navigate({ to: "/" });
+    navigate({ to: "/masuk" });
   }
 
   return (

@@ -12,7 +12,7 @@ function WargaLayout() {
 
   useEffect(() => {
     if (!user || user.role !== "warga") {
-      navigate({ to: "/" });
+      navigate({ to: "/masuk" });
     }
   }, [user, navigate]);
 

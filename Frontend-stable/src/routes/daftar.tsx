@@ -51,7 +51,7 @@ function RegisterPage() {
 
       if (result.success) {
         setSuccess("Registrasi berhasil! Silakan login.");
-        setTimeout(() => navigate({ to: "/" }), 2000);
+        setTimeout(() => navigate({ to: "/masuk" }), 2000);
       } else {
         if (result.errors) {
           const firstError = Object.values(result.errors).flat()[0];
@@ -224,7 +224,7 @@ function RegisterPage() {
 
                 <div className="flex flex-col items-center gap-2 mt-5">
                   <Link
-                    to="/"
+                    to="/masuk"
                     className="font-label-sm text-label-sm text-[#1e40af] hover:text-[#2e68d8] font-semibold transition-colors"
                   >
                     Sudah punya akun? Masuk

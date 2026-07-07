@@ -12,7 +12,7 @@ function SupervisorLayout() {
 
   useEffect(() => {
     if (user?.role !== "supervisor") {
-      navigate({ to: "/" });
+      navigate({ to: "/masuk" });
     }
   }, [user, navigate]);
 
