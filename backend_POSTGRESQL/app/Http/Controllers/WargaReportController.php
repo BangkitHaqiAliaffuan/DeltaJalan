@@ -281,6 +281,44 @@ class WargaReportController extends Controller
         ]);
     }
 
+    /**
+     * GET /api/public/stats — No auth required.
+     * Returns aggregated statistics and recent reports for the landing page.
+     */
+    public function publicStats(): JsonResponse
+    {
+        $totalReports = Report::count();
+        $completedReports = Report::where('status', 'Selesai')->count();
+        $inProgress = Report::whereNotIn('status', ['Selesai', 'Ditolak'])->count();
+
+        $recentReports = Report::where('status', 'Selesai')
+            ->whereNotNull('road_name')
+            ->orderBy('updated_at', 'desc')
+            ->take(5)
+            ->get(['report_code', 'road_name', 'district', 'status', 'description', 'updated_at']);
+
+        $kecamatan = $this->getKecamatanList();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'total_reports' => $totalReports,
+                'completed_reports' => $completedReports,
+                'in_progress' => $inProgress,
+                'kecamatan_count' => count($kecamatan),
+                'kecamatan' => $kecamatan,
+                'recent_reports' => $recentReports->map(fn ($r) => [
+                    'report_code' => $r->report_code,
+                    'road_name' => $r->road_name,
+                    'district' => $r->district,
+                    'status' => $r->status,
+                    'description' => $r->description,
+                    'updated_at' => $r->updated_at?->toIso8601String(),
+                ]),
+            ],
+        ]);
+    }
+
     // ── Shared Helpers ─────────────────────────────────────────────────
 
     private function checkDailyLimit(int $userId): ?JsonResponse
