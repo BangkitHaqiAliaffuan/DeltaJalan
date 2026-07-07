@@ -57,6 +57,7 @@ function PublicLaporPage() {
     setLocatingMessage("Mengidentifikasi lokasi...");
 
     const geo = await reverseGeocode(lat, lng);
+    console.log("[PublicLapor] reverseGeocode result:", JSON.stringify(geo, null, 2));
     if (geo.namaJalan) setRoadName(geo.namaJalan);
     if (geo.kecamatan) setDistrict(geo.kecamatan);
 
