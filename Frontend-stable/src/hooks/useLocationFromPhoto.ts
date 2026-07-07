@@ -196,6 +196,14 @@ interface LocationIQResponse {
   lon: string;
 }
 
+export interface TierRawData {
+  tier: number;
+  name: string;
+  success: boolean;
+  rawAddress: Record<string, unknown> | null;
+  rawJson: unknown;
+}
+
 export interface ReverseGeocodeResult {
   /** Nama jalan dari address.road — kosong string jika tidak ada */
   namaJalan: string;
@@ -203,6 +211,8 @@ export interface ReverseGeocodeResult {
   roadFound: boolean;
   /** Kecamatan yang cocok dengan 18 kecamatan Sidoarjo */
   kecamatan: string | null;
+  /** Raw responses from each tier for debugging */
+  tiers: TierRawData[];
 }
 
 /** Cocokkan string dari LocationIQ ke salah satu dari 18 kecamatan Sidoarjo */
@@ -246,11 +256,14 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
   let namaJalan = "";
   let roadFound = false;
   let kecamatan: string | null = null;
+  const tiers: TierRawData[] = [];
 
   // ── Tier 1: Nominatim ──────────────────────────────────────────────────
   // Nominatim pakai data OSM asli (tidak diturunkan seperti LocationIQ free tier).
   // Wajib set User-Agent sesuai kebijakan Nominatim.
 
+  let tier1Raw: Record<string, unknown> | null = null;
+  let tier1RawJson: unknown = null;
   try {
     const url = new URL(NOMINATIM_REVERSE_URL);
     url.searchParams.set("lat", lat.toString());
@@ -268,6 +281,8 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
     if (res.ok) {
       const data = await res.json();
       const addr = data.address ?? {};
+      tier1Raw = addr as Record<string, unknown>;
+      tier1RawJson = data;
 
       console.log("[GEO] Tier1 Nominatim raw:", JSON.stringify(data, null, 2));
 
@@ -309,8 +324,11 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
   } catch (err) {
     console.warn(`[GEO] Tier1 Nominatim error:`, err instanceof Error ? err.message : err);
   }
+  tiers.push({ tier: 1, name: "Nominatim", success: !!tier1Raw, rawAddress: tier1Raw, rawJson: tier1RawJson });
 
   // ── Tier 2: LocationIQ ──────────────────────────────────────────────────
+  let tier2Raw: Record<string, unknown> | null = null;
+  let tier2RawJson: unknown = null;
   if (!namaJalan) {
     console.log(`[GEO] Tier2 LocationIQ: trying...`);
 
@@ -329,6 +347,8 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
       if (res.ok) {
         const data: LocationIQResponse = await res.json();
         const addr = data.address ?? {};
+        tier2Raw = addr as Record<string, unknown>;
+        tier2RawJson = data;
 
         console.log("[GEO] Tier2 LocationIQ raw:", JSON.stringify(data, null, 2));
 
@@ -366,20 +386,24 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
         }
 
         if (kecamatan) {
-
+          console.log(`[GEO] Tier2 Kecamatan: ${kecamatan}`);
         }
       } else {
+        console.warn(`[GEO] Tier2 LocationIQ: HTTP ${(res as Response).status}`);
       }
     } catch (err) {
-
+      console.warn(`[GEO] Tier2 LocationIQ error:`, err instanceof Error ? err.message : err);
     }
   }
+  tiers.push({ tier: 2, name: "LocationIQ", success: !!tier2Raw, rawAddress: tier2Raw, rawJson: tier2RawJson });
 
   // ── Tier 3: OSRM Nearest ───────────────────────────────────────────────
+  let tier3RawJson: unknown = null;
   if (!namaJalan) {
     console.log("[GEO] Tier3 OSRM Nearest: trying...");
     try {
       const osmResult = await snapToRoad(lat, lng);
+      tier3RawJson = osmResult;
       if (osmResult.roadName) {
         namaJalan = osmResult.roadName;
         roadFound = true;
@@ -391,8 +415,10 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
       console.warn(`[GEO] Tier3 OSRM error:`, e instanceof Error ? e.message : e);
     }
   }
+  tiers.push({ tier: 3, name: "OSRM Nearest", success: !!tier3RawJson, rawAddress: null, rawJson: tier3RawJson });
 
   // ── Tier 4: Overpass API ───────────────────────────────────────────────
+  let tier4RawJson: unknown = null;
   if (!namaJalan) {
     console.log("[GEO] Tier4 Overpass: trying...");
     try {
@@ -410,6 +436,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
 
       if (overpassRes.ok) {
         const overpassData = await overpassRes.json();
+        tier4RawJson = overpassData;
         const roadName = overpassData.elements?.[0]?.tags?.name;
         if (roadName) {
           namaJalan = roadName;
@@ -417,6 +444,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
           console.log(`[GEO] Tier4 Overpass: road="${namaJalan}"`);
         } else {
           console.log("[GEO] Tier4 Overpass: no named highway found within 500m");
+          console.log("[GEO] Tier4 Overpass raw:", JSON.stringify(overpassData, null, 2));
         }
       } else {
         console.warn(`[GEO] Tier4 Overpass: HTTP ${overpassRes.status}`);
@@ -429,9 +457,10 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
       }
     }
   }
+  tiers.push({ tier: 4, name: "Overpass API", success: !!tier4RawJson, rawAddress: null, rawJson: tier4RawJson });
 
   // ── Result ──────────────────────────────────────────────────────────────
-  const result: ReverseGeocodeResult = { namaJalan, roadFound, kecamatan };
+  const result: ReverseGeocodeResult = { namaJalan, roadFound, kecamatan, tiers };
   console.log("[GEO] reverseGeocode result:", JSON.stringify(result, null, 2));
   return result;
 }

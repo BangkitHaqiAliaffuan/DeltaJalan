@@ -5,6 +5,7 @@ import { Icon } from "@/components/jk/Icon";
 import { API_BASE_URL } from "@/lib/aiStore";
 import exifr from "exifr";
 import { reverseGeocode, readExifGpsFromServer } from "@/hooks/useLocationFromPhoto";
+import type { TierRawData } from "@/hooks/useLocationFromPhoto";
 import { compressImage } from "@/lib/compressImage";
 
 export const Route = createFileRoute("/lapor")({
@@ -44,6 +45,8 @@ function PublicLaporPage() {
   const [locatingMessage, setLocatingMessage] = useState("");
   const [locationSource, setLocationSource] = useState<"exif" | "geolocation" | null>(null);
   const [geoError, setGeoError] = useState("");
+  const [geoDebug, setGeoDebug] = useState<TierRawData[] | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState<{ reportCode: string } | null>(null);
 
@@ -60,6 +63,7 @@ function PublicLaporPage() {
     console.log("[PublicLapor] reverseGeocode result:", JSON.stringify(geo, null, 2));
     if (geo.namaJalan) setRoadName(geo.namaJalan);
     if (geo.kecamatan) setDistrict(geo.kecamatan);
+    if (geo.tiers) setGeoDebug(geo.tiers);
 
     setLocating(false);
   }
@@ -430,6 +434,36 @@ function PublicLaporPage() {
                 />
               </div>
             </div>
+
+            {geoDebug && (
+              <div className="border border-[#D0DAE8] rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowDebug(!showDebug)}
+                  className="w-full flex items-center justify-between px-4 py-2.5 bg-[#F1F5F9] text-xs font-semibold text-[#475569] hover:bg-[#E2E8F0] transition-colors"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Icon name="bug_report" className="!text-[16px]" />
+                    Debug Geo ({geoDebug.length} tier)
+                  </span>
+                  <Icon name={showDebug ? "expand_less" : "expand_more"} className="!text-[18px]" />
+                </button>
+                {showDebug && (
+                  <div className="px-4 py-3 space-y-3 bg-white">
+                    {geoDebug.map((t) => (
+                      <details key={t.tier} className="text-xs">
+                        <summary className="font-semibold text-[#0F172A] cursor-pointer py-1">
+                          Tier {t.tier}: {t.name} — {t.success ? "OK" : "FAIL"}
+                        </summary>
+                        <pre className="mt-1 p-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded overflow-x-auto text-[11px] text-[#334155] leading-relaxed max-h-48 overflow-y-auto">
+                          {JSON.stringify(t.rawJson ?? t.rawAddress, null, 2)}
+                        </pre>
+                      </details>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <button
               type="button"
