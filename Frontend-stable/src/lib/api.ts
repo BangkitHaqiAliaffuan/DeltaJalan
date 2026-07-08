@@ -68,12 +68,23 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
 
   if (!isNative) {
     const apiBase = import.meta.env.VITE_API_BASE_URL;
+
+    // Inject ngrok-skip-browser-warning to bypass ngrok interstitial page
+    // which doesn't include CORS headers and causes CORS errors
+    const ngrokInit: RequestInit = {
+      ...init,
+      headers: {
+        "ngrok-skip-browser-warning": "true",
+        ...(init?.headers as Record<string, string>),
+      },
+    };
+
     if (apiBase && !apiBase.startsWith("/") && typeof input === "string" && input.startsWith("/api/")) {
       const base = apiBase.replace(/\/+$/, "");
       const path = input.replace(/^\/api/, "");
-      return _originalFetch!(base + (path.startsWith("/") ? path : "/" + path), init);
+      return _originalFetch!(base + (path.startsWith("/") ? path : "/" + path), ngrokInit);
     }
-    return _originalFetch!(input, init);
+    return _originalFetch!(input, ngrokInit);
   }
 
   let url = urlStr;
