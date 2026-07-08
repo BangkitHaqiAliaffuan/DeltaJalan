@@ -79,6 +79,7 @@ export async function nativeTakePhoto(): Promise<{
     const file = new File([blob], `camera_${Date.now()}.jpg`, { type: "image/jpeg" });
 
     const gps = await readExifGps(file);
+    console.log("[GPS-nativeTakePhoto] exifr.gps result:", gps);
 
     return {
       file,
@@ -86,7 +87,7 @@ export async function nativeTakePhoto(): Promise<{
       lng: gps?.longitude ?? null,
     };
   } catch (err) {
-
+    console.log("[GPS-nativeTakePhoto] error:", err);
     return null;
   }
 }
@@ -278,7 +279,10 @@ function titleCase(str: string): string {
   return str.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export async function reverseGeocodeWilayahId(lat: number, lng: number): Promise<WilayahIdAdminData | null> {
+export async function reverseGeocodeWilayahId(
+  lat: number,
+  lng: number,
+): Promise<WilayahIdAdminData | null> {
   try {
     const url = new URL(WILAYAH_ID_URL);
     url.searchParams.set("lat", lat.toString());
@@ -403,7 +407,13 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
   } catch (err) {
     console.warn(`[GEO] Tier1 Nominatim error:`, err instanceof Error ? err.message : err);
   }
-  tiers.push({ tier: 1, name: "Nominatim", success: !!tier1Raw, rawAddress: tier1Raw, rawJson: tier1RawJson });
+  tiers.push({
+    tier: 1,
+    name: "Nominatim",
+    success: !!tier1Raw,
+    rawAddress: tier1Raw,
+    rawJson: tier1RawJson,
+  });
 
   // ── Tier 2: LocationIQ ──────────────────────────────────────────────────
   let tier2Raw: Record<string, unknown> | null = null;
@@ -474,7 +484,13 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
       console.warn(`[GEO] Tier2 LocationIQ error:`, err instanceof Error ? err.message : err);
     }
   }
-  tiers.push({ tier: 2, name: "LocationIQ", success: !!tier2Raw, rawAddress: tier2Raw, rawJson: tier2RawJson });
+  tiers.push({
+    tier: 2,
+    name: "LocationIQ",
+    success: !!tier2Raw,
+    rawAddress: tier2Raw,
+    rawJson: tier2RawJson,
+  });
 
   // ── Tier 3: OSRM Nearest ───────────────────────────────────────────────
   let tier3RawJson: unknown = null;
@@ -494,7 +510,13 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
       console.warn(`[GEO] Tier3 OSRM error:`, e instanceof Error ? e.message : e);
     }
   }
-  tiers.push({ tier: 3, name: "OSRM Nearest", success: !!tier3RawJson, rawAddress: null, rawJson: tier3RawJson });
+  tiers.push({
+    tier: 3,
+    name: "OSRM Nearest",
+    success: !!tier3RawJson,
+    rawAddress: null,
+    rawJson: tier3RawJson,
+  });
 
   // ── Tier 4: Overpass API ───────────────────────────────────────────────
   let tier4RawJson: unknown = null;
@@ -536,7 +558,13 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
       }
     }
   }
-  tiers.push({ tier: 4, name: "Overpass API", success: !!tier4RawJson, rawAddress: null, rawJson: tier4RawJson });
+  tiers.push({
+    tier: 4,
+    name: "Overpass API",
+    success: !!tier4RawJson,
+    rawAddress: null,
+    rawJson: tier4RawJson,
+  });
 
   // ── Tier 5 (enrichment): Wilayah-id ──────────────────────────────────────
   // Not gated by !namaJalan — always runs to get admin hierarchy
@@ -556,7 +584,13 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
   } else {
     console.log("[GEO] Tier5 Wilayah-id: failed or no data");
   }
-  tiers.push({ tier: 5, name: "Wilayah-id", success: !!wilayahAdmin, rawAddress: wilayahAdmin as unknown as Record<string, unknown> | null, rawJson: tier5RawJson });
+  tiers.push({
+    tier: 5,
+    name: "Wilayah-id",
+    success: !!wilayahAdmin,
+    rawAddress: wilayahAdmin as unknown as Record<string, unknown> | null,
+    rawJson: tier5RawJson,
+  });
 
   // ── Construct full address ──────────────────────────────────────────────
   const fullAddress = constructFullAddress(namaJalan, wilayahAdmin, kecamatan);
@@ -587,6 +621,7 @@ export interface ExifGps {
 export async function readExifGps(file: File): Promise<ExifGps | null> {
   try {
     const gps = await exifr.gps(file);
+    console.log("[GPS-readExifGps] exifr.gps returned:", gps);
     if (
       gps &&
       typeof gps.latitude === "number" &&
@@ -598,7 +633,7 @@ export async function readExifGps(file: File): Promise<ExifGps | null> {
     }
     return null;
   } catch (err) {
-
+    console.log("[GPS-readExifGps] error:", err);
     return null;
   }
 }
@@ -619,19 +654,20 @@ export function getBrowserLocation(options?: {
 }): Promise<ExifGps | null> {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
-
+      console.log("[GPS-getBrowserLocation] geolocation not supported");
       resolve(null);
       return;
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        console.log("[GPS-getBrowserLocation] success:", pos.coords.latitude, pos.coords.longitude);
         resolve({
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
         });
       },
       (err) => {
-
+        console.log("[GPS-getBrowserLocation] error:", err.code, err.message);
         resolve(null);
       },
       {
@@ -659,16 +695,16 @@ export async function readExifGpsFromServer(
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-
+      console.log("[GPS-readExifGpsFromServer] HTTP", res.status, body);
       return null;
     }
     const data = await res.json();
+    console.log("[GPS-readExifGpsFromServer] response data:", data);
     if (typeof data.lat === "number" && typeof data.lng === "number") {
       return { latitude: data.lat, longitude: data.lng };
     }
     return null;
   } catch (err) {
-
     return null;
   }
 }
@@ -859,7 +895,6 @@ export function useLocationFromPhoto(
   const handleNativePick = useCallback(
     async (limit: number = 1): Promise<NativePhoto[]> => {
       if (!isNativePlatform()) {
-
         return [];
       }
 
@@ -904,7 +939,6 @@ export function useLocationFromPhoto(
 
         return photosWithSrc;
       } catch (err) {
-
         setLocationState((prev) => ({
           ...prev,
           status: "error",

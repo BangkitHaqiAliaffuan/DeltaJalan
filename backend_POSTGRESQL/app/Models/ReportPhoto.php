@@ -33,10 +33,15 @@ class ReportPhoto extends Model
         'sort_order',
         'original_filename',
         'photo_taken_at',
+        'mobileclip_score',
+        'mobileclip_label',
+        'quality_scores',
     ];
 
     protected $casts = [
         'photo_taken_at' => 'datetime',
+        'mobileclip_score' => 'decimal:3',
+        'quality_scores' => 'array',
         'ai_raw_output' => 'array',
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',

@@ -283,7 +283,7 @@ function WargaLaporPage() {
 
   return (
     <PageLayout showBrand withBottomNav>
-      <main className="pb-4">
+      <main className="pb-20">
         <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] p-6 text-white">
           <h1 className="text-xl font-bold tracking-tight">Laporkan Kerusakan Jalan</h1>
           <p className="text-sm text-blue-200 mt-1">Isi data kerusakan yang Anda temukan</p>

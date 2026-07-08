@@ -6,11 +6,13 @@ use App\Models\Report;
 use App\Models\ReportPhoto;
 use App\Models\StatusLog;
 use App\Models\User;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -45,6 +47,7 @@ class WargaReportController extends Controller
                 'kerusakan_panjang' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
                 'kerusakan_lebar' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
                 'full_address' => ['nullable', 'string', 'max:500'],
+                'quality_scores' => ['nullable', 'json'],
             ]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -91,6 +94,7 @@ class WargaReportController extends Controller
                 'kerusakan_panjang' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
                 'kerusakan_lebar' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
                 'full_address' => ['nullable', 'string', 'max:500'],
+                'quality_scores' => ['nullable', 'json'],
             ]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -553,7 +557,7 @@ class WargaReportController extends Controller
                     'overall_severity' => null,
                 ]);
 
-                ReportPhoto::create([
+                $photoData = [
                     'report_id' => $report->id,
                     'reporter_name' => $validated['reporter_name'],
                     'image_original_path' => $photoPath,
@@ -564,7 +568,16 @@ class WargaReportController extends Controller
                     'sort_order' => 0,
                     'original_filename' => $imageFile->getClientOriginalName(),
                     'photo_taken_at' => $exifCheck['photo_date'],
-                ]);
+                ];
+
+                if (! empty($validated['quality_scores'])) {
+                    $decoded = json_decode($validated['quality_scores'], true);
+                    if (is_array($decoded)) {
+                        $photoData['quality_scores'] = $decoded;
+                    }
+                }
+
+                ReportPhoto::create($photoData);
 
                 if ($systemNotes) {
                     $report->update(['system_notes' => $systemNotes]);
@@ -578,6 +591,33 @@ class WargaReportController extends Controller
                 'report_code' => $report->report_code,
                 'user_id' => $userId,
             ]);
+
+            // ── Non-blocking MobileCLIP2-S0 relevance check ──────────────
+            try {
+                $photo = $report->photos()->first();
+                if ($photo && $photo->image_original_path) {
+                    $fullPath = storage_path('app/public/'.$photo->image_original_path);
+                    if (file_exists($fullPath)) {
+                        $result = $this->callMobileClipRelevance($fullPath, basename($photo->image_original_path));
+                        if ($result['success']) {
+                            $photo->update([
+                                'mobileclip_score' => $result['score'],
+                                'mobileclip_label' => $result['label'],
+                            ]);
+                            Log::info('MobileCLIP relevance (non-blocking)', [
+                                'report_id' => $report->id,
+                                'score' => $result['score'],
+                                'label' => $result['label'],
+                            ]);
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('MobileCLIP relevance check gagal (non-blocking)', [
+                    'report_id' => $report->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
@@ -867,5 +907,51 @@ class WargaReportController extends Controller
         }
 
         return null;
+    }
+
+    private function callMobileClipRelevance(string $filePath, string $fileName): array
+    {
+        $fastApiUrl = rtrim(config('services.fastapi.url', env('FASTAPI_URL', 'http://127.0.0.1:8000')), '/');
+        $endpoint = $fastApiUrl.'/analyze-relevance';
+
+        try {
+            $response = Http::timeout(10)
+                ->attach(
+                    'file',
+                    fopen($filePath, 'r'),
+                    $fileName
+                )
+                ->post($endpoint);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                return [
+                    'success' => true,
+                    'score' => $data['score'] ?? null,
+                    'label' => $data['label'] ?? null,
+                ];
+            }
+
+            return [
+                'success' => false,
+                'score' => null,
+                'label' => null,
+                'error' => "FastAPI responded with HTTP {$response->status()}",
+            ];
+        } catch (ConnectionException $e) {
+            return [
+                'success' => false,
+                'score' => null,
+                'label' => null,
+                'error' => 'Connection failed: '.$e->getMessage(),
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'score' => null,
+                'label' => null,
+                'error' => $e->getMessage(),
+            ];
+        }
     }
 }

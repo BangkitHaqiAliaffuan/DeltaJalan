@@ -182,6 +182,14 @@ export interface ReportPhoto {
   kerusakan_panjang?: number | null;
   kerusakan_lebar?: number | null;
   photo_taken_at?: string | null;
+  mobileclip_score?: number | null;
+  mobileclip_label?: string | null;
+  quality_scores?: {
+    status: string;
+    blurScore: number;
+    meanBrightness: number;
+    brightnessStdDev: number;
+  } | null;
 }
 
 // ── Progress Update ─────────────────────────────────────────────────────

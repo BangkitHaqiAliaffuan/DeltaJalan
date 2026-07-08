@@ -14,6 +14,8 @@ class TelegramWebhookController extends Controller
 {
     private TelegramService $telegram;
 
+    private const DAILY_LIMIT = 3;
+
     private const STATES = [
         'idle',
         'awaiting_photo',
@@ -278,6 +280,11 @@ class TelegramWebhookController extends Controller
             );
 
             return response()->json(['ok' => true]);
+        }
+
+        $limitCheck = $this->checkDailyLimit($chatId);
+        if ($limitCheck) {
+            return $limitCheck;
         }
 
         $session->update([
@@ -891,5 +898,28 @@ class TelegramWebhookController extends Controller
         }
 
         return round($value, 2);
+    }
+
+    private function checkDailyLimit(int|string $chatId): ?JsonResponse
+    {
+        $user = User::where('email', "telegram_{$chatId}@telegram.jalankita.lokal")->first();
+
+        if (! $user) {
+            return null;
+        }
+
+        $todayCount = Report::where('user_id', $user->id)
+            ->whereDate('created_at', today())
+            ->count();
+
+        if ($todayCount >= self::DAILY_LIMIT) {
+            $this->telegram->sendMessage($chatId,
+                'Batas laporan harian ('.self::DAILY_LIMIT.' laporan) telah tercapai. Silakan coba lagi besok.'
+            );
+
+            return response()->json(['ok' => true]);
+        }
+
+        return null;
     }
 }

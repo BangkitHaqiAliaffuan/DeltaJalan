@@ -80,8 +80,13 @@ def _check_image_relevance(img: Image.Image) -> tuple[bool, float]:
             probs = logits.softmax(dim=-1)
 
         road_score = sum(probs[0, idx].item() for idx in _CLIP_RELEVANCE_PROMPT_INDICES)
+        prompt_labels = [p.split(",")[0] for p in _CLIP_PROMPTS]
+        probs_dict = dict(zip(prompt_labels, [round(p.item(), 4) for p in probs[0]]))
+        print(f"  [MobileCLIP] img={img.size}, road_score={road_score:.4f}, threshold={_CLIP_RELEVANCE_THRESHOLD}, relevant={road_score >= _CLIP_RELEVANCE_THRESHOLD}")
+        print(f"  [MobileCLIP] probs: {probs_dict}")
         return road_score >= _CLIP_RELEVANCE_THRESHOLD, road_score
-    except Exception:
+    except Exception as e:
+        print(f"  [MobileCLIP] ERROR in _check_image_relevance: {e}")
         return True, 1.0
 
 # Parse command-line arguments
@@ -602,6 +607,7 @@ async def analyze(
     # ── MobileCLIP2-S0 Relevance Check ──
     is_relevant, relevance_score = _check_image_relevance(img)
     if not is_relevant:
+        print(f"  [MobileCLIP] REJECTED /analyze — road_score={relevance_score:.4f} < threshold={_CLIP_RELEVANCE_THRESHOLD}")
         return JSONResponse({
             "status": "not_relevant",
             "message": (
@@ -658,6 +664,25 @@ async def analyze(
         resp["image_result"] = img_b64
 
     return JSONResponse(resp)
+
+
+@app.post("/analyze-relevance")
+async def analyze_relevance(file: UploadFile = File(...)):
+    contents = await file.read()
+    try:
+        img = Image.open(io.BytesIO(contents)).convert("RGB")
+    except Exception:
+        return JSONResponse({"status": "error", "message": "File bukan gambar yang valid"}, status_code=400)
+
+    is_relevant, score = _check_image_relevance(img)
+    label = "Terindikasi Kerusakan Jalan" if is_relevant else "Tidak Terindikasi Kerusakan Jalan"
+    print(f"  [MobileCLIP] /analyze-relevance -> relevant={is_relevant}, score={score:.4f}")
+
+    return {
+        "relevant": is_relevant,
+        "score": round(score, 4),
+        "label": label,
+    }
 
 
 @app.get("/")

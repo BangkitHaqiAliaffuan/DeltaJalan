@@ -10,6 +10,7 @@ import {
   isNativePlatform,
   nativeTakePhoto,
   convertFileSrc,
+  getBrowserLocation,
 } from "@/hooks/useLocationFromPhoto";
 import { compressImage } from "@/lib/compressImage";
 import { FraudWarningModal } from "@/components/jk/FraudWarningModal";
@@ -105,6 +106,7 @@ function PublicLaporPage() {
     title: string;
     message: string;
   }>({ isOpen: false, status: "no_exif_date", title: "", message: "" });
+  const [qualityScores, setQualityScores] = useState<string>("");
   const [error, setError] = useState("");
   const [reporterNameError, setReporterNameError] = useState("");
   const [phoneError, setPhoneError] = useState("");
@@ -168,6 +170,7 @@ function PublicLaporPage() {
     setLocatingMessage("Membaca GPS dari foto...");
 
     const gps = await exifr.gps(file);
+    console.log("[GPS-processPhotoForGps] Stage 1 - exifr.gps:", gps);
     if (gps?.latitude && gps?.longitude) {
       await applyCoordinates(gps.latitude, gps.longitude, "exif");
       return;
@@ -175,12 +178,16 @@ function PublicLaporPage() {
 
     setLocatingMessage("Mengambil GPS dari server...");
     const serverGps = await readExifGpsFromServer(file);
+    console.log("[GPS-processPhotoForGps] Stage 2 - serverGps:", serverGps);
     if (serverGps?.latitude && serverGps?.longitude) {
       await applyCoordinates(serverGps.latitude, serverGps.longitude, "exif");
       return;
     }
 
     if (!isCameraMode) {
+      console.log(
+        "[GPS-processPhotoForGps] isCameraMode=false, stopping (no geolocation for desktop)",
+      );
       const msg =
         "Foto yang diunggah tidak memiliki data GPS. Gunakan kamera untuk mengambil foto langsung, " +
         "atau aktifkan GPS perangkat sebelum memotret.";
@@ -190,13 +197,20 @@ function PublicLaporPage() {
     }
 
     if (navigator.geolocation) {
+      console.log("[GPS-processPhotoForGps] Stage 3 - calling browser geolocation");
       setLocatingMessage("Mendeteksi lokasi perangkat...");
       navigator.geolocation.getCurrentPosition(
         (pos) => {
+          console.log(
+            "[GPS-processPhotoForGps] Geolocation success:",
+            pos.coords.latitude,
+            pos.coords.longitude,
+          );
           geoPositionRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
           applyCoordinates(pos.coords.latitude, pos.coords.longitude, "geolocation");
         },
         () => {
+          console.log("[GPS-processPhotoForGps] Geolocation failed");
           setGeoError("Gagal mendeteksi lokasi. Pastikan GPS aktif, atau isi manual.");
           setLocating(false);
         },
@@ -242,10 +256,12 @@ function PublicLaporPage() {
         message: qualityCheck.message,
       });
       if (!qualityCheck.isWarningOnly) {
+        setQualityScores(JSON.stringify(qualityCheck));
         setProcessing(false);
         return;
       }
     }
+    setQualityScores(JSON.stringify({ ...qualityCheck, title: undefined, message: undefined, isWarningOnly: undefined }));
 
     // Baca kamera (non-blocking, hanya display)
     try {
@@ -273,6 +289,9 @@ function PublicLaporPage() {
     setProcessing(true);
     setCameraModel("");
     setFraudModal((s) => ({ ...s, isOpen: false }));
+
+    // Pre-fetch geolocation SELAGIH dalam user gesture (button tap)
+    const geoPromise = getBrowserLocation({ timeout: 10000, enableHighAccuracy: true });
 
     const result = await nativeTakePhoto();
     if (!result) {
@@ -304,16 +323,33 @@ function PublicLaporPage() {
         message: qualityCheck.message,
       });
       if (!qualityCheck.isWarningOnly) {
+        setQualityScores(JSON.stringify(qualityCheck));
         setProcessing(false);
         return;
       }
     }
+    setQualityScores(JSON.stringify({ ...qualityCheck, title: undefined, message: undefined, isWarningOnly: undefined }));
 
     setPhoto(compressedFile);
     setPhotoPreview(URL.createObjectURL(compressedFile));
 
     if (result.lat != null && result.lng != null) {
+      console.log("[GPS-handleNativeCamera] GPS from camera plugin:", result.lat, result.lng);
       await applyCoordinates(result.lat, result.lng, "exif");
+    } else {
+      console.log("[GPS-handleNativeCamera] GPS null, trying pre-fetched geolocation");
+      const geo = await geoPromise;
+      if (geo?.latitude && geo?.longitude) {
+        console.log(
+          "[GPS-handleNativeCamera] Pre-fetched geo success:",
+          geo.latitude,
+          geo.longitude,
+        );
+        await applyCoordinates(geo.latitude, geo.longitude, "geolocation");
+      } else {
+        console.log("[GPS-handleNativeCamera] Pre-fetched geo failed, calling processPhotoForGps");
+        await processPhotoForGps(compressedFile);
+      }
     }
 
     setProcessing(false);
@@ -324,6 +360,9 @@ function PublicLaporPage() {
     setProcessing(true);
     setCameraModel("");
     setFraudModal((s) => ({ ...s, isOpen: false }));
+
+    // Pre-fetch geolocation SELAGIH dalam user gesture (button tap)
+    const geoPromise = getBrowserLocation({ timeout: 10000, enableHighAccuracy: true });
 
     const pickResult = await PhotoExifGps.pickPhotos({ limit: 1 });
     if (!pickResult.photos?.length) {
@@ -368,16 +407,33 @@ function PublicLaporPage() {
         message: qualityCheck.message,
       });
       if (!qualityCheck.isWarningOnly) {
+        setQualityScores(JSON.stringify(qualityCheck));
         setProcessing(false);
         return;
       }
     }
+    setQualityScores(JSON.stringify({ ...qualityCheck, title: undefined, message: undefined, isWarningOnly: undefined }));
 
     setPhoto(compressedFile);
     setPhotoPreview(URL.createObjectURL(compressedFile));
 
     if (photo.lat != null && photo.lng != null) {
+      console.log("[GPS-handleNativeGallery] GPS from plugin:", photo.lat, photo.lng);
       await applyCoordinates(photo.lat, photo.lng, "exif");
+    } else {
+      console.log("[GPS-handleNativeGallery] GPS null, trying pre-fetched geolocation");
+      const geo = await geoPromise;
+      if (geo?.latitude && geo?.longitude) {
+        console.log(
+          "[GPS-handleNativeGallery] Pre-fetched geo success:",
+          geo.latitude,
+          geo.longitude,
+        );
+        await applyCoordinates(geo.latitude, geo.longitude, "geolocation");
+      } else {
+        console.log("[GPS-handleNativeGallery] Pre-fetched geo failed, calling processPhotoForGps");
+        await processPhotoForGps(compressedFile);
+      }
     }
 
     setProcessing(false);
@@ -438,6 +494,7 @@ function PublicLaporPage() {
       if (panjang) formData.append("kerusakan_panjang", panjang);
       if (lebar) formData.append("kerusakan_lebar", lebar);
       if (fullAddress) formData.append("full_address", fullAddress);
+      if (qualityScores) formData.append("quality_scores", qualityScores);
 
       const res = await fetch(`${API_BASE_URL}/public/reports`, {
         method: "POST",

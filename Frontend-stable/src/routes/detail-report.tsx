@@ -26,6 +26,16 @@ import { ModalBase } from "@/components/jk/ModalBase";
 import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
 import { formatCountdown, hitungProgress } from "@/lib/deadline";
 import { sanitizeUrls } from "@/lib/imageUrl";
+function qualityLabel(status: string): string {
+  const map: Record<string, string> = {
+    blurry: "Kabur",
+    too_dark: "Terlalu Gelap",
+    too_bright: "Terlalu Terang",
+    low_contrast: "Kontras Rendah",
+    analysis_error: "Gagal Analisis",
+  };
+  return map[status] ?? status;
+}
 // ── TRUST SCORE [NONAKTIF] — import { TrustBadge } from "@/components/jk/TrustBadge";
 
 export const Route = createFileRoute("/detail-report")({
@@ -676,6 +686,28 @@ function DetailReportPage() {
                   <div className="px-3 py-2 border-t border-[#E2E8F0] flex items-center gap-1.5 text-[11px] text-[#64748B]">
                     <Icon name="calendar_today" className="!text-[13px]" />
                     <span>Photo diambil pada {new Date(photo.photo_taken_at).toLocaleDateString("id-ID", { year: "numeric", month: "long", day: "numeric" })}</span>
+                  </div>
+                )}
+                {photo.mobileclip_score != null && (
+                  <div className="px-3 py-2 border-t border-[#E2E8F0] flex items-center gap-1.5 text-[11px]">
+                    <Icon
+                      name={photo.mobileclip_score >= 0.15 ? "check_circle" : "warning"}
+                      className={`!text-[13px] ${photo.mobileclip_score >= 0.15 ? "text-[#16A34A]" : "text-[#F59E0B]"}`}
+                    />
+                    <span className={photo.mobileclip_score >= 0.15 ? "text-[#16A34A]" : "text-[#F59E0B]"}>
+                      AI: {photo.mobileclip_label} ({(photo.mobileclip_score * 100).toFixed(0)}%)
+                    </span>
+                  </div>
+                )}
+                {photo.quality_scores?.status && photo.quality_scores.status !== "good" && (
+                  <div className="px-3 py-2 border-t border-[#E2E8F0] flex items-center gap-1.5 text-[11px]">
+                    <Icon
+                      name={photo.quality_scores.status === "blurry" || photo.quality_scores.status === "too_dark" ? "visibility_off" : "warning"}
+                      className="!text-[13px] text-[#F59E0B]"
+                    />
+                    <span className="text-[#F59E0B]">
+                      Kualitas foto: {qualityLabel(photo.quality_scores.status)} (ketajaman: {photo.quality_scores.blurScore.toFixed(0)}, kecerahan: {photo.quality_scores.meanBrightness.toFixed(0)})
+                    </span>
                   </div>
                 )}
                 {(photo.ai_jenis_kerusakan ||
