@@ -7,6 +7,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\HandleCors;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -59,5 +60,21 @@ return Application::configure(basePath: dirname(__DIR__))
         */
         $exceptions->shouldRenderJsonWhen(function (Request $request, Throwable $e) {
             return $request->is('api/*') || $request->expectsJson();
+        });
+
+        /*
+        |----------------------------------------------------------------------
+        | CORS Headers di Exception Responses
+        |----------------------------------------------------------------------
+        |
+        | HandleCors middleware tidak menjangkau error responses dari exception
+        | handler. Tambahkan CORS header manual agar browser tidak memblokir.
+        |
+        */
+        $exceptions->respond(function (Response $response, Throwable $e, Request $request) {
+            if ($request->is('api/*') && !$response->headers->has('Access-Control-Allow-Origin')) {
+                $response->headers->set('Access-Control-Allow-Origin', '*');
+            }
+            return $response;
         });
     })->create();

@@ -9,6 +9,7 @@ import { compressImage } from "@/lib/compressImage";
 import { FraudWarningModal } from "@/components/jk/FraudWarningModal";
 import { validatePhotoDate } from "@/lib/validatePhotoDate";
 import type { PhotoDateValidationStatus } from "@/lib/validatePhotoDate";
+import { analyzeImageQuality } from "@/lib/imageQualityCheck";
 import { PhotoExifGps } from "@jalankita/capacitor-exif-gps";
 import { validateIndonesianPhone, validateNamaLengkap } from "@/lib/validators";
 
@@ -210,6 +211,21 @@ function PublicLaporPage() {
       return;
     }
 
+    // Cek kualitas foto (blur + brightness)
+    const qualityCheck = await analyzeImageQuality(compressedFile);
+    if (qualityCheck.status !== "good") {
+      setFraudModal({
+        isOpen: true,
+        status: qualityCheck.status,
+        title: qualityCheck.title,
+        message: qualityCheck.message,
+      });
+      if (!qualityCheck.isWarningOnly) {
+        setProcessing(false);
+        return;
+      }
+    }
+
     // Baca kamera (non-blocking, hanya display)
     try {
       const tags = await exifr.parse(compressedFile, ["Make", "Model"]);
@@ -254,6 +270,22 @@ function PublicLaporPage() {
     }
 
     const compressedFile = await compressImage(result.file);
+
+    // Cek kualitas foto (blur + brightness)
+    const qualityCheck = await analyzeImageQuality(compressedFile);
+    if (qualityCheck.status !== "good") {
+      setFraudModal({
+        isOpen: true,
+        status: qualityCheck.status,
+        title: qualityCheck.title,
+        message: qualityCheck.message,
+      });
+      if (!qualityCheck.isWarningOnly) {
+        setProcessing(false);
+        return;
+      }
+    }
+
     setPhoto(compressedFile);
     setPhotoPreview(URL.createObjectURL(compressedFile));
 
@@ -302,6 +334,22 @@ function PublicLaporPage() {
     }
 
     const compressedFile = await compressImage(file);
+
+    // Cek kualitas foto (blur + brightness)
+    const qualityCheck = await analyzeImageQuality(compressedFile);
+    if (qualityCheck.status !== "good") {
+      setFraudModal({
+        isOpen: true,
+        status: qualityCheck.status,
+        title: qualityCheck.title,
+        message: qualityCheck.message,
+      });
+      if (!qualityCheck.isWarningOnly) {
+        setProcessing(false);
+        return;
+      }
+    }
+
     setPhoto(compressedFile);
     setPhotoPreview(URL.createObjectURL(compressedFile));
 

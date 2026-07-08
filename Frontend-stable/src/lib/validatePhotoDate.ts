@@ -30,7 +30,13 @@ export type PhotoDateValidationStatus =
   | "too_old" // foto terlalu lama (> MAX_AGE_DAYS hari) → DITOLAK
   | "future_date" // tanggal foto di masa depan (manipulasi metadata) → DITOLAK
   | "exif_read_error" // gagal membaca EXIF → DITOLAK
-  | "no_gps"; // tidak ada metadata lokasi EXIF → DITOLAK
+  | "no_gps" // tidak ada metadata lokasi EXIF → DITOLAK
+  // ── Quality check statuses (blur + brightness) ──
+  | "blurry"
+  | "too_dark"
+  | "too_bright"
+  | "low_contrast"
+  | "analysis_error";
 
 /**
  * Status yang hanya membutuhkan peringatan (upload tetap lanjut).

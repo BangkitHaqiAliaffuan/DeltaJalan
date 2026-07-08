@@ -43,18 +43,16 @@ return [
     | URL ngrok untuk development diambil dari .env agar tidak di-hardcode di sini.
     |
     */
-    'allowed_origins' => ['*'],
+    'allowed_origins' => array_filter(array_unique([
+        '*',
+        env('FRONTEND_URL'),
+        env('NGROK_URL'),
+        'https://delta-jalan.vercel.app',
+    ])),
 
-    /*
-    |--------------------------------------------------------------------------
-    | Pola Origin yang Diizinkan (Regex)
-    |--------------------------------------------------------------------------
-    |
-    | Alternatif dari allowed_origins menggunakan pola regex.
-    | Kosongkan jika sudah menggunakan allowed_origins di atas.
-    |
-    */
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => [
+        '#^https?://.*\.vercel\.app$#',
+    ],
 
     /*
     |--------------------------------------------------------------------------

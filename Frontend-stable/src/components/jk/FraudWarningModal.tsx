@@ -42,6 +42,26 @@ const STATUS_CONFIG: Record<
     icon: "location_off",
     badgeText: "TANPA GPS",
   },
+  blurry: {
+    icon: "broken_image",
+    badgeText: "FOTO KABUR",
+  },
+  too_dark: {
+    icon: "visibility_off",
+    badgeText: "FOTO TERLALU GELAP",
+  },
+  too_bright: {
+    icon: "warning",
+    badgeText: "FOTO TERLALU TERANG",
+  },
+  low_contrast: {
+    icon: "visibility",
+    badgeText: "KONTRAS RENDAH",
+  },
+  analysis_error: {
+    icon: "error_outline",
+    badgeText: "GANGGUAN SISTEM",
+  },
   valid: {
     icon: "check_circle",
     badgeText: "VALID",
