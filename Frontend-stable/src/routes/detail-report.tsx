@@ -100,6 +100,8 @@ function DetailReportPage() {
       return;
     }
     loadReport();
+    const interval = setInterval(refreshReport, 30_000);
+    return () => clearInterval(interval);
   }, [reportId]);
 
   async function loadReport() {
@@ -374,7 +376,7 @@ function DetailReportPage() {
     if (photoPoints.length > 0) return photoPoints;
 
     return [{ lat: report.latitude, lng: report.longitude, label: report.road_name }];
-  }, [report?.latitude, report?.longitude, report?.photos, report?.road_name]);
+  }, [report?.latitude, report?.longitude, JSON.stringify(report?.photos), report?.road_name]);
 
   const statusHistory: TimelineEvent[] = report?.status_history ?? [];
 
@@ -635,6 +637,7 @@ function DetailReportPage() {
       back={backPath}
       title="Detail Laporan"
       right={<span className="font-id-code text-[12px] text-[#64748B]">{report.report_code}</span>}
+      onRefresh={refreshReport}
     >
       <main>
         <div className="max-w-2xl mx-auto p-4 pb-[140px] flex flex-col gap-4">
@@ -668,6 +671,12 @@ function DetailReportPage() {
                     />
                   </div>
                 ) : null}
+                {photo.photo_taken_at && (
+                  <div className="px-3 py-2 border-t border-[#E2E8F0] flex items-center gap-1.5 text-[11px] text-[#64748B]">
+                    <Icon name="calendar_today" className="!text-[13px]" />
+                    <span>Photo diambil pada {new Date(photo.photo_taken_at).toLocaleDateString("id-ID", { year: "numeric", month: "long", day: "numeric" })}</span>
+                  </div>
+                )}
                 {(photo.ai_jenis_kerusakan ||
                   photo.ai_severity ||
                   photo.ai_confidence != null ||
@@ -768,6 +777,36 @@ function DetailReportPage() {
             </div>
           ) : null}
 
+          {/* ── Progress Bar (estimasi_hari > 0) ── */}
+          {report.estimasi_hari != null && report.estimasi_hari > 0 && (
+            <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-label-md text-[13px] font-bold text-[#0F172A] flex items-center gap-1.5">
+                  <Icon name="progress_activity" className="!text-lg text-[#1A4F8A]" />
+                  Progress Perbaikan
+                </h3>
+                <span className="text-[12px] font-semibold text-[#1A4F8A]">
+                  Hari {Math.min(uniqueDays, report.estimasi_hari)} dari {report.estimasi_hari}
+                </span>
+              </div>
+              <div className="w-full h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[#1A4F8A] rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min((uniqueDays / report.estimasi_hari) * 100, 100)}%` }}
+                />
+              </div>
+              {uniqueDays >= report.estimasi_hari && (
+                <p className="text-[11px] text-[#10B981] font-medium mt-1.5 flex items-center gap-1">
+                  <Icon name="check_circle" className="!text-[14px]" />
+                  Estimasi terpenuhi, silakan selesaikan laporan
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* ── Progress Timeline ── */}
+          {progressUpdates.length > 0 && <ProgressTimeline updates={progressUpdates} estimasiHari={report.estimasi_hari} />}
+
           {/* ── After Photo Gallery ── */}
           <AfterPhotoGallery report={report} />
 
@@ -846,36 +885,6 @@ function DetailReportPage() {
           {/* ── Timeline Perbaikan ── */}
           {hasTimeline && <TimelineCard events={statusHistory} />}
 
-          {/* ── Progress Bar (estimasi_hari > 0) ── */}
-          {report.estimasi_hari != null && report.estimasi_hari > 0 && (
-            <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-label-md text-[13px] font-bold text-[#0F172A] flex items-center gap-1.5">
-                  <Icon name="progress_activity" className="!text-lg text-[#1A4F8A]" />
-                  Progress Perbaikan
-                </h3>
-                <span className="text-[12px] font-semibold text-[#1A4F8A]">
-                  Hari {Math.min(uniqueDays, report.estimasi_hari)} dari {report.estimasi_hari}
-                </span>
-              </div>
-              <div className="w-full h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-[#1A4F8A] rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min((uniqueDays / report.estimasi_hari) * 100, 100)}%` }}
-                />
-              </div>
-              {uniqueDays >= report.estimasi_hari && (
-                <p className="text-[11px] text-[#10B981] font-medium mt-1.5 flex items-center gap-1">
-                  <Icon name="check_circle" className="!text-[14px]" />
-                  Estimasi terpenuhi, silakan selesaikan laporan
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* ── Progress Timeline ── */}
-          {progressUpdates.length > 0 && <ProgressTimeline updates={progressUpdates} estimasiHari={report.estimasi_hari} />}
-
           {/* ── Lokasi ── */}
           {mapPoints.length > 0 && (
             <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
@@ -886,15 +895,26 @@ function DetailReportPage() {
                     {report.latitude.toFixed(6)}, {report.longitude.toFixed(6)}
                   </p>
                 )}
+                {report.full_address && (
+                  <p className="text-[12px] text-[#475569] mt-1 flex items-start gap-1">
+                    <Icon name="map" className="!text-[14px] mt-0.5 shrink-0" />
+                    <span>{report.full_address}</span>
+                  </p>
+                )}
               </div>
-              <div className="h-48" style={{ isolation: "isolate" }}>
+              <div className="h-48 overflow-hidden" style={{ isolation: "isolate" }}>
                 <ReportMap
                   points={mapPoints}
                   onPointClick={(pt) => {
-                    navigate({
-                      to: "/map",
-                      search: { highlight: report.id, lat: pt.lat, lng: pt.lng },
-                    });
+                    if (userRole === "supervisor") {
+                      const url = `https://www.google.com/maps?q=${pt.lat},${pt.lng}`;
+                      window.open(url, "_blank", "noopener,noreferrer");
+                    } else {
+                      navigate({
+                        to: "/map",
+                        search: { highlight: report.id, lat: pt.lat, lng: pt.lng },
+                      });
+                    }
                   }}
                 />
               </div>

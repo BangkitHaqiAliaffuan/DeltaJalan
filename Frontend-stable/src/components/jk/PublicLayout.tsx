@@ -32,7 +32,7 @@ export function PublicLayout({
     <div className="min-h-[100dvh] flex flex-col bg-[#F5F7FA]">
       <ConnectionBanner />
       <TopBar {...{ title, back, right, showBrand }} />
-      <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">{children}</div>
       {withBottomNav && (
         <nav
           className="shrink-0 md:hidden w-full max-w-[430px] relative flex justify-around items-center px-2 bg-white h-16 border-t border-[#D0DAE8]"

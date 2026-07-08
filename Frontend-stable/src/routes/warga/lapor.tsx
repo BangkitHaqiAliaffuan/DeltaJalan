@@ -56,6 +56,7 @@ function WargaLaporPage() {
   const [locatingMessage, setLocatingMessage] = useState("");
   const [locationSource, setLocationSource] = useState<"exif" | "geolocation" | null>(null);
   const [geoError, setGeoError] = useState("");
+  const [fullAddress, setFullAddress] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -68,6 +69,7 @@ function WargaLaporPage() {
     const geo = await reverseGeocode(lat, lng);
     if (geo.namaJalan) setRoadName(geo.namaJalan);
     if (geo.kecamatan) setDistrict(geo.kecamatan);
+    if (geo.fullAddress) setFullAddress(geo.fullAddress);
 
     setLocating(false);
   }
@@ -151,6 +153,7 @@ function WargaLaporPage() {
       if (description) formData.append("description", description);
       if (panjang) formData.append("kerusakan_panjang", panjang);
       if (lebar) formData.append("kerusakan_lebar", lebar);
+      if (fullAddress) formData.append("full_address", fullAddress);
 
       const res = await fetch(`${API_BASE_URL}/warga/reports`, {
         method: "POST",
@@ -323,6 +326,25 @@ function WargaLaporPage() {
             </div>
 
             <div className="flex flex-col gap-1.5">
+              <label className="font-label-md text-label-md font-semibold text-[#0F172A] flex items-center gap-1">
+                Alamat Lengkap
+                {locationSource && (
+                  <span className="text-[10px] font-normal text-[#64748B] bg-[#F1F5F9] px-1.5 py-0.5 rounded">otomatis</span>
+                )}
+              </label>
+              <div className="w-full px-4 py-2.5 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] bg-gray-50 flex items-center gap-2 min-h-11">
+                <Icon name="map" className="!text-[18px] text-[#476788] shrink-0" />
+                {locating ? (
+                  <span className="text-[#94A3B8]">Mengidentifikasi lokasi...</span>
+                ) : fullAddress ? (
+                  <span>{fullAddress}</span>
+                ) : (
+                  <span className="text-[#94A3B8]">Belum tersedia</span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
               <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
                 Deskripsi (opsional)
               </label>
@@ -370,7 +392,7 @@ function WargaLaporPage() {
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={loading}
+              disabled={loading || locating}
               className="w-full h-12 bg-gradient-to-r from-[#1e40af] to-[#2e68d8] text-white rounded-xl font-label-md text-label-md font-semibold flex items-center justify-center gap-2 mt-2 hover:shadow-lg hover:shadow-[#1e40af]/25 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (

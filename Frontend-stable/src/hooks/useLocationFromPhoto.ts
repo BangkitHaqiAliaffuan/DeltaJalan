@@ -204,6 +204,14 @@ export interface TierRawData {
   rawJson: unknown;
 }
 
+export interface WilayahIdAdminData {
+  desa: string | null;
+  kecamatan: string | null;
+  kabupaten: string | null;
+  provinsi: string | null;
+  kodePos: string | null;
+}
+
 export interface ReverseGeocodeResult {
   /** Nama jalan dari address.road — kosong string jika tidak ada */
   namaJalan: string;
@@ -211,6 +219,13 @@ export interface ReverseGeocodeResult {
   roadFound: boolean;
   /** Kecamatan yang cocok dengan 18 kecamatan Sidoarjo */
   kecamatan: string | null;
+  /** Dari wilayah-id enrichment */
+  desa: string | null;
+  kabupaten: string | null;
+  provinsi: string | null;
+  kodePos: string | null;
+  /** Full address: "Jl. Raya Sidoarjo, Kedungpandan, Kec. Buduran, Kab. Sidoarjo, Jawa Timur 61252" */
+  fullAddress: string | null;
   /** Raw responses from each tier for debugging */
   tiers: TierRawData[];
 }
@@ -248,9 +263,73 @@ function extractRoadFromLocationIQ(addr: Record<string, unknown>): string {
 
 const NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse";
 
+// ── Helper: Wilayah-id (Tier 5 enrichment) ──────────────────────────────
+
+const WILAYAH_ID_URL = "https://wilayah-id-restapi.vercel.app/api/v1/boundaries/reverse";
+
+interface WilayahIdResponse {
+  province?: { name: string; code: string };
+  regency?: { name: string; code: string; type: string };
+  district?: { name: string; code: string };
+  subdistrict?: { name: string; code: string; postal_code: string };
+}
+
+function titleCase(str: string): string {
+  return str.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export async function reverseGeocodeWilayahId(lat: number, lng: number): Promise<WilayahIdAdminData | null> {
+  try {
+    const url = new URL(WILAYAH_ID_URL);
+    url.searchParams.set("lat", lat.toString());
+    url.searchParams.set("lng", lng.toString());
+
+    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) });
+
+    if (!res.ok) {
+      console.warn(`[GEO] Tier5 Wilayah-id: HTTP ${res.status}`);
+      return null;
+    }
+
+    const data: WilayahIdResponse = await res.json();
+    console.log("[GEO] Tier5 Wilayah-id raw:", JSON.stringify(data, null, 2));
+
+    if (!data.subdistrict) return null;
+
+    return {
+      desa: data.subdistrict.name ? titleCase(data.subdistrict.name) : null,
+      kecamatan: data.district?.name ? titleCase(data.district.name) : null,
+      kabupaten: data.regency
+        ? `${data.regency.type === "KOTA" ? "Kota" : "Kabupaten"} ${titleCase(data.regency.name)}`
+        : null,
+      provinsi: data.province?.name ? titleCase(data.province.name) : null,
+      kodePos: data.subdistrict.postal_code ?? null,
+    };
+  } catch (err) {
+    console.warn(`[GEO] Tier5 Wilayah-id error:`, err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+function constructFullAddress(
+  namaJalan: string,
+  admin: WilayahIdAdminData | null,
+  existingKecamatan: string | null,
+): string | null {
+  const parts: string[] = [];
+  if (namaJalan) parts.push(namaJalan);
+  if (admin?.desa) parts.push(admin.desa);
+  if (admin?.kecamatan) parts.push(`Kec. ${admin.kecamatan}`);
+  else if (existingKecamatan) parts.push(`Kec. ${existingKecamatan}`);
+  if (admin?.kabupaten) parts.push(admin.kabupaten);
+  if (admin?.provinsi) parts.push(admin.provinsi);
+  if (admin?.kodePos) parts.push(admin.kodePos);
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
 /**
- * Reverse geocoding — 4-tier chain: Nominatim → LocationIQ → OSRM Nearest → Overpass API.
- * Setiap tier punya error handling independen (satu gagal lanjut ke berikutnya).
+ * Reverse geocoding — 5-tier chain: Nominatim → LocationIQ → OSRM Nearest → Overpass API → Wilayah-id.
+ * 4 road-name tiers (1-4), 1 admin enrichment tier (5).
  */
 export async function reverseGeocode(lat: number, lng: number): Promise<ReverseGeocodeResult> {
   let namaJalan = "";
@@ -459,8 +538,41 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
   }
   tiers.push({ tier: 4, name: "Overpass API", success: !!tier4RawJson, rawAddress: null, rawJson: tier4RawJson });
 
+  // ── Tier 5 (enrichment): Wilayah-id ──────────────────────────────────────
+  // Not gated by !namaJalan — always runs to get admin hierarchy
+  let tier5RawJson: unknown = null;
+  let wilayahAdmin: WilayahIdAdminData | null = null;
+
+  console.log("[GEO] Tier5 Wilayah-id: trying...");
+  wilayahAdmin = await reverseGeocodeWilayahId(lat, lng);
+  tier5RawJson = wilayahAdmin;
+
+  if (wilayahAdmin) {
+    console.log("[GEO] Tier5 Wilayah-id admin:", JSON.stringify(wilayahAdmin, null, 2));
+    if (wilayahAdmin.kecamatan && matchKecamatan(wilayahAdmin.kecamatan)) {
+      kecamatan = matchKecamatan(wilayahAdmin.kecamatan);
+      console.log(`[GEO] Kecamatan (overwritten by wilayah-id): ${kecamatan}`);
+    }
+  } else {
+    console.log("[GEO] Tier5 Wilayah-id: failed or no data");
+  }
+  tiers.push({ tier: 5, name: "Wilayah-id", success: !!wilayahAdmin, rawAddress: wilayahAdmin as unknown as Record<string, unknown> | null, rawJson: tier5RawJson });
+
+  // ── Construct full address ──────────────────────────────────────────────
+  const fullAddress = constructFullAddress(namaJalan, wilayahAdmin, kecamatan);
+
   // ── Result ──────────────────────────────────────────────────────────────
-  const result: ReverseGeocodeResult = { namaJalan, roadFound, kecamatan, tiers };
+  const result: ReverseGeocodeResult = {
+    namaJalan,
+    roadFound,
+    kecamatan,
+    desa: wilayahAdmin?.desa ?? null,
+    kabupaten: wilayahAdmin?.kabupaten ?? null,
+    provinsi: wilayahAdmin?.provinsi ?? null,
+    kodePos: wilayahAdmin?.kodePos ?? null,
+    fullAddress,
+    tiers,
+  };
   console.log("[GEO] reverseGeocode result:", JSON.stringify(result, null, 2));
   return result;
 }

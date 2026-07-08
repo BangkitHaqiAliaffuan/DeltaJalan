@@ -1,210 +1,218 @@
-# Manual Uji Coba — DeltaJalan
+# Manual Uji Coba — DeltaJalan (Publik)
 
-Aplikasi pelaporan kerusakan jalan internal untuk **Dinas PU Bina Marga Kabupaten Sidoarjo**. Empat peran: `petugas`, `petugas_eksekusi`, `supervisor`, `admin` (belum diterapkan). Tidak ada peran publik/warga.
+Aplikasi pelaporan kerusakan jalan untuk warga **Kabupaten Sidoarjo** melalui **Dinas PU Bina Marga**.
 
-## 1. Login
+## Platform
 
-| Field | Contoh |
-|-------|--------|
-| URL | `http://localhost:5173` |
-| Email | (dari database, sesuai role) |
-| Password | (dari database) |
+DeltaJalan adalah **website** yang bisa diakses via browser dan APK:
 
-| Username | Role | Password
-|budi.santoso@dishub.sidoarjo.go.id | supervisor | password123
-|agus.setiawan@dishub.sidoarjo.go.id | petugas surveyor | password123
-|eksekusi.satgaswilayahtimur@jalankita.test | petugas eksekusi | password123
+| Platform | Browser | APK (Capacitor) |
+|----------|---------|-----------------|
+| **Android** | Kamera (`capture="environment"`) + Galeri | Kamera native + Galeri native |
+| **Desktop** | Galeri (file picker) | — |
 
+## Cara Lapor
 
-**Redirect per role setelah login:**
-| Role | Tujuan |
-|------|--------|
-| `petugas` | `/home` |
-| `supervisor` | `/supervisor` |
-| `petugas_eksekusi` | `/petugas-eksekusi` |
+Ada 2 cara melapor **tanpa login**:
+
+| Source | Akses | Route / Bot |
+|--------|-------|-------------|
+| **Warga via Web** | Browser / APK | `/lapor` |
+| **Warga via Telegram** | Telegram app | `@DeltaJalanBot` |
 
 ---
 
-## 2. Petugas — Buat Laporan
+## 1. Source: Warga via Web (`/lapor`)
 
-### A. Single (1 foto)
+**URL:** `http://localhost:5173/lapor`
 
-1. Buka `/upload` — klik **Galeri**
-2. Pilih 1 foto → validasi EXIF date + GPS otomatis
-3. Isi: **Nama Jalan** (pilih dari saran autocomplete), **Kecamatan** (dropdown), **Tanggal**, **Catatan** (opsional), **Dimensi Kerusakan** (P × L meter)
-4. Klik **Analisis Sekarang** → AI menganalisis
-5. Di `/ai-result` → lihat hasil deteksi (bounding box, severity, confidence)
-6. Klik **Konfirmasi & Buat Laporan**
-7. Di `/create-report` → review data → klik **Kirim Laporan Resmi**
-8. ✅ Toast sukses → otomatis ke `/home` (status: *Menunggu Review*)
+**Prasyarat:** Tidak perlu login. Buka langsung di browser atau APK.
 
-### B. Batch (2–20 foto)
+### 1.1 Flow Positif
 
-1. Buka `/upload` — pilih banyak foto dari galeri
-2. Tiap foto mendapat: validasi EXIF, GPS, hash, cek duplikat
-3. Isi **Nama Jalan + Kecamatan** (auto-fill dari GPS foto pertama)
-4. Isi **Dimensi Kerusakan** per foto (di grid thumbnail)
-5. Klik **Upload N Foto Sekaligus**
-   - Phase 1: AI analisis semua foto
-   - **Phase 2: Langsung simpan ke database**
-6. Di `/ai-result` → lihat ringkasan batch + trust score
-7. Klik **Lihat Laporan Tersimpan** → `/my-reports`
+| # | Test | Langkah | Expected Result |
+|---|------|---------|-----------------|
+| 1 | **Mobile — kamera** | Buka `/lapor` di HP Android → tap area foto | Kamera belakang terbuka otomatis (`capture="environment"`) |
+| 2 | **Desktop — galeri** | Buka `/lapor` di PC → tap area foto → pilih file | File picker terbuka untuk pilih foto |
+| 3 | **APK — kamera** | Buka APK → tap area foto | Kamera native terbuka |
+| 4 | **APK — galeri** | Buka APK → tap area foto → pilih dari galeri | Galeri native terbuka |
+| 5 | **Submit lengkap (setelah foto)** | Foto lolos EXIF + GPS → road name + kecamatan terisi otomatis → isi Nama + Telepon valid → pilih kecamatan (jika belum) → klik **Kirim Laporan** | ✅ Halaman sukses: "Laporan Terkirim!" + kode laporan `LP-2026-XXXXX` |
+| 6 | **Lacak laporan** | Dari halaman sukses klik **Lacak Laporan** | Redirect ke `/lacak?report_code=LP-2026-XXXXX` — lihat foto, status, timeline |
 
-> **Perbedaan utama:** Batch langsung tersimpan di DB saat upload (tidak ada `/create-report`). Single butuh langkah konfirmasi terpisah.
+### 1.2 Validasi Nama
 
-### C. Duplikat & Dukung Laporan
+| # | Input | Pemicu | Expected Result |
+|---|-------|--------|-----------------|
+| 7 | Kosong | Submit | Error "Lengkapi field berikut: Nama Lengkap" |
+| 8 | "A" | Blur | Error "Nama lengkap minimal 2 karakter." |
+| 9 | "123!!!" | Blur | Error "Nama lengkap hanya boleh mengandung huruf, spasi, titik, dan tanda hubung." |
+| 10 | "Budi Santoso" | Blur | ✅ valid, otomatis trim spasi |
 
-- Jika hash foto cocok dengan laporan existing: muncul banner **"Foto sudah pernah dilaporkan"**
-- Petugas bisa klik **Dukung Laporan** untuk menambahkan fotonya sebagai bukti ke laporan yang sudah ada (tanpa membuat laporan baru)
+### 1.3 Validasi Telepon
 
----
+| # | Input | Pemicu | Expected Result |
+|---|-------|--------|-----------------|
+| 11 | Kosong | Submit | Error "Nomor Telepon" |
+| 12 | "+6281234567890" | Blur | ✅ normalisasi ke "081234567890" |
+| 13 | "081234567890" | Blur | ✅ valid |
+| 14 | "12345" | Blur | Error "Format nomor telepon tidak valid." |
 
-## 3. Supervisor — Review & Approve
+### 1.4 EXIF Date Validation
 
-### Dashboard (`/supervisor`)
+| # | Skenario | Expected Result |
+|---|----------|-----------------|
+| 15 | Foto asli kamera (≤7 hari) | ✅ Lolos, lanjut GPS extraction |
+| 16 | Foto >7 hari (EXIF date lama) | FraudWarningModal: badge **"FOTO KADALUARSA"** — blokir, tidak bisa submit |
+| 17 | EXIF date di masa depan | FraudWarningModal: badge **"TANGGAL TIDAK VALID"** — blokir |
+| 18 | Screenshot / download Pinterest (tanpa EXIF) | FraudWarningModal: badge **"TANPA METADATA"** — blokir |
 
-| Tab | Isi |
-|-----|-----|
-| **Perlu Review** | Status *Menunggu Review* + *Ditinjau* |
-| **Disetujui** | Status *Disetujui* — bisa **Mulai Pengerjaan** |
-| **Diperbaiki** | Status *Sedang Diperbaiki* (read-only) |
-| **Ditolak** | Status *Ditolak* (read-only) |
-| **Semua** | Semua laporan |
+### 1.5 GPS
 
-> ⚠️ Approve/Tolak hanya bisa dilakukan dari halaman **Detail** (`/review`), bukan dari dashboard.
+| # | Skenario | Expected Result |
+|---|----------|-----------------|
+| 19 | Foto memiliki GPS EXIF | Koordinat + Nama Jalan + Kecamatan terisi otomatis. Label: "dari foto" |
+| 20 | Desktop, foto tanpa GPS EXIF | Error merah: "Foto yang diunggah tidak memiliki data GPS." Wajib isi koordinat manual atau ganti foto |
+| 21 | Mobile, foto tanpa GPS EXIF | Fallback ke geolocation browser. Label: "dari perangkat" |
 
-### Approve flow
+### 1.6 Upload Limit & Error
 
-1. Klik **Detail** pada laporan → buka `/review?reportId=X`
-   - Otomatis `POST /reports/:id/mulai-review` → status jadi *Ditinjau*
-   - Lihat: foto, AI result, trust score, timeline, lokasi
-2. Isi **Prioritas Penanganan** (Rendah/Sedang/Tinggi) + **Catatan Supervisor**
-3. Klik **Setujui & Disposisi** → approve + disposisi ke UPR (status → *Disetujui*)
-4. Setelah *Disetujui*:
-   - Kembali ke dashboard → tab **Disetujui** → klik **Mulai Pengerjaan**
-   - Pilih **UPR** dari modal → status → *Sedang Diperbaiki*
-
-### Tolak flow
-
-- Di halaman Detail, klik **Tolak Laporan** → pilih alasan (dropdown) + catatan opsional
-- Alasan: `koordinat_tidak_valid`, `foto_tidak_jelas`, `bukan_kerusakan_jalan`, `duplikat`, `lainnya`
-
-### Export PDF
-
-- Pilih bulan + tahun → klik **Export PDF** → download laporan bulanan
+| # | Skenario | Expected Result |
+|---|----------|-----------------|
+| 22 | Upload >5 kali dalam sehari (localStorage) | Halaman "Batas Upload Tercapai" — "Maksimal 5 laporan per hari" |
+| 23 | Koordinat kosong → submit | Error "Koordinat lokasi" |
+| 24 | Semua field kosong → submit | Error "Lengkapi field berikut: Nama Lengkap, Nomor Telepon, Nama Jalan, Kecamatan, Koordinat lokasi, Foto Kerusakan" |
 
 ---
 
-## 4. Petugas Eksekusi — Kerjakan Tugas
+## 2. Source: Warga via Telegram
 
-### Dashboard (`/petugas-eksekusi`)
+**Prasyarat:**
+- Chat dengan bot `@DeltaJalanBot`
+- Webhook bot sudah aktif (POST ke `/api/telegram/webhook`)
+- Bot sudah diset dengan `/setwebhook`
 
-| Grup | Filter | Aksi |
-|------|--------|------|
-| **Siap Dikerjakan** | Status *Disetujui* | Klik **Mulai** → `POST /reports/:id/mulai` → status *Sedang Diperbaiki* |
-| **Sedang Dikerjakan** | Status *Sedang Diperbaiki* | Klik **Selesaikan** → buka `/complete-report` |
-| **Riwayat Selesai** | Status *Selesai* | Lihat detail (eye icon → `/review`) |
+### 2.1 Memulai
 
-### Selesaikan Pengerjaan
+| # | Langkah | Expected Result |
+|---|---------|-----------------|
+| 1 | Ketik `/start` | Bot reply: "Selamat datang... Laporkan kerusakan jalan dengan /lapor" |
 
-1. Di grup **Sedang Dikerjakan**, klik **Selesaikan**
-2. Upload **Foto Setelah Perbaikan** (wajib, dari kamera)
-3. Isi **Catatan** (opsional)
-4. Klik **Kirim** → `POST /reports/:id/complete`
-5. ✅ Toast sukses → otomatis balik ke `/petugas-eksekusi` (status: *Selesai*)
+### 2.2 Flow Positif — /lapor
 
-### Prioritas & Filter
+| # | Langkah | Expected Result |
+|---|---------|-----------------|
+| 1 | Ketik `/lapor` | Bot reply: "Silakan kirim foto kerusakan jalan" — state → `awaiting_photo` |
+| 2 | Kirim foto (dari kamera / galeri) | Bot download foto, EXIF check |
+| 3 | EXIF valid (date ≤7 hari) | Bot reply: "Foto diterima..." + keyboard "Kirim Lokasi Saya" — state → `awaiting_location` |
+| 4 | Kirim lokasi via "Kirim Lokasi Saya" | Bot reverse geocode → reply: "Lokasi diterima! Nama jalan: ... Sekarang ketik deskripsi kerusakan" — state → `awaiting_description` |
+| 5 | Ketik deskripsi | Bot reply: "Deskripsi diterima." + inline keyboard "Ya masukkan dimensi / Tidak" — state → `awaiting_dimension` |
+| 6a | Klik "Tidak, lanjutkan" | Bot tampilkan ringkasan + "Konfirmasi / Batalkan" — state → `confirming` |
+| 6b | Atau klik "Ya masukkan dimensi" → ketik panjang (m) → ketik lebar (m) | Bot tampilkan ringkasan dengan dimensi + "Konfirmasi / Batalkan" |
+| 7 | Klik "Konfirmasi" | ✅ Bot reply: "Laporan berhasil dikirim! Kode: LP-2026-XXXXX" — state → `idle` |
 
-- Filter: **Semua** / **Rendah** / **Sedang** / **Tinggi**
-- Urutkan: Prioritas Tertinggi / Terdekat / Waktu Laporan
+### 2.3 Dokumen dengan GPS EXIF
+
+| # | Langkah | Expected Result |
+|---|---------|-----------------|
+| 1 | Kirim foto sebagai **document** (file, bukan compressed photo) | Bot detek GPS EXIF, **skip location step**, langsung minta deskripsi |
+
+### 2.4 Batal
+
+| # | Langkah | Expected Result |
+|---|---------|-----------------|
+| 1 | Di state mana pun (`awaiting_photo` / `awaiting_location` / `awaiting_description` / `confirming`) ketik `/batal` | Bot reply: "Laporan dibatalkan." — state → `idle` |
+
+### 2.5 Riwayat
+
+| # | Langkah | Expected Result |
+|---|---------|-----------------|
+| 1 | Setelah pernah submit, ketik `/status` | Bot reply: "Riwayat Laporan Terbaru:" + maks 3 laporan terakhir |
+
+### 2.6 Negative — Media Tidak Didukung
+
+| # | Kirim | Expected Result |
+|---|-------|-----------------|
+| 1 | Video | Bot reply: "Video tidak didukung" |
+| 2 | GIF / Animation | Bot reply: "GIF tidak didukung" |
+| 3 | Sticker | Bot reply: "Stiker tidak didukung" |
+| 4 | Voice note | Bot reply: "Voice note tidak didukung" |
+
+### 2.7 Negative — EXIF
+
+| # | Kirim | Expected Result |
+|---|-------|-----------------|
+| 1 | Foto dari Pinterest (tanpa EXIF) | Bot reply: "Foto tidak memiliki metadata EXIF." — state tetap `awaiting_photo` |
+| 2 | Screenshot (tanpa EXIF date) | Bot reply: "Foto tidak memiliki metadata tanggal." — state tetap `awaiting_photo` |
+| 3 | Foto >7 hari | Bot reply: "Foto diambil pada ... (lebih dari 7 hari yang lalu)" |
+| 4 | Foto dengan EXIF date masa depan | Bot reply: "Tanggal foto ... adalah tanggal di masa depan" |
+
+### 2.8 Negative — Lokasi
+
+| # | Langkah | Expected Result |
+|---|---------|-----------------|
+| 1 | Setelah `/lapor`, kirim location sebelum kirim foto | Bot reply: "Silakan kirim foto kerusakan jalan terlebih dahulu" |
+| 2 | Kirim location di luar Sidoarjo (misal Surabaya) | Bot reply: "Lokasi berada di luar wilayah Kabupaten Sidoarjo." — state tetap `awaiting_location` |
 
 ---
 
-## 5. Peta Interaktif (`/map`)
+## 3. Supervisor — Review Laporan Warga/Telegram
 
-Semua role bisa akses — klik **Peta** di navbar/bottomnav.
+Setelah laporan masuk, supervisor akan memproses:
 
-| Zoom | Poligon | Marker |
-|------|---------|--------|
-| < 10 | ✅ Kecamatan + warna severity | ✅ Cluster |
-| 10–12 | ✅ Kecamatan + warna severity | ❌ Tersembunyi |
-| ≥ 13 | ❌ Hilang | ✅ Individu |
-
-**Fitur:**
-- Filter panel: status, severity, kecamatan, UPR, SLA aging
-- Panel statistik: total, sebaran severity, breakdown status, peringatan SLA
-- Legenda: warna severity + indikator batas kecamatan
-- Klik marker → popup → **Lihat Detail** → buka `/review`
+| # | Langkah | Expected Result |
+|---|---------|-----------------|
+| 1 | Login supervisor → tab **Perlu Review** | Laporan warga muncul dengan badge **"Warga"** (purple/border-purple-200). Laporan Telegram dengan badge **"Telegram"** (sky blue/border-sky-200) |
+| 2 | Klik **Detail** → `/review?reportId=X` | Tombol: **"Setujui & Analisis AI"** (bukan "Setujui & Tugaskan Tim") |
+| 3 | Klik **Setujui & Analisis AI** | Status → **"Hasil AI"** + AI analysis otomatis dijalankan |
+| 4 | Supervisor buka laporan setelah AI selesai | Lihat hasil deteksi AI (bounding box, severity, confidence). Klik **Konfirmasi Hasil AI** → status → **"Disetujui"** |
+| 5 | Supervisor klik **Mulai Pengerjaan** → pilih UPR | Status → **"Sedang Diperbaiki"** |
 
 ---
 
-## 6. Timeline Riwayat
-
-Di halaman detail laporan (`/review` atau `/detail-report`):
-- Vertical timeline dengan titik warna per event
-- Event: laporan_dibuat, ditinjau, disetujui/ditolak, disposisi, perbaikan_dimulai, perbaikan_selesai, ditugaskan, dibuka_kembali, diedit
-- Tiap event menampilkan: actor (nama user), timestamp, catatan
-- Event terakhir punya animasi pulse
-
----
-
-## 7. Diagram Status Flow
+## 4. Diagram Status (Publik)
 
 ```
-                    ┌─────────────────────┐
-                    │   Menunggu Review    │◄──────────────┐
-                    │  (petugas submit)    │               │
-                    └──────────┬──────────┘               │
-                               │ Supervisor buka review   │
-                      POST /reviews/:id/mulai-review      │
-                               │                          │
-                    ┌──────────┴──────────┐               │
-                    ▼                     ▼               │
-            ┌──────────────┐    ┌──────────────┐          │
-            │   Ditinjau   │    │   Diedit     │──────────┘
-            └──────┬───────┘    │(petugas edit)│ petugas
-                   │            └──────────────┘ batal edit
-          ┌────────┴────────┐
-          ▼                 ▼
-    ┌──────────┐     ┌──────────┐
-    │ Disetujui│     │ Ditolak  │
-    │+ priority│     │ (final)  │
-    └─────┬────┘     └──────────┘
-          │ Supervisor/eksekusi klik Mulai
-          │ POST /reports/:id/mulai
+Warga / Telegram submit
+          │
           ▼
-    ┌──────────────┐
-    │ Sedang       │
-    │ Diperbaiki   │
-    └──────┬───────┘
-           │ Upload foto after
-           │ POST /reports/:id/complete
+  ┌──────────────────┐
+  │ Menunggu          │
+  │ Verifikasi        │
+  └────────┬─────────┘
+           │ Supervisor approve
            ▼
-    ┌──────────────┐
-    │   Selesai    │──── Supervisor reopen ────► Menunggu Review
-    └──────────────┘     POST /reports/:id/reopen
+  ┌──────────────────┐
+  │    Hasil AI       │──► AI analyze otomatis
+  └────────┬─────────┘
+           │ Supervisor konfirmasi AI
+           ▼
+  ┌──────────────────┐
+  │   Disetujui       │
+  └────────┬─────────┘
+           │ Supervisor/UPR klik Mulai
+           ▼
+  ┌──────────────────┐
+  │ Sedang            │
+  │ Diperbaiki        │
+  └────────┬─────────┘
+           │ Upload foto after
+           ▼
+  ┌──────────────────┐
+  │    Selesai        │
+  └──────────────────┘
 ```
 
 ---
 
-## 8. Route Map (Navigasi)
+## 5. Route Map (Publik)
 
 ```
-/ (login)
-├── /home (petugas dashboard)
-├── /upload (upload foto + AI analysis — single & batch)
-│   ├── [single] → /ai-result → /create-report → /home
-│   └── [batch]  → /ai-result → /my-reports
-├── /my-reports (daftar laporan petugas)
-├── /detail-report?reportId=X (detail view all roles)
-├── /edit-report?reportId=X (edit laporan — petugas only)
-├── /map (peta interaktif — all roles)
-├── /supervisor (dashboard supervisor)
-│   └── /review?reportId=X (detail + approve/tolak)
-│       └── /complete-report?reportId=X (selesaikan)
-├── /petugas-eksekusi (dashboard tugas)
-│   └── /review?reportId=X (detail)
-│   └── /complete-report?reportId=X (selesaikan)
-├── /stats (statistik — supervisor & eksekusi)
-└── /reports (redirect)
+/                           Landing page publik
+/lapor                      Form laporan publik (no login required)
+/lacak?report_code=X        Tracking laporan via kode (no login)
+/masuk                      Login akun warga
+/daftar                     Daftar akun warga baru
+
+└─ Telegram
+   @DeltaJalanBot           Bot Telegram untuk lapor
 ```

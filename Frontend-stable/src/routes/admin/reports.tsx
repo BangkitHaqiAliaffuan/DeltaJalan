@@ -92,6 +92,7 @@ function AdminReports() {
         headers: { Authorization: `Bearer ${token}` },
       }).then((r) => r.json()),
     placeholderData: (prev: unknown) => prev as typeof reportsQuery.data,
+    refetchInterval: 30_000,
   });
 
   const teamsQuery = useQuery({

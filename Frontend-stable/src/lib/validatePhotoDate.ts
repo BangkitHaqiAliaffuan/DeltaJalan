@@ -115,10 +115,15 @@ function formatDateID(date: Date): string {
  * Validasi tanggal foto dari metadata EXIF.
  *
  * @param file - File gambar yang akan divalidasi
+ * @param maxAgeDays - Maksimal usia foto dalam hari (default 2)
  * @returns PhotoDateValidationResult
  */
-export async function validatePhotoDate(file: File): Promise<PhotoDateValidationResult> {
+export async function validatePhotoDate(
+  file: File,
+  maxAgeDays?: number,
+): Promise<PhotoDateValidationResult> {
   const today = new Date();
+  const maxAge = maxAgeDays ?? MAX_AGE_DAYS;
 
   // Baca metadata EXIF
   let exifData: Record<string, unknown> | null = null;
@@ -197,7 +202,7 @@ export async function validatePhotoDate(file: File): Promise<PhotoDateValidation
   }
 
   // Foto terlalu lama
-  if (ageDays > MAX_AGE_DAYS) {
+  if (ageDays > maxAge) {
     return {
       status: "too_old",
       photoDate,
@@ -206,7 +211,7 @@ export async function validatePhotoDate(file: File): Promise<PhotoDateValidation
       message:
         `Foto ini diambil pada ${formatDateID(photoDate)} ` +
         `(${ageDays} hari yang lalu). ` +
-        `Sistem hanya menerima foto yang diambil maksimal ${MAX_AGE_DAYS} hari terakhir ` +
+        `Sistem hanya menerima foto yang diambil maksimal ${maxAge} hari terakhir ` +
         `untuk memastikan laporan mencerminkan kondisi jalan terkini. ` +
         `Silakan ambil foto baru di lokasi kerusakan.`,
     };

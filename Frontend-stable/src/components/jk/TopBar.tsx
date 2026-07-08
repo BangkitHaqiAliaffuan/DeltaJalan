@@ -80,7 +80,7 @@ export function TopBar({
       </div>
       <div className="flex items-center gap-3">
         {right}
-        <NotificationBell />
+        {user && <NotificationBell />}
         {user && (
           <div className="relative" ref={dropdownRef}>
             <button

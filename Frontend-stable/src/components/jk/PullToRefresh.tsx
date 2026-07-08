@@ -123,7 +123,7 @@ export function PullToRefresh({ onRefresh, children }: PullToRefreshProps) {
 
   return (
     <div ref={outerRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-      <div ref={innerRef} style={{ willChange: refreshing ? "auto" : "transform" }}>
+      <div ref={innerRef}>
         <div
           ref={indicatorRef}
           className="flex items-center justify-center"

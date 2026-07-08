@@ -92,9 +92,9 @@ class AuthController extends Controller
     {
         try {
             $validated = $request->validate([
-                'name' => ['required', 'string', 'max:100'],
+                'name' => ['required', 'string', 'min:2', 'max:100', 'regex:/^[A-Za-zÀ-ÖØ-öø-ÿ \'.-]+$/'],
                 'email' => ['required', 'email', 'unique:users,email'],
-                'phone' => ['required', 'string', 'regex:/^08[0-9]{8,13}$/'],
+                'phone' => ['required', 'string', 'regex:/^(?:\+62|62|0)8[1-9][0-9]{6,9}$/'],
                 'password' => ['required', 'string', 'min:8', 'confirmed'],
             ]);
         } catch (ValidationException $e) {
@@ -105,10 +105,14 @@ class AuthController extends Controller
             ], 422);
         }
 
+        $phone = $validated['phone'];
+        if (str_starts_with($phone, '+62')) $phone = '0'.substr($phone, 3);
+        elseif (str_starts_with($phone, '62')) $phone = '0'.substr($phone, 2);
+
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'phone' => $validated['phone'],
+            'phone' => $phone,
             'password' => Hash::make($validated['password']),
             'role' => 'warga',
             'registration_ip' => $request->ip(),

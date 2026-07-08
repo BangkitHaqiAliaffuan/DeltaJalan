@@ -91,6 +91,7 @@ export function useMapData(token: string, filters: MapFilters) {
     },
     enabled: !!token,
     staleTime: 10_000,
+    refetchInterval: 30_000,
   });
 }
 

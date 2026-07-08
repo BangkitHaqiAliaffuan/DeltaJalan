@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Icon } from "@/components/jk/Icon";
 import { useState } from "react";
 import { registerUser } from "@/lib/auth";
+import { validateIndonesianPhone, validateNamaLengkap } from "@/lib/validators";
 
 export const Route = createFileRoute("/daftar")({
   component: RegisterPage,
@@ -23,6 +24,8 @@ function RegisterPage() {
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [showPw, setShowPw] = useState(false);
+  const [nameError, setNameError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -33,10 +36,26 @@ function RegisterPage() {
     setError("");
     setSuccess("");
 
+    const nameResult = validateNamaLengkap(name);
+    if (!nameResult.valid) {
+      setNameError(nameResult.error!);
+      setError("Perbaiki kesalahan pada form.");
+      return;
+    }
+    setNameError("");
+
     if (password !== passwordConfirmation) {
       setError("Konfirmasi kata sandi tidak cocok.");
       return;
     }
+
+    const phoneResult = validateIndonesianPhone(phone);
+    if (!phoneResult.valid) {
+      setPhoneError(phoneResult.error!);
+      setError("Perbaiki kesalahan pada form.");
+      return;
+    }
+    setPhoneError("");
 
     setLoading(true);
 
@@ -64,6 +83,34 @@ function RegisterPage() {
       setError("Tidak dapat terhubung ke server.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  function handleNameBlur() {
+    if (!name) {
+      setNameError("");
+      return;
+    }
+    const result = validateNamaLengkap(name);
+    if (!result.valid) {
+      setNameError(result.error!);
+    } else {
+      setNameError("");
+      setName(result.normalized);
+    }
+  }
+
+  function handlePhoneBlur() {
+    if (!phone) {
+      setPhoneError("");
+      return;
+    }
+    const result = validateIndonesianPhone(phone);
+    if (!result.valid) {
+      setPhoneError(result.error!);
+    } else {
+      setPhoneError("");
+      setPhone(result.normalized);
     }
   }
 
@@ -125,13 +172,20 @@ function RegisterPage() {
                       <input
                         type="text"
                         value={name}
-                        onChange={(e) => setName(e.target.value)}
+                        onChange={(e) => { setName(e.target.value); setNameError(""); }}
+                        onBlur={handleNameBlur}
                         placeholder="Nama lengkap"
                         autoComplete="name"
                         required
-                        className="w-full h-11 pl-10 pr-4 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af] transition-all duration-200"
+                        className={`w-full h-11 pl-10 pr-4 border rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af] transition-all duration-200 ${nameError ? "border-[#E11D48]" : "border-[#c4c5d5]"}`}
                       />
                     </div>
+                    {nameError && (
+                      <p className="text-[11px] text-[#E11D48] flex items-center gap-1">
+                        <Icon name="error" className="!text-[12px]" />
+                        {nameError}
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex flex-col gap-1.5">
@@ -157,13 +211,24 @@ function RegisterPage() {
                       <input
                         type="tel"
                         value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
+                        onChange={(e) => { setPhone(e.target.value); setPhoneError(""); }}
+                        onBlur={handlePhoneBlur}
                         placeholder="08xxxxxxxxxx"
                         autoComplete="tel"
                         required
-                        className="w-full h-11 pl-10 pr-4 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af] transition-all duration-200"
+                        className={`w-full h-11 pl-10 pr-4 border rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 transition-all duration-200 ${phoneError ? "border-[#E11D48]" : "border-[#c4c5d5]"}`}
                       />
                     </div>
+                    {phoneError && (
+                      <p className="text-[11px] text-[#E11D48] flex items-center gap-1">
+                        <Icon name="error" className="!text-[12px]" />
+                        {phoneError}
+                      </p>
+                    )}
+                    <p className="text-[11px] text-[#64748B] flex items-center gap-1">
+                      <Icon name="info" className="!text-[12px]" />
+                      Contoh: 081234567890 atau +6281234567890
+                    </p>
                   </div>
 
                   <div className="flex flex-col gap-1.5">

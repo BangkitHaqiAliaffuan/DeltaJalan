@@ -360,6 +360,7 @@ function AiResultPage() {
   const [editKecamatan, setEditKecamatan] = useState(formData?.kecamatan ?? "");
   const [editCatatan, setEditCatatan] = useState(formData?.catatan ?? "");
   const [gpsRoadLoading, setGpsRoadLoading] = useState(false);
+  const [fullAddress, setFullAddress] = useState("");
   const hasGps = isBatch
     ? (batchResult!.photos[0]?.lat ?? formData?.lat) != null
     : formData?.lat != null;
@@ -421,7 +422,10 @@ function AiResultPage() {
       const { reverseGeocode } = await import("@/hooks/useLocationFromPhoto");
       const geo = await reverseGeocode(lat, lng);
       if (geo.namaJalan) {
-        return { namaJalan: geo.namaJalan, kecamatan: geo.kecamatan };
+        return { namaJalan: geo.namaJalan, kecamatan: geo.kecamatan, fullAddress: geo.fullAddress };
+      }
+      if (geo.fullAddress) {
+        return { namaJalan: "", kecamatan: null, fullAddress: geo.fullAddress };
       }
     } catch { /* silent */ }
     return null;
@@ -451,6 +455,7 @@ function AiResultPage() {
       if (result) {
         setEditNamaJalan(result.namaJalan);
         if (result.kecamatan) setEditKecamatan(result.kecamatan);
+        if (result.fullAddress) setFullAddress(result.fullAddress);
       }
       setGpsRoadLoading(false);
     })();
@@ -693,6 +698,13 @@ function AiResultPage() {
         setSubmitState("error");
         setSubmitError(err instanceof Error ? err.message : "Terjadi kesalahan");
       }
+      return;
+    }
+
+    // ── Jangan submit saat reverse geocoding masih loading ──────────────
+    if (gpsRoadLoading) {
+      setSubmitState("error");
+      setSubmitError("Tunggu hingga alamat teridentifikasi.");
       return;
     }
 
@@ -1277,6 +1289,22 @@ function AiResultPage() {
                       className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-[13px] text-on-surface focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-[#F1F5F9] disabled:cursor-not-allowed"
                     />
                   </div>
+                  <div className="col-span-6">
+                    <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
+                      Alamat Lengkap
+                      <span className="ml-1.5 text-[9px] font-medium text-[#64748B] bg-[#F1F5F9] px-1.5 py-[1px] rounded-full align-middle">
+                        otomatis
+                      </span>
+                    </p>
+                    <div className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-[13px] text-on-surface bg-[#F8FAFC] flex items-center gap-2 min-h-[36px]">
+                      <Icon name="map" className="!text-[16px] text-[#64748B] shrink-0" />
+                      {fullAddress ? (
+                        <span>{fullAddress}</span>
+                      ) : (
+                        <span className="text-[#94A3B8]">Belum tersedia</span>
+                      )}
+                    </div>
+                  </div>
                   <div>
                     <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
                       Tanggal
@@ -1365,13 +1393,18 @@ function AiResultPage() {
                 <button
                   type="button"
                   onClick={handleConfirm}
-                  disabled={!confirmEnabled || submitState === "loading"}
+                  disabled={!confirmEnabled || submitState === "loading" || gpsRoadLoading}
                   className="w-full h-11 bg-primary text-white rounded-lg flex items-center justify-center gap-2 font-headline-sm text-[15px] font-bold active:scale-[0.98] transition-transform disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {submitState === "loading" ? (
                     <>
                       <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       Menyimpan...
+                    </>
+                  ) : gpsRoadLoading ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Mengidentifikasi alamat...
                     </>
                   ) : !confirmEnabled ? (
                     <>

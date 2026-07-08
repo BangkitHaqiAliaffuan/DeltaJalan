@@ -32,9 +32,11 @@ class ReportPhoto extends Model
         'system_notes',
         'sort_order',
         'original_filename',
+        'photo_taken_at',
     ];
 
     protected $casts = [
+        'photo_taken_at' => 'datetime',
         'ai_raw_output' => 'array',
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',

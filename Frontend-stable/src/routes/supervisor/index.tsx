@@ -144,6 +144,7 @@ function SupervisorDashboard() {
     enabled: !!token,
     staleTime: 15_000,
     refetchOnMount: 'always',
+    refetchInterval: 30_000,
   });
 
   const teamToUptdMap = useMemo(() => {

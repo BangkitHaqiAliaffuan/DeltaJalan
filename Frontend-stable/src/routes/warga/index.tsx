@@ -47,6 +47,8 @@ function WargaDashboard() {
 
   useEffect(() => {
     loadReports();
+    const interval = setInterval(loadReports, 30_000);
+    return () => clearInterval(interval);
   }, [loadReports]);
 
   return (

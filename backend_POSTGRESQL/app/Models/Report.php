@@ -100,6 +100,8 @@ class Report extends Model
         // Source & description (warga)
         'source',
         'description',
+        // Reverse geocoded full address
+        'full_address',
     ];
 
     /**

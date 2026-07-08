@@ -268,7 +268,7 @@ class ReportController extends Controller
         try {
             $validated = $request->validate([
                 'image' => ['required', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
-                'reporter_name' => ['required', 'string', 'max:100'],
+                'reporter_name' => ['required', 'string', 'min:2', 'max:100', 'regex:/^[A-Za-zÀ-ÖØ-öø-ÿ \'.-]+$/'],
                 'catatan' => ['nullable', 'string', 'max:1000'],
                 'is_batch' => ['nullable', 'boolean'],
                 'kerusakan_panjang' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
@@ -459,7 +459,7 @@ class ReportController extends Controller
         try {
             $validated = $request->validate([
                 // Nama petugas lapangan yang mengirim laporan
-                'reporter_name' => ['required', 'string', 'max:100'],
+                'reporter_name' => ['required', 'string', 'min:2', 'max:100', 'regex:/^[A-Za-zÀ-ÖØ-öø-ÿ \'.-]+$/'],
 
                 // Nama ruas jalan (input manual atau dari GPS reverse geocoding)
                 'road_name' => ['required', 'string', 'max:255'],
@@ -584,6 +584,7 @@ class ReportController extends Controller
             (float) $validated['latitude'],
             (float) $validated['longitude']
         );
+        $fullAddress = $roadValidation['full_address'] ?? null;
 
         // Ekstrak GPS EXIF sebelum transaction untuk dipakai di trust score.
         $exifGps = $this->extractExifGps($imageFile->getPathname());
@@ -662,7 +663,7 @@ class ReportController extends Controller
         // ── LANGKAH 5: Simpan ke database (DI DALAM transaction) ─────────
         // Hanya operasi DB — tidak ada HTTP/I/O lambat.
         try {
-            $report = DB::transaction(function () use ($validated, $imageFile, $imageHash, $resultPath, $totalDetections, $overallSeverity, $aiRawOutput, $finalSystemNotes, $duplicateOfId, $surveyTaskId) {
+            $report = DB::transaction(function () use ($validated, $imageFile, $imageHash, $resultPath, $totalDetections, $overallSeverity, $aiRawOutput, $finalSystemNotes, $duplicateOfId, $surveyTaskId, $fullAddress) {
 
                 // ── 5a: Generate kode laporan unik ────────────────────────
                 $reportCode = $this->generateReportCode();
@@ -701,6 +702,7 @@ class ReportController extends Controller
                     'kerusakan_lebar' => $validated['kerusakan_lebar'] ?? null,
                     'catatan_petugas' => $validated['catatan'] ?? null,
                     'survey_task_id' => $surveyTaskId,
+                    'full_address' => $fullAddress,
                     'deadline_review' => Report::hitungDeadlineReview($defaultPriority),
                 ]);
 
@@ -777,6 +779,7 @@ class ReportController extends Controller
                 'catatan_petugas' => $report->catatan_petugas,
                 'kerusakan_panjang' => $report->kerusakan_panjang ? (float) $report->kerusakan_panjang : null,
                 'kerusakan_lebar' => $report->kerusakan_lebar ? (float) $report->kerusakan_lebar : null,
+                'full_address' => $report->full_address,
                 'created_at' => $report->created_at->toIso8601String(),
             ],
         ], 201);
@@ -993,6 +996,7 @@ class ReportController extends Controller
             'district' => $report->district,
             'latitude' => $report->latitude ? (float) $report->latitude : null,
             'longitude' => $report->longitude ? (float) $report->longitude : null,
+            'full_address' => $report->full_address,
             'overall_severity' => $report->overall_severity,
             'ai_severity' => $report->ai_severity,
             'total_detections' => $report->total_detections,
@@ -1049,6 +1053,7 @@ class ReportController extends Controller
                 'sort_order' => $p->sort_order,
                 'kerusakan_panjang' => $p->kerusakan_panjang ? (float) $p->kerusakan_panjang : null,
                 'kerusakan_lebar' => $p->kerusakan_lebar ? (float) $p->kerusakan_lebar : null,
+                'photo_taken_at' => $p->photo_taken_at?->toIso8601String(),
                 'created_at' => $p->created_at?->toIso8601String(),
             ]),
             // Duplikasi — informasi jika laporan ini diduga duplikat
@@ -1632,6 +1637,7 @@ class ReportController extends Controller
             (float) $validated['latitude'],
             (float) $validated['longitude']
         );
+        $batchFullAddress = $roadValidation['full_address'] ?? null;
 
         // ── Deteksi EXIF cloning ──────────────────────────────────────────
         // Jika >80% foto dalam batch memiliki koordinat GPS EXIF yang identik,
@@ -1680,7 +1686,7 @@ class ReportController extends Controller
         $duplicateOfId = $request->input('duplicate_of_id');
 
         try {
-            $result = DB::transaction(function () use ($validated, $analyses, $request, $batchNotes, $imageHashes, $existingHashes, $duplicateOfId) {
+            $result = DB::transaction(function () use ($validated, $analyses, $request, $batchNotes, $imageHashes, $existingHashes, $duplicateOfId, $batchFullAddress) {
                 $severities = array_column($analyses, 'severity');
                 $aggSeverity = $this->aggregateSeverity($severities);
                 $severityMap = [
@@ -1709,6 +1715,7 @@ class ReportController extends Controller
                     'catatan_petugas' => $validated['catatan'] ?? null,
                     'survey_task_id' => $validated['survey_task_id'] ?? null,
                     'priority' => 'Sedang',
+                    'full_address' => $batchFullAddress,
                     'deadline_review' => Report::hitungDeadlineReview('Sedang'),
                 ]);
 
@@ -1811,6 +1818,7 @@ class ReportController extends Controller
                         'system_notes' => $subNotes,
                         'sort_order' => $idx,
                         'original_filename' => $analysis['file_name'] ?? null,
+                        'photo_taken_at' => $analysis['exif_photo_date'] ?? null,
                     ]);
 
                     $photosCreated++;
@@ -2161,6 +2169,15 @@ class ReportController extends Controller
             'ai_jenis_kerusakan' => $aiData['detection_type'] ?? $aiData['overall_severity'],
             'ai_severity' => $aiData['overall_severity'],
             'overall_severity' => $aiData['overall_severity'],
+            'ai_confidence' => $aiData['confidence'] ?? $aiData['max_confidence'] ?? null,
+            'total_detections' => $aiData['total_detections'] ?? 0,
+            'ai_raw_output' => $aiData['detections'] ?? $aiData,
+            'image_result_path' => $resultPath,
+        ]);
+
+        $photo->update([
+            'ai_jenis_kerusakan' => $aiData['detection_type'] ?? $aiData['overall_severity'],
+            'ai_severity' => $aiData['overall_severity'],
             'ai_confidence' => $aiData['confidence'] ?? $aiData['max_confidence'] ?? null,
             'total_detections' => $aiData['total_detections'] ?? 0,
             'ai_raw_output' => $aiData['detections'] ?? $aiData,
@@ -3273,7 +3290,7 @@ class ReportController extends Controller
                 ]);
 
                 if (! $response->ok()) {
-                    return ['matched' => false, 'similarity' => null, 'geocoded_road' => '', 'reason' => 'locationiq_unavailable'];
+                    return ['matched' => false, 'similarity' => null, 'geocoded_road' => '', 'reason' => 'locationiq_unavailable', 'full_address' => null];
                 }
 
                 $data = $response->json();
@@ -3294,9 +3311,10 @@ class ReportController extends Controller
                     'similarity' => round($percent, 1),
                     'geocoded_road' => $geocodedRoad,
                     'reason' => $matched ? 'ok' : 'mismatch',
+                    'full_address' => $data['display_name'] ?? null,
                 ];
             } catch (\Exception $e) {
-                return ['matched' => false, 'similarity' => null, 'geocoded_road' => '', 'reason' => 'exception'];
+                return ['matched' => false, 'similarity' => null, 'geocoded_road' => '', 'reason' => 'exception', 'full_address' => null];
             }
         });
     }

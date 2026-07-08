@@ -141,6 +141,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   groups: Users,
   history: History,
   home: Home,
+  hourglass: Hourglass,
   hourglass_empty: Hourglass,
   image: Image,
   inbox: Inbox,

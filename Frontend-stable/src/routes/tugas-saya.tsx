@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { getCurrentUser, getToken } from "@/lib/auth";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSurveyList } from "@/hooks/useSurveyQueries";
 import { usePatrolSchedules } from "@/hooks/usePatrolScheduleQueries";
 import { PatrolScheduleCard } from "@/components/jk/PatrolScheduleCard";
@@ -62,6 +63,7 @@ function todayFormatted(isClient: boolean): string {
 function TugasSayaPage() {
   const user = getCurrentUser();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const token = getToken() ?? "";
   const [isClient, setIsClient] = useState(false);
   const [tab, setTab] = useState<"patroli" | "perbaikan">("patroli");
@@ -105,6 +107,8 @@ function TugasSayaPage() {
   useEffect(() => {
     if (tab === "perbaikan") {
       loadReports();
+      const interval = setInterval(loadReports, 30_000);
+      return () => clearInterval(interval);
     }
   }, [tab]);
 
@@ -246,10 +250,21 @@ function TugasSayaPage() {
     );
   }
 
+  async function handleRefresh() {
+    if (tab === "perbaikan") {
+      await loadReports();
+    } else {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["survey-list"] }),
+        queryClient.invalidateQueries({ queryKey: ["patrol-schedules"] }),
+      ]);
+    }
+  }
+
   // ── Render ──
 
   return (
-    <PageLayout showBrand withBottomNav>
+    <PageLayout showBrand withBottomNav onRefresh={handleRefresh}>
       <main className="pb-4">
         <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] p-6 text-white mb-6">
           <h1 className="text-xl font-bold tracking-tight">Tugas Saya</h1>

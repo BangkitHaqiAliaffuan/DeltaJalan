@@ -53,6 +53,8 @@ function MyReportsPage() {
 
   useEffect(() => {
     loadLaporan();
+    const interval = setInterval(loadLaporan, 30_000);
+    return () => clearInterval(interval);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadLaporan() {

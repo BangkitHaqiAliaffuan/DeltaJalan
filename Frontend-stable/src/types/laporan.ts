@@ -153,6 +153,9 @@ export interface Laporan {
   // Timeline riwayat status
   status_history?: TimelineEvent[];
 
+  // Reverse geocoded full address
+  full_address?: string | null;
+
   // Source & description
   source?: string;
   description?: string | null;
@@ -178,6 +181,7 @@ export interface ReportPhoto {
   created_at: string | null;
   kerusakan_panjang?: number | null;
   kerusakan_lebar?: number | null;
+  photo_taken_at?: string | null;
 }
 
 // ── Progress Update ─────────────────────────────────────────────────────

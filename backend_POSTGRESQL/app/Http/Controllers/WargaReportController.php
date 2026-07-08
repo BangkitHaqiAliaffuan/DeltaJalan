@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -22,11 +23,19 @@ class WargaReportController extends Controller
 
     private const DAILY_LIMIT = 3;
 
+    private const FINGERPRINT_LIMIT = 5;
+
+    private const FINGERPRINT_TTL = 86400;
+
+    private const DEVICE_LIMIT = 5;
+
+    private const DEVICE_TTL = 86400;
+
     public function store(Request $request): JsonResponse
     {
         try {
             $validated = $request->validate([
-                'reporter_name' => ['required', 'string', 'max:100'],
+                'reporter_name' => ['required', 'string', 'min:2', 'max:100', 'regex:/^[A-Za-zÀ-ÖØ-öø-ÿ \'.-]+$/'],
                 'road_name' => ['required', 'string', 'max:255'],
                 'district' => ['required', 'string', 'in:'.implode(',', $this->getKecamatanList())],
                 'latitude' => ['required', 'numeric', 'between:-11,6'],
@@ -35,6 +44,7 @@ class WargaReportController extends Controller
                 'image' => ['required', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
                 'kerusakan_panjang' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
                 'kerusakan_lebar' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
+                'full_address' => ['nullable', 'string', 'max:500'],
             ]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -70,8 +80,8 @@ class WargaReportController extends Controller
     {
         try {
             $validated = $request->validate([
-                'phone' => ['required', 'string', 'regex:/^08[0-9]{8,13}$/'],
-                'reporter_name' => ['required', 'string', 'max:100'],
+                'phone' => ['required', 'string', 'regex:/^(?:\+62|62|0)8[1-9][0-9]{6,9}$/'],
+                'reporter_name' => ['required', 'string', 'min:2', 'max:100', 'regex:/^[A-Za-zÀ-ÖØ-öø-ÿ \'.-]+$/'],
                 'road_name' => ['required', 'string', 'max:255'],
                 'district' => ['required', 'string', 'in:'.implode(',', $this->getKecamatanList())],
                 'latitude' => ['required', 'numeric', 'between:-11,6'],
@@ -80,6 +90,7 @@ class WargaReportController extends Controller
                 'image' => ['required', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
                 'kerusakan_panjang' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
                 'kerusakan_lebar' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
+                'full_address' => ['nullable', 'string', 'max:500'],
             ]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -97,7 +108,21 @@ class WargaReportController extends Controller
             ], 422);
         }
 
+        // ── Layer 1: Pseudo-fingerprint (IP + User-Agent) daily limit ──────
+        $fingerprintCheck = $this->checkFingerprintLimit($request);
+        if ($fingerprintCheck !== null) {
+            return $fingerprintCheck;
+        }
+
+        // ── Layer 2: Device ID daily limit ────────────────────────────────
+        $deviceCheck = $this->checkDeviceLimit($request);
+        if ($deviceCheck !== null) {
+            return $deviceCheck;
+        }
+
         $phone = $validated['phone'];
+        if (str_starts_with($phone, '+62')) $phone = '0'.substr($phone, 3);
+        elseif (str_starts_with($phone, '62')) $phone = '0'.substr($phone, 2);
         $user = User::firstOrCreate(
             ['email' => 'warga_'.$phone.'@jalankita.local'],
             [
@@ -114,7 +139,14 @@ class WargaReportController extends Controller
             return $dailyLimitResult;
         }
 
-        return $this->processAndCreateReport($request, $validated, $user->id);
+        $response = $this->processAndCreateReport($request, $validated, $user->id);
+
+        if ($response->getStatusCode() === 201) {
+            $this->incrementFingerprintCounter($request);
+            $this->incrementDeviceCounter($request);
+        }
+
+        return $response;
     }
 
     /**
@@ -125,7 +157,7 @@ class WargaReportController extends Controller
     {
         $phone = $request->query('phone');
 
-        if (! $phone || ! preg_match('/^08[0-9]{8,13}$/', $phone)) {
+        if (! $phone || ! preg_match('/^(?:\+62|62|0)8[1-9][0-9]{6,9}$/', $phone)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Nomor telepon tidak valid.',
@@ -272,6 +304,7 @@ class WargaReportController extends Controller
                     'photos' => $report->photos->map(function ($p) {
                         return [
                             'image_original_url' => $p->image_original_url,
+                            'photo_taken_at' => $p->photo_taken_at?->toIso8601String(),
                             'created_at' => $p->created_at?->toIso8601String(),
                         ];
                     }),
@@ -336,6 +369,67 @@ class WargaReportController extends Controller
         }
 
         return null;
+    }
+
+    private function buildFingerprint(Request $request): string
+    {
+        return hash('sha256', $request->ip().'|'.$request->userAgent());
+    }
+
+    private function checkFingerprintLimit(Request $request): ?JsonResponse
+    {
+        $fingerprint = $this->buildFingerprint($request);
+        $key = 'upload_fingerprint:'.$fingerprint.':'.date('Y-m-d');
+        $count = (int) Cache::get($key, 0);
+
+        if ($count >= self::FINGERPRINT_LIMIT) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Batas upload harian ('.self::FINGERPRINT_LIMIT.' laporan) telah tercapai dari perangkat ini. Silakan coba lagi besok.',
+                'error_code' => 'FINGERPRINT_LIMIT_EXCEEDED',
+            ], 429);
+        }
+
+        return null;
+    }
+
+    private function incrementFingerprintCounter(Request $request): void
+    {
+        $fingerprint = $this->buildFingerprint($request);
+        $key = 'upload_fingerprint:'.$fingerprint.':'.date('Y-m-d');
+        Cache::increment($key, 1, self::FINGERPRINT_TTL);
+    }
+
+    private function checkDeviceLimit(Request $request): ?JsonResponse
+    {
+        $deviceId = $request->header('X-Device-ID');
+        if (! $deviceId || ! preg_match('/^[a-f0-9\-]{36}$/', $deviceId)) {
+            return null;
+        }
+
+        $key = 'upload_device:'.$deviceId.':'.date('Y-m-d');
+        $count = (int) Cache::get($key, 0);
+
+        if ($count >= self::DEVICE_LIMIT) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Batas upload harian ('.self::DEVICE_LIMIT.' laporan) telah tercapai dari perangkat ini. Silakan coba lagi besok.',
+                'error_code' => 'DEVICE_LIMIT_EXCEEDED',
+            ], 429);
+        }
+
+        return null;
+    }
+
+    private function incrementDeviceCounter(Request $request): void
+    {
+        $deviceId = $request->header('X-Device-ID');
+        if (! $deviceId) {
+            return;
+        }
+
+        $key = 'upload_device:'.$deviceId.':'.date('Y-m-d');
+        Cache::increment($key, 1, self::DEVICE_TTL);
     }
 
     private function processAndCreateReport(Request $request, array $validated, int $userId): JsonResponse
@@ -409,7 +503,7 @@ class WargaReportController extends Controller
         }
 
         try {
-            $report = DB::transaction(function () use ($validated, $imageFile, $imageHash, $exifGps, $userId, $systemNotes) {
+            $report = DB::transaction(function () use ($validated, $imageFile, $imageHash, $exifGps, $exifCheck, $userId, $systemNotes) {
 
                 $reportCode = null;
                 do {
@@ -451,6 +545,7 @@ class WargaReportController extends Controller
                     'status' => 'Menunggu Verifikasi',
                     'source' => 'warga',
                     'description' => $validated['description'] ?? null,
+                    'full_address' => $validated['full_address'] ?? null,
                     'kerusakan_panjang' => $validated['kerusakan_panjang'] ?? null,
                     'kerusakan_lebar' => $validated['kerusakan_lebar'] ?? null,
                     'catatan_petugas' => null,
@@ -468,6 +563,7 @@ class WargaReportController extends Controller
                     'koordinat_sumber' => $exifGps ? 'exif' : 'form',
                     'sort_order' => 0,
                     'original_filename' => $imageFile->getClientOriginalName(),
+                    'photo_taken_at' => $exifCheck['photo_date'],
                 ]);
 
                 if ($systemNotes) {

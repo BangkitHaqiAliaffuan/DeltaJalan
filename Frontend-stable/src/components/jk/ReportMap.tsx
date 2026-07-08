@@ -90,6 +90,8 @@ export function ReportMap({ points, height = "220px", onPointClick }: ReportMapP
   }
 
   useEffect(() => {
+    let canceled = false;
+
     if (!mapRef.current || points.length === 0) return;
 
     if (mapInstanceRef.current && LRef.current) {
@@ -102,6 +104,7 @@ export function ReportMap({ points, height = "220px", onPointClick }: ReportMapP
 
     import("leaflet").then((L) => {
       isImportingRef.current = false;
+      if (canceled) return;
       if (!mapRef.current || mapInstanceRef.current) return;
       LRef.current = L;
 
@@ -124,8 +127,16 @@ export function ReportMap({ points, height = "220px", onPointClick }: ReportMapP
     });
 
     return () => {
+      canceled = true;
       isImportingRef.current = false;
-      mapInstanceRef.current?.remove();
+      const m = mapInstanceRef.current;
+      if (m) {
+        const pane = (m as any)._panes?.mapPane;
+        if (pane) {
+          pane.style.transition = "none";
+        }
+        m.remove();
+      }
       mapInstanceRef.current = null;
       LRef.current = null;
     };

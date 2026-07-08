@@ -98,6 +98,7 @@ class AIController extends Controller
                     'exif_lng' => null,
                     'has_exif_gps' => false,
                     'koordinat_sumber' => 'manual',
+                    'exif_photo_date' => $exifCheck['photo_date'],
                 ];
 
                 continue;
@@ -175,6 +176,7 @@ class AIController extends Controller
                     'koordinat_sumber' => $item['koordinatSumber'],
                     'exif_invalid' => false,
                     'exif_date_status' => $item['exifCheck']['status'],
+                    'exif_photo_date' => $item['exifCheck']['photo_date'],
                     'gps_distance_meters' => $item['gpsDistanceMeters'],
                     'gps_mismatch' => $item['gpsDistanceMeters'] !== null && $item['gpsDistanceMeters'] > 500,
                 ];
@@ -209,6 +211,7 @@ class AIController extends Controller
                     'koordinat_sumber' => $item['koordinatSumber'],
                     'exif_invalid' => false,
                     'exif_date_status' => $item['exifCheck']['status'],
+                    'exif_photo_date' => $item['exifCheck']['photo_date'],
                     'gps_distance_meters' => $item['gpsDistanceMeters'],
                     'gps_mismatch' => $item['gpsDistanceMeters'] !== null && $item['gpsDistanceMeters'] > 500,
                     'error' => $errorMsg,

@@ -5,8 +5,11 @@ import { Icon } from "@/components/jk/Icon";
 import { API_BASE_URL } from "@/lib/aiStore";
 import exifr from "exifr";
 import { reverseGeocode, readExifGpsFromServer } from "@/hooks/useLocationFromPhoto";
-import type { TierRawData } from "@/hooks/useLocationFromPhoto";
 import { compressImage } from "@/lib/compressImage";
+import { FraudWarningModal } from "@/components/jk/FraudWarningModal";
+import { validatePhotoDate } from "@/lib/validatePhotoDate";
+import type { PhotoDateValidationStatus } from "@/lib/validatePhotoDate";
+import { validateIndonesianPhone, validateNamaLengkap } from "@/lib/validators";
 
 export const Route = createFileRoute("/lapor")({
   component: PublicLaporPage,
@@ -18,6 +21,32 @@ const DISTRICT_OPTIONS = [
   "Krian", "Balongbendo", "Wonoayu", "Sukodono", "Candi", "Porong",
   "Krembung", "Tulangan", "Tanggulangin", "Jabon", "Tarik", "Prambon",
 ];
+
+const UPLOAD_LOG_KEY = "jalankita_upload_log";
+const UPLOAD_DAILY_LIMIT = 5;
+
+function getDeviceId(): string {
+  const key = "jalankita_device_id";
+  let id = localStorage.getItem(key);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
+function getTodayUploadCount(): number {
+  const today = new Date().toISOString().slice(0, 10);
+  const log: string[] = JSON.parse(localStorage.getItem(UPLOAD_LOG_KEY) ?? "[]");
+  return log.filter((d) => d === today).length;
+}
+
+function recordUpload(): void {
+  const today = new Date().toISOString().slice(0, 10);
+  const log: string[] = JSON.parse(localStorage.getItem(UPLOAD_LOG_KEY) ?? "[]");
+  log.push(today);
+  localStorage.setItem(UPLOAD_LOG_KEY, JSON.stringify(log));
+}
 
 function getMobileCameraProps() {
   const ua = navigator.userAgent;
@@ -45,13 +74,54 @@ function PublicLaporPage() {
   const [locatingMessage, setLocatingMessage] = useState("");
   const [locationSource, setLocationSource] = useState<"exif" | "geolocation" | null>(null);
   const [geoError, setGeoError] = useState("");
-  const [geoDebug, setGeoDebug] = useState<TierRawData[] | null>(null);
-  const [showDebug, setShowDebug] = useState(false);
+  const [fullAddress, setFullAddress] = useState("");
+  const [cameraModel, setCameraModel] = useState("");
+  const [fraudModal, setFraudModal] = useState<{
+    isOpen: boolean;
+    status: PhotoDateValidationStatus;
+    title: string;
+    message: string;
+  }>({ isOpen: false, status: "no_exif_date", title: "", message: "" });
   const [error, setError] = useState("");
+  const [reporterNameError, setReporterNameError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
   const [success, setSuccess] = useState<{ reportCode: string } | null>(null);
 
   const cameraProps = getMobileCameraProps();
   const isCameraMode = "capture" in cameraProps;
+  const isBlocked = getTodayUploadCount() >= UPLOAD_DAILY_LIMIT;
+
+  function closeFraudModal() {
+    setFraudModal((s) => ({ ...s, isOpen: false }));
+  }
+
+  function handleNameBlur() {
+    if (!reporterName) {
+      setReporterNameError("");
+      return;
+    }
+    const result = validateNamaLengkap(reporterName);
+    if (!result.valid) {
+      setReporterNameError(result.error!);
+    } else {
+      setReporterNameError("");
+      setReporterName(result.normalized);
+    }
+  }
+
+  function handlePhoneBlur() {
+    if (!phone) {
+      setPhoneError("");
+      return;
+    }
+    const result = validateIndonesianPhone(phone);
+    if (!result.valid) {
+      setPhoneError(result.error!);
+    } else {
+      setPhoneError("");
+      setPhone(result.normalized);
+    }
+  }
 
   async function applyCoordinates(lat: number, lng: number, source: "exif" | "geolocation") {
     setLatitude(lat.toFixed(6));
@@ -63,7 +133,7 @@ function PublicLaporPage() {
     console.log("[PublicLapor] reverseGeocode result:", JSON.stringify(geo, null, 2));
     if (geo.namaJalan) setRoadName(geo.namaJalan);
     if (geo.kecamatan) setDistrict(geo.kecamatan);
-    if (geo.tiers) setGeoDebug(geo.tiers);
+    if (geo.fullAddress) setFullAddress(geo.fullAddress);
 
     setLocating(false);
   }
@@ -120,7 +190,35 @@ function PublicLaporPage() {
     if (!file) return;
 
     setProcessing(true);
+    setCameraModel("");
+    setFraudModal((s) => ({ ...s, isOpen: false }));
+
     const compressedFile = await compressImage(file);
+
+    // Validasi EXIF tanggal dulu — blocking, pakai threshold 7 hari (warga)
+    const dateValidation = await validatePhotoDate(compressedFile, 7);
+    if (dateValidation.status !== "valid") {
+      setFraudModal({
+        isOpen: true,
+        status: dateValidation.status,
+        title: dateValidation.title,
+        message: dateValidation.message,
+      });
+      setProcessing(false);
+      return;
+    }
+
+    // Baca kamera (non-blocking, hanya display)
+    try {
+      const tags = await exifr.parse(compressedFile, ["Make", "Model"]);
+      if (tags) {
+        const make = (tags.Make as string) ?? "";
+        const model = (tags.Model as string) ?? "";
+        if (make || model) setCameraModel([make, model].filter(Boolean).join(" "));
+      }
+    } catch {}
+
+    // EXIF lolos — set foto dan lanjut GPS
     setPhoto(compressedFile);
     setPhotoPreview(URL.createObjectURL(compressedFile));
     await processPhotoForGps(compressedFile);
@@ -139,8 +237,31 @@ function PublicLaporPage() {
       setError("Perbaiki error lokasi sebelum mengirim.");
       return;
     }
-    if (!reporterName || !phone || !roadName || !district || !latitude || !longitude || !photo) {
-      setError("Semua field wajib diisi, termasuk foto.");
+    const missing: string[] = [];
+    if (!reporterName) {
+      missing.push("Nama Lengkap");
+    } else {
+      const nameResult = validateNamaLengkap(reporterName);
+      if (!nameResult.valid) {
+        setReporterNameError(nameResult.error!);
+        missing.push("Nama Lengkap (format tidak valid)");
+      }
+    }
+    if (!phone) {
+      missing.push("Nomor Telepon");
+    } else {
+      const phoneResult = validateIndonesianPhone(phone);
+      if (!phoneResult.valid) {
+        setPhoneError(phoneResult.error!);
+        missing.push("Nomor Telepon (format tidak valid)");
+      }
+    }
+    if (!roadName) missing.push("Nama Jalan");
+    if (!district) missing.push("Kecamatan");
+    if (!latitude || !longitude) missing.push("Koordinat lokasi");
+    if (!photo) missing.push("Foto Kerusakan");
+    if (missing.length > 0) {
+      setError(`Lengkapi field berikut: ${missing.join(", ")}`);
       return;
     }
 
@@ -154,19 +275,22 @@ function PublicLaporPage() {
       formData.append("district", district);
       formData.append("latitude", latitude);
       formData.append("longitude", longitude);
-      formData.append("image", photo);
+      formData.append("image", photo as Blob);
       if (description) formData.append("description", description);
       if (panjang) formData.append("kerusakan_panjang", panjang);
       if (lebar) formData.append("kerusakan_lebar", lebar);
+      if (fullAddress) formData.append("full_address", fullAddress);
 
       const res = await fetch(`${API_BASE_URL}/public/reports`, {
         method: "POST",
+        headers: { "X-Device-ID": getDeviceId() },
         body: formData,
       });
 
       const json = await res.json();
 
       if (res.ok && json.success) {
+        recordUpload();
         setSuccess({ reportCode: json.data?.report?.report_code ?? "" });
       } else {
         setError(json.message ?? "Gagal mengirim laporan.");
@@ -180,7 +304,7 @@ function PublicLaporPage() {
 
   if (success) {
     return (
-      <PublicLayout withBottomNav>
+      <PublicLayout>
         <main className="pb-4">
           <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] p-6 text-white">
             <h1 className="text-xl font-bold tracking-tight">Laporan Terkirim!</h1>
@@ -212,12 +336,44 @@ function PublicLaporPage() {
                 <Icon name="search" className="!text-[20px]" />
                 Lacak Laporan
               </Link>
-              <Link
-                to="/lapor"
+              <a
+                href="/lapor"
                 className="w-full h-11 border border-[#1e40af] text-[#1e40af] rounded-lg font-label-md text-label-md font-semibold flex items-center justify-center gap-2 hover:bg-blue-50 transition-all"
               >
                 <Icon name="add" className="!text-[20px]" />
                 Laporkan Lainnya
+              </a>
+            </div>
+          </div>
+        </main>
+      </PublicLayout>
+    );
+  }
+
+  if (isBlocked) {
+    return (
+      <PublicLayout back="/">
+        <main className="flex-1 flex flex-col">
+          <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] p-6 text-white">
+            <h1 className="text-xl font-bold tracking-tight">Batas Upload Tercapai</h1>
+          </section>
+          <div className="flex-1 flex items-center justify-center px-4">
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+                <Icon name="hourglass" className="!text-3xl text-[#D97706]" />
+              </div>
+              <p className="font-label-lg text-label-lg font-semibold text-[#0F172A] mb-2">
+                Anda telah mencapai batas upload harian
+              </p>
+              <p className="font-body-md text-body-md text-[#475569] mb-6">
+                Maksimal {UPLOAD_DAILY_LIMIT} laporan per hari. Silakan coba lagi besok.
+              </p>
+              <Link
+                to="/"
+                className="inline-flex h-11 px-6 bg-gradient-to-r from-[#1e40af] to-[#2e68d8] text-white rounded-lg font-label-md text-label-md font-semibold items-center justify-center gap-2 hover:shadow-lg transition-all"
+              >
+                <Icon name="home" className="!text-[20px]" />
+                Kembali ke Beranda
               </Link>
             </div>
           </div>
@@ -227,25 +383,22 @@ function PublicLaporPage() {
   }
 
   return (
-    <PublicLayout showBrand withBottomNav>
+      <PublicLayout back="/">
       <main className="pb-4">
         <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] p-6 text-white">
           <h1 className="text-xl font-bold tracking-tight">Laporkan Kerusakan Jalan</h1>
           <p className="text-sm text-blue-200 mt-1">Isi data kerusakan yang Anda temukan</p>
+          <div className="mt-3 flex items-center gap-1.5 bg-white/15 rounded-full px-3 py-1.5 w-fit text-xs font-medium text-blue-100">
+            <Icon name="assignment" className="!text-[14px]" />
+            Sisa: {UPLOAD_DAILY_LIMIT - getTodayUploadCount()} / {UPLOAD_DAILY_LIMIT} laporan
+          </div>
         </section>
 
         <div className="max-w-xl mx-auto px-4 mt-6">
-          {error && (
-            <div className="mb-4 flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-              <Icon name="error" className="text-[#E11D48] !text-[18px] shrink-0 mt-0.5" />
-              <p className="font-body-sm text-body-sm text-[#E11D48] leading-relaxed">{error}</p>
-            </div>
-          )}
-
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
-                Foto Kerusakan
+                Foto Kerusakan <span className="text-[#E11D48]">*</span>
               </label>
               <div
                 onClick={() => fileInputRef.current?.click()}
@@ -279,36 +432,57 @@ function PublicLaporPage() {
                 className="hidden"
                 {...cameraProps}
               />
+
+              {cameraModel && (
+                <div className="flex items-center gap-1.5 text-[11px] text-[#476788] mt-1">
+                  <Icon name="photo_camera" className="!text-[14px]" />
+                  <span>Kamera: {cameraModel}</span>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col gap-1.5">
               <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
-                Nama Lengkap
+                Nama Lengkap <span className="text-[#E11D48]">*</span>
               </label>
               <input
                 value={reporterName}
-                onChange={(e) => setReporterName(e.target.value)}
+                onChange={(e) => { setReporterName(e.target.value); setReporterNameError(""); }}
+                onBlur={handleNameBlur}
                 placeholder="Nama Anda"
-                className="w-full h-11 px-4 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af]"
+                className={`w-full h-11 px-4 border rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 ${reporterNameError ? "border-[#E11D48]" : "border-[#c4c5d5]"}`}
               />
+              {reporterNameError && (
+                <p className="text-[11px] text-[#E11D48] flex items-center gap-1">
+                  <Icon name="error" className="!text-[12px]" />
+                  {reporterNameError}
+                </p>
+              )}
             </div>
 
             <div className="flex flex-col gap-1.5">
               <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
-                Nomor Telepon
+                Nomor Telepon <span className="text-[#E11D48]">*</span>
               </label>
               <div className="relative flex items-center">
                 <input
                   type="tel"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => { setPhone(e.target.value); setPhoneError(""); }}
+                  onBlur={handlePhoneBlur}
                   placeholder="08xxxxxxxxxx"
-                  className="w-full h-11 px-4 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af]"
+                  className={`w-full h-11 px-4 border rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 ${phoneError ? "border-[#E11D48]" : "border-[#c4c5d5]"}`}
                 />
               </div>
+              {phoneError && (
+                <p className="text-[11px] text-[#E11D48] flex items-center gap-1">
+                  <Icon name="error" className="!text-[12px]" />
+                  {phoneError}
+                </p>
+              )}
               <p className="text-[11px] text-[#64748B] flex items-center gap-1">
                 <Icon name="info" className="!text-[12px]" />
-                Digunakan untuk melacak laporan Anda
+                Contoh: 081234567890 atau +6281234567890
               </p>
             </div>
 
@@ -346,7 +520,7 @@ function PublicLaporPage() {
 
             <div className="flex flex-col gap-1.5">
               <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
-                Nama Jalan
+                Nama Jalan <span className="text-[#E11D48]">*</span>
               </label>
               {locationSource && (
                 <p className="text-[11px] text-[#16A34A] flex items-center gap-1 mb-1">
@@ -370,7 +544,7 @@ function PublicLaporPage() {
 
             <div className="flex flex-col gap-1.5">
               <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
-                Kecamatan
+                Kecamatan <span className="text-[#E11D48]">*</span>
               </label>
               {locationSource && (
                 <p className="text-[11px] text-[#16A34A] flex items-center gap-1 mb-1">
@@ -388,6 +562,25 @@ function PublicLaporPage() {
                   <option key={d} value={d}>{d}</option>
                 ))}
               </select>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="font-label-md text-label-md font-semibold text-[#0F172A] flex items-center gap-1">
+                Alamat Lengkap
+                {locationSource && (
+                  <span className="text-[10px] font-normal text-[#64748B] bg-[#F1F5F9] px-1.5 py-0.5 rounded">otomatis</span>
+                )}
+              </label>
+              <div className="w-full px-4 py-2.5 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] bg-gray-50 flex items-center gap-2 min-h-11">
+                <Icon name="map" className="!text-[18px] text-[#476788] shrink-0" />
+                {locating ? (
+                  <span className="text-[#94A3B8]">Mengidentifikasi lokasi...</span>
+                ) : fullAddress ? (
+                  <span>{fullAddress}</span>
+                ) : (
+                  <span className="text-[#94A3B8]">Belum tersedia</span>
+                )}
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -435,40 +628,17 @@ function PublicLaporPage() {
               </div>
             </div>
 
-            {geoDebug && (
-              <div className="border border-[#D0DAE8] rounded-lg overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setShowDebug(!showDebug)}
-                  className="w-full flex items-center justify-between px-4 py-2.5 bg-[#F1F5F9] text-xs font-semibold text-[#475569] hover:bg-[#E2E8F0] transition-colors"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <Icon name="bug_report" className="!text-[16px]" />
-                    Debug Geo ({geoDebug.length} tier)
-                  </span>
-                  <Icon name={showDebug ? "expand_less" : "expand_more"} className="!text-[18px]" />
-                </button>
-                {showDebug && (
-                  <div className="px-4 py-3 space-y-3 bg-white">
-                    {geoDebug.map((t) => (
-                      <details key={t.tier} className="text-xs">
-                        <summary className="font-semibold text-[#0F172A] cursor-pointer py-1">
-                          Tier {t.tier}: {t.name} — {t.success ? "OK" : "FAIL"}
-                        </summary>
-                        <pre className="mt-1 p-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded overflow-x-auto text-[11px] text-[#334155] leading-relaxed max-h-48 overflow-y-auto">
-                          {JSON.stringify(t.rawJson ?? t.rawAddress, null, 2)}
-                        </pre>
-                      </details>
-                    ))}
-                  </div>
-                )}
+            {error && (
+              <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                <Icon name="error" className="text-[#E11D48] !text-[18px] shrink-0 mt-0.5" />
+                <p className="font-body-sm text-body-sm text-[#E11D48] leading-relaxed">{error}</p>
               </div>
             )}
 
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={loading}
+              disabled={loading || locating}
               className="w-full h-12 bg-gradient-to-r from-[#1e40af] to-[#2e68d8] text-white rounded-xl font-label-md text-label-md font-semibold flex items-center justify-center gap-2 mt-2 hover:shadow-lg hover:shadow-[#1e40af]/25 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
@@ -483,6 +653,14 @@ function PublicLaporPage() {
                 </>
               )}
             </button>
+
+            <FraudWarningModal
+              isOpen={fraudModal.isOpen}
+              status={fraudModal.status}
+              title={fraudModal.title}
+              message={fraudModal.message}
+              onClose={closeFraudModal}
+            />
           </div>
         </div>
       </main>
