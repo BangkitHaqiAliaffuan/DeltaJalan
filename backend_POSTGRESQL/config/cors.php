@@ -46,6 +46,7 @@ return [
     'allowed_origins' => array_filter(array_unique([
         'http://localhost:5173',
         'http://localhost:8080',
+        'http://localhost',
         'capacitor://localhost',
         env('FRONTEND_URL'),
         env('NGROK_URL'),

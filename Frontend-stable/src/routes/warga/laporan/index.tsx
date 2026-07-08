@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Icon } from "@/components/jk/Icon";
-import { PageLayout } from "@/components/jk/PageLayout";
+import { PullToRefresh } from "@/components/jk/PullToRefresh";
 import { ReportCard, ReportCardSkeleton } from "@/components/jk/ReportCard";
 import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
 import { getToken } from "@/lib/auth";
@@ -107,7 +107,7 @@ function WargaLaporanIndexPage() {
   }, [laporan, activeFilter, searchQuery]);
 
   return (
-    <PageLayout title="Laporan Saya" onRefresh={loadLaporan}>
+    <PullToRefresh onRefresh={loadLaporan}>
       {/* Search bar */}
       <section className="px-margin-mobile pt-md">
         <div className="relative flex items-center">
@@ -216,6 +216,6 @@ function WargaLaporanIndexPage() {
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
       />
-    </PageLayout>
+    </PullToRefresh>
   );
 }
