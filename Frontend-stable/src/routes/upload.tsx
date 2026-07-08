@@ -5,7 +5,7 @@ import { PageLayout } from "@/components/jk/PageLayout";
 import { getCurrentUser, getToken } from "@/lib/auth";
 import { useSurveyList } from "@/hooks/useSurveyQueries";
 import { usePatrolSchedules } from "@/hooks/usePatrolScheduleQueries";
-import { readExifGps, isNativePlatform, convertFileSrc } from "@/hooks/useLocationFromPhoto";
+import { readExifGps, isNativePlatform, convertFileSrc, nativeTakePhoto } from "@/hooks/useLocationFromPhoto";
 import { PhotoExifGps } from "@jalankita/capacitor-exif-gps";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -1137,21 +1137,42 @@ function UploadPage() {
 
           <div className="flex-1 px-4 py-4 flex flex-col items-center justify-center">
             <div className="w-full max-w-xl">
-              <button
-                type="button"
-                onClick={() => {
-                  if (isNativePlatform()) {
-                    handleNativeBatchSelect();
-                  } else {
-                    galleryInputRef.current?.click();
-                  }
-                }}
-                disabled={analyzeState !== null}
-                className="aspect-square max-w-[200px] w-full mx-auto flex flex-col items-center justify-center gap-1 bg-white border-2 border-dashed border-[#C7D2FE] rounded-none hover:border-[#A5B4FC] hover:bg-[#EEF2FF] transition-all disabled:opacity-50 p-3"
-              >
-                <Icon name="photo_library" className="!text-5xl text-[#1e40af]" />
-                <span className="text-[13px] font-semibold text-[#1e40af]">Pilih 2+ Foto</span>
-              </button>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isNativePlatform()) {
+                      handleNativeBatchSelect();
+                    } else {
+                      galleryInputRef.current?.click();
+                    }
+                  }}
+                  disabled={analyzeState !== null}
+                  className="flex-1 aspect-square max-w-[200px] flex flex-col items-center justify-center gap-1 bg-white border-2 border-dashed border-[#C7D2FE] hover:border-[#A5B4FC] hover:bg-[#EEF2FF] transition-all disabled:opacity-50 p-3"
+                >
+                  <Icon name="photo_library" className="!text-5xl text-[#1e40af]" />
+                  <span className="text-[13px] font-semibold text-[#1e40af]">Pilih 2+ Foto</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (isNativePlatform()) {
+                      setProcessing(true);
+                      const result = await nativeTakePhoto();
+                      setProcessing(false);
+                      if (result) handleFilePicked(result.file);
+                    } else {
+                      cameraInputRef.current?.click();
+                    }
+                  }}
+                  disabled={analyzeState !== null}
+                  className="flex-1 aspect-square max-w-[200px] flex flex-col items-center justify-center gap-1 bg-white border-2 border-dashed border-[#C7D2FE] hover:border-[#A5B4FC] hover:bg-[#EEF2FF] transition-all disabled:opacity-50 p-3"
+                >
+                  <Icon name="camera_alt" className="!text-5xl text-[#1e40af]" />
+                  <span className="text-[13px] font-semibold text-[#1e40af]">Ambil Foto</span>
+                </button>
+              </div>
 
               <input
                 ref={cameraInputRef}

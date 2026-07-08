@@ -5,8 +5,12 @@ import { PageLayout } from "@/components/jk/PageLayout";
 import { getCurrentUser, getToken } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/aiStore";
 import exifr from "exifr";
-import { reverseGeocode, readExifGpsFromServer } from "@/hooks/useLocationFromPhoto";
+import { reverseGeocode, readExifGpsFromServer, isNativePlatform, nativeTakePhoto, convertFileSrc } from "@/hooks/useLocationFromPhoto";
+import { PhotoExifGps } from "@jalankita/capacitor-exif-gps";
 import { compressImage } from "@/lib/compressImage";
+import { validatePhotoDate } from "@/lib/validatePhotoDate";
+import type { PhotoDateValidationStatus } from "@/lib/validatePhotoDate";
+import { FraudWarningModal } from "@/components/jk/FraudWarningModal";
 
 export const Route = createFileRoute("/warga/lapor")({
   component: WargaLaporPage,
@@ -59,6 +63,22 @@ function WargaLaporPage() {
   const [fullAddress, setFullAddress] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [fraudModal, setFraudModal] = useState<{
+    isOpen: boolean;
+    status: PhotoDateValidationStatus;
+    title: string;
+    message: string;
+  }>({ isOpen: false, status: "no_exif_date", title: "", message: "" });
+
+  const cameraProps = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    ? { capture: "environment" as const }
+    : {};
+  const isCameraMode = "capture" in cameraProps;
+  const isNative = isNativePlatform();
+
+  function closeFraudModal() {
+    setFraudModal((s) => ({ ...s, isOpen: false }));
+  }
 
   async function applyCoordinates(lat: number, lng: number, source: "exif" | "geolocation") {
     setLatitude(lat.toFixed(6));
@@ -124,6 +144,91 @@ function WargaLaporPage() {
     setPhoto(compressedFile);
     setPhotoPreview(URL.createObjectURL(compressedFile));
     await processPhotoForGps(compressedFile);
+    setProcessing(false);
+  }
+
+  // ── Capacitor Native Photo Handlers ──
+
+  async function handleNativeCamera() {
+    if (processing) return;
+    setProcessing(true);
+
+    const result = await nativeTakePhoto();
+    if (!result) {
+      setProcessing(false);
+      return;
+    }
+
+    const dateValidation = await validatePhotoDate(result.file);
+    if (dateValidation.status !== "valid") {
+      setFraudModal({
+        isOpen: true,
+        status: dateValidation.status,
+        title: dateValidation.title,
+        message: dateValidation.message,
+      });
+      setProcessing(false);
+      return;
+    }
+
+    const compressedFile = await compressImage(result.file);
+    setPhoto(compressedFile);
+    setPhotoPreview(URL.createObjectURL(compressedFile));
+
+    if (result.lat != null && result.lng != null) {
+      await applyCoordinates(result.lat, result.lng, "exif");
+    } else {
+      await processPhotoForGps(compressedFile);
+    }
+
+    setProcessing(false);
+  }
+
+  async function handleNativeGallery() {
+    if (processing) return;
+    setProcessing(true);
+
+    const pickResult = await PhotoExifGps.pickPhotos({ limit: 1 });
+    if (!pickResult.photos?.length) {
+      setProcessing(false);
+      return;
+    }
+    const photo = pickResult.photos[0];
+
+    const capUrl = convertFileSrc(photo.uri);
+    let blob: Blob;
+    try {
+      const resp = await fetch(capUrl);
+      blob = await resp.blob();
+    } catch {
+      setError("Gagal membaca foto");
+      setProcessing(false);
+      return;
+    }
+    const file = new File([blob], photo.name || "gallery.jpg", { type: blob.type || "image/jpeg" });
+
+    const dateValidation = await validatePhotoDate(file);
+    if (dateValidation.status !== "valid") {
+      setFraudModal({
+        isOpen: true,
+        status: dateValidation.status,
+        title: dateValidation.title,
+        message: dateValidation.message,
+      });
+      setProcessing(false);
+      return;
+    }
+
+    const compressedFile = await compressImage(file);
+    setPhoto(compressedFile);
+    setPhotoPreview(URL.createObjectURL(compressedFile));
+
+    if (photo.lat != null && photo.lng != null) {
+      await applyCoordinates(photo.lat, photo.lng, "exif");
+    } else {
+      await processPhotoForGps(compressedFile);
+    }
+
     setProcessing(false);
   }
 
@@ -204,35 +309,105 @@ function WargaLaporPage() {
               <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
                 Foto Kerusakan
               </label>
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-[#c4c5d5] rounded-lg p-6 text-center cursor-pointer hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors"
-              >
-                {processing ? (
-                  <div className="flex flex-col items-center gap-2 py-4">
-                    <span className="w-8 h-8 border-2 border-[#1e40af]/30 border-t-[#1e40af] rounded-full animate-spin" />
-                    <p className="text-xs text-[#476788]">Kompresi dan validasi foto...</p>
+
+              {isNative ? (
+                <>
+                  {processing ? (
+                    <div className="border-2 border-dashed border-[#c4c5d5] rounded-lg p-6 text-center">
+                      <div className="flex flex-col items-center gap-2 py-4">
+                        <span className="w-8 h-8 border-2 border-[#1e40af]/30 border-t-[#1e40af] rounded-full animate-spin" />
+                        <p className="text-xs text-[#476788]">Memproses foto...</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {photoPreview ? (
+                        <div className="border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center">
+                          <div className="relative">
+                            <img src={photoPreview} alt="Preview" className="max-h-48 mx-auto rounded-lg" />
+                            <p className="text-xs text-[#476788] mt-2">{photo?.name}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex gap-3">
+                          <button
+                            type="button"
+                            onClick={handleNativeCamera}
+                            className="flex-1 border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors cursor-pointer"
+                          >
+                            <div className="flex flex-col items-center gap-2">
+                              <Icon name="camera_alt" className="!text-3xl text-[#757684]" />
+                              <p className="text-sm text-[#757684]">Ambil Foto</p>
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleNativeGallery}
+                            className="flex-1 border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors cursor-pointer"
+                          >
+                            <div className="flex flex-col items-center gap-2">
+                              <Icon name="photo_library" className="!text-3xl text-[#757684]" />
+                              <p className="text-sm text-[#757684]">Pilih dari Galeri</p>
+                            </div>
+                          </button>
+                        </div>
+                      )}
+
+                      {photoPreview && (
+                        <div className="flex gap-3">
+                          <button
+                            type="button"
+                            onClick={handleNativeCamera}
+                            className="flex-1 h-10 border border-[#c4c5d5] rounded-lg text-xs text-[#475569] font-semibold hover:bg-gray-50 transition-colors cursor-pointer"
+                          >
+                            Ambil Ulang
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleNativeGallery}
+                            className="flex-1 h-10 border border-[#c4c5d5] rounded-lg text-xs text-[#475569] font-semibold hover:bg-gray-50 transition-colors cursor-pointer"
+                          >
+                            Ganti dari Galeri
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-[#c4c5d5] rounded-lg p-6 text-center cursor-pointer hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors"
+                  >
+                    {processing ? (
+                      <div className="flex flex-col items-center gap-2 py-4">
+                        <span className="w-8 h-8 border-2 border-[#1e40af]/30 border-t-[#1e40af] rounded-full animate-spin" />
+                        <p className="text-xs text-[#476788]">Kompresi dan validasi foto...</p>
+                      </div>
+                    ) : photoPreview ? (
+                      <div className="relative">
+                        <img src={photoPreview} alt="Preview" className="max-h-48 mx-auto rounded-lg" />
+                        <p className="text-xs text-[#476788] mt-2">{photo?.name}</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2">
+                        <Icon name="camera_alt" className="!text-4xl text-[#757684]" />
+                        <p className="text-sm text-[#757684]">{isCameraMode ? "Ketuk untuk mengambil foto" : "Ketuk untuk memilih foto"}</p>
+                        <p className="text-xs text-[#757684]">JPEG/PNG, maks 5 MB</p>
+                      </div>
+                    )}
                   </div>
-                ) : photoPreview ? (
-                  <div className="relative">
-                    <img src={photoPreview} alt="Preview" className="max-h-48 mx-auto rounded-lg" />
-                    <p className="text-xs text-[#476788] mt-2">{photo?.name}</p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-2">
-                    <Icon name="camera_alt" className="!text-4xl text-[#757684]" />
-                    <p className="text-sm text-[#757684]">Ketuk untuk memilih foto</p>
-                    <p className="text-xs text-[#757684]">JPEG/PNG, maks 5 MB</p>
-                  </div>
-                )}
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png"
-                onChange={handlePhotoChange}
-                className="hidden"
-              />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    onChange={handlePhotoChange}
+                    className="hidden"
+                    {...cameraProps}
+                  />
+                </>
+              )}
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -410,6 +585,14 @@ function WargaLaporPage() {
           </div>
         </div>
       </main>
+
+      <FraudWarningModal
+        isOpen={fraudModal.isOpen}
+        status={fraudModal.status}
+        title={fraudModal.title}
+        message={fraudModal.message}
+        onClose={closeFraudModal}
+      />
     </PageLayout>
   );
 }

@@ -27,7 +27,8 @@ import {
   isExifBlocking,
   type PhotoDateValidationStatus,
 } from "@/lib/validatePhotoDate";
-import { readExifGps } from "@/hooks/useLocationFromPhoto";
+import { readExifGps, isNativePlatform, nativeTakePhoto, convertFileSrc } from "@/hooks/useLocationFromPhoto";
+import { PhotoExifGps } from "@jalankita/capacitor-exif-gps";
 import { compressImage } from "@/lib/compressImage";
 import "leaflet/dist/leaflet.css";
 
@@ -511,9 +512,162 @@ function AiResultPage() {
     setFraudModal((s) => ({ ...s, isOpen: false }));
   }
 
+  async function processReplacementFile(safeFile: File) {
+    // Guard 2: EXIF Date validation (pakai safeFile — in-memory)
+    const dateValidation = await validatePhotoDate(safeFile);
+    if (dateValidation.status !== "valid") {
+      if (isExifBlocking(dateValidation.status)) {
+        setFraudModal({
+          isOpen: true,
+          status: dateValidation.status,
+          title: dateValidation.title,
+          message: dateValidation.message,
+          isWarningOnly: false,
+        });
+        return false;
+      }
+      setFraudModal({
+        isOpen: true,
+        status: dateValidation.status,
+        title: dateValidation.title,
+        message: dateValidation.message,
+        isWarningOnly: true,
+      });
+    }
+
+    // Guard 3: EXIF GPS (non-blocking, pakai safeFile)
+    await readExifGps(safeFile);
+
+    // Kompresi gambar — EXIF sudah divalidasi, Canvas aman dipakai sekarang
+    setGantiFotoLoading(true);
+    const compressedFile = await compressImage(safeFile);
+
+    // Guard 4: Duplication check (non-blocking, pakai safeFile)
+    try {
+      const hash = await computeFileHash(compressedFile);
+      const token = getToken() ?? "";
+      const url = new URL(
+        `${window.location.origin}${import.meta.env.VITE_API_BASE_URL ?? "/api"}/v1/reports/check-duplicate`,
+      );
+      url.searchParams.set("file_hash", hash);
+      const res = await fetch(url.toString(), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.has_active_report && data.report) {
+          toast.warning(`Foto sudah pernah digunakan untuk laporan ${data.report.report_code}.`);
+        }
+      }
+    } catch {
+      // Non-blocking
+    }
+
+    // Re-analyze with AI (pakai safeFile — in-memory)
+    try {
+      const token = getToken() ?? "";
+      const fd = new FormData();
+      fd.append("file", compressedFile);
+      const response = await fetch(
+        `${formData ? (import.meta.env.VITE_API_BASE_URL ?? "/api") : "/api"}/analyze`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd,
+        },
+      );
+      if (!response.ok) throw new Error(`Analisis gagal (HTTP ${response.status})`);
+      const aiResultData = await response.json();
+
+      const mappedDets = (aiResultData.detections ?? []).map((d: any) => ({
+        class: d.type ?? d.class,
+        severity: normSev(d.severity ?? aiResultData.overall_severity),
+        confidence: d.confidence,
+        bbox: d.bbox
+          ? { x1: d.bbox[0] ?? 0, y1: d.bbox[1] ?? 0, x2: d.bbox[2] ?? 0, y2: d.bbox[3] ?? 0 }
+          : { x1: 0, y1: 0, x2: 0, y2: 0 },
+      }));
+
+      if (gantiFotoTargetRef.current !== null) {
+        // Batch mode: update one photo
+        updateBatchPhoto(gantiFotoTargetRef.current, {
+          fileName: compressedFile.name,
+          previewUrl: URL.createObjectURL(compressedFile),
+          imageResult: aiResultData.image_result ?? "",
+          detections: mappedDets,
+          severity: normSev(aiResultData.overall_severity),
+          confidence: aiResultData.detections?.[0]?.confidence ?? aiResultData.confidence ?? 0,
+          hasError: false,
+        });
+
+        // Sync pendingBatchFiles so submit sends the right file
+        const newPending = [...getPendingBatchFiles()!];
+        newPending[gantiFotoTargetRef.current] = compressedFile;
+        setPendingBatchFiles(newPending);
+      } else {
+        // Single mode: update result
+        const newResult = {
+          detections: mappedDets,
+          total: aiResultData.total ?? mappedDets.length,
+          overall_severity: normSev(aiResultData.overall_severity),
+          image_result: aiResultData.image_result ?? "",
+          status: "success",
+        };
+        setAiResult(newResult);
+        if (formData) {
+          URL.revokeObjectURL(formData.previewUrl);
+          setFormData({
+            ...formData,
+            previewUrl: URL.createObjectURL(compressedFile),
+            fileName: compressedFile.name,
+            file: compressedFile,
+          });
+        }
+      }
+
+      // Reset timer
+      setConfirmEnabled(false);
+      setCountdown(2);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menganalisis foto baru");
+    } finally {
+      setGantiFotoLoading(false);
+    }
+
+    return true;
+  }
+
   async function handleReplacePhoto(index: number | null) {
     if (gantiFotoLoading) return;
     gantiFotoTargetRef.current = index;
+
+    if (isNativePlatform()) {
+      try {
+        const pickResult = await PhotoExifGps.pickPhotos({ limit: 1 });
+        if (!pickResult.photos?.length) return;
+        const photo = pickResult.photos[0];
+
+        const capUrl = convertFileSrc(photo.uri);
+        const resp = await fetch(capUrl);
+        const blob = await resp.blob();
+        const file = new File([blob], photo.name || "photo.jpg", { type: blob.type || "image/jpeg" });
+
+        if (!["image/jpeg", "image/jpg", "image/png"].includes(file.type)) {
+          toast.error("Format file tidak didukung. Gunakan JPEG atau PNG.");
+          return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+          toast.error("Ukuran file maksimal 5MB.");
+          return;
+        }
+
+        await processReplacementFile(file);
+      } catch {
+        toast.error("Gagal mengganti foto");
+      }
+      return;
+    }
+
     fileInputRef.current?.click();
   }
 
@@ -547,128 +701,12 @@ function AiResultPage() {
       return;
     }
 
-    // Guard 2: EXIF Date validation (pakai safeFile — in-memory)
-    const dateValidation = await validatePhotoDate(safeFile);
-    if (dateValidation.status !== "valid") {
-      if (isExifBlocking(dateValidation.status)) {
-        setFraudModal({
-          isOpen: true,
-          status: dateValidation.status,
-          title: dateValidation.title,
-          message: dateValidation.message,
-          isWarningOnly: false,
-        });
-        if (fileInputRef.current) fileInputRef.current.value = "";
-        return;
-      }
-      setFraudModal({
-        isOpen: true,
-        status: dateValidation.status,
-        title: dateValidation.title,
-        message: dateValidation.message,
-        isWarningOnly: true,
-      });
-    }
-
-    // Guard 3: EXIF GPS (non-blocking, pakai safeFile)
-    await readExifGps(safeFile);
-
-    // Kompresi gambar — EXIF sudah divalidasi, Canvas aman dipakai sekarang
-    setGantiFotoLoading(true);
-    safeFile = await compressImage(safeFile);
-
-    // Guard 4: Duplication check (non-blocking, pakai safeFile)
-    try {
-      const hash = await computeFileHash(safeFile);
-      const token = getToken() ?? "";
-      const url = new URL(
-        `${window.location.origin}${import.meta.env.VITE_API_BASE_URL ?? "/api"}/v1/reports/check-duplicate`,
-      );
-      url.searchParams.set("file_hash", hash);
-      const res = await fetch(url.toString(), {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.has_active_report && data.report) {
-          toast.warning(`Foto sudah pernah digunakan untuk laporan ${data.report.report_code}.`);
-        }
-      }
-    } catch {
-      // Non-blocking
-    }
-
-    // Re-analyze with AI (pakai safeFile — in-memory)
-    try {
-      const token = getToken() ?? "";
-      const fd = new FormData();
-      fd.append("file", safeFile);
-      const response = await fetch(
-        `${formData ? (import.meta.env.VITE_API_BASE_URL ?? "/api") : "/api"}/analyze`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: fd,
-        },
-      );
-      if (!response.ok) throw new Error(`Analisis gagal (HTTP ${response.status})`);
-      const aiResultData = await response.json();
-
-      const mappedDets = (aiResultData.detections ?? []).map((d: any) => ({
-        class: d.type ?? d.class,
-        severity: normSev(d.severity ?? aiResultData.overall_severity),
-        confidence: d.confidence,
-        bbox: d.bbox
-          ? { x1: d.bbox[0] ?? 0, y1: d.bbox[1] ?? 0, x2: d.bbox[2] ?? 0, y2: d.bbox[3] ?? 0 }
-          : { x1: 0, y1: 0, x2: 0, y2: 0 },
-      }));
-
-      if (gantiFotoTargetRef.current !== null) {
-        // Batch mode: update one photo
-        updateBatchPhoto(gantiFotoTargetRef.current, {
-          fileName: safeFile.name,
-          previewUrl: URL.createObjectURL(safeFile),
-          imageResult: aiResultData.image_result ?? "",
-          detections: mappedDets,
-          severity: normSev(aiResultData.overall_severity),
-          confidence: aiResultData.detections?.[0]?.confidence ?? aiResultData.confidence ?? 0,
-          hasError: false,
-        });
-
-        // Sync pendingBatchFiles so submit sends the right file
-        const newPending = [...getPendingBatchFiles()!];
-        newPending[gantiFotoTargetRef.current] = safeFile;
-        setPendingBatchFiles(newPending);
-      } else {
-        // Single mode: update result
-        const newResult = {
-          detections: mappedDets,
-          total: aiResultData.total ?? mappedDets.length,
-          overall_severity: normSev(aiResultData.overall_severity),
-          image_result: aiResultData.image_result ?? "",
-          status: "success",
-        };
-        setAiResult(newResult);
-        if (formData) {
-          URL.revokeObjectURL(formData.previewUrl);
-          setFormData({
-            ...formData,
-            previewUrl: URL.createObjectURL(safeFile),
-            fileName: safeFile.name,
-            file: safeFile,
-          });
-        }
-      }
-
-      // Reset timer
-      setConfirmEnabled(false);
-      setCountdown(2);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal menganalisis foto baru");
-    } finally {
-      setGantiFotoLoading(false);
+    if (!(await processReplacementFile(safeFile))) {
       if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
     }
+
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   // ── Confirm & Submit ────────────────────────────────────────────────────
