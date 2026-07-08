@@ -44,14 +44,17 @@ return [
     |
     */
     'allowed_origins' => array_filter(array_unique([
-        '*',
+        'http://localhost:5173',
+        'http://localhost:8080',
+        'capacitor://localhost',
         env('FRONTEND_URL'),
         env('NGROK_URL'),
         'https://delta-jalan.vercel.app',
     ])),
 
     'allowed_origins_patterns' => [
-        '#^https?://.*\.vercel\.app$#',
+        '#^https?://[a-z0-9-]+\.vercel\.app$#',
+        '#^capacitor://localhost$#',
     ],
 
     /*
@@ -88,6 +91,6 @@ return [
     | Jika true, allowed_origins TIDAK boleh menggunakan wildcard '*'.
     |
     */
-    'supports_credentials' => false,
+    'supports_credentials' => true,
 
 ];

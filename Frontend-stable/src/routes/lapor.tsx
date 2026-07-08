@@ -4,7 +4,13 @@ import { PublicLayout } from "@/components/jk/PublicLayout";
 import { Icon } from "@/components/jk/Icon";
 import { API_BASE_URL } from "@/lib/aiStore";
 import exifr from "exifr";
-import { reverseGeocode, readExifGpsFromServer, isNativePlatform, nativeTakePhoto, convertFileSrc } from "@/hooks/useLocationFromPhoto";
+import {
+  reverseGeocode,
+  readExifGpsFromServer,
+  isNativePlatform,
+  nativeTakePhoto,
+  convertFileSrc,
+} from "@/hooks/useLocationFromPhoto";
 import { compressImage } from "@/lib/compressImage";
 import { FraudWarningModal } from "@/components/jk/FraudWarningModal";
 import { validatePhotoDate } from "@/lib/validatePhotoDate";
@@ -19,9 +25,24 @@ export const Route = createFileRoute("/lapor")({
 });
 
 const DISTRICT_OPTIONS = [
-  "Sidoarjo", "Buduran", "Gedangan", "Sedati", "Waru", "Taman",
-  "Krian", "Balongbendo", "Wonoayu", "Sukodono", "Candi", "Porong",
-  "Krembung", "Tulangan", "Tanggulangin", "Jabon", "Tarik", "Prambon",
+  "Sidoarjo",
+  "Buduran",
+  "Gedangan",
+  "Sedati",
+  "Waru",
+  "Taman",
+  "Krian",
+  "Balongbendo",
+  "Wonoayu",
+  "Sukodono",
+  "Candi",
+  "Porong",
+  "Krembung",
+  "Tulangan",
+  "Tanggulangin",
+  "Jabon",
+  "Tarik",
+  "Prambon",
 ];
 
 const UPLOAD_LOG_KEY = "jalankita_upload_log";
@@ -234,7 +255,9 @@ function PublicLaporPage() {
         const model = (tags.Model as string) ?? "";
         if (make || model) setCameraModel([make, model].filter(Boolean).join(" "));
       }
-    } catch {}
+    } catch {
+      // Non-blocking — camera model hanya display
+    }
 
     // EXIF lolos — set foto dan lanjut GPS
     setPhoto(compressedFile);
@@ -451,9 +474,7 @@ function PublicLaporPage() {
             <p className="font-label-lg text-label-lg font-semibold text-[#0F172A] mb-2">
               Laporan berhasil dikirim
             </p>
-            <p className="font-body-md text-body-md text-[#475569] mb-4">
-              Kode laporan Anda:
-            </p>
+            <p className="font-body-md text-body-md text-[#475569] mb-4">Kode laporan Anda:</p>
             <div className="bg-[#EEF2FF] border border-[#C7D2FE] rounded-lg px-6 py-4 mb-6">
               <p className="font-mono text-xl font-bold text-[#1e40af] tracking-wider">
                 {success.reportCode}
@@ -518,7 +539,7 @@ function PublicLaporPage() {
   }
 
   return (
-      <PublicLayout back="/">
+    <PublicLayout back="/">
       <main className="pb-4">
         <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] p-6 text-white">
           <h1 className="text-xl font-bold tracking-tight">Laporkan Kerusakan Jalan</h1>
@@ -550,7 +571,11 @@ function PublicLaporPage() {
                       {photoPreview ? (
                         <div className="border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center">
                           <div className="relative">
-                            <img src={photoPreview} alt="Preview" className="max-h-48 mx-auto rounded-lg" />
+                            <img
+                              src={photoPreview}
+                              alt="Preview"
+                              className="max-h-48 mx-auto rounded-lg"
+                            />
                             <p className="text-xs text-[#476788] mt-2">{photo?.name}</p>
                           </div>
                         </div>
@@ -613,7 +638,11 @@ function PublicLaporPage() {
                       </div>
                     ) : photoPreview ? (
                       <div className="relative">
-                        <img src={photoPreview} alt="Preview" className="max-h-48 mx-auto rounded-lg" />
+                        <img
+                          src={photoPreview}
+                          alt="Preview"
+                          className="max-h-48 mx-auto rounded-lg"
+                        />
                         <p className="text-xs text-[#476788] mt-2">{photo?.name}</p>
                       </div>
                     ) : (
@@ -621,7 +650,9 @@ function PublicLaporPage() {
                         <Icon name="camera_alt" className="!text-4xl text-[#757684]" />
                         <p className="text-sm text-[#757684]">Ketuk untuk mengambil foto</p>
                         <p className="text-xs text-[#757684]">
-                          {isCameraMode ? "Kamera akan terbuka otomatis" : "Foto harus memiliki data GPS asli"}
+                          {isCameraMode
+                            ? "Kamera akan terbuka otomatis"
+                            : "Foto harus memiliki data GPS asli"}
                         </p>
                       </div>
                     )}
@@ -651,7 +682,10 @@ function PublicLaporPage() {
               </label>
               <input
                 value={reporterName}
-                onChange={(e) => { setReporterName(e.target.value); setReporterNameError(""); }}
+                onChange={(e) => {
+                  setReporterName(e.target.value);
+                  setReporterNameError("");
+                }}
                 onBlur={handleNameBlur}
                 placeholder="Nama Anda"
                 className={`w-full h-11 px-4 border rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 ${reporterNameError ? "border-[#E11D48]" : "border-[#c4c5d5]"}`}
@@ -672,7 +706,10 @@ function PublicLaporPage() {
                 <input
                   type="tel"
                   value={phone}
-                  onChange={(e) => { setPhone(e.target.value); setPhoneError(""); }}
+                  onChange={(e) => {
+                    setPhone(e.target.value);
+                    setPhoneError("");
+                  }}
                   onBlur={handlePhoneBlur}
                   placeholder="08xxxxxxxxxx"
                   className={`w-full h-11 px-4 border rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 ${phoneError ? "border-[#E11D48]" : "border-[#c4c5d5]"}`}
@@ -708,7 +745,11 @@ function PublicLaporPage() {
                         {latitude}, {longitude}
                       </span>
                       <span className="text-[10px] text-[#476788] ml-auto">
-                        {locationSource === "exif" ? "dari foto" : locationSource === "geolocation" ? "dari perangkat" : ""}
+                        {locationSource === "exif"
+                          ? "dari foto"
+                          : locationSource === "geolocation"
+                            ? "dari perangkat"
+                            : ""}
                       </span>
                     </>
                   )}
@@ -729,7 +770,10 @@ function PublicLaporPage() {
               {locationSource && (
                 <p className="text-[11px] text-[#16A34A] flex items-center gap-1 mb-1">
                   <Icon name="check_circle" className="!text-[12px]" />
-                  Terisi otomatis {locationSource === "exif" ? "dari GPS foto" : "dari lokasi Anda"} — dapat diedit
+                  Terisi otomatis {locationSource === "exif"
+                    ? "dari GPS foto"
+                    : "dari lokasi Anda"}{" "}
+                  — dapat diedit
                 </p>
               )}
               {locationSource && !roadName && (
@@ -741,7 +785,9 @@ function PublicLaporPage() {
               <input
                 value={roadName}
                 onChange={(e) => setRoadName(e.target.value)}
-                placeholder={locationSource && !roadName ? "Ketik nama jalan..." : "Contoh: Jl. Raya Sidoarjo"}
+                placeholder={
+                  locationSource && !roadName ? "Ketik nama jalan..." : "Contoh: Jl. Raya Sidoarjo"
+                }
                 className="w-full h-11 px-4 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af]"
               />
             </div>
@@ -753,7 +799,10 @@ function PublicLaporPage() {
               {locationSource && (
                 <p className="text-[11px] text-[#16A34A] flex items-center gap-1 mb-1">
                   <Icon name="check_circle" className="!text-[12px]" />
-                  Terisi otomatis {locationSource === "exif" ? "dari GPS foto" : "dari lokasi Anda"} — dapat diedit
+                  Terisi otomatis {locationSource === "exif"
+                    ? "dari GPS foto"
+                    : "dari lokasi Anda"}{" "}
+                  — dapat diedit
                 </p>
               )}
               <select
@@ -763,7 +812,9 @@ function PublicLaporPage() {
               >
                 <option value="">Pilih kecamatan</option>
                 {DISTRICT_OPTIONS.map((d) => (
-                  <option key={d} value={d}>{d}</option>
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
                 ))}
               </select>
             </div>
@@ -772,7 +823,9 @@ function PublicLaporPage() {
               <label className="font-label-md text-label-md font-semibold text-[#0F172A] flex items-center gap-1">
                 Alamat Lengkap
                 {locationSource && (
-                  <span className="text-[10px] font-normal text-[#64748B] bg-[#F1F5F9] px-1.5 py-0.5 rounded">otomatis</span>
+                  <span className="text-[10px] font-normal text-[#64748B] bg-[#F1F5F9] px-1.5 py-0.5 rounded">
+                    otomatis
+                  </span>
                 )}
               </label>
               <div className="w-full px-4 py-2.5 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] bg-gray-50 flex items-center gap-2 min-h-11">

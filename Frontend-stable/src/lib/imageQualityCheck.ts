@@ -187,7 +187,8 @@ export async function analyzeImageQuality(file: File): Promise<QualityCheckResul
       meanBrightness: 0,
       brightnessStdDev: 0,
       title: "Gagal Memproses Gambar",
-      message: "Terjadi kesalahan saat memproses gambar untuk pengecekan kualitas. Foto tetap dapat diupload.",
+      message:
+        "Terjadi kesalahan saat memproses gambar untuk pengecekan kualitas. Foto tetap dapat diupload.",
       isWarningOnly: true,
     };
   }

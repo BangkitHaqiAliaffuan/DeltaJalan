@@ -1392,10 +1392,14 @@ class ReportController extends Controller
                 ];
             }
 
+            // Coba parse body untuk pesan error yang lebih informatif (422, dll)
+            $body = $response->json();
+            $errorMsg = $body['message'] ?? "FastAPI merespons dengan status HTTP {$response->status()}.";
+
             return [
                 'success' => false,
                 'data' => null,
-                'error' => "FastAPI merespons dengan status HTTP {$response->status()}.",
+                'error' => $errorMsg,
             ];
 
         } catch (ConnectionException $e) {

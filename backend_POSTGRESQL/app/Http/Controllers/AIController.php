@@ -181,7 +181,11 @@ class AIController extends Controller
                     'gps_mismatch' => $item['gpsDistanceMeters'] !== null && $item['gpsDistanceMeters'] > 500,
                 ];
             } else {
-                $errorMsg = $response ? "FastAPI merespons HTTP {$response->status()}." : 'Koneksi ke FastAPI gagal.';
+                $errorMsg = 'Koneksi ke FastAPI gagal.';
+                if ($response) {
+                    $body = $response->json();
+                    $errorMsg = $body['message'] ?? "FastAPI merespons HTTP {$response->status()}.";
+                }
 
                 if (! $response) {
                     Log::error('DeltaJalan: FastAPI connection failed in batch pool.', [
@@ -193,6 +197,7 @@ class AIController extends Controller
                         'file_index' => $idx,
                         'file_name' => $item['fileName'],
                         'status' => $response->status(),
+                        'body' => $response->json(),
                     ]);
                 }
 

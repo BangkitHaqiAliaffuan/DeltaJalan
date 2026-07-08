@@ -14,6 +14,76 @@ import argparse
 from pathlib import Path
 import concurrent.futures
 
+# ── MobileCLIP2-S0 Relevance Guard ──────────────────────────────────────
+_CLIP_AVAILABLE = False
+_CLIP_MODEL = None
+_CLIP_PREPROCESS = None
+_CLIP_TEXT_FEATURES = None
+_CLIP_PROMPTS = [
+    "a damaged road with potholes and cracks, road infrastructure damage",
+    "a road surface deterioration, crack, or pothole on asphalt",
+    "a normal road without damage, smooth road surface",
+    "a selfie photo of a person, portrait",
+    "a plate of food, meal, or dish",
+    "a document, screenshot, or phone screen capture",
+    "a landscape, nature, sky, or mountain scenery",
+    "a close up photo of an object indoors, electronics, or furniture",
+]
+_CLIP_RELEVANCE_PROMPT_INDICES = [0, 1]  # indices of "damaged road" prompts
+_CLIP_RELEVANCE_THRESHOLD = 0.15  # minimum softmax sum for road damage prompts
+
+def _init_clip():
+    global _CLIP_MODEL, _CLIP_PREPROCESS, _CLIP_TEXT_FEATURES, _CLIP_AVAILABLE
+    try:
+        import open_clip
+        from timm.utils import reparameterize_model
+        import torch
+
+        start = time.time()
+        _CLIP_MODEL, _, _CLIP_PREPROCESS = open_clip.create_model_and_transforms(
+            'MobileCLIP2-S0', pretrained='dfndr2b'
+        )
+        _CLIP_MODEL.eval()
+        _CLIP_MODEL = reparameterize_model(_CLIP_MODEL)
+        tokenizer = open_clip.get_tokenizer('MobileCLIP2-S0')
+
+        # Precompute text features at startup
+        text_tokens = tokenizer(_CLIP_PROMPTS)
+        with torch.no_grad():
+            _CLIP_TEXT_FEATURES = _CLIP_MODEL.encode_text(text_tokens)
+            _CLIP_TEXT_FEATURES /= _CLIP_TEXT_FEATURES.norm(dim=-1, keepdim=True)
+
+        _CLIP_AVAILABLE = True
+        print(f"  MobileCLIP2-S0 loaded in {time.time()-start:.1f}s ({len(_CLIP_PROMPTS)} prompts)")
+    except Exception as e:
+        print(f"  MobileCLIP2-S0 not available: {e}")
+        print("  Relevance guard disabled — all images will be analyzed by YOLO.")
+
+def _check_image_relevance(img: Image.Image) -> tuple[bool, float]:
+    """
+    Returns (is_relevant, relevance_score).
+    relevance_score is the softmax sum of road damage prompts.
+    """
+    if not _CLIP_AVAILABLE or _CLIP_MODEL is None:
+        return True, 1.0
+
+    import torch
+    try:
+        img_processed = _CLIP_PREPROCESS(img).unsqueeze(0)
+
+        with torch.no_grad():
+            img_features = _CLIP_MODEL.encode_image(img_processed)
+            img_features /= img_features.norm(dim=-1, keepdim=True)
+
+            # Cosine similarity with temperature
+            logits = 100.0 * img_features @ _CLIP_TEXT_FEATURES.T
+            probs = logits.softmax(dim=-1)
+
+        road_score = sum(probs[0, idx].item() for idx in _CLIP_RELEVANCE_PROMPT_INDICES)
+        return road_score >= _CLIP_RELEVANCE_THRESHOLD, road_score
+    except Exception:
+        return True, 1.0
+
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="JalanKita AI API Server")
 parser.add_argument(
@@ -103,6 +173,9 @@ else:
     model_a = None
     model_b = None
     CONF_TYPE = None
+
+# ── MobileCLIP2-S0 Relevance Guard (lazy init after YOLO) ──
+_init_clip()
 
 CLASS_LABELS = {
     0: "Lubang",
@@ -489,7 +562,14 @@ def health():
             "model_type": MODEL_PATH.suffix.replace(".", ""),
             "conf_threshold": CONF_THRESHOLD,
         })
-    
+
+    base_response["relevance_guard"] = {
+        "available": _CLIP_AVAILABLE,
+        "model": "MobileCLIP2-S0" if _CLIP_AVAILABLE else None,
+        "prompts": len(_CLIP_PROMPTS) if _CLIP_AVAILABLE else None,
+        "threshold": _CLIP_RELEVANCE_THRESHOLD if _CLIP_AVAILABLE else None,
+    }
+
     return base_response
 
 
@@ -518,6 +598,19 @@ async def analyze(
             img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
     except Exception:
         return JSONResponse({"status": "error", "message": "File bukan gambar yang valid"}, status_code=400)
+
+    # ── MobileCLIP2-S0 Relevance Check ──
+    is_relevant, relevance_score = _check_image_relevance(img)
+    if not is_relevant:
+        return JSONResponse({
+            "status": "not_relevant",
+            "message": (
+                "Foto tidak relevan dengan kerusakan jalan. "
+                "Silakan unggah foto yang menunjukkan kondisi jalan, "
+                "seperti lubang, retak, atau kerusakan infrastruktur jalan lainnya."
+            ),
+            "relevance_score": round(relevance_score, 4),
+        }, status_code=422)
 
     img_cv = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
     h_resized, w_resized = img_cv.shape[:2]
@@ -578,7 +671,7 @@ def serve_test_html():
 if __name__ == "__main__":
     import uvicorn
     print("=" * 50)
-    print(f"  JalanKita API Server v1.3.0")
+    print(f"  JalanKita API Server v1.4.0")
     print("=" * 50)
     print(f"  Mode: {MODE.upper()}")
     
@@ -591,6 +684,7 @@ if __name__ == "__main__":
         print(f"  Model: {SINGLE_MODEL_NAME} ({MODEL_PATH.suffix})")
     
     print(f"  Conf threshold: {CONF_THRESHOLD}")
+    print(f"  Relevance guard: {'MobileCLIP2-S0 (active)' if _CLIP_AVAILABLE else 'DISABLED'}")
     print(f"  Docs:   http://localhost:8000/docs")
     print(f"  Health: http://localhost:8000/health")
     print(f"  Cache:  SHA-256, TTL {CACHE_TTL}s")

@@ -73,7 +73,7 @@ return Application::configure(basePath: dirname(__DIR__))
         */
         $exceptions->respond(function (Response $response, Throwable $e, Request $request) {
             if ($request->is('api/*') && !$response->headers->has('Access-Control-Allow-Origin')) {
-                $response->headers->set('Access-Control-Allow-Origin', '*');
+                $response->headers->set('Access-Control-Allow-Origin', $request->headers->get('Origin', '*'));
             }
             return $response;
         });
