@@ -5,7 +5,7 @@ use App\Http\Middleware\ForceJsonResponse;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use Illuminate\Http\Middleware\HandleCors;
+use App\Http\Middleware\EnsureCorsHeaders;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -28,8 +28,11 @@ return Application::configure(basePath: dirname(__DIR__))
         | Di production, ganti '*' dengan domain frontend yang spesifik.
         |
         */
+        // EnsureCorsHeaders MUST be global — not just api group — so preflight
+        // OPTIONS requests always get CORS headers even when no route matches.
+        $middleware->prepend(EnsureCorsHeaders::class);
+
         $middleware->api(prepend: [
-            HandleCors::class,
             ForceJsonResponse::class,
         ]);
 
