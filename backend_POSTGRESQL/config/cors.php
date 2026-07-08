@@ -81,7 +81,7 @@ return [
     | 0 = tidak di-cache (berguna saat development).
     |
     */
-    'max_age' => 0,
+    'max_age' => 600,
 
     /*
     |--------------------------------------------------------------------------

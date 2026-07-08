@@ -1,5 +1,6 @@
-import { setupNativeFetch } from "@/lib/api";
+import { setupNativeFetch, setupBrowserFetch } from "@/lib/api";
 setupNativeFetch();
+setupBrowserFetch();
 
 import "./styles.css";
 

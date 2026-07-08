@@ -146,6 +146,33 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
   }
 }
 
+export function setupBrowserFetch(): void {
+  if (isNative || !_originalFetch) return;
+
+  const originalFetch = _originalFetch;
+
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const urlStr =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : (input as Request).url;
+
+    if (!isApiRequest(urlStr)) {
+      return originalFetch(input, init);
+    }
+
+    return originalFetch(input, {
+      ...init,
+      headers: {
+        "ngrok-skip-browser-warning": "true",
+        ...(init?.headers as Record<string, string>),
+      },
+    });
+  };
+}
+
 export function setupNativeFetch(): void {
   if (!isNative || !_originalFetch) return;
 
