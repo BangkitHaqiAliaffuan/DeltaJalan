@@ -5,6 +5,7 @@ import { SafeImage } from "@/components/jk/SafeImage";
 import { getCurrentUser } from "@/lib/auth";
 import { formatDate, displayStatus, statusDotStyle } from "@/lib/format";
 import { useSurveyDetail } from "@/hooks/useSurveyQueries";
+import { resolveImageUrl } from "@/lib/imageUrl";
 import type { PatrolSession } from "@/types/survey";
 
 export const Route = createFileRoute("/detail-patroli")({
@@ -185,7 +186,7 @@ function DetailPatroliPage() {
                   >
                     {r.first_photo_url || r.image_original_url ? (
                       <SafeImage
-                        src={r.first_photo_url ?? r.image_original_url!}
+                        src={resolveImageUrl(r.first_photo_url ?? r.image_original_url) ?? ""}
                         alt=""
                         className="w-14 h-14 rounded-lg object-cover shrink-0 border border-[#E2E8F0]"
                       />

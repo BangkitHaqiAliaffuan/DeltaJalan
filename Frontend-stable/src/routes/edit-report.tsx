@@ -5,6 +5,7 @@ import { PageLayout } from "@/components/jk/PageLayout";
 import { AdminLayout } from "@/components/jk/AdminLayout";
 import { getCurrentUser, getToken } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/aiStore";
+import { resolveImageUrl } from "@/lib/imageUrl";
 import type { Laporan } from "@/types/laporan";
 
 export const Route = createFileRoute("/edit-report")({
@@ -317,7 +318,7 @@ function EditReportPage() {
                         <div className="flex gap-3">
                           {(photo.image_result_url || photo.image_original_url) && (
                             <img
-                              src={photo.image_result_url || photo.image_original_url!}
+                              src={resolveImageUrl(photo.image_result_url || photo.image_original_url) ?? ""}
                               alt={`Foto ${(photo.sort_order ?? 0) + 1}`}
                               className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
                             />

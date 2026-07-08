@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Icon } from "@/components/jk/Icon";
+import { resolveImageUrl } from "@/lib/imageUrl";
 
 import { ReportMap, type ReportMapPoint } from "@/components/jk/ReportMap";
 import { TimelineCard } from "@/components/jk/TimelineCard";
@@ -55,16 +56,16 @@ function collectPhotos(r: Laporan): SliderPhoto[] {
   const photos: SliderPhoto[] = [];
   if (r.photos && r.photos.length > 0) {
     r.photos.forEach((p, i) => {
-      if (p.image_original_url) photos.push({ url: p.image_original_url, label: `Foto ${i + 1}` });
+      if (p.image_original_url) photos.push({ url: resolveImageUrl(p.image_original_url)!, label: `Foto ${i + 1}` });
       if (p.image_result_url && p.image_result_url !== p.image_original_url)
-        photos.push({ url: p.image_result_url, label: `Hasil AI ${i + 1}` });
+        photos.push({ url: resolveImageUrl(p.image_result_url)!, label: `Hasil AI ${i + 1}` });
     });
   } else {
-    if (r.image_original_url) photos.push({ url: r.image_original_url, label: "Foto Asli" });
+    if (r.image_original_url) photos.push({ url: resolveImageUrl(r.image_original_url)!, label: "Foto Asli" });
     if (r.image_result_url && r.image_result_url !== r.image_original_url)
-      photos.push({ url: r.image_result_url, label: "Hasil Deteksi AI" });
+      photos.push({ url: resolveImageUrl(r.image_result_url)!, label: "Hasil Deteksi AI" });
   }
-  if (r.after_photo_url) photos.push({ url: r.after_photo_url, label: "Setelah Perbaikan" });
+  if (r.after_photo_url) photos.push({ url: resolveImageUrl(r.after_photo_url)!, label: "Setelah Perbaikan" });
   return photos;
 }
 
@@ -326,7 +327,7 @@ export function ReportDetail({
           label: photo.ai_jenis_kerusakan ?? "Foto",
           lat: photo.latitude,
           lng: photo.longitude,
-          imageUrl: photo.image_result_url ?? photo.image_original_url,
+          imageUrl: resolveImageUrl(photo.image_result_url ?? photo.image_original_url) ?? "",
         });
       }
     });
@@ -430,8 +431,8 @@ export function ReportDetail({
             </div>
             <div className="flex flex-col gap-4">
               {report.photos.map((photo, i) => {
-                const origUrl = photo.image_original_url ?? "";
-                const detUrl = photo.image_result_url ?? photo.image_original_url ?? "";
+                const origUrl = resolveImageUrl(photo.image_original_url) ?? "";
+                const detUrl = resolveImageUrl(photo.image_result_url ?? photo.image_original_url) ?? "";
                 if (!origUrl) return null;
                 return (
                   <div key={photo.id}>
@@ -685,7 +686,7 @@ function DetailBeforeAfter({ report }: { report: Laporan }) {
   const damagedPhotos = (report.photos ?? []).filter(
     (p) => (p.total_detections ?? 0) > 0 && p.ai_severity,
   );
-  const singleBefore = report.image_original_url ?? report.first_photo_url;
+  const singleBefore = resolveImageUrl(report.image_original_url ?? report.first_photo_url) ?? "";
   if (!damagedPhotos.length && !singleBefore) return null;
 
   return (
@@ -703,13 +704,13 @@ function DetailBeforeAfter({ report }: { report: Laporan }) {
                 Foto #{p.sort_order ?? i + 1} — {p.ai_jenis_kerusakan ?? "Kerusakan"}
               </p>
               <BeforeAfterSlider
-                beforeSrc={p.image_original_url ?? ""}
-                afterSrc={report.after_photo_url ?? ""}
+                beforeSrc={resolveImageUrl(p.image_original_url) ?? ""}
+                afterSrc={resolveImageUrl(report.after_photo_url) ?? ""}
               />
             </div>
           ))
         ) : (
-          <BeforeAfterSlider beforeSrc={singleBefore!} afterSrc={report.after_photo_url} />
+          <BeforeAfterSlider beforeSrc={singleBefore!} afterSrc={resolveImageUrl(report.after_photo_url) ?? ""} />
         )}
       </div>
     </div>

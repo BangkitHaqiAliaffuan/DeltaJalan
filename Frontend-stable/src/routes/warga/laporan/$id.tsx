@@ -4,6 +4,7 @@ import { Icon } from "@/components/jk/Icon";
 import { getToken } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/aiStore";
 import { formatDateRelative, getStatusBadge } from "@/lib/format";
+import { sanitizeUrls } from "@/lib/imageUrl";
 
 export const Route = createFileRoute("/warga/laporan/$id")({
   component: WargaLaporanDetailPage,
@@ -37,7 +38,7 @@ function WargaLaporanDetailPage() {
       });
       const json = await res.json();
       if (json.success) {
-        setReport(json.data.report);
+        setReport(sanitizeUrls(json.data.report));
         setTimeline(json.data.timeline ?? []);
       }
     } catch {

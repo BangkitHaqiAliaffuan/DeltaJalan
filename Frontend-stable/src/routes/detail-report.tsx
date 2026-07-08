@@ -25,6 +25,7 @@ import { Portal } from "@/components/jk/Portal";
 import { ModalBase } from "@/components/jk/ModalBase";
 import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
 import { formatCountdown, hitungProgress } from "@/lib/deadline";
+import { sanitizeUrls } from "@/lib/imageUrl";
 // ── TRUST SCORE [NONAKTIF] — import { TrustBadge } from "@/components/jk/TrustBadge";
 
 export const Route = createFileRoute("/detail-report")({
@@ -115,7 +116,7 @@ function DetailReportPage() {
         throw new Error(errData.message || "Gagal memuat laporan.");
       }
       const json = await res.json();
-      setReport(json.data ?? null);
+      setReport(sanitizeUrls(json.data ?? null));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal memuat data laporan.");
     } finally {
@@ -131,7 +132,7 @@ function DetailReportPage() {
       });
       if (res.ok) {
         const json = await res.json();
-        setReport(json.data ?? null);
+        setReport(sanitizeUrls(json.data ?? null));
       }
     } catch {}
   }

@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { API_BASE_URL } from "@/lib/aiStore";
 import { getStatusBadge } from "@/lib/format";
+import { sanitizeUrls } from "@/lib/imageUrl";
 
 interface LacakSearch {
   report_code?: string;
@@ -67,7 +68,7 @@ function LacakPage() {
       });
       const json = await res.json();
       if (json.success) {
-        setData(json.data);
+        setData(sanitizeUrls(json.data));
       } else {
         setError(json.message ?? "Laporan tidak ditemukan.");
       }
