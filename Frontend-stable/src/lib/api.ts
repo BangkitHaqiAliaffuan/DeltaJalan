@@ -67,6 +67,12 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
   const method = (init?.method ?? "GET").toUpperCase();
 
   if (!isNative) {
+    const apiBase = import.meta.env.VITE_API_BASE_URL;
+    if (apiBase && !apiBase.startsWith("/") && typeof input === "string" && input.startsWith("/api/")) {
+      const base = apiBase.replace(/\/+$/, "");
+      const path = input.replace(/^\/api/, "");
+      return _originalFetch!(base + (path.startsWith("/") ? path : "/" + path), init);
+    }
     return _originalFetch!(input, init);
   }
 
