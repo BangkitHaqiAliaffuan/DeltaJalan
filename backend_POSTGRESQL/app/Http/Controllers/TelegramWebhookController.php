@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Report;
 use App\Models\TelegramSession;
 use App\Models\User;
+use App\Services\ImageQualityService;
+use App\Services\MobileClipService;
 use App\Services\TelegramService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -412,10 +414,50 @@ class TelegramWebhookController extends Controller
             return response()->json(['ok' => true]);
         }
 
-        // Save photo path to session
+        // ── MobileCLIP relevance check at upload ──
+        $fullPath = storage_path("app/public/{$path}");
+        $mobileclip = app(MobileClipService::class)->checkBlocking(
+            $fullPath,
+            basename($path)
+        );
+
+        if ($mobileclip !== null && $mobileclip['blocked']) {
+            $this->telegram->sendMessage($chatId,
+                'Foto tidak relevan dengan kerusakan jalan. Silakan kirim foto yang menunjukkan kondisi jalan, seperti lubang, retak, atau kerusakan infrastruktur jalan lainnya.'."\n\nKetik /lapor untuk mencoba lagi."
+            );
+            $session->update(['state' => 'idle', 'data' => null]);
+
+            return response()->json(['ok' => true]);
+        }
+
+        // ── Image quality check at upload ──
+        $quality = app(ImageQualityService::class)->checkBlocking(
+            $fullPath,
+            basename($path)
+        );
+
+        if ($quality !== null && $quality['blocked']) {
+            $this->telegram->sendMessage($chatId,
+                'Foto terlalu '.($quality['status'] === 'blurry' ? 'kabur' : 'gelap').'. Silakan kirim ulang foto dengan pencahayaan dan fokus yang baik.'."\n\nKetik /lapor untuk mencoba lagi."
+            );
+            $session->update(['state' => 'idle', 'data' => null]);
+
+            return response()->json(['ok' => true]);
+        }
+
         $data = $session->data ?? [];
         $data['photo_path'] = $path;
         $data['reporter_name'] = trim(($from['first_name'] ?? '').' '.($from['last_name'] ?? '')) ?: "Warga {$chatId}";
+        $data['mobileclip_score'] = $mobileclip['score'] ?? null;
+        $data['mobileclip_label'] = $mobileclip['label'] ?? null;
+        if ($quality !== null) {
+            $data['quality_scores'] = json_encode([
+                'status' => $quality['status'],
+                'blurScore' => $quality['blurScore'],
+                'meanBrightness' => $quality['meanBrightness'],
+                'brightnessStdDev' => $quality['brightnessStdDev'],
+            ]);
+        }
 
         $session->update([
             'state' => 'awaiting_location',
@@ -433,10 +475,9 @@ class TelegramWebhookController extends Controller
         ];
 
         $this->telegram->sendMessage($chatId,
-            'Foto diterima dan tersimpan.'."\n\n"
-            .'Sekarang <b>bagikan lokasi kerusakan</b> melalui tombol di bawah.'."\n\n"
-            ."<b>Penting:</b> Anda WAJIB berada tepat di lokasi kerusakan jalan — sistem mengambil lokasi Anda.\n\n"
-            .'Atau ketik /batal untuk membatalkan.',
+            'Foto diterima, tetapi <b>tidak mengandung data GPS</b>.'."\n\n"
+            .'Silakan bagikan lokasi kerusakan melalui tombol di bawah.'."\n\n"
+            .'<b>Penting:</b> Anda WAJIB berada tepat di lokasi kerusakan jalan — sistem mengambil lokasi Anda.',
             $keyboard
         );
 
@@ -499,46 +540,50 @@ class TelegramWebhookController extends Controller
             return response()->json(['ok' => true]);
         }
 
-        // Try to extract GPS from document (may work on desktop)
-        $gps = $this->extractGpsFromExif($exif);
+        // ── MobileCLIP relevance check at upload ──
+        $fullPath = storage_path("app/public/{$path}");
+        $mobileclip = app(MobileClipService::class)->checkBlocking(
+            $fullPath,
+            basename($path)
+        );
 
-        if ($gps) {
-            // GPS found! Skip location step
-            $geocode = $this->telegram->reverseGeocode($gps['lat'], $gps['lng']);
-
-            $data = $session->data ?? [];
-            $data['photo_path'] = $path;
-            $data['latitude'] = $gps['lat'];
-            $data['longitude'] = $gps['lng'];
-            $data['road_name'] = $geocode['road_name'] ?? '';
-            $data['district'] = $geocode['district'] ?? '';
-            $data['reporter_name'] = trim(($from['first_name'] ?? '').' '.($from['last_name'] ?? '')) ?: "Warga {$chatId}";
-
-            $session->update([
-                'state' => 'awaiting_description',
-                'data' => $data,
-            ]);
-
-            $roadInfo = $data['road_name']
-                ? "Nama jalan terdeteksi: <b>{$data['road_name']}</b>"
-                : 'Lokasi GPS telah diterima dari foto.';
-
+        if ($mobileclip !== null && $mobileclip['blocked']) {
             $this->telegram->sendMessage($chatId,
-                'Foto diterima. Data GPS ditemukan di foto!'."\n\n"
-                .$roadInfo."\n\n"
-                .'Sekarang ketik <b>deskripsi kerusakan</b>.'."\n\n"
-                .'Contoh: "Lubang besar di tengah jalan, hampir menabrak motor"'."\n\n"
-                .'Ketik /batal untuk membatalkan.',
-                ['remove_keyboard' => true]
+                'Foto tidak relevan dengan kerusakan jalan. Silakan kirim foto yang menunjukkan kondisi jalan, seperti lubang, retak, atau kerusakan infrastruktur jalan lainnya.'."\n\nKetik /lapor untuk mencoba lagi."
             );
+            $session->update(['state' => 'idle', 'data' => null]);
 
             return response()->json(['ok' => true]);
         }
 
-        // No GPS in document - fallback to location
+        // ── Image quality check at upload ──
+        $quality = app(ImageQualityService::class)->checkBlocking(
+            $fullPath,
+            basename($path)
+        );
+
+        if ($quality !== null && $quality['blocked']) {
+            $this->telegram->sendMessage($chatId,
+                'Foto terlalu '.($quality['status'] === 'blurry' ? 'kabur' : 'gelap').'. Silakan kirim ulang foto dengan pencahayaan dan fokus yang baik.'."\n\nKetik /lapor untuk mencoba lagi."
+            );
+            $session->update(['state' => 'idle', 'data' => null]);
+
+            return response()->json(['ok' => true]);
+        }
+
         $data = $session->data ?? [];
         $data['photo_path'] = $path;
         $data['reporter_name'] = trim(($from['first_name'] ?? '').' '.($from['last_name'] ?? '')) ?: "Warga {$chatId}";
+        $data['mobileclip_score'] = $mobileclip['score'] ?? null;
+        $data['mobileclip_label'] = $mobileclip['label'] ?? null;
+        if ($quality !== null) {
+            $data['quality_scores'] = json_encode([
+                'status' => $quality['status'],
+                'blurScore' => $quality['blurScore'],
+                'meanBrightness' => $quality['meanBrightness'],
+                'brightnessStdDev' => $quality['brightnessStdDev'],
+            ]);
+        }
 
         $session->update([
             'state' => 'awaiting_location',
@@ -558,7 +603,7 @@ class TelegramWebhookController extends Controller
         $this->telegram->sendMessage($chatId,
             'Foto diterima, tetapi <b>tidak mengandung data GPS</b>.'."\n\n"
             .'Silakan bagikan lokasi kerusakan melalui tombol di bawah.'."\n\n"
-            ."<b>Penting:</b> Anda WAJIB berada tepat di lokasi kerusakan jalan — sistem mengambil lokasi Anda.",
+            .'<b>Penting:</b> Anda WAJIB berada tepat di lokasi kerusakan jalan — sistem mengambil lokasi Anda.',
             $keyboard
         );
 
@@ -806,7 +851,7 @@ class TelegramWebhookController extends Controller
 
         $this->telegram->sendMessage($chatId,
             'Laporan berhasil dikirim!'."\n\n"
-            ."Kode laporan: <b>".htmlspecialchars($report->report_code, ENT_QUOTES, 'UTF-8')."</b>"."\n\n"
+            .'Kode laporan: <b>'.htmlspecialchars($report->report_code, ENT_QUOTES, 'UTF-8').'</b>'."\n\n"
             .'Laporan Anda akan diverifikasi oleh petugas.'."\n"
             .'Gunakan /status untuk mengecek status laporan.'
         );
@@ -826,61 +871,6 @@ class TelegramWebhookController extends Controller
         );
 
         return response()->json(['ok' => true]);
-    }
-
-    private function extractGpsFromExif(array $exif): ?array
-    {
-        if (! isset($exif['GPS'])) {
-            return null;
-        }
-
-        $gps = $exif['GPS'];
-
-        if (! isset($gps['GPSLatitude'], $gps['GPSLongitude'])) {
-            return null;
-        }
-
-        $lat = $this->gpsToDecimal($gps['GPSLatitude'], $gps['GPSLatitudeRef'] ?? 'N');
-        $lng = $this->gpsToDecimal($gps['GPSLongitude'], $gps['GPSLongitudeRef'] ?? 'E');
-
-        if ($lat < -11 || $lat > 6 || $lng < 95 || $lng > 141) {
-            return null;
-        }
-
-        return ['lat' => $lat, 'lng' => $lng];
-    }
-
-    private function gpsToDecimal(mixed $coord, string $ref): float
-    {
-        $degrees = $this->rationalToFloat($coord[0] ?? 0);
-        $minutes = $this->rationalToFloat($coord[1] ?? 0);
-        $seconds = $this->rationalToFloat($coord[2] ?? 0);
-
-        $decimal = $degrees + ($minutes / 60.0) + ($seconds / 3600.0);
-
-        if (in_array(strtoupper($ref), ['S', 'W'])) {
-            $decimal *= -1;
-        }
-
-        return round($decimal, 6);
-    }
-
-    private function rationalToFloat(mixed $value): float
-    {
-        if (is_array($value)) {
-            return $this->rationalToFloat($value[0] ?? '0');
-        }
-        if (is_numeric($value)) {
-            return (float) $value;
-        }
-        if (is_string($value) && str_contains($value, '/')) {
-            $parts = explode('/', $value);
-            if (count($parts) === 2 && is_numeric($parts[0]) && is_numeric($parts[1]) && (float) $parts[1] !== 0.0) {
-                return (float) $parts[0] / (float) $parts[1];
-            }
-        }
-
-        return 0.0;
     }
 
     private function validateDimensionInput(string $input): ?float

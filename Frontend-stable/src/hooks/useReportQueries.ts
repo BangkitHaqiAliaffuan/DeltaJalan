@@ -41,8 +41,8 @@ export function useStats(token: string) {
     queryKey: ["stats"],
     queryFn: () => authFetch<StatsResponse>(`${API_BASE_URL}/reports/stats`, token),
     enabled: !!token,
-    staleTime: 120_000,
-    refetchInterval: 120_000,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
   });
 }
 

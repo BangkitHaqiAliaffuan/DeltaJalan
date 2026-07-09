@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use lsolesen\pel\PelIfd;
 use lsolesen\pel\PelJpeg;
 use lsolesen\pel\PelTag;
 
@@ -433,7 +434,7 @@ class AIController extends Controller
             if (! $ifd0) {
                 return null;
             }
-            $gps = $ifd0->getSubIfd(PelTag::GPS_INFO_IFD);
+            $gps = $ifd0->getSubIfd(PelIfd::GPS);
             if (! $gps) {
                 return null;
             }

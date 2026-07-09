@@ -1,4 +1,7 @@
+import { Capacitor } from "@capacitor/core";
 import { API_BASE_URL } from "./aiStore";
+
+const isNative = Capacitor.isNativePlatform?.() === true;
 
 let _cachedOrigin: string | null = null;
 
@@ -18,7 +21,12 @@ export function resolveImageUrl(url: string | null | undefined): string | null {
 
   try {
     const parsed = new URL(url);
-    if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "10.0.2.2") {
+    if (
+      isNative &&
+      (parsed.hostname === "localhost" ||
+        parsed.hostname === "127.0.0.1" ||
+        parsed.hostname === "10.0.2.2")
+    ) {
       const apiOrigin = getApiOrigin();
       if (apiOrigin) {
         return url.replace(parsed.origin, apiOrigin);
@@ -26,10 +34,12 @@ export function resolveImageUrl(url: string | null | undefined): string | null {
     }
     return url;
   } catch {
-    const apiOrigin = getApiOrigin();
-    if (apiOrigin) {
-      const sep = url.startsWith("/") ? "" : "/";
-      return `${apiOrigin}${sep}${url}`;
+    if (isNative) {
+      const apiOrigin = getApiOrigin();
+      if (apiOrigin) {
+        const sep = url.startsWith("/") ? "" : "/";
+        return `${apiOrigin}${sep}${url}`;
+      }
     }
     return url;
   }
@@ -39,11 +49,18 @@ export function sanitizeUrls<T>(data: T): T {
   if (typeof data === "string") {
     try {
       const parsed = new URL(data);
-      if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "10.0.2.2") {
+      if (
+        isNative &&
+        (parsed.hostname === "localhost" ||
+          parsed.hostname === "127.0.0.1" ||
+          parsed.hostname === "10.0.2.2")
+      ) {
         const apiOrigin = getApiOrigin();
         if (apiOrigin) return data.replace(parsed.origin, apiOrigin) as T;
       }
-    } catch {}
+    } catch {
+      // relative path — skip
+    }
     return data;
   }
 

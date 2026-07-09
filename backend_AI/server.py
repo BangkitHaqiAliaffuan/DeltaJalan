@@ -214,6 +214,7 @@ SEVERITY_THRESHOLD_SEDANG = 1.5
 # SHA-256 result cache — TTL 1 jam
 INFERENCE_CACHE = {}
 CACHE_TTL = 3600
+MAX_CACHE_SIZE = 500
 
 # ---------------------------------------------------------------------------
 #  WBF helpers
@@ -657,6 +658,9 @@ async def analyze(
         "image_result": img_b64,
         "ts": time.time(),
     }
+    if len(INFERENCE_CACHE) >= MAX_CACHE_SIZE:
+        oldest = min(INFERENCE_CACHE, key=lambda k: INFERENCE_CACHE[k].get("ts", 0))
+        del INFERENCE_CACHE[oldest]
     INFERENCE_CACHE[img_hash] = cache_entry
 
     resp = {k: cache_entry[k] for k in ("detections", "total", "overall_severity", "severity_score", "severity_detail", "status")}
@@ -682,6 +686,52 @@ async def analyze_relevance(file: UploadFile = File(...)):
         "relevant": is_relevant,
         "score": round(score, 4),
         "label": label,
+    }
+
+
+@app.post("/analyze-quality")
+async def analyze_quality(file: UploadFile = File(...)):
+    contents = await file.read()
+    try:
+        nparr = np.frombuffer(contents, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        if img is None:
+            raise ValueError("Gagal decode gambar")
+    except Exception:
+        return JSONResponse({"status": "error", "message": "File bukan gambar yang valid"}, status_code=400)
+
+    height, width = img.shape[:2]
+    max_dim = 640
+    if width > max_dim or height > max_dim:
+        scale = max_dim / max(width, height)
+        img = cv2.resize(img, (round(width * scale), round(height * scale)), interpolation=cv2.INTER_AREA)
+
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    laplacian = cv2.Laplacian(gray, cv2.CV_64F)
+    blur_score = float(laplacian.var())
+
+    mean_brightness = float(np.mean(gray))
+    brightness_stddev = float(np.std(gray))
+
+    if blur_score < 100:
+        status = "blurry"
+    elif mean_brightness < 50:
+        status = "too_dark"
+    elif mean_brightness > 200:
+        status = "too_bright"
+    elif brightness_stddev < 25:
+        status = "low_contrast"
+    else:
+        status = "good"
+
+    print(f"  [Quality] /analyze-quality -> status={status}, blur={blur_score:.1f}, brightness={mean_brightness:.1f}, contrast={brightness_stddev:.1f}")
+
+    return {
+        "status": status,
+        "blurScore": round(blur_score, 2),
+        "meanBrightness": round(mean_brightness, 2),
+        "brightnessStdDev": round(brightness_stddev, 2),
     }
 
 

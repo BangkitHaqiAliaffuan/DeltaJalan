@@ -3,6 +3,7 @@ import { Icon } from "@/components/jk/Icon";
 import { useRef, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
+import { getCurrentUser, isLoggedIn } from "@/lib/auth";
 import gsap from "gsap";
 import Counter from "@/components/ui/Counter";
 import AnimatedContent from "@/components/reactbits/AnimatedContent";
@@ -183,6 +184,16 @@ function LandingPage() {
   const testimonials = stats?.recent_reports ?? [];
   const activeTesti = testimonials[testiIndex] ?? null;
 
+  const user = getCurrentUser();
+  const loggedIn = isLoggedIn();
+
+  function dashboardUrl(role: string) {
+    if (role === "warga") return "/warga";
+    if (role === "supervisor") return "/supervisor";
+    if (role === "admin") return "/admin/dashboard";
+    return "/home";
+  }
+
   return (
     <div className="w-full overflow-x-hidden">
       <nav
@@ -206,33 +217,71 @@ function LandingPage() {
           >
             Lacak Laporan
           </Link>
+          {loggedIn ? (
+            <Link
+              to={dashboardUrl(user!.role)}
+              className={`font-label-md text-label-md transition-colors ${scrolled ? "text-[#3730a3] hover:text-[#1e40af]" : "text-white/80 hover:text-white"}`}
+            >
+              Dashboard
+            </Link>
+          ) : (
+            <Link
+              to="/login-petugas"
+              className={`font-label-md text-label-md transition-colors ${scrolled ? "text-[#3730a3] hover:text-[#1e40af]" : "text-white/80 hover:text-white"}`}
+            >
+              Petugas
+            </Link>
+          )}
+          {loggedIn ? (
+            <Link
+              to={dashboardUrl(user!.role)}
+              className={`flex items-center gap-2 font-label-md text-label-md font-semibold px-4 py-2 rounded-lg transition-all ${
+                scrolled
+                  ? "bg-[#1e40af] text-white hover:bg-[#2e68d8]"
+                  : "bg-white text-[#1e40af] hover:bg-white/90"
+              }`}
+            >
+              <span className="w-7 h-7 rounded-full bg-current/20 flex items-center justify-center text-[12px] font-bold">
+                {user!.initials || user!.name?.charAt(0) || "U"}
+              </span>
+              {user!.name}
+            </Link>
+          ) : (
+            <Link
+              to="/masuk"
+              className={`font-label-md text-label-md font-semibold px-5 py-2 rounded-lg transition-all ${
+                scrolled
+                  ? "bg-[#1e40af] text-white hover:bg-[#2e68d8]"
+                  : "bg-white text-[#1e40af] hover:bg-white/90"
+              }`}
+            >
+              Masuk
+            </Link>
+          )}
+        </div>
+        {loggedIn ? (
           <Link
-            to="/login-petugas"
-            className={`font-label-md text-label-md transition-colors ${scrolled ? "text-[#3730a3] hover:text-[#1e40af]" : "text-white/80 hover:text-white"}`}
+            to={dashboardUrl(user!.role)}
+            className={`md:hidden w-9 h-9 rounded-full flex items-center justify-center font-label-md text-label-md font-bold transition-all ${
+              scrolled
+                ? "bg-[#1e40af] text-white"
+                : "bg-white text-[#1e40af]"
+            }`}
           >
-            Petugas
+            {user!.initials || user!.name?.charAt(0) || "U"}
           </Link>
+        ) : (
           <Link
             to="/masuk"
-            className={`font-label-md text-label-md font-semibold px-5 py-2 rounded-lg transition-all ${
+            className={`md:hidden font-label-md text-label-md font-semibold px-4 py-2 rounded-lg transition-all ${
               scrolled
-                ? "bg-[#1e40af] text-white hover:bg-[#2e68d8]"
-                : "bg-white text-[#1e40af] hover:bg-white/90"
+                ? "bg-[#1e40af] text-white"
+                : "bg-white text-[#1e40af]"
             }`}
           >
             Masuk
           </Link>
-        </div>
-        <Link
-          to="/masuk"
-          className={`md:hidden font-label-md text-label-md font-semibold px-4 py-2 rounded-lg transition-all ${
-            scrolled
-              ? "bg-[#1e40af] text-white"
-              : "bg-white text-[#1e40af]"
-          }`}
-        >
-          Masuk
-        </Link>
+        )}
       </nav>
 
       {/* ── HERO ── */}
@@ -292,7 +341,7 @@ function LandingPage() {
 
           <div className="hero-buttons mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
-              to="/lapor"
+              to={loggedIn ? "/warga/lapor" : "/lapor"}
               className="inline-flex items-center gap-2 bg-white text-[#1e40af] font-label-md text-label-md font-semibold px-7 py-3.5 rounded-xl hover:shadow-xl hover:shadow-black/20 active:scale-[0.97] transition-all"
             >
               <Icon name="add_circle" className="!text-[20px]" />
@@ -395,7 +444,7 @@ function LandingPage() {
 
             <div className="text-center mt-10">
               <Link
-                to="/lapor"
+                to={loggedIn ? "/warga/lapor" : "/lapor"}
                 className="inline-flex items-center gap-2 font-label-md text-label-md font-semibold text-[#1e40af] hover:text-[#2e68d8] transition-colors"
               >
                 Mulai Laporkan Sekarang
@@ -585,7 +634,7 @@ function LandingPage() {
               </p>
               <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Link
-                  to="/lapor"
+                  to={loggedIn ? "/warga/lapor" : "/lapor"}
                   className="inline-flex items-center gap-2 bg-white text-[#1e40af] font-label-md text-label-md font-semibold px-7 py-3.5 rounded-xl hover:shadow-xl active:scale-[0.97] transition-all"
                 >
                   <Icon name="add_circle" className="!text-[20px]" />
@@ -630,7 +679,7 @@ function LandingPage() {
             <div>
               <h4 className="font-label-md text-label-md font-semibold text-white mb-4">Layanan</h4>
               <ul className="space-y-3">
-                <li><Link to="/lapor" className="font-body-sm text-body-sm hover:text-white transition-colors">Pelaporan</Link></li>
+                <li><Link to={loggedIn ? "/warga/lapor" : "/lapor"} className="font-body-sm text-body-sm hover:text-white transition-colors">Pelaporan</Link></li>
                 <li><Link to="/lacak" className="font-body-sm text-body-sm hover:text-white transition-colors">Cek Status</Link></li>
                 <li><Link to="/warga/peta" className="font-body-sm text-body-sm hover:text-white transition-colors">Peta Jalan</Link></li>
               </ul>

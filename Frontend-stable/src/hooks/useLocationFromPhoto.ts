@@ -291,12 +291,10 @@ export async function reverseGeocodeWilayahId(
     const res = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) });
 
     if (!res.ok) {
-      console.warn(`[GEO] Tier5 Wilayah-id: HTTP ${res.status}`);
       return null;
     }
 
     const data: WilayahIdResponse = await res.json();
-    console.log("[GEO] Tier5 Wilayah-id raw:", JSON.stringify(data, null, 2));
 
     if (!data.subdistrict) return null;
 
@@ -310,7 +308,6 @@ export async function reverseGeocodeWilayahId(
       kodePos: data.subdistrict.postal_code ?? null,
     };
   } catch (err) {
-    console.warn(`[GEO] Tier5 Wilayah-id error:`, err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -361,28 +358,21 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
       signal: AbortSignal.timeout(8000),
     });
 
-    if (res.ok) {
+      if (res.ok) {
       const data = await res.json();
       const addr = data.address ?? {};
       tier1Raw = addr as Record<string, unknown>;
       tier1RawJson = data;
 
-      console.log("[GEO] Tier1 Nominatim raw:", JSON.stringify(data, null, 2));
-
       const road = addr.road ?? addr.pedestrian ?? addr.path ?? addr.cycleway ?? addr.footway ?? "";
       if (road) {
         roadFound = true;
         namaJalan = road.replace(/^Jalan\s+/i, "Jl. ").trim();
-        console.log(`[GEO] Tier1 Nominatim: road="${namaJalan}"`);
       } else {
         const areaFallback =
           addr.hamlet ?? addr.neighbourhood ?? addr.suburb ?? addr.village ?? addr.town ?? "";
         if (areaFallback) {
           namaJalan = areaFallback.trim();
-          console.log(`[GEO] Tier1 Nominatim: no road, area fallback="${namaJalan}"`);
-        } else {
-          console.log(`[GEO] Tier1 Nominatim: no road or area found`);
-          console.log("[GEO] Tier1 Nominatim address keys:", Object.keys(addr).join(", "));
         }
       }
 
@@ -397,15 +387,12 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
           addr.county ??
           "",
       );
-
       if (kecamatan) {
-        console.log(`[GEO] Kecamatan: ${kecamatan}`);
       }
+
     } else {
-      console.warn(`[GEO] Tier1 Nominatim: HTTP ${res.status}`);
     }
   } catch (err) {
-    console.warn(`[GEO] Tier1 Nominatim error:`, err instanceof Error ? err.message : err);
   }
   tiers.push({
     tier: 1,
@@ -419,7 +406,6 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
   let tier2Raw: Record<string, unknown> | null = null;
   let tier2RawJson: unknown = null;
   if (!namaJalan) {
-    console.log(`[GEO] Tier2 LocationIQ: trying...`);
 
     try {
       const url = new URL(LOCATIONIQ_REVERSE_URL);
@@ -439,24 +425,17 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
         tier2Raw = addr as Record<string, unknown>;
         tier2RawJson = data;
 
-        console.log("[GEO] Tier2 LocationIQ raw:", JSON.stringify(data, null, 2));
-
         const road = extractRoadFromLocationIQ(addr);
         if (road) {
           roadFound = true;
           const parts = [road];
           if (addr.house_number) parts.push(`No. ${addr.house_number}`);
           namaJalan = parts.join(" ");
-          console.log(`[GEO] Tier2 LocationIQ: road="${namaJalan}"`);
         } else {
           const areaFallback =
             addr.hamlet ?? addr.neighbourhood ?? addr.suburb ?? addr.village ?? addr.town ?? "";
           if (areaFallback) {
             namaJalan = areaFallback.trim();
-            console.log(`[GEO] Tier2 LocationIQ: no road, area fallback="${namaJalan}"`);
-          } else {
-            console.log(`[GEO] Tier2 LocationIQ: no road or area found`);
-            console.log("[GEO] Tier2 LocationIQ address keys:", Object.keys(addr).join(", "));
           }
         }
 
@@ -473,15 +452,12 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
               "",
           );
         }
-
         if (kecamatan) {
-          console.log(`[GEO] Tier2 Kecamatan: ${kecamatan}`);
         }
+
       } else {
-        console.warn(`[GEO] Tier2 LocationIQ: HTTP ${(res as Response).status}`);
       }
     } catch (err) {
-      console.warn(`[GEO] Tier2 LocationIQ error:`, err instanceof Error ? err.message : err);
     }
   }
   tiers.push({
@@ -495,19 +471,15 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
   // ── Tier 3: OSRM Nearest ───────────────────────────────────────────────
   let tier3RawJson: unknown = null;
   if (!namaJalan) {
-    console.log("[GEO] Tier3 OSRM Nearest: trying...");
     try {
       const osmResult = await snapToRoad(lat, lng);
       tier3RawJson = osmResult;
       if (osmResult.roadName) {
         namaJalan = osmResult.roadName;
         roadFound = true;
-        console.log(`[GEO] Tier3 OSRM: road="${namaJalan}"`);
       } else {
-        console.log("[GEO] Tier3 OSRM: no road found");
       }
     } catch (e) {
-      console.warn(`[GEO] Tier3 OSRM error:`, e instanceof Error ? e.message : e);
     }
   }
   tiers.push({
@@ -521,7 +493,6 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
   // ── Tier 4: Overpass API ───────────────────────────────────────────────
   let tier4RawJson: unknown = null;
   if (!namaJalan) {
-    console.log("[GEO] Tier4 Overpass: trying...");
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 8000);
@@ -542,19 +513,13 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
         if (roadName) {
           namaJalan = roadName;
           roadFound = true;
-          console.log(`[GEO] Tier4 Overpass: road="${namaJalan}"`);
         } else {
-          console.log("[GEO] Tier4 Overpass: no named highway found within 500m");
-          console.log("[GEO] Tier4 Overpass raw:", JSON.stringify(overpassData, null, 2));
         }
       } else {
-        console.warn(`[GEO] Tier4 Overpass: HTTP ${overpassRes.status}`);
       }
     } catch (err) {
       if ((err as Error)?.name === "AbortError") {
-        console.warn("[GEO] Tier4 Overpass: timeout");
       } else {
-        console.warn(`[GEO] Tier4 Overpass error:`, err instanceof Error ? err.message : err);
       }
     }
   }
@@ -571,18 +536,13 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
   let tier5RawJson: unknown = null;
   let wilayahAdmin: WilayahIdAdminData | null = null;
 
-  console.log("[GEO] Tier5 Wilayah-id: trying...");
   wilayahAdmin = await reverseGeocodeWilayahId(lat, lng);
   tier5RawJson = wilayahAdmin;
 
   if (wilayahAdmin) {
-    console.log("[GEO] Tier5 Wilayah-id admin:", JSON.stringify(wilayahAdmin, null, 2));
     if (wilayahAdmin.kecamatan && matchKecamatan(wilayahAdmin.kecamatan)) {
       kecamatan = matchKecamatan(wilayahAdmin.kecamatan);
-      console.log(`[GEO] Kecamatan (overwritten by wilayah-id): ${kecamatan}`);
     }
-  } else {
-    console.log("[GEO] Tier5 Wilayah-id: failed or no data");
   }
   tiers.push({
     tier: 5,
@@ -607,7 +567,6 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
     fullAddress,
     tiers,
   };
-  console.log("[GEO] reverseGeocode result:", JSON.stringify(result, null, 2));
   return result;
 }
 

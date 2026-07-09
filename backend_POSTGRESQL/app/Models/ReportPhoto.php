@@ -36,6 +36,8 @@ class ReportPhoto extends Model
         'mobileclip_score',
         'mobileclip_label',
         'quality_scores',
+        'ai_analyzed_at',
+        'ai_analysis_count',
     ];
 
     protected $casts = [
@@ -50,6 +52,8 @@ class ReportPhoto extends Model
         'kerusakan_panjang' => 'decimal:2',
         'kerusakan_lebar' => 'decimal:2',
         'sort_order' => 'integer',
+        'ai_analyzed_at' => 'datetime',
+        'ai_analysis_count' => 'integer',
     ];
 
     public function report(): BelongsTo

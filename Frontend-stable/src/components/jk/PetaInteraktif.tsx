@@ -8,7 +8,7 @@ import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 const DEFAULT_CENTER: [number, number] = [-7.4478, 112.7183];
 const DEFAULT_ZOOM = 11;
 const POLYGON_MIN_ZOOM = 10;
-const UNCLUSTER_ZOOM = 13;
+const POLYGON_MAX_ZOOM = 12;
 
 const SEVERITY_CONFIG: Record<string, { color: string; label: string }> = {
   berat: { color: "#E11D48", label: "Rusak Berat" },
@@ -124,6 +124,7 @@ export function PetaInteraktif({
   const markerClusterRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const currentZoomRef = useRef(DEFAULT_ZOOM);
+  const lastFittedDistrictRef = useRef<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [geoJsonData, setGeoJsonData] = useState<any>(null);
   const [geoJsonLoading, setGeoJsonLoading] = useState(true);
@@ -247,7 +248,7 @@ export function PetaInteraktif({
       const key = severityScoreToKey(score);
       const color = POLYGON_SEVERITY_COLORS[key] ?? "#94A3B8";
       const z = currentZoomRef.current;
-      const show = z >= POLYGON_MIN_ZOOM && z < UNCLUSTER_ZOOM;
+      const show = z >= POLYGON_MIN_ZOOM && z < POLYGON_MAX_ZOOM;
       return {
         fillColor: color,
         fillOpacity: show ? 0.25 : 0,
@@ -291,13 +292,8 @@ export function PetaInteraktif({
       if (polygonLayerRef.current) {
         polygonLayerRef.current.setStyle((feature) => styleFnRef.current(feature));
       }
-      const markersVisible = z < POLYGON_MIN_ZOOM || z >= UNCLUSTER_ZOOM;
-      if (markerClusterRef.current) {
-        if (markersVisible && !map.hasLayer(markerClusterRef.current)) {
-          map.addLayer(markerClusterRef.current);
-        } else if (!markersVisible && map.hasLayer(markerClusterRef.current)) {
-          map.removeLayer(markerClusterRef.current);
-        }
+      if (markerClusterRef.current && !map.hasLayer(markerClusterRef.current)) {
+        map.addLayer(markerClusterRef.current);
       }
     });
 
@@ -386,45 +382,16 @@ export function PetaInteraktif({
     const L = LRef.current;
     if (!L) return;
 
-    // Create cluster group once
+    // Create cluster group once (clustering disabled — all markers shown as pins)
     if (!markerClusterRef.current) {
       const mcg = L.markerClusterGroup({
         chunkedLoading: true,
-        maxClusterRadius: 50,
+        maxClusterRadius: 1,
+        disableClusteringAtZoom: 0,
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: false,
-        disableClusteringAtZoom: UNCLUSTER_ZOOM,
-        iconCreateFunction: (cluster: any) => {
-          const subMarkers = cluster.getAllChildMarkers();
-          let berat = 0;
-          let selesai = 0;
-          subMarkers.forEach((m: any) => {
-            const sev = m.options?.severity ?? "baik";
-            if (sev === "berat") berat++;
-            const st = m.options?.status ?? "";
-            if (st === "Selesai") selesai++;
-          });
-          const color = berat > 0 ? "#E11D48" : "#1A4F8A";
-          const count = cluster.getChildCount();
-          const badgeHtml =
-            selesai > 0
-              ? `<div style="position:absolute;bottom:-4px;right:-4px;width:16px;height:16px;border-radius:50%;background:#16A34A;border:2px solid white;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,0.4);"><span style="color:white;font-size:8px;font-weight:700;">${selesai}</span></div>`
-              : "";
-          return L.divIcon({
-            html: `<div style="width:40px;height:40px;position:relative;">
-                <div style="width:40px;height:40px;background:${color};color:white;border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.3);">${count}</div>
-                ${badgeHtml}
-              </div>`,
-            className: "",
-            iconSize: L.point(40, 40),
-          });
-        },
       });
-      const initialZ = currentZoomRef.current;
-      const markersInitiallyVisible = initialZ < POLYGON_MIN_ZOOM || initialZ >= UNCLUSTER_ZOOM;
-      if (markersInitiallyVisible) {
-        map.addLayer(mcg);
-      }
+      map.addLayer(mcg);
       markerClusterRef.current = mcg;
     }
 
@@ -566,6 +533,27 @@ export function PetaInteraktif({
         }
       }
     }
+
+    // ── Fit to district polygon when district filter is active ──
+    if (filters.district && geoJsonData && markers.length > 0) {
+      if (filters.district !== lastFittedDistrictRef.current) {
+        const feature = geoJsonData.features.find(
+          (f: any) => f.properties?.kecamatan === filters.district
+        );
+        if (feature) {
+          const layer = L.geoJSON(feature);
+          map.fitBounds(layer.getBounds().pad(0.15), { maxZoom: 14, animate: false });
+          layer.remove();
+        } else {
+          const group = L.featureGroup(markers);
+          map.fitBounds(group.getBounds(), { padding: [40, 40], maxZoom: 13, animate: false });
+        }
+        lastFittedDistrictRef.current = filters.district;
+      }
+    } else if (!filters.district && lastFittedDistrictRef.current) {
+      map.setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+      lastFittedDistrictRef.current = null;
+    }
   }, [mapReports, mapReady, onViewDetail, currentUserId, highlightReportId]);
 
   // ── Filter callbacks ──
@@ -619,15 +607,9 @@ export function PetaInteraktif({
     (filters.status_deadline ? 1 : 0);
 
   const validReportsCount = mapReports.filter((r) => r.latitude && r.longitude).length;
-  const polygonsShown = zoomLevel >= POLYGON_MIN_ZOOM && zoomLevel < UNCLUSTER_ZOOM;
-  const isUnclustered = zoomLevel >= UNCLUSTER_ZOOM;
+  const polygonsShown = zoomLevel >= POLYGON_MIN_ZOOM && zoomLevel < POLYGON_MAX_ZOOM;
 
-  const zoomLabel =
-    zoomLevel < POLYGON_MIN_ZOOM
-      ? "Tampilan Kecamatan"
-      : zoomLevel >= UNCLUSTER_ZOOM
-        ? "Tampilan Detail"
-        : "Tampilan Cluster";
+  const zoomLabel = zoomLevel < POLYGON_MIN_ZOOM ? "Tampilan Kecamatan" : "Tampilan Detail";
 
   return (
     <div className="relative w-full h-full">
@@ -970,8 +952,7 @@ export function PetaInteraktif({
                 className="h-1.5 rounded-full transition-all"
                 style={{
                   width: zoomLevel === z ? 12 : 6,
-                  background:
-                    z < POLYGON_MIN_ZOOM ? "#94A3B8" : z >= UNCLUSTER_ZOOM ? "#1A4F8A" : "#3B82F6",
+                  background: z < POLYGON_MIN_ZOOM ? "#94A3B8" : "#1A4F8A",
                   opacity: zoomLevel === z ? 1 : 0.4,
                 }}
               />

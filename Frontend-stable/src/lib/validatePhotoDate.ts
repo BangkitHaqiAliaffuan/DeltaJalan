@@ -36,7 +36,8 @@ export type PhotoDateValidationStatus =
   | "too_dark"
   | "too_bright"
   | "low_contrast"
-  | "analysis_error";
+  | "analysis_error"
+  | "image_not_relevant";
 
 /**
  * Status yang hanya membutuhkan peringatan (upload tetap lanjut).

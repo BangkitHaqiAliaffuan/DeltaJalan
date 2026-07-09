@@ -188,6 +188,61 @@ map.fitBounds(group.getBounds().pad(0.2), { maxZoom: 16, animate: false });
 
 4 damage classes: Lubang, Retak Kulit Buaya, Retak Memanjang, Retak Melintang. Severity levels: Baik, Rusak Ringan, Rusak Sedang, Rusak Berat.
 
+## Cross-origin image gotcha (`ERR_BLOCKED_BY_ORB`)
+
+Images can silently fail when `VITE_API_BASE_URL` is set to an absolute ngrok URL.
+
+### The bug chain
+
+1. `.env` has `VITE_API_BASE_URL=https://magnetize...ngrok-free.dev/api`
+2. `resolveImageUrl()` in `src/lib/imageUrl.ts` converts relative `/storage/...` → `https://magnetize.../storage/...`
+3. Page is at `http://localhost:5173` but image loads from `https://magnetize...` → **cross-origin**
+4. `<img>` uses "no-cors" mode by default → response is **opaque**
+5. Ngrok returns its HTML browser-warning page instead of the image
+6. Chrome's ORB sees HTML for an image request → `net::ERR_BLOCKED_BY_ORB`
+
+### NEVER transform image URLs using `VITE_API_BASE_URL` in browser mode
+
+`resolveImageUrl()` and `sanitizeUrls()` in `src/lib/imageUrl.ts` must use `Capacitor.isNativePlatform?.() === true` to gate URL transformation. Browser should keep relative `/storage/...` paths (Vite proxy → same-origin → no ORB). Only native (Capacitor) should prepend the API origin.
+
+```ts
+const isNative = Capacitor.isNativePlatform?.() === true;
+
+// Only transform for native:
+if (isNative && (...)) { ... }
+```
+
+### Both Vite configs need matching `/storage` proxy headers
+
+The SSR config (`vite.config.ts`) and dev config (`vite.config.dev.ts`) both proxy `/storage/*` → Laravel. The SSR config already adds CORS headers; the dev config was missing them:
+
+```ts
+"/storage": {
+  target: "http://localhost:8080",
+  changeOrigin: true,
+  secure: false,
+  configure: (proxy) => {
+    proxy.on("proxyRes", (proxyRes) => {
+      proxyRes.headers["Access-Control-Allow-Origin"] = "*";
+      proxyRes.headers["Cross-Origin-Resource-Policy"] = "cross-origin";
+    });
+  },
+},
+```
+
+### `useBlobImage` re-render cancels in-flight `<img>` requests
+
+In `src/hooks/useBlobImage.ts`, the browser branch called `setBlobUrl(src)` inside a `useEffect`, triggering an unnecessary re-render that cancelled in-flight `<img>` requests. Fix: skip all state management for `!isNative`:
+
+```ts
+useEffect(() => {
+  if (!isNative) return;  // ← browser: return src directly, no state needed
+  ...
+}, [src]);
+```
+
+The hook already returns `src` directly for browser (line `if (!isNative) return src;`), so `setBlobUrl` was a no-op re-render that cancelled image requests.
+
 ## Context7 MCP
 
 Available as a remote MCP server in `opencode.json`. Use these tools for library/framework documentation instead of relying on training data:

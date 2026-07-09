@@ -1055,6 +1055,9 @@ class ReportController extends Controller
                 'kerusakan_lebar' => $p->kerusakan_lebar ? (float) $p->kerusakan_lebar : null,
                 'photo_taken_at' => $p->photo_taken_at?->toIso8601String(),
                 'created_at' => $p->created_at?->toIso8601String(),
+                'mobileclip_score' => $p->mobileclip_score ? (float) $p->mobileclip_score : null,
+                'mobileclip_label' => $p->mobileclip_label,
+                'quality_scores' => $p->quality_scores,
             ]),
             // Duplikasi — informasi jika laporan ini diduga duplikat
             'source' => $report->source,
@@ -3547,6 +3550,7 @@ class ReportController extends Controller
             return $sectioned;
         } catch (\Throwable $e) {
             Log::warning('DeltaJalan: ExifTool gagal', ['error' => $e->getMessage()]);
+
             return null;
         }
     }
@@ -3622,6 +3626,7 @@ class ReportController extends Controller
         if (is_string($data)) {
             $data = str_replace("\x00", '', $data);
             $data = trim($data);
+
             return $data === '' ? null : $data;
         }
         if (is_array($data)) {
@@ -3632,6 +3637,7 @@ class ReportController extends Controller
             foreach ($data as $key => $value) {
                 $data[$key] = $this->sanitizeExifForJson($value);
             }
+
             // Remove null values for cleaner output
             return array_filter($data, fn ($v) => $v !== null);
         }

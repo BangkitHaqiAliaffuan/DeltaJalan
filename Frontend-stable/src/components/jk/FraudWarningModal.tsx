@@ -62,6 +62,10 @@ const STATUS_CONFIG: Record<
     icon: "error_outline",
     badgeText: "GANGGUAN SISTEM",
   },
+  image_not_relevant: {
+    icon: "block",
+    badgeText: "FOTO TIDAK RELEVAN",
+  },
   valid: {
     icon: "check_circle",
     badgeText: "VALID",

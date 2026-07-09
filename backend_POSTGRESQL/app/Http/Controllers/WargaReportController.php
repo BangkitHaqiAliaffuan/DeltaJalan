@@ -6,7 +6,7 @@ use App\Models\Report;
 use App\Models\ReportPhoto;
 use App\Models\StatusLog;
 use App\Models\User;
-use Illuminate\Http\Client\ConnectionException;
+use App\Services\MobileClipService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -23,7 +23,7 @@ class WargaReportController extends Controller
 
     private const MAX_PHOTO_AGE_DAYS = 7;
 
-    private const DAILY_LIMIT = 3;
+    private const DAILY_LIMIT = 5;
 
     private const FINGERPRINT_LIMIT = 5;
 
@@ -48,6 +48,7 @@ class WargaReportController extends Controller
                 'kerusakan_lebar' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
                 'full_address' => ['nullable', 'string', 'max:500'],
                 'quality_scores' => ['nullable', 'json'],
+                'captcha_token' => ['nullable', 'string'],
             ]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -63,6 +64,13 @@ class WargaReportController extends Controller
                 'message' => 'Koordinat berada di luar wilayah Kabupaten Sidoarjo.',
                 'error_code' => 'KOORDINAT_DILUAR_WILAYAH',
             ], 422);
+        }
+
+        if (! empty($validated['captcha_token'])) {
+            $captchaResult = $this->verifyRecaptcha($validated['captcha_token']);
+            if ($captchaResult !== true) {
+                return $captchaResult;
+            }
         }
 
         $userId = auth()->id();
@@ -95,6 +103,7 @@ class WargaReportController extends Controller
                 'kerusakan_lebar' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
                 'full_address' => ['nullable', 'string', 'max:500'],
                 'quality_scores' => ['nullable', 'json'],
+                'captcha_token' => ['nullable', 'string'],
             ]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -112,6 +121,13 @@ class WargaReportController extends Controller
             ], 422);
         }
 
+        if (! empty($validated['captcha_token'])) {
+            $captchaResult = $this->verifyRecaptcha($validated['captcha_token']);
+            if ($captchaResult !== true) {
+                return $captchaResult;
+            }
+        }
+
         // ── Layer 1: Pseudo-fingerprint (IP + User-Agent) daily limit ──────
         $fingerprintCheck = $this->checkFingerprintLimit($request);
         if ($fingerprintCheck !== null) {
@@ -125,8 +141,11 @@ class WargaReportController extends Controller
         }
 
         $phone = $validated['phone'];
-        if (str_starts_with($phone, '+62')) $phone = '0'.substr($phone, 3);
-        elseif (str_starts_with($phone, '62')) $phone = '0'.substr($phone, 2);
+        if (str_starts_with($phone, '+62')) {
+            $phone = '0'.substr($phone, 3);
+        } elseif (str_starts_with($phone, '62')) {
+            $phone = '0'.substr($phone, 2);
+        }
         $user = User::firstOrCreate(
             ['email' => 'warga_'.$phone.'@jalankita.local'],
             [
@@ -251,7 +270,7 @@ class WargaReportController extends Controller
 
         $timeline = StatusLog::where('report_id', $report->id)
             ->orderBy('created_at', 'asc')
-            ->get(['old_status', 'new_status', 'notes', 'created_at', 'user_id']);
+            ->get(['old_status', 'new_status', 'notes', 'created_at', 'actor_name', 'actor_role']);
 
         return response()->json([
             'success' => true,
@@ -310,6 +329,9 @@ class WargaReportController extends Controller
                             'image_original_url' => $p->image_original_url,
                             'photo_taken_at' => $p->photo_taken_at?->toIso8601String(),
                             'created_at' => $p->created_at?->toIso8601String(),
+                            'mobileclip_score' => $p->mobileclip_score ? (float) $p->mobileclip_score : null,
+                            'mobileclip_label' => $p->mobileclip_label,
+                            'quality_scores' => $p->quality_scores,
                         ];
                     }),
                 ],
@@ -436,6 +458,32 @@ class WargaReportController extends Controller
         Cache::increment($key, 1, self::DEVICE_TTL);
     }
 
+    private function verifyRecaptcha(string $token): true|JsonResponse
+    {
+        if (! config('services.recaptcha.secret')) {
+            return true;
+        }
+
+        $response = Http::asForm()->post('https://www.google.com/recaptcha/api/siteverify', [
+            'secret' => config('services.recaptcha.secret'),
+            'response' => $token,
+        ]);
+
+        $body = $response->json();
+
+        if (! ($body['success'] ?? false) || ($body['score'] ?? 0) < 0.5) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Verifikasi keamanan gagal. Silakan coba lagi.',
+                'error_code' => 'RECAPTCHA_FAILED',
+            ], 422);
+        }
+
+        Log::info('reCAPTCHA v3', ['score' => $body['score'] ?? null]);
+
+        return true;
+    }
+
     private function processAndCreateReport(Request $request, array $validated, int $userId): JsonResponse
     {
         $imageFile = $request->file('image');
@@ -506,8 +554,60 @@ class WargaReportController extends Controller
             $systemNotes = '[INFO] Foto tidak memiliki GPS EXIF, menggunakan koordinat dari browser.';
         }
 
+        $mobileclipScore = null;
+        $mobileclipLabel = null;
+
+        $mobileclipResult = app(MobileClipService::class)->checkBlocking(
+            $imageFile->getPathname(),
+            $imageFile->getClientOriginalName()
+        );
+
+        if ($mobileclipResult !== null && $mobileclipResult['blocked']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Foto tidak relevan dengan kerusakan jalan. Silakan unggah foto yang menunjukkan kondisi jalan, seperti lubang, retak, atau kerusakan infrastruktur jalan lainnya.',
+                'error_code' => 'IMAGE_NOT_RELEVANT',
+                'mobileclip_score' => $mobileclipResult['score'],
+            ], 422);
+        }
+
+        if ($mobileclipResult !== null) {
+            $mobileclipScore = $mobileclipResult['score'];
+            $mobileclipLabel = $mobileclipResult['label'];
+        }
+
+        // ── Auto YOLO Analysis ──
+        $aiResult = null;
+        if ($imageHash) {
+            $cached = Cache::get('yolo_result_'.$imageHash);
+            if ($cached) {
+                $aiResult = $cached;
+            } else {
+                try {
+                    $fastApiUrl = rtrim(config('services.fastapi.url', env('FASTAPI_URL', 'http://127.0.0.1:8000')), '/');
+                    $response = Http::timeout(10)
+                        ->connectTimeout(5)
+                        ->attach('file', fopen($imageFile->getPathname(), 'r'), $imageFile->getClientOriginalName())
+                        ->post($fastApiUrl.'/analyze?include_image=false');
+                    if ($response->successful()) {
+                        $data = $response->json();
+                        if (isset($data['overall_severity'])) {
+                            $aiResult = $data;
+                            Cache::put('yolo_result_'.$imageHash, $data, now()->addHours(24));
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('Auto YOLO failed', [
+                        'error' => $e->getMessage(),
+                        'image_hash' => $imageHash,
+                    ]);
+                }
+            }
+        }
+        $hasAiResult = is_array($aiResult);
+
         try {
-            $report = DB::transaction(function () use ($validated, $imageFile, $imageHash, $exifGps, $exifCheck, $userId, $systemNotes) {
+            $report = DB::transaction(function () use ($validated, $imageFile, $imageHash, $exifGps, $exifCheck, $userId, $systemNotes, $mobileclipScore, $mobileclipLabel, $hasAiResult, $aiResult) {
 
                 $reportCode = null;
                 do {
@@ -554,7 +654,11 @@ class WargaReportController extends Controller
                     'kerusakan_lebar' => $validated['kerusakan_lebar'] ?? null,
                     'catatan_petugas' => null,
                     'priority' => 'Sedang',
-                    'overall_severity' => null,
+                    'overall_severity' => $hasAiResult ? ($aiResult['overall_severity'] ?? null) : null,
+                    'total_detections' => $hasAiResult ? ($aiResult['total'] ?? 0) : 0,
+                    'ai_raw_output' => $hasAiResult ? $aiResult : null,
+                    'ai_analyzed_at' => $hasAiResult ? now() : null,
+                    'ai_analysis_count' => $hasAiResult ? 1 : 0,
                 ]);
 
                 $photoData = [
@@ -568,6 +672,12 @@ class WargaReportController extends Controller
                     'sort_order' => 0,
                     'original_filename' => $imageFile->getClientOriginalName(),
                     'photo_taken_at' => $exifCheck['photo_date'],
+                    'mobileclip_score' => $mobileclipScore,
+                    'mobileclip_label' => $mobileclipLabel,
+                    'ai_severity' => $hasAiResult ? ($aiResult['overall_severity'] ?? null) : null,
+                    'ai_raw_output' => $hasAiResult ? $aiResult : null,
+                    'ai_analyzed_at' => $hasAiResult ? now() : null,
+                    'ai_analysis_count' => $hasAiResult ? 1 : 0,
                 ];
 
                 if (! empty($validated['quality_scores'])) {
@@ -592,38 +702,15 @@ class WargaReportController extends Controller
                 'user_id' => $userId,
             ]);
 
-            // ── Non-blocking MobileCLIP2-S0 relevance check ──────────────
-            try {
-                $photo = $report->photos()->first();
-                if ($photo && $photo->image_original_path) {
-                    $fullPath = storage_path('app/public/'.$photo->image_original_path);
-                    if (file_exists($fullPath)) {
-                        $result = $this->callMobileClipRelevance($fullPath, basename($photo->image_original_path));
-                        if ($result['success']) {
-                            $photo->update([
-                                'mobileclip_score' => $result['score'],
-                                'mobileclip_label' => $result['label'],
-                            ]);
-                            Log::info('MobileCLIP relevance (non-blocking)', [
-                                'report_id' => $report->id,
-                                'score' => $result['score'],
-                                'label' => $result['label'],
-                            ]);
-                        }
-                    }
-                }
-            } catch (\Exception $e) {
-                Log::warning('MobileCLIP relevance check gagal (non-blocking)', [
-                    'report_id' => $report->id,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-
             return response()->json([
                 'success' => true,
                 'message' => 'Laporan berhasil dikirim dan sedang menunggu verifikasi petugas.',
                 'data' => [
                     'report' => $report->toArray(),
+                    'mobileclip_score' => $mobileclipScore,
+                    'mobileclip_label' => $mobileclipLabel,
+                    'ai_severity' => $hasAiResult ? ($aiResult['overall_severity'] ?? null) : null,
+                    'ai_total_detections' => $hasAiResult ? ($aiResult['total'] ?? 0) : 0,
                 ],
             ], 201);
 
@@ -907,51 +994,5 @@ class WargaReportController extends Controller
         }
 
         return null;
-    }
-
-    private function callMobileClipRelevance(string $filePath, string $fileName): array
-    {
-        $fastApiUrl = rtrim(config('services.fastapi.url', env('FASTAPI_URL', 'http://127.0.0.1:8000')), '/');
-        $endpoint = $fastApiUrl.'/analyze-relevance';
-
-        try {
-            $response = Http::timeout(10)
-                ->attach(
-                    'file',
-                    fopen($filePath, 'r'),
-                    $fileName
-                )
-                ->post($endpoint);
-
-            if ($response->successful()) {
-                $data = $response->json();
-                return [
-                    'success' => true,
-                    'score' => $data['score'] ?? null,
-                    'label' => $data['label'] ?? null,
-                ];
-            }
-
-            return [
-                'success' => false,
-                'score' => null,
-                'label' => null,
-                'error' => "FastAPI responded with HTTP {$response->status()}",
-            ];
-        } catch (ConnectionException $e) {
-            return [
-                'success' => false,
-                'score' => null,
-                'label' => null,
-                'error' => 'Connection failed: '.$e->getMessage(),
-            ];
-        } catch (\Exception $e) {
-            return [
-                'success' => false,
-                'score' => null,
-                'label' => null,
-                'error' => $e->getMessage(),
-            ];
-        }
     }
 }

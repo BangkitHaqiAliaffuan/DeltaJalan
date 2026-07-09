@@ -5,12 +5,21 @@ import { PageLayout } from "@/components/jk/PageLayout";
 import { getCurrentUser, getToken } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/aiStore";
 import exifr from "exifr";
-import { reverseGeocode, readExifGpsFromServer, isNativePlatform, nativeTakePhoto, convertFileSrc } from "@/hooks/useLocationFromPhoto";
+import {
+  reverseGeocode,
+  readExifGpsFromServer,
+  isNativePlatform,
+  nativeTakePhoto,
+  convertFileSrc,
+} from "@/hooks/useLocationFromPhoto";
 import { PhotoExifGps } from "@jalankita/capacitor-exif-gps";
 import { compressImage } from "@/lib/compressImage";
 import { validatePhotoDate } from "@/lib/validatePhotoDate";
 import type { PhotoDateValidationStatus } from "@/lib/validatePhotoDate";
+import { analyzeImageQuality } from "@/lib/imageQualityCheck";
+import type { ImageQualityCheck } from "@/lib/imageQualityCheck";
 import { FraudWarningModal } from "@/components/jk/FraudWarningModal";
+import { getRecaptchaToken } from "@/lib/recaptcha";
 
 export const Route = createFileRoute("/warga/lapor")({
   component: WargaLaporPage,
@@ -61,6 +70,8 @@ function WargaLaporPage() {
   const [locationSource, setLocationSource] = useState<"exif" | "geolocation" | null>(null);
   const [geoError, setGeoError] = useState("");
   const [fullAddress, setFullAddress] = useState("");
+  const [cameraModel, setCameraModel] = useState("");
+  const [qualityScores, setQualityScores] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [fraudModal, setFraudModal] = useState<{
@@ -75,6 +86,13 @@ function WargaLaporPage() {
     : {};
   const isCameraMode = "capture" in cameraProps;
   const isNative = isNativePlatform();
+  const canSubmit =
+    reporterName.trim().length > 0 &&
+    roadName.trim().length > 0 &&
+    district.length > 0 &&
+    latitude.length > 0 &&
+    longitude.length > 0 &&
+    photo !== null;
 
   function closeFraudModal() {
     setFraudModal((s) => ({ ...s, isOpen: false }));
@@ -140,7 +158,57 @@ function WargaLaporPage() {
     if (!file) return;
 
     setProcessing(true);
+    setCameraModel("");
+    setFraudModal((s) => ({ ...s, isOpen: false }));
+
     const compressedFile = await compressImage(file);
+
+    const dateValidation = await validatePhotoDate(compressedFile, 7);
+    if (dateValidation.status !== "valid") {
+      setFraudModal({
+        isOpen: true,
+        status: dateValidation.status,
+        title: dateValidation.title,
+        message: dateValidation.message,
+      });
+      setProcessing(false);
+      return;
+    }
+
+    const qualityCheck = await analyzeImageQuality(compressedFile);
+    if (qualityCheck.status !== "good") {
+      setFraudModal({
+        isOpen: true,
+        status: qualityCheck.status,
+        title: qualityCheck.title,
+        message: qualityCheck.message,
+      });
+      if (!qualityCheck.isWarningOnly) {
+        setQualityScores(JSON.stringify(qualityCheck));
+        setProcessing(false);
+        return;
+      }
+    }
+    setQualityScores(
+      JSON.stringify({
+        ...qualityCheck,
+        title: undefined,
+        message: undefined,
+        isWarningOnly: undefined,
+      }),
+    );
+
+    try {
+      const tags = await exifr.parse(compressedFile, ["Make", "Model"]);
+      if (tags) {
+        const make = (tags.Make as string) ?? "";
+        const model = (tags.Model as string) ?? "";
+        if (make || model) setCameraModel([make, model].filter(Boolean).join(" "));
+      }
+    } catch {
+      /* empty */
+    }
+
     setPhoto(compressedFile);
     setPhotoPreview(URL.createObjectURL(compressedFile));
     await processPhotoForGps(compressedFile);
@@ -152,6 +220,8 @@ function WargaLaporPage() {
   async function handleNativeCamera() {
     if (processing) return;
     setProcessing(true);
+    setCameraModel("");
+    setFraudModal((s) => ({ ...s, isOpen: false }));
 
     const result = await nativeTakePhoto();
     if (!result) {
@@ -159,7 +229,7 @@ function WargaLaporPage() {
       return;
     }
 
-    const dateValidation = await validatePhotoDate(result.file);
+    const dateValidation = await validatePhotoDate(result.file, 7);
     if (dateValidation.status !== "valid") {
       setFraudModal({
         isOpen: true,
@@ -172,6 +242,41 @@ function WargaLaporPage() {
     }
 
     const compressedFile = await compressImage(result.file);
+
+    const qualityCheck = await analyzeImageQuality(compressedFile);
+    if (qualityCheck.status !== "good") {
+      setFraudModal({
+        isOpen: true,
+        status: qualityCheck.status,
+        title: qualityCheck.title,
+        message: qualityCheck.message,
+      });
+      if (!qualityCheck.isWarningOnly) {
+        setQualityScores(JSON.stringify(qualityCheck));
+        setProcessing(false);
+        return;
+      }
+    }
+    setQualityScores(
+      JSON.stringify({
+        ...qualityCheck,
+        title: undefined,
+        message: undefined,
+        isWarningOnly: undefined,
+      }),
+    );
+
+    try {
+      const tags = await exifr.parse(compressedFile, ["Make", "Model"]);
+      if (tags) {
+        const make = (tags.Make as string) ?? "";
+        const model = (tags.Model as string) ?? "";
+        if (make || model) setCameraModel([make, model].filter(Boolean).join(" "));
+      }
+    } catch {
+      /* empty */
+    }
+
     setPhoto(compressedFile);
     setPhotoPreview(URL.createObjectURL(compressedFile));
 
@@ -187,6 +292,8 @@ function WargaLaporPage() {
   async function handleNativeGallery() {
     if (processing) return;
     setProcessing(true);
+    setCameraModel("");
+    setFraudModal((s) => ({ ...s, isOpen: false }));
 
     const pickResult = await PhotoExifGps.pickPhotos({ limit: 1 });
     if (!pickResult.photos?.length) {
@@ -207,7 +314,7 @@ function WargaLaporPage() {
     }
     const file = new File([blob], photo.name || "gallery.jpg", { type: blob.type || "image/jpeg" });
 
-    const dateValidation = await validatePhotoDate(file);
+    const dateValidation = await validatePhotoDate(file, 7);
     if (dateValidation.status !== "valid") {
       setFraudModal({
         isOpen: true,
@@ -220,6 +327,41 @@ function WargaLaporPage() {
     }
 
     const compressedFile = await compressImage(file);
+
+    const qualityCheck = await analyzeImageQuality(compressedFile);
+    if (qualityCheck.status !== "good") {
+      setFraudModal({
+        isOpen: true,
+        status: qualityCheck.status,
+        title: qualityCheck.title,
+        message: qualityCheck.message,
+      });
+      if (!qualityCheck.isWarningOnly) {
+        setQualityScores(JSON.stringify(qualityCheck));
+        setProcessing(false);
+        return;
+      }
+    }
+    setQualityScores(
+      JSON.stringify({
+        ...qualityCheck,
+        title: undefined,
+        message: undefined,
+        isWarningOnly: undefined,
+      }),
+    );
+
+    try {
+      const tags = await exifr.parse(compressedFile, ["Make", "Model"]);
+      if (tags) {
+        const make = (tags.Make as string) ?? "";
+        const model = (tags.Model as string) ?? "";
+        if (make || model) setCameraModel([make, model].filter(Boolean).join(" "));
+      }
+    } catch {
+      /* empty */
+    }
+
     setPhoto(compressedFile);
     setPhotoPreview(URL.createObjectURL(compressedFile));
 
@@ -240,12 +382,23 @@ function WargaLaporPage() {
       setError("Tunggu hingga lokasi terdeteksi.");
       return;
     }
+    if (geoError) {
+      setError("Perbaiki error lokasi sebelum mengirim.");
+      return;
+    }
     if (!reporterName || !roadName || !district || !latitude || !longitude || !photo) {
       setError("Semua field wajib diisi, termasuk foto.");
       return;
     }
 
     setLoading(true);
+
+    const captchaToken = await getRecaptchaToken();
+    if (!captchaToken && import.meta.env.VITE_RECAPTCHA_SITE_KEY) {
+      setError("Verifikasi keamanan gagal. Silakan reload halaman.");
+      setLoading(false);
+      return;
+    }
 
     try {
       const formData = new FormData();
@@ -259,6 +412,8 @@ function WargaLaporPage() {
       if (panjang) formData.append("kerusakan_panjang", panjang);
       if (lebar) formData.append("kerusakan_lebar", lebar);
       if (fullAddress) formData.append("full_address", fullAddress);
+      if (qualityScores) formData.append("quality_scores", qualityScores);
+      if (captchaToken) formData.append("captcha_token", captchaToken);
 
       const res = await fetch(`${API_BASE_URL}/warga/reports`, {
         method: "POST",
@@ -272,7 +427,16 @@ function WargaLaporPage() {
         setSuccess("Laporan berhasil dikirim! Menunggu verifikasi petugas.");
         setTimeout(() => navigate({ to: "/warga/laporan" }), 2000);
       } else {
-        setError(json.message ?? "Gagal mengirim laporan.");
+        if (json.error_code === "IMAGE_NOT_RELEVANT") {
+          setFraudModal({
+            isOpen: true,
+            status: "image_not_relevant",
+            title: "Foto Tidak Relevan",
+            message: json.message ?? "Foto tidak relevan dengan kerusakan jalan.",
+          });
+        } else {
+          setError(json.message ?? "Gagal mengirim laporan.");
+        }
       }
     } catch {
       setError("Gagal terhubung ke server.");
@@ -290,13 +454,6 @@ function WargaLaporPage() {
         </section>
 
         <div className="max-w-xl mx-auto px-4 mt-6">
-          {error && (
-            <div className="mb-4 flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-              <Icon name="error" className="text-[#E11D48] !text-[18px] shrink-0 mt-0.5" />
-              <p className="font-body-sm text-body-sm text-[#E11D48] leading-relaxed">{error}</p>
-            </div>
-          )}
-
           {success && (
             <div className="mb-4 flex items-start gap-2.5 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
               <Icon name="check_circle" className="text-[#16A34A] !text-[18px] shrink-0 mt-0.5" />
@@ -324,7 +481,11 @@ function WargaLaporPage() {
                       {photoPreview ? (
                         <div className="border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center">
                           <div className="relative">
-                            <img src={photoPreview} alt="Preview" className="max-h-48 mx-auto rounded-lg" />
+                            <img
+                              src={photoPreview}
+                              alt="Preview"
+                              className="max-h-48 mx-auto rounded-lg"
+                            />
                             <p className="text-xs text-[#476788] mt-2">{photo?.name}</p>
                           </div>
                         </div>
@@ -387,13 +548,19 @@ function WargaLaporPage() {
                       </div>
                     ) : photoPreview ? (
                       <div className="relative">
-                        <img src={photoPreview} alt="Preview" className="max-h-48 mx-auto rounded-lg" />
+                        <img
+                          src={photoPreview}
+                          alt="Preview"
+                          className="max-h-48 mx-auto rounded-lg"
+                        />
                         <p className="text-xs text-[#476788] mt-2">{photo?.name}</p>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center gap-2">
                         <Icon name="camera_alt" className="!text-4xl text-[#757684]" />
-                        <p className="text-sm text-[#757684]">{isCameraMode ? "Ketuk untuk mengambil foto" : "Ketuk untuk memilih foto"}</p>
+                        <p className="text-sm text-[#757684]">
+                          {isCameraMode ? "Ketuk untuk mengambil foto" : "Ketuk untuk memilih foto"}
+                        </p>
                         <p className="text-xs text-[#757684]">JPEG/PNG, maks 5 MB</p>
                       </div>
                     )}
@@ -504,7 +671,9 @@ function WargaLaporPage() {
               <label className="font-label-md text-label-md font-semibold text-[#0F172A] flex items-center gap-1">
                 Alamat Lengkap
                 {locationSource && (
-                  <span className="text-[10px] font-normal text-[#64748B] bg-[#F1F5F9] px-1.5 py-0.5 rounded">otomatis</span>
+                  <span className="text-[10px] font-normal text-[#64748B] bg-[#F1F5F9] px-1.5 py-0.5 rounded">
+                    otomatis
+                  </span>
                 )}
               </label>
               <div className="w-full px-4 py-2.5 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] bg-gray-50 flex items-center gap-2 min-h-11">
@@ -564,10 +733,17 @@ function WargaLaporPage() {
               </div>
             </div>
 
+            {error && (
+              <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                <Icon name="error" className="text-[#E11D48] !text-[18px] shrink-0 mt-0.5" />
+                <p className="font-body-sm text-body-sm text-[#E11D48] leading-relaxed">{error}</p>
+              </div>
+            )}
+
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={loading || locating}
+              disabled={loading || locating || !canSubmit}
               className="w-full h-12 bg-gradient-to-r from-[#1e40af] to-[#2e68d8] text-white rounded-xl font-label-md text-label-md font-semibold flex items-center justify-center gap-2 mt-2 hover:shadow-lg hover:shadow-[#1e40af]/25 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (

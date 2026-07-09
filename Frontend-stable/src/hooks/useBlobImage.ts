@@ -78,12 +78,9 @@ export function useBlobImage(src: string | undefined): string | undefined {
   const prevUrlRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
+    if (!isNative) return;
     if (!src) {
       setBlobUrl(undefined);
-      return;
-    }
-    if (!isNative) {
-      setBlobUrl(src);
       return;
     }
 

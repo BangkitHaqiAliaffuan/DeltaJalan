@@ -102,6 +102,9 @@ class Report extends Model
         'description',
         // Reverse geocoded full address
         'full_address',
+        // AI analysis tracking
+        'ai_analyzed_at',
+        'ai_analysis_count',
     ];
 
     /**
@@ -128,6 +131,9 @@ class Report extends Model
         'deadline_resolusi' => 'datetime',
         'terlambat_review' => 'boolean',
         'terlambat_resolusi' => 'boolean',
+
+        'ai_analyzed_at' => 'datetime',
+        'ai_analysis_count' => 'integer',
     ];
 
     /**

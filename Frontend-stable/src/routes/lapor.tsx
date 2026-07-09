@@ -19,6 +19,7 @@ import type { PhotoDateValidationStatus } from "@/lib/validatePhotoDate";
 import { analyzeImageQuality } from "@/lib/imageQualityCheck";
 import { PhotoExifGps } from "@jalankita/capacitor-exif-gps";
 import { validateIndonesianPhone, validateNamaLengkap } from "@/lib/validators";
+import { getRecaptchaToken } from "@/lib/recaptcha";
 
 export const Route = createFileRoute("/lapor")({
   component: PublicLaporPage,
@@ -116,6 +117,14 @@ function PublicLaporPage() {
   const isCameraMode = "capture" in cameraProps;
   const isNative = isNativePlatform();
   const isBlocked = getTodayUploadCount() >= UPLOAD_DAILY_LIMIT;
+  const canSubmit =
+    reporterName.trim().length > 0 &&
+    phone.trim().length > 0 &&
+    roadName.trim().length > 0 &&
+    district.length > 0 &&
+    latitude.length > 0 &&
+    longitude.length > 0 &&
+    photo !== null;
 
   function closeFraudModal() {
     setFraudModal((s) => ({ ...s, isOpen: false }));
@@ -156,7 +165,6 @@ function PublicLaporPage() {
     setLocatingMessage("Mengidentifikasi lokasi...");
 
     const geo = await reverseGeocode(lat, lng);
-    console.log("[PublicLapor] reverseGeocode result:", JSON.stringify(geo, null, 2));
     if (geo.namaJalan) setRoadName(geo.namaJalan);
     if (geo.kecamatan) setDistrict(geo.kecamatan);
     if (geo.fullAddress) setFullAddress(geo.fullAddress);
@@ -170,7 +178,6 @@ function PublicLaporPage() {
     setLocatingMessage("Membaca GPS dari foto...");
 
     const gps = await exifr.gps(file);
-    console.log("[GPS-processPhotoForGps] Stage 1 - exifr.gps:", gps);
     if (gps?.latitude && gps?.longitude) {
       await applyCoordinates(gps.latitude, gps.longitude, "exif");
       return;
@@ -178,16 +185,12 @@ function PublicLaporPage() {
 
     setLocatingMessage("Mengambil GPS dari server...");
     const serverGps = await readExifGpsFromServer(file);
-    console.log("[GPS-processPhotoForGps] Stage 2 - serverGps:", serverGps);
     if (serverGps?.latitude && serverGps?.longitude) {
       await applyCoordinates(serverGps.latitude, serverGps.longitude, "exif");
       return;
     }
 
     if (!isCameraMode) {
-      console.log(
-        "[GPS-processPhotoForGps] isCameraMode=false, stopping (no geolocation for desktop)",
-      );
       const msg =
         "Foto yang diunggah tidak memiliki data GPS. Gunakan kamera untuk mengambil foto langsung, " +
         "atau aktifkan GPS perangkat sebelum memotret.";
@@ -197,20 +200,13 @@ function PublicLaporPage() {
     }
 
     if (navigator.geolocation) {
-      console.log("[GPS-processPhotoForGps] Stage 3 - calling browser geolocation");
       setLocatingMessage("Mendeteksi lokasi perangkat...");
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          console.log(
-            "[GPS-processPhotoForGps] Geolocation success:",
-            pos.coords.latitude,
-            pos.coords.longitude,
-          );
           geoPositionRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
           applyCoordinates(pos.coords.latitude, pos.coords.longitude, "geolocation");
         },
         () => {
-          console.log("[GPS-processPhotoForGps] Geolocation failed");
           setGeoError("Gagal mendeteksi lokasi. Pastikan GPS aktif, atau isi manual.");
           setLocating(false);
         },
@@ -334,20 +330,12 @@ function PublicLaporPage() {
     setPhotoPreview(URL.createObjectURL(compressedFile));
 
     if (result.lat != null && result.lng != null) {
-      console.log("[GPS-handleNativeCamera] GPS from camera plugin:", result.lat, result.lng);
       await applyCoordinates(result.lat, result.lng, "exif");
     } else {
-      console.log("[GPS-handleNativeCamera] GPS null, trying pre-fetched geolocation");
       const geo = await geoPromise;
       if (geo?.latitude && geo?.longitude) {
-        console.log(
-          "[GPS-handleNativeCamera] Pre-fetched geo success:",
-          geo.latitude,
-          geo.longitude,
-        );
         await applyCoordinates(geo.latitude, geo.longitude, "geolocation");
       } else {
-        console.log("[GPS-handleNativeCamera] Pre-fetched geo failed, calling processPhotoForGps");
         await processPhotoForGps(compressedFile);
       }
     }
@@ -418,20 +406,12 @@ function PublicLaporPage() {
     setPhotoPreview(URL.createObjectURL(compressedFile));
 
     if (photo.lat != null && photo.lng != null) {
-      console.log("[GPS-handleNativeGallery] GPS from plugin:", photo.lat, photo.lng);
       await applyCoordinates(photo.lat, photo.lng, "exif");
     } else {
-      console.log("[GPS-handleNativeGallery] GPS null, trying pre-fetched geolocation");
       const geo = await geoPromise;
       if (geo?.latitude && geo?.longitude) {
-        console.log(
-          "[GPS-handleNativeGallery] Pre-fetched geo success:",
-          geo.latitude,
-          geo.longitude,
-        );
         await applyCoordinates(geo.latitude, geo.longitude, "geolocation");
       } else {
-        console.log("[GPS-handleNativeGallery] Pre-fetched geo failed, calling processPhotoForGps");
         await processPhotoForGps(compressedFile);
       }
     }
@@ -481,6 +461,13 @@ function PublicLaporPage() {
 
     setLoading(true);
 
+    const captchaToken = await getRecaptchaToken();
+    if (!captchaToken && import.meta.env.VITE_RECAPTCHA_SITE_KEY) {
+      setError("Verifikasi keamanan gagal. Silakan reload halaman.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const formData = new FormData();
       formData.append("reporter_name", reporterName);
@@ -495,6 +482,7 @@ function PublicLaporPage() {
       if (lebar) formData.append("kerusakan_lebar", lebar);
       if (fullAddress) formData.append("full_address", fullAddress);
       if (qualityScores) formData.append("quality_scores", qualityScores);
+      if (captchaToken) formData.append("captcha_token", captchaToken);
 
       const res = await fetch(`${API_BASE_URL}/public/reports`, {
         method: "POST",
@@ -506,9 +494,21 @@ function PublicLaporPage() {
 
       if (res.ok && json.success) {
         recordUpload();
+        if (json.data?.mobileclip_score != null) {
+          console.log("[MobileCLIP] score:", json.data.mobileclip_score, "| label:", json.data.mobileclip_label);
+        }
         setSuccess({ reportCode: json.data?.report?.report_code ?? "" });
       } else {
-        setError(json.message ?? "Gagal mengirim laporan.");
+        if (json.error_code === "IMAGE_NOT_RELEVANT") {
+          setFraudModal({
+            isOpen: true,
+            status: "image_not_relevant",
+            title: "Foto Tidak Relevan",
+            message: json.message ?? "Foto tidak relevan dengan kerusakan jalan.",
+          });
+        } else {
+          setError(json.message ?? "Gagal mengirim laporan.");
+        }
       }
     } catch {
       setError("Gagal terhubung ke server.");
@@ -952,7 +952,7 @@ function PublicLaporPage() {
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={loading || locating}
+              disabled={loading || locating || !canSubmit}
               className="w-full h-12 bg-gradient-to-r from-[#1e40af] to-[#2e68d8] text-white rounded-xl font-label-md text-label-md font-semibold flex items-center justify-center gap-2 mt-2 hover:shadow-lg hover:shadow-[#1e40af]/25 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (

@@ -10,9 +10,13 @@ import { ReportCard } from "@/components/jk/ReportCard";
 import { PatrolScheduleCard } from "@/components/jk/PatrolScheduleCard";
 import { usePatrolSchedules } from "@/hooks/usePatrolScheduleQueries";
 import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
+import { ProgressUpdateModal } from "@/components/jk/ProgressUpdateModal";
+import { EstimasiModal } from "@/components/jk/EstimasiModal";
 import { API_BASE_URL } from "@/lib/aiStore";
+import { sanitizeUrls } from "@/lib/imageUrl";
 import type { ActionButton } from "@/components/jk/report-card/types";
 import type { PatrolSchedule } from "@/types/survey";
+import type { Laporan } from "@/types/laporan";
 
 export const Route = createFileRoute("/home")({
   component: HomePage,
@@ -39,12 +43,86 @@ function HomePage() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  const [teamTasks, setTeamTasks] = useState<Laporan[]>([]);
+  const [teamTasksLoading, setTeamTasksLoading] = useState(false);
+  const [estimasiTarget, setEstimasiTarget] = useState<Laporan | null>(null);
+  const [estimasiLoading, setEstimasiLoading] = useState(false);
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [progressTargetId, setProgressTargetId] = useState<string | null>(null);
+  const [progressTargetCode, setProgressTargetCode] = useState("");
+
   const loading = !isClient || statsLoading || reportsLoading;
   const queryClient = useQueryClient();
 
+  const loadTeamTasks = useCallback(async () => {
+    if (!token) return;
+    setTeamTasksLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/reports?limit=3&team_tasks=1`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setTeamTasks(sanitizeUrls(json.data ?? []));
+      }
+    } catch {
+      /* empty */
+    }
+    setTeamTasksLoading(false);
+  }, [token]);
+
+  useEffect(() => {
+    loadTeamTasks();
+  }, [loadTeamTasks]);
+
   const handleRefresh = useCallback(async () => {
-    await Promise.all([refetchReports(), queryClient.invalidateQueries({ queryKey: ["stats"] })]);
-  }, [refetchReports, queryClient]);
+    try {
+      await Promise.all([
+        refetchReports(),
+        queryClient.invalidateQueries({ queryKey: ["stats"] }),
+        loadTeamTasks(),
+      ]);
+    } catch {
+      /* empty */
+    }
+  }, [refetchReports, queryClient, loadTeamTasks]);
+
+  function handleMulai(id: string) {
+    const report = teamTasks.find((r) => r.id === id) ?? null;
+    setEstimasiTarget(report);
+  }
+
+  async function handleEstimasiConfirm(targetId: string, estimasiHari: number | null) {
+    setEstimasiLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/reports/${targetId}/mulai`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ estimasi_selesai_hari: estimasiHari }),
+      });
+      if (res.ok) {
+        setEstimasiTarget(null);
+        await loadTeamTasks();
+      } else {
+        const json = await res.json();
+        alert(json.message ?? "Gagal memulai pengerjaan.");
+      }
+    } catch {
+      alert("Terjadi kesalahan jaringan.");
+    } finally {
+      setEstimasiLoading(false);
+    }
+  }
+
+  function handleProgressClick(id: string, code: string) {
+    setProgressTargetId(id);
+    setProgressTargetCode(code);
+    setShowProgressModal(true);
+  }
+
+  const activeTasks = teamTasks
+    .filter((r) => r.status === "Ditugaskan" || r.status === "Sedang Diperbaiki")
+    .slice(0, 3);
 
   function handleDeleteClick(id: string) {
     setDeleteTarget(id);
@@ -143,9 +221,9 @@ function HomePage() {
                       color: "text-[#D97706]",
                     },
                     {
-                      icon: "dataset",
-                      label: "Total Laporan",
-                      value: stats?.total ?? 0,
+                      icon: "assignment",
+                      label: "Ditugaskan",
+                      value: stats?.ditugaskan ?? 0,
                       color: "text-[#1e40af]",
                     },
                   ].map((c) => (
@@ -189,6 +267,88 @@ function HomePage() {
               />
             </section>
           )}
+
+          {/* ── Tugas Perbaikan Aktif ── */}
+          <section className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-[15px] font-bold text-[#0F172A] flex items-center gap-2">
+                <Icon name="construction" className="!text-lg text-[#1e40af]" />
+                Tugas Perbaikan Aktif
+              </h3>
+              <Link
+                to="/tugas-saya"
+                search={{ tab: "perbaikan" }}
+                className="text-[12px] font-semibold text-[#1e40af] hover:text-[#173bab] transition-colors"
+              >
+                Lihat Semua
+              </Link>
+            </div>
+            {teamTasksLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
+              </div>
+            ) : activeTasks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <Icon name="check_circle" className="!text-5xl mb-2 opacity-30 text-[#94A3B8]" />
+                <p className="text-[13px] font-semibold text-[#64748B]">
+                  Tidak ada tugas perbaikan aktif
+                </p>
+                <p className="text-[11px] text-[#94A3B8] mt-0.5">
+                  Laporan yang ditugaskan ke timmu akan muncul di sini
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {activeTasks.map((report) => {
+                  const actions: ActionButton[] = [];
+                  if (report.status === "Ditugaskan") {
+                    actions.push({
+                      label: "Mulai",
+                      variant: "primary",
+                      icon: "play_arrow",
+                      onClick: () => handleMulai(report.id),
+                    });
+                  }
+                  if (report.status === "Sedang Diperbaiki") {
+                    const hasProgress = (report.progress_updates_count ?? 0) > 0;
+                    if (hasProgress) {
+                      actions.push({
+                        label: "Selesai",
+                        variant: "primary",
+                        icon: "check_circle",
+                        to: "/complete-report",
+                        search: { reportId: report.id },
+                      });
+                    } else {
+                      actions.push({
+                        label: "Foto Progress",
+                        variant: "primary",
+                        icon: "add_a_photo",
+                        onClick: () => handleProgressClick(report.id, report.report_code ?? ""),
+                      });
+                    }
+                  }
+                  actions.push({
+                    label: "Lihat Detail",
+                    icon: "arrow_forward",
+                    variant: "secondary",
+                    to: "/detail-report",
+                    search: { reportId: report.id },
+                  });
+                  return (
+                    <ReportCard
+                      key={report.id}
+                      report={report}
+                      options={{ showDeadline: true, isClient }}
+                      actions={actions}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </section>
 
           <section className="mb-6">
             <div className="grid grid-cols-2 gap-3">
@@ -322,6 +482,33 @@ function HomePage() {
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      <EstimasiModal
+        open={estimasiTarget !== null}
+        report={estimasiTarget}
+        loading={estimasiLoading}
+        onConfirm={handleEstimasiConfirm}
+        onClose={() => setEstimasiTarget(null)}
+      />
+
+      {showProgressModal && progressTargetId && (
+        <ProgressUpdateModal
+          reportId={progressTargetId}
+          reportCode={progressTargetCode}
+          token={token}
+          onClose={() => {
+            setShowProgressModal(false);
+            setProgressTargetId(null);
+            setProgressTargetCode("");
+          }}
+          onSuccess={() => {
+            setShowProgressModal(false);
+            setProgressTargetId(null);
+            setProgressTargetCode("");
+            loadTeamTasks();
+          }}
+        />
+      )}
     </PageLayout>
   );
 }

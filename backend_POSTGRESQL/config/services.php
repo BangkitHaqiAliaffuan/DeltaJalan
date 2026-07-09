@@ -60,4 +60,8 @@ return [
         'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
     ],
 
+    'recaptcha' => [
+        'secret' => env('RECAPTCHA_SECRET'),
+    ],
+
 ];

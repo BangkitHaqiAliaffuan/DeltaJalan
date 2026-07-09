@@ -2,8 +2,14 @@ import piexif
 import json
 import os
 import sys
+import random
 from datetime import datetime, timezone
 from fractions import Fraction
+
+SIDOARJO_LAT_MIN = -7.65
+SIDOARJO_LAT_MAX = -7.25
+SIDOARJO_LNG_MIN = 112.50
+SIDOARJO_LNG_MAX = 112.95
 
 SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "source")
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
@@ -64,7 +70,6 @@ def inject(path, out, lat=None, lng=None, dt_str=None, make=None, model=None, ra
         exif_dict = {"0th": {}, "Exif": {}, "GPS": {}, "Interop": {}, "1st": {}, "Thumbnail": None}
 
     if randomize_days_ago:
-        import random
         offset = random.randint(0, 3600 * 24 * randomize_days_ago)
         dt = datetime.now(timezone.utc) - __import__("datetime").timedelta(seconds=offset)
         dt_str = dt.strftime("%Y:%m:%d %H:%M:%S")
@@ -100,19 +105,22 @@ Penggunaan:
   python inject.py "file.jpg"                   # process satu file
   python inject.py "file.jpg" "output.jpg"      # process dengan output tertentu
 
-Argumen env (via file .env atau inline):
-  LAT=-7.33             lintang (desimal)
-  LNG=112.74            bujur (desimal)
+Argumen env:
+  LAT=-7.33             lintang (desimal) — default: random Sidoarjo
+  LNG=112.74            bujur (desimal)   — default: random Sidoarjo
   DATE=2025:06:15 10:30:00   tanggal EXIF (format EXIF: Y:m:d H:M:S)
   MAKE="Samsung"        nama manufacturer
   MODEL="Galaxy S24"    nama model
   RANDOM_DAYS=7         randomize tanggal dalam N hari terakhir
 
 Contoh:
-  # inject GPS + date ke semua file di source/
+  # inject GPS Sidoarjo random + date hari ini
+  python inject.py
+
+  # inject GPS spesifik + date
   set LAT=-7.33 && set LNG=112.74 && set DATE="2025:06:15 10:30:00" && python inject.py
 
-  # batch randomize date 7 hari terakhir
+  # batch randomize date 7 hari terakhir (GPS tetap Sidoarjo)
   set RANDOM_DAYS=7 && python inject.py
 
   # read metadata
@@ -137,8 +145,14 @@ Contoh:
 
     if lat is not None:
         lat = float(lat)
+    else:
+        lat = round(random.uniform(SIDOARJO_LAT_MIN, SIDOARJO_LAT_MAX), 6)
+
     if lng is not None:
         lng = float(lng)
+    else:
+        lng = round(random.uniform(SIDOARJO_LNG_MIN, SIDOARJO_LNG_MAX), 6)
+
     if random_days is not None:
         random_days = int(random_days)
 

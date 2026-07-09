@@ -571,6 +571,9 @@ class TelegramService
                     'longitude' => $data['longitude'],
                     'koordinat_sumber' => 'telegram_location',
                     'sort_order' => 0,
+                    'mobileclip_score' => $data['mobileclip_score'] ?? null,
+                    'mobileclip_label' => $data['mobileclip_label'] ?? null,
+                    'quality_scores' => $data['quality_scores'] ?? null,
                 ]);
 
                 StatusLog::create([

@@ -10,14 +10,17 @@ import { PatrolScheduleCard } from "@/components/jk/PatrolScheduleCard";
 import type { SurveyTask, PatrolSchedule } from "@/types/survey";
 import { API_BASE_URL } from "@/lib/aiStore";
 import { ReportCard } from "@/components/jk/ReportCard";
-import { ModalBase } from "@/components/jk/ModalBase";
-import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
 import { ProgressUpdateModal } from "@/components/jk/ProgressUpdateModal";
+import { EstimasiModal } from "@/components/jk/EstimasiModal";
 import type { Laporan } from "@/types/laporan";
 import type { ActionButton } from "@/components/jk/report-card/types";
 
 export const Route = createFileRoute("/tugas-saya")({
   component: TugasSayaPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    const tab = search.tab as string | undefined;
+    return { ...(tab ? { tab } : {}) };
+  },
   head: () => ({ meta: [{ title: "Tugas Saya — DeltaJalan" }] }),
 });
 
@@ -65,10 +68,22 @@ function TugasSayaPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const token = getToken() ?? "";
+  const { tab: tabParam } = Route.useSearch();
   const [isClient, setIsClient] = useState(false);
-  const [tab, setTab] = useState<"patroli" | "perbaikan">("patroli");
+  const [tab, setTab] = useState<"patroli" | "perbaikan">(
+    tabParam === "perbaikan" ? "perbaikan" : "patroli",
+  );
   const today = todayStr();
   const teamId = user?.team_id;
+
+  function handleTabChange(t: "patroli" | "perbaikan") {
+    setTab(t);
+    navigate({
+      to: "/tugas-saya",
+      search: t === "perbaikan" ? { tab: "perbaikan" } : {},
+      replace: true,
+    });
+  }
 
   useEffect(() => {
     setIsClient(true);
@@ -95,11 +110,7 @@ function TugasSayaPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<string>("semua");
   const [sortBy, setSortBy] = useState<string>("prioritas");
-  const [showEstimasi, setShowEstimasi] = useState(false);
-  const [estimasiHari, setEstimasiHari] = useState(7);
-  const [estimasiMode, setEstimasiMode] = useState<"same-day" | "multi-day">("same-day");
-  const [estimasiTargetId, setEstimasiTargetId] = useState<string | null>(null);
-  const [showMulaiConfirm, setShowMulaiConfirm] = useState(false);
+  const [estimasiTarget, setEstimasiTarget] = useState<Laporan | null>(null);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [progressTargetId, setProgressTargetId] = useState<string | null>(null);
   const [progressTargetCode, setProgressTargetCode] = useState("");
@@ -130,33 +141,21 @@ function TugasSayaPage() {
     }
   }
 
-  async function handleMulai(id: string) {
-    const report = laporan.find((r) => r.id === id);
-    const isRingan = report?.overall_severity === "Rusak Ringan";
-    setEstimasiTargetId(id);
-    setEstimasiHari(isRingan ? 1 : 7);
-    setEstimasiMode(isRingan ? "same-day" : "multi-day");
-    setShowEstimasi(true);
+  function handleMulai(id: string) {
+    const report = laporan.find((r) => r.id === id) ?? null;
+    setEstimasiTarget(report);
   }
 
-  function handleMulaiOpenConfirm() {
-    setShowMulaiConfirm(true);
-  }
-
-  async function handleMulaiConfirm() {
-    if (!estimasiTargetId) return;
-    setShowMulaiConfirm(false);
-    setActionLoading(estimasiTargetId);
+  async function handleEstimasiConfirm(targetId: string, estimasiHari: number | null) {
+    setActionLoading(targetId);
     try {
-      const estimasiValue = estimasiMode === "same-day" ? null : estimasiHari;
-      const res = await fetch(`${API_BASE_URL}/reports/${estimasiTargetId}/mulai`, {
+      const res = await fetch(`${API_BASE_URL}/reports/${targetId}/mulai`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ estimasi_selesai_hari: estimasiValue }),
+        body: JSON.stringify({ estimasi_selesai_hari: estimasiHari }),
       });
       if (res.ok) {
-        setShowEstimasi(false);
-        setEstimasiTargetId(null);
+        setEstimasiTarget(null);
         await loadReports();
       } else {
         const json = await res.json();
@@ -271,7 +270,7 @@ function TugasSayaPage() {
           {user?.team_name && <p className="text-sm text-blue-200 mt-1">{user.team_name}</p>}
           <div className="flex gap-1 bg-white/20 rounded-lg p-1 mt-3">
             <button
-              onClick={() => setTab("patroli")}
+              onClick={() => handleTabChange("patroli")}
               className={`flex-1 px-4 py-1.5 rounded-md text-[12px] font-semibold transition-colors ${
                 tab === "patroli"
                   ? "bg-white text-[#1e40af] shadow-sm"
@@ -281,7 +280,7 @@ function TugasSayaPage() {
               Patroli
             </button>
             <button
-              onClick={() => setTab("perbaikan")}
+              onClick={() => handleTabChange("perbaikan")}
               className={`flex-1 px-4 py-1.5 rounded-md text-[12px] font-semibold transition-colors ${
                 tab === "perbaikan"
                   ? "bg-white text-[#1e40af] shadow-sm"
@@ -321,141 +320,24 @@ function TugasSayaPage() {
         </div>
       </main>
 
-      {showEstimasi && (
-        <ModalBase
-          onClose={() => { setShowEstimasi(false); setEstimasiTargetId(null); }}
-          icon="play_arrow"
-          badge="MULAI PENGERJAAN"
-          title="Estimasi Waktu Penyelesaian"
-          footer={
-            <>
-              <button
-                type="button"
-                disabled={actionLoading === estimasiTargetId}
-                onClick={handleMulaiOpenConfirm}
-                className="w-full h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-95 transition-all disabled:opacity-50"
-              >
-                {actionLoading === estimasiTargetId ? (
-                  "Memproses…"
-                ) : (
-                  <>
-                    <Icon name="play_arrow" className="!text-[18px]" />
-                    Mulai Pengerjaan
-                  </>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setShowEstimasi(false); setEstimasiTargetId(null); }}
-                className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
-              >
-                Batal
-              </button>
-            </>
-          }
-        >
-          <div>
-            <p className="text-[13px] text-[#475569] mb-4 leading-relaxed">
-              Perkirakan waktu yang dibutuhkan untuk menyelesaikan perbaikan laporan ini.
-            </p>
-            <div className="space-y-3">
-              <label
-                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                  estimasiMode === "same-day"
-                    ? "border-[#1A4F8A] bg-[#EFF6FF]"
-                    : "border-[#D0DAE8] bg-white"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="estimasi"
-                  checked={estimasiMode === "same-day"}
-                  onChange={() => setEstimasiMode("same-day")}
-                  className="accent-[#1A4F8A]"
-                />
-                <div>
-                  <p className="text-[13px] font-semibold text-[#0F172A]">Same day</p>
-                  <p className="text-[11px] text-[#64748B]">Selesai hari ini juga</p>
-                </div>
-              </label>
-              <label
-                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                  estimasiMode === "multi-day"
-                    ? "border-[#1A4F8A] bg-[#EFF6FF]"
-                    : "border-[#D0DAE8] bg-white"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="estimasi"
-                  checked={estimasiMode === "multi-day"}
-                  onChange={() => setEstimasiMode("multi-day")}
-                  className="accent-[#1A4F8A]"
-                />
-                <div>
-                  <p className="text-[13px] font-semibold text-[#0F172A]">Estimasi hari</p>
-                  <p className="text-[11px] text-[#64748B]">Butuh beberapa hari pengerjaan</p>
-                </div>
-              </label>
-              {estimasiMode === "multi-day" && (
-                <div className="pl-8">
-                  <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">
-                    Berapa hari?
-                  </label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    max={90}
-                    value={estimasiHari}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      if (raw === "") { setEstimasiHari(1); return; }
-                      const num = parseInt(raw, 10);
-                      if (!isNaN(num)) setEstimasiHari(Math.max(1, Math.min(90, num)));
-                    }}
-                    className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A] appearance-none [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        </ModalBase>
-      )}
-
-      {/* ── Confirm Mulai ── */}
-      {estimasiTargetId && (
-        <ConfirmDialog
-          open={showMulaiConfirm}
-          title="Mulai Pengerjaan?"
-          message={
-            (() => {
-              const r = laporan.find((x) => x.id === estimasiTargetId);
-              const code = r?.report_code ?? estimasiTargetId;
-              const road = r?.road_name ?? "";
-              return `Mulai perbaikan ${code} — ${road}?${
-                estimasiMode === "same-day"
-                  ? "\nEstimasi: Selesai hari ini"
-                  : `\nEstimasi: ${estimasiHari} hari`
-              }`;
-            })()
-          }
-          confirmText="Ya, Mulai"
-          cancelText="Batal"
-          confirmLoading={actionLoading === estimasiTargetId}
-          onConfirm={handleMulaiConfirm}
-          onCancel={() => { setShowMulaiConfirm(false); setShowEstimasi(true); }}
-          icon="play_arrow"
-          confirmClassName="flex-1 px-4 py-2.5 text-[13px] font-bold text-white bg-[#1A4F8A] rounded-xl hover:bg-[#153d6e] disabled:opacity-40 transition-all flex items-center justify-center gap-1.5"
-        />
-      )}
+      <EstimasiModal
+        open={estimasiTarget !== null}
+        report={estimasiTarget}
+        loading={actionLoading === estimasiTarget?.id}
+        onConfirm={handleEstimasiConfirm}
+        onClose={() => setEstimasiTarget(null)}
+      />
 
       {showProgressModal && progressTargetId && (
         <ProgressUpdateModal
           reportId={progressTargetId}
           reportCode={progressTargetCode}
           token={token}
-          onClose={() => { setShowProgressModal(false); setProgressTargetId(null); setProgressTargetCode(""); }}
+          onClose={() => {
+            setShowProgressModal(false);
+            setProgressTargetId(null);
+            setProgressTargetCode("");
+          }}
           onSuccess={loadReports}
         />
       )}

@@ -63,7 +63,14 @@ return [
     | Header yang Diizinkan
     |--------------------------------------------------------------------------
     */
-    'allowed_headers' => ['*'],
+    'allowed_headers' => [
+        'Content-Type',
+        'Authorization',
+        'X-Requested-With',
+        'X-Device-ID',
+        'Accept',
+        'Origin',
+    ],
 
     /*
     |--------------------------------------------------------------------------
