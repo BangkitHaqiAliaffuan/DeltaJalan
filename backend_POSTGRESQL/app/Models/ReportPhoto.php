@@ -63,7 +63,7 @@ class ReportPhoto extends Model
             return null;
         }
 
-        return asset('storage/'.$this->image_original_path);
+        return '/storage/'.$this->image_original_path;
     }
 
     public function getImageResultUrlAttribute(): ?string
@@ -72,6 +72,6 @@ class ReportPhoto extends Model
             return null;
         }
 
-        return asset('storage/'.$this->image_result_path);
+        return '/storage/'.$this->image_result_path;
     }
 }

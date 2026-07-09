@@ -166,7 +166,7 @@ class Report extends Model
             return null;
         }
 
-        return asset('storage/'.$this->after_photo_path);
+        return '/storage/'.$this->after_photo_path;
     }
 
     // ── Konstanta Enum ────────────────────────────────────────────────────
@@ -221,7 +221,7 @@ class Report extends Model
             return null;
         }
 
-        return asset('storage/'.$this->image_original_path);
+        return '/storage/'.$this->image_original_path;
     }
 
     /**
@@ -234,7 +234,7 @@ class Report extends Model
             return null;
         }
 
-        return asset('storage/'.$this->image_result_path);
+        return '/storage/'.$this->image_result_path;
     }
 
     /**

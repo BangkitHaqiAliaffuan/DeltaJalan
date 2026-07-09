@@ -36,6 +36,6 @@ class ReportProgressUpdate extends Model
             return null;
         }
 
-        return asset('storage/'.$this->foto_path);
+        return '/storage/'.$this->foto_path;
     }
 }
