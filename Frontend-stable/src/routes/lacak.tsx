@@ -2,6 +2,7 @@ import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { API_BASE_URL } from "@/lib/aiStore";
+import { resolveImageUrl } from "@/lib/imageUrl";
 import { getStatusBadge } from "@/lib/format";
 import { sanitizeUrls } from "@/lib/imageUrl";
 
@@ -140,7 +141,7 @@ function LacakPage() {
                 <div className="mb-4">
                   {data.report.photos?.[0]?.image_original_url && (
                     <div className="mb-3 rounded-lg overflow-hidden border border-[#D0DAE8]">
-                      <img src={data.report.photos[0].image_original_url} alt="Foto" className="w-full object-cover max-h-48" />
+                      <img src={resolveImageUrl(data.report.photos[0].image_original_url) ?? ""} alt="Foto" className="w-full object-cover max-h-48" />
                     </div>
                   )}
 

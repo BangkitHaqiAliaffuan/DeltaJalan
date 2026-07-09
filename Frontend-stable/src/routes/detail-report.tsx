@@ -25,7 +25,7 @@ import { Portal } from "@/components/jk/Portal";
 import { ModalBase } from "@/components/jk/ModalBase";
 import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
 import { formatCountdown, hitungProgress } from "@/lib/deadline";
-import { sanitizeUrls } from "@/lib/imageUrl";
+import { sanitizeUrls, resolveImageUrl } from "@/lib/imageUrl";
 function qualityLabel(status: string): string {
   const map: Record<string, string> = {
     blurry: "Kabur",
@@ -663,8 +663,8 @@ function DetailReportPage() {
                 photo.image_result_url &&
                 photo.image_result_url !== photo.image_original_url ? (
                   <BeforeAfterSlider
-                    beforeSrc={photo.image_original_url}
-                    afterSrc={photo.image_result_url}
+                    beforeSrc={resolveImageUrl(photo.image_original_url) ?? ""}
+                    afterSrc={resolveImageUrl(photo.image_result_url) ?? ""}
                     beforeLabel={`Foto ${i + 1} — Asli`}
                     afterLabel={`Foto ${i + 1} — AI`}
                     panjang={photo.kerusakan_panjang}
@@ -676,7 +676,7 @@ function DetailReportPage() {
                     style={{ minHeight: 280 }}
                   >
                     <SafeImage
-                      src={photo.image_original_url}
+                      src={resolveImageUrl(photo.image_original_url) ?? ""}
                       alt={`Foto ${i + 1}`}
                       className="w-full h-full object-contain max-h-[55vh]"
                     />
@@ -788,8 +788,8 @@ function DetailReportPage() {
             <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
               {report.image_result_url && report.image_result_url !== report.image_original_url ? (
                 <BeforeAfterSlider
-                  beforeSrc={report.image_original_url}
-                  afterSrc={report.image_result_url}
+                  beforeSrc={resolveImageUrl(report.image_original_url) ?? ""}
+                  afterSrc={resolveImageUrl(report.image_result_url) ?? ""}
                   beforeLabel="Foto Asli"
                   afterLabel="Hasil AI"
                   panjang={report.kerusakan_panjang}
@@ -801,7 +801,7 @@ function DetailReportPage() {
                   style={{ minHeight: 280 }}
                 >
                   <SafeImage
-                    src={report.image_original_url}
+                    src={resolveImageUrl(report.image_original_url) ?? ""}
                     alt="Foto"
                     className="w-full h-full object-contain max-h-[55vh]"
                   />

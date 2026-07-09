@@ -4,7 +4,7 @@ import { Icon } from "@/components/jk/Icon";
 import { getToken } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/aiStore";
 import { formatDateRelative, getStatusBadge } from "@/lib/format";
-import { sanitizeUrls } from "@/lib/imageUrl";
+import { sanitizeUrls, resolveImageUrl } from "@/lib/imageUrl";
 
 export const Route = createFileRoute("/warga/laporan/$id")({
   component: WargaLaporanDetailPage,
@@ -96,7 +96,7 @@ function WargaLaporanDetailPage() {
       <div className="max-w-xl mx-auto px-4 mt-6">
         {photo?.image_original_url && (
           <div className="mb-4 rounded-lg overflow-hidden border border-[#D0DAE8]">
-            <img src={photo.image_original_url} alt="Foto kerusakan" className="w-full object-cover max-h-64" />
+            <img src={resolveImageUrl(photo.image_original_url) ?? ""} alt="Foto kerusakan" className="w-full object-cover max-h-64" />
           </div>
         )}
 
