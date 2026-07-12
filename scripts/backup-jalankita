@@ -1,0 +1,17 @@
+#!/bin/bash
+set -e
+BACKUP_DIR=/var/www/deltajalan/backups
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+PGPASSWORD='HaqiGoesToRomania1!' pg_dump -U deltajalan -h localhost deltajalan_backend > $BACKUP_DIR/db_$TIMESTAMP.sql
+gzip $BACKUP_DIR/db_$TIMESTAMP.sql
+
+tar -czf $BACKUP_DIR/storage_$TIMESTAMP.tar.gz -C /var/www/deltajalan storage/app/public 2>/dev/null || true
+
+cp /var/www/deltajalan/backend_POSTGRESQL/.env $BACKUP_DIR/env_$TIMESTAMP.bak
+
+find $BACKUP_DIR -type f -name '*.sql.gz' -mtime +7 -delete
+find $BACKUP_DIR -type f -name '*.tar.gz' -mtime +7 -delete
+find $BACKUP_DIR -type f -name '*.bak' -mtime +7 -delete
+
+echo "Backup completed: $TIMESTAMP"

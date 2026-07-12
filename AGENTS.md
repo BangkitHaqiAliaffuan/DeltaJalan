@@ -8,7 +8,7 @@ Internal road damage reporting app for Dinas PU Bina Marga Kabupaten Sidoarjo. 3
 Frontend-stable/          React 19 + TanStack Start SSR + Tailwind v4, Vite 7
 backend_POSTGRESQL/       Laravel 13 REST API (PHP 8.3, Sanctum, PostgreSQL)
   ├─ Dockerfile            PHP 8.3 container build (Ubuntu Docker)
-backend_AI/               FastAPI + YOLOv8s (4 damage classes, port 8000)
+backend_AI/               FastAPI dev / Lambda production (4 damage classes)
 scripts/                  Dev/tunnel scripts
   ├─ start-tunnel.ps1         Windows (PowerShell)
   ├─ start-android.sh         Linux native PHP
@@ -18,7 +18,15 @@ scripts/                  Dev/tunnel scripts
 docker-compose.yml        PHP 8.3 + PostgreSQL 16 containers (Ubuntu Docker)
 ```
 
-Frontend Vite proxy forwards `/api/*` → `localhost:8080` (Laravel). Laravel forwards AI requests to FastAPI at `:8000`.
+Production server (AWS Lightsail Ubuntu 24.04):
+  IP: 47.131.39.245
+  API: https://api.deltajalan.web.id (Let's Encrypt SSL)
+  Nginx (worker_processes auto) + PHP 8.3 FPM + PostgreSQL 16
+  Supervisor: 3 queue workers
+  Backup harian (7 hari retensi)
+  UFW: port 22, 80, 443
+
+Frontend `VITE_API_BASE_URL` langsung ke production API (`https://api.deltajalan.web.id/api`). Gambar (storage) diproses via `resolveImageUrl()` yang prepend API origin. Laravel forwards AI requests ke Lambda Function URL.
 
 **Dual boot note**: Ubuntu uses Docker for PHP+PostgreSQL; Windows uses native PHP.
 Scripts & `.env` are OS-specific — no cross-contamination.
@@ -30,6 +38,7 @@ Scripts & `.env` are OS-specific — no cross-contamination.
 - **Never** run `migrate:fresh`, `migrate:reset`, `db:wipe`, or `DROP` without asking. Allowed: `migrate`, `db:seed`, `cache:clear`, `config:clear`.
 - **Never** run `migrate:fresh`, `migrate:reset`, `db:wipe`, or `DROP` even if you think you have user consent — always wait for the user to explicitly type the command before proceeding.
 - **Never** commit or push unless the user explicitly says "commit", "push", or "commit dan push". You may stage files.
+- **Production SSH key**: `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA8xwr8n4igJxAtnDakuFYbfePqVKqzhOatluUhPhlWy deploy@deltajalan.web.id` (terdaftar di GitHub → BangkitHaqiAliaffuan)
 - Before any 10s+ command, warn the user with estimated duration.
 - Before writing code involving any library/framework, use Context7 MCP (`resolve-library-id` → `query-docs`) and cite sources. See "Context7" section below.
 
@@ -49,8 +58,17 @@ composer run dev                     # artisan :8080 + queue + logs + Vite (conc
 composer run test                    # php artisan config:clear && php artisan test
 php vendor/bin/pint                  # Laravel Pint (PHP lint)
 
-# AI server (backend_AI/)
-cd backend_AI && pip install -r requirements.txt && python server.py  # :8000
+# AI server (backend_AI/) — production via Lambda
+cd backend_AI && pip install -r requirements.txt && python server.py  # :8000 (development only)
+
+# Lambda AI — rebuild & deploy after handler.py changes
+# FASTAPI_URL di .env sudah指向 Lambda — rebuild jika handler.py diubah
+bash scripts/update-lambda.sh               # build + push + update + test
+bash scripts/update-lambda.sh --skip-test   # build + push + update only
+
+# Deploy Laravel (via SSH di server)
+bash scripts/deploy-laravel.sh              # pull + migrate + cache + restart worker
+bash scripts/deploy-laravel.sh --force       # skip konfirmasi
 
 # All stacked (Linux native)
 bash scripts/start-android.sh                       # Laravel + ngrok + .env update
@@ -67,17 +85,104 @@ docker compose logs php                              # Laravel logs
 docker compose exec php composer {command}           # composer via Docker
 ```
 
+## Production server (AWS Lightsail)
+
+| Item | Value |
+|---|---|
+| IP | `47.131.39.245` |
+| Domain | `api.deltajalan.web.id` |
+| SSL | Let's Encrypt (exp: 10 Okt 2026, auto-renew via systemd timer) |
+| OS | Ubuntu 24.04 LTS |
+| PHP | 8.3.6 (FPM, pm.dynamic, max_children=12) |
+| PostgreSQL | 16 (shared_buffers=256MB, effective_cache_size=768MB) |
+| Queue | Supervisor 3 workers (`jalankita-worker:0-2`) |
+| Backup | Harian 03:00 UTC, retensi 7 hari |
+| Firewall | UFW: 22, 80, 443 only |
+
+### Deployment file configs
+
+- `scripts/deltajalan.nginx.conf` — Nginx site config
+- `scripts/deltajalan-worker.conf` — Supervisor queue workers
+- `scripts/backup-jalankita` — Backup script
+- `scripts/logrotate-jalankita` — Log rotation
+
+### Services
+
+| Service | URL |
+|---|---|
+| API (Laravel) | `https://api.deltajalan.web.id` |
+| Frontend (Vercel) | `https://delta-jalan.vercel.app` |
+| AI Detection (Lambda) | Via `.env.FASTAPI_URL` (AWS Lambda URL) |
+
+### Telegram Bot
+
+Webhook endpoint: `POST /telegram/webhook` (no `/api` prefix)
+Set webhook via:
+```bash
+curl -X POST "https://api.telegram.org/bot{TOKEN}/setWebhook" \
+  -d "url=https://api.deltajalan.web.id/telegram/webhook" \
+  -d "secret_token=jalankita-telegram-2026"
+```
+
+## AI Detection (Lambda)
+
+Laravel delegates AI inference (damage class + severity + quality check) to an AWS Lambda function URL via `config('services.fastapi.url')`.
+
+### Architecture
+
+```
+backend_AI/lambda/
+  Dockerfile              FROM public.ecr.aws/lambda/python:3.12
+  handler.py              Lambda entry point (onnxruntime, no PyTorch)
+  requirements.txt        4 deps: onnxruntime, opencv-python-headless, numpy, Pillow
+  models/
+    best.onnx              ~2.9 MB — main detection model
+    best_stable.onnx       ~11 MB  — ensemble model (WBF)
+
+GitHub Actions CI         deploy-ai.yml → push main → build + push to ECR → update Lambda
+```
+
+### Key facts
+
+- **No PyTorch / ultralytics** on Lambda — uses raw `onnxruntime` for cold start < 150 MB image
+- **WBF ensemble** — merges output from both ONNX models via Weighted Box Fusion
+- **No MobileCLIP relevance guard** — too heavy for Lambda, hardcoded `relevant: true`
+- **Cold start**: ~3-6 detik (memuat 2 model ONNX)
+- **Warm invoke**: ~1-3 detik
+- **Payload limit**: 6 MB (Lambda Function URL default)
+- **Timeout**: 15 detik (default Lambda container timeout)
+
+### Dev vs Production
+
+| Environment | Implementasi | Cara deploy |
+|---|---|---|
+| **Development** | `backend_AI/server.py` (FastAPI, port 8000) | `python server.py` manual |
+| **Production** | `backend_AI/lambda/handler.py` (Lambda Function URL) | `bash scripts/update-lambda.sh` |
+
+### Rebuild & deploy
+
+```bash
+bash scripts/update-lambda.sh               # build + push + update + test
+bash scripts/update-lambda.sh --skip-test   # build + push + update only
+```
+
+Triggered via `FASTAPI_URL` in `.env`:
+```
+FASTAPI_URL=https://sxhryovsbl4g6kbsvageizvane0tiqat.lambda-url.ap-southeast-1.on.aws
+```
+
 ## Key structural facts
 
 - **`vite.config.ts`** uses `@lovable.dev/vite-tanstack-config` — do NOT add Vite plugins manually (TanStack Start, React, Tailwind already bundled).
 - **`routeTree.gen.ts`** is auto-generated by TanStack Router — do not edit.
 - **Tailwind v4** is CSS-only (`@import "tailwindcss"` in `src/styles.css`) — no `tailwind.config.*` or `postcss.config.*`.
 - **3 independent services**, each with its own deps and build system. No npm workspaces, no Turborepo.
+- **AI detection in production uses AWS Lambda** (ONNX runtime via Lambda Function URL), not FastAPI dev server.
 - **Capacitor config**: app ID `com.jalankita.app`, `androidScheme: "http"`, `cleartext: true`.
 - **Laravel tests** use SQLite `:memory:` (see `phpunit.xml`).
 - **`build.py`** handles SPA build + HTML patching (splash CSS, error script) for Capacitor. Run `python build.py --build-only` after code changes.
 - **No frontend test framework** is configured.
-- **No CI/CD** workflows exist yet.
+- **CI/CD workflows** exist under `.github/workflows/` — deploy-backend (SSH), deploy-ai (ECR + Lambda), health-check (cron).
 - **Always add new DB columns via migration** — never modify existing columns or tables.
 - **Store photos on disk** (`storage/app/public/`) — never base64 in DB.
 - **Never use emoji as UI labels/icons** — always use the `<Icon>` component with Material icon names instead of emoji characters.
@@ -188,6 +293,24 @@ map.fitBounds(group.getBounds().pad(0.2), { maxZoom: 16, animate: false });
 
 4 damage classes: Lubang, Retak Kulit Buaya, Retak Memanjang, Retak Melintang. Severity levels: Baik, Rusak Ringan, Rusak Sedang, Rusak Berat.
 
+## AWS Production Mode (Juli 2026)
+
+Frontend local dev (`npm run dev`) sekarang langsung menggunakan API production AWS, tanpa Laravel lokal:
+
+| Service | URL |
+|---|---|
+| API (Laravel) | `https://api.deltajalan.web.id/api` |
+| AI Detection | Lambda Function URL (via `config('services.fastapi.url')`) |
+| Storage | `https://api.deltajalan.web.id/storage/...` |
+
+### Implikasi
+
+- **Tidak perlu** `php artisan serve` atau Laravel lokal — semua API via production
+- **Vite proxy** (`/api/*` → localhost:8080) tidak terpakai karena `VITE_API_BASE_URL` absolute
+- **`resolveImageUrl()`**: semua relative path (`/storage/...`) otomatis prepend `https://api.deltajalan.web.id` — di browser maupun native
+- **Aman dari ORB**: `api.deltajalan.web.id` return JPEG asli (bukan HTML warning seperti ngrok), jadi `<img>` cross-origin tidak masalah
+- **Rebuild required** setelah ganti `.env`: `npm run build:mobile`
+
 ## Cross-origin image gotcha (`ERR_BLOCKED_BY_ORB`)
 
 Images can silently fail when `VITE_API_BASE_URL` is set to an absolute ngrok URL.
@@ -201,34 +324,25 @@ Images can silently fail when `VITE_API_BASE_URL` is set to an absolute ngrok UR
 5. Ngrok returns its HTML browser-warning page instead of the image
 6. Chrome's ORB sees HTML for an image request → `net::ERR_BLOCKED_BY_ORB`
 
-### NEVER transform image URLs using `VITE_API_BASE_URL` in browser mode
+### Sekarang: aman prepend API origin bahkan di browser
 
-`resolveImageUrl()` and `sanitizeUrls()` in `src/lib/imageUrl.ts` must use `Capacitor.isNativePlatform?.() === true` to gate URL transformation. Browser should keep relative `/storage/...` paths (Vite proxy → same-origin → no ORB). Only native (Capacitor) should prepend the API origin.
-
-```ts
-const isNative = Capacitor.isNativePlatform?.() === true;
-
-// Only transform for native:
-if (isNative && (...)) { ... }
-```
-
-### Both Vite configs need matching `/storage` proxy headers
-
-The SSR config (`vite.config.ts`) and dev config (`vite.config.dev.ts`) both proxy `/storage/*` → Laravel. The SSR config already adds CORS headers; the dev config was missing them:
+Sebelumnya `resolveImageUrl()` hanya prepend API origin untuk native (Capacitor). Sekarang, karena `VITE_API_BASE_URL` adalah production domain (`api.deltajalan.web.id`), **browser juga prepend**:
 
 ```ts
-"/storage": {
-  target: "http://localhost:8080",
-  changeOrigin: true,
-  secure: false,
-  configure: (proxy) => {
-    proxy.on("proxyRes", (proxyRes) => {
-      proxyRes.headers["Access-Control-Allow-Origin"] = "*";
-      proxyRes.headers["Cross-Origin-Resource-Policy"] = "cross-origin";
-    });
-  },
-},
+catch {
+  // Relative URL → prepend API origin (browser maupun native)
+  const apiOrigin = getApiOrigin();
+  if (apiOrigin) {
+    const sep = url.startsWith("/") ? "" : "/";
+    return `${apiOrigin}${sep}${url}`;
+  }
+  return url;
+}
 ```
+
+Ini aman karena `api.deltajalan.web.id` return JPEG asli dengan `Content-Type: image/jpeg` — browser tidak akan memblokirnya (tidak seperti ngrok yang return HTML → ORB). `<img>` tag cross-origin tidak butuh CORS untuk display.
+
+Jika `VITE_API_BASE_URL` adalah path relatif (`/api`), `getApiOrigin()` return `""` dan relative path tetap dipertahankan (Vite proxy handle).
 
 ### `useBlobImage` re-render cancels in-flight `<img>` requests
 

@@ -1,0 +1,80 @@
+name: Deploy AI Lambda
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend_AI/lambda/**'
+      - '.github/workflows/deploy-ai.yml'
+
+concurrency:
+  group: deploy-ai
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build & Deploy Lambda Container
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: jalankita-ai
+          IMAGE_TAG: ${{ github.sha }}
+          DOCKER_BUILDKIT: 0
+        run: |
+          cd backend_AI/lambda
+          docker build --platform linux/amd64 -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Update Lambda function code
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: jalankita-ai
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          aws lambda update-function-code \
+            --function-name ${{ secrets.LAMBDA_FUNCTION_NAME }} \
+            --image-uri $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            --publish
+
+      - name: Wait for Lambda to be active
+        run: |
+          echo "Menunggu Lambda selesai update..."
+          aws lambda wait function-updated \
+            --function-name ${{ secrets.LAMBDA_FUNCTION_NAME }}
+
+      - name: Test Lambda endpoint (GET /)
+        run: |
+          URL=$(aws lambda get-function-url-config \
+            --function-name ${{ secrets.LAMBDA_FUNCTION_NAME }} \
+            --query 'FunctionUrl' --output text)
+          URL="${URL%/}"
+          echo "Function URL: $URL"
+
+          echo "--- GET / ---"
+          curl -s --max-time 15 "$URL/" | python3 -m json.tool
+
+          echo ""
+          echo "✅ Lambda health check passed"
