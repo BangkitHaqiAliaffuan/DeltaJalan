@@ -1365,7 +1365,7 @@ class ReportController extends Controller
     private function callFastApiAnalyze(string $filePath, string $fileName): array
     {
         $fastApiUrl = rtrim(config('services.fastapi.url', env('FASTAPI_URL', 'http://127.0.0.1:8000')), '/');
-        $endpoint = $fastApiUrl.'/analyze';
+        $endpoint = $fastApiUrl.'/analyze?include_image=true';
 
         try {
             $response = Http::timeout(30)
@@ -2279,6 +2279,160 @@ class ReportController extends Controller
             'data' => [
                 'status' => $report->status,
                 'assigned_team_id' => $team->id,
+            ],
+        ]);
+    }
+
+    /**
+     * POST /api/reports/{id}/approve-and-assign
+     * Supervisor menyetujui laporan warga/telegram + AI analysis + auto-assign tim dalam satu langkah.
+     * Endpoint pengganti approve → analyze-ai → confirm-ai (3 langkah dikompres jadi 1).
+     */
+    public function approveAndAssign(Request $request, string $id): JsonResponse
+    {
+        $report = Report::find($id);
+        if (! $report) {
+            return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
+        }
+
+        if (! in_array($report->source, ['warga', 'telegram'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Endpoint ini hanya untuk laporan warga/telegram.',
+            ], 422);
+        }
+
+        if (! in_array($report->status, ['Menunggu Verifikasi', 'Menunggu Review', 'Ditinjau'])) {
+            return response()->json([
+                'success' => false,
+                'message' => "Laporan dengan status \"{$report->status}\" tidak dapat diproses.",
+            ], 422);
+        }
+
+        $priority = $request->input('priority');
+        if ($priority && ! in_array($priority, Report::PRIORITY_VALUES, true)) {
+            $priority = null;
+        }
+        $finalPriority = $priority ?? $report->priority;
+        $now = now();
+
+        // Step 1: AI Analysis — panggil FastAPI sinkron
+        $photo = $report->photos()->orderBy('id')->first();
+        if (! $photo || ! $photo->image_original_path) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tidak ada foto untuk dianalisis.',
+            ], 422);
+        }
+
+        $fullPath = Storage::disk('public')->path($photo->image_original_path);
+        if (! file_exists($fullPath)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'File foto tidak ditemukan di storage.',
+            ], 422);
+        }
+
+        $result = $this->callFastApiAnalyze($fullPath, $photo->image_original_name ?? 'photo.jpg');
+        if (! $result['success']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Analisis AI gagal: '.($result['error'] ?? 'Unknown error'),
+            ], 502);
+        }
+
+        $aiData = $result['data'];
+
+        // Simpan gambar hasil deteksi (bounding box)
+        $resultPath = null;
+        if (! empty($aiData['image_result'])) {
+            $resultPath = $this->saveBase64Image($aiData['image_result'], 'reports/results');
+        }
+
+        // Step 2: Resolve tim — auto by district atau manual dari request
+        $assignedTeamId = $request->input('assigned_team_id');
+        if (! $assignedTeamId) {
+            $assignedTeamId = Uptd::resolveTeamIdByDistrict($report->district);
+        }
+
+        if (! $assignedTeamId) {
+            return response()->json([
+                'success' => false,
+                'needs_team' => true,
+                'message' => 'Tidak dapat menentukan tim satgas untuk kecamatan "'.$report->district.'". Silakan pilih tim secara manual.',
+            ], 422);
+        }
+
+        $team = Team::find($assignedTeamId);
+        if (! $team) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tim satgas tidak ditemukan.',
+            ], 422);
+        }
+
+        // Step 3: Update report — status → Ditugaskan, simpan AI result + team
+        $report->update([
+            'status' => 'Ditugaskan',
+            'priority' => $finalPriority,
+            'assigned_team_id' => $team->id,
+            'assigned_at' => $now,
+            'ditugaskan_at' => $now,
+            'overall_severity' => $aiData['overall_severity'],
+            'total_detections' => $aiData['total_detections'] ?? 0,
+            'ai_raw_output' => $aiData['detections'] ?? $aiData,
+            'image_result_path' => $resultPath,
+            'ai_jenis_kerusakan' => $aiData['detection_type'] ?? $aiData['overall_severity'],
+            'ai_severity' => $aiData['overall_severity'],
+            'ai_confidence' => $aiData['confidence'] ?? $aiData['max_confidence'] ?? null,
+            'ai_analyzed_at' => $now,
+            'ai_analysis_count' => DB::raw('COALESCE(ai_analysis_count, 0) + 1'),
+            'system_notes' => $report->system_notes
+                ? $report->system_notes.' | [APPROVED] Disetujui oleh '.auth()->user()->name
+                : '[APPROVED] Disetujui oleh '.auth()->user()->name,
+        ]);
+
+        // Update photo dengan data AI
+        $photo->update([
+            'ai_jenis_kerusakan' => $aiData['detection_type'] ?? $aiData['overall_severity'],
+            'ai_severity' => $aiData['overall_severity'],
+            'ai_confidence' => $aiData['confidence'] ?? $aiData['max_confidence'] ?? null,
+            'total_detections' => $aiData['total_detections'] ?? 0,
+            'ai_raw_output' => $aiData['detections'] ?? $aiData,
+            'image_result_path' => $resultPath,
+            'ai_analyzed_at' => $now,
+            'ai_analysis_count' => DB::raw('COALESCE(ai_analysis_count, 0) + 1'),
+        ]);
+
+        Log::info('DeltaJalan: Laporan warga/telegram disetujui & ditugaskan (approve-and-assign).', [
+            'report_id' => $report->id,
+            'report_code' => $report->report_code,
+            'approved_by' => auth()->user()->name,
+            'assigned_team_id' => $team->id,
+            'severity' => $aiData['overall_severity'],
+        ]);
+
+        // Notifikasi ke pelapor
+        $reporter = User::find($report->user_id);
+        if ($reporter) {
+            $reporter->notify(new ReportApprovedNotification($report, auth()->user()->name));
+        }
+
+        // Notifikasi ke anggota tim
+        $tim = User::where('role', 'petugas')
+            ->where('team_id', $team->id)
+            ->get();
+        foreach ($tim as $anggota) {
+            $anggota->notify(new TeamAssignedNotification($report, auth()->user()->name, $team->name));
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Laporan berhasil disetujui, dianalisis, dan ditugaskan ke tim satgas.',
+            'data' => [
+                'status' => $report->status,
+                'assigned_team_id' => $team->id,
+                'overall_severity' => $aiData['overall_severity'],
             ],
         ]);
     }

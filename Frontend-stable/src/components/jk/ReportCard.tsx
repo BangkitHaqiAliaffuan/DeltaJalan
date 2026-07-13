@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { Icon } from "@/components/jk/Icon";
 import { SafeImage } from "@/components/jk/SafeImage";
 import { CardActions } from "@/components/jk/report-card/CardActions";
+import { resolveImageUrl } from "@/lib/imageUrl";
 import {
   getSeverityLabel,
   severityDotStyle,
@@ -111,7 +112,7 @@ export function ReportCard({ report, actions, options, cardLink }: ReportCardPro
         <div className="aspect-[4/3] overflow-hidden bg-[#E8F0FA]">
           {report.first_photo_url ? (
             <SafeImage
-              src={report.first_photo_url}
+              src={resolveImageUrl(report.first_photo_url) ?? ""}
               alt=""
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />

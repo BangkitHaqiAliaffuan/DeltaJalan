@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -588,7 +589,7 @@ class WargaReportController extends Controller
                     $response = Http::timeout(10)
                         ->connectTimeout(5)
                         ->attach('file', fopen($imageFile->getPathname(), 'r'), $imageFile->getClientOriginalName())
-                        ->post($fastApiUrl.'/analyze?include_image=false');
+                        ->post($fastApiUrl.'/analyze?include_image=true');
                     if ($response->successful()) {
                         $data = $response->json();
                         if (isset($data['overall_severity'])) {
@@ -606,8 +607,13 @@ class WargaReportController extends Controller
         }
         $hasAiResult = is_array($aiResult);
 
+        $aiResultPath = null;
+        if ($hasAiResult && ! empty($aiResult['image_result'])) {
+            $aiResultPath = $this->saveBase64Image($aiResult['image_result'], 'reports/results');
+        }
+
         try {
-            $report = DB::transaction(function () use ($validated, $imageFile, $imageHash, $exifGps, $exifCheck, $userId, $systemNotes, $mobileclipScore, $mobileclipLabel, $hasAiResult, $aiResult) {
+            $report = DB::transaction(function () use ($validated, $imageFile, $imageHash, $exifGps, $exifCheck, $userId, $systemNotes, $mobileclipScore, $mobileclipLabel, $hasAiResult, $aiResult, $aiResultPath) {
 
                 $reportCode = null;
                 do {
@@ -657,6 +663,7 @@ class WargaReportController extends Controller
                     'overall_severity' => $hasAiResult ? ($aiResult['overall_severity'] ?? null) : null,
                     'total_detections' => $hasAiResult ? ($aiResult['total'] ?? 0) : 0,
                     'ai_raw_output' => $hasAiResult ? $aiResult : null,
+                    'image_result_path' => $aiResultPath,
                     'ai_analyzed_at' => $hasAiResult ? now() : null,
                     'ai_analysis_count' => $hasAiResult ? 1 : 0,
                 ]);
@@ -676,6 +683,7 @@ class WargaReportController extends Controller
                     'mobileclip_label' => $mobileclipLabel,
                     'ai_severity' => $hasAiResult ? ($aiResult['overall_severity'] ?? null) : null,
                     'ai_raw_output' => $hasAiResult ? $aiResult : null,
+                    'image_result_path' => $aiResultPath,
                     'ai_analyzed_at' => $hasAiResult ? now() : null,
                     'ai_analysis_count' => $hasAiResult ? 1 : 0,
                 ];
@@ -994,5 +1002,35 @@ class WargaReportController extends Controller
         }
 
         return null;
+    }
+
+    private function saveBase64Image(string $base64String, string $folder): ?string
+    {
+        try {
+            if (str_contains($base64String, ',')) {
+                $base64String = explode(',', $base64String, 2)[1];
+            }
+
+            $imageData = base64_decode($base64String, strict: true);
+
+            if ($imageData === false) {
+                Log::warning('DeltaJalan: Gagal decode base64 image dari FastAPI.');
+
+                return null;
+            }
+
+            $filename = Str::uuid()->toString().'-result-'.time().'.jpg';
+            $path = $folder.'/'.$filename;
+
+            Storage::disk('public')->put($path, $imageData);
+
+            return $path;
+        } catch (\Exception $e) {
+            Log::warning('DeltaJalan: Gagal menyimpan foto hasil AI.', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
     }
 }

@@ -7,9 +7,11 @@ use App\Models\ReportPhoto;
 use App\Models\StatusLog;
 use App\Models\User;
 use Illuminate\Http\Client\Pool;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class TelegramService
@@ -512,14 +514,53 @@ class TelegramService
     public function submitReport(array $data): ?Report
     {
         try {
-            return DB::transaction(function () use ($data) {
-                $photoPath = $data['photo_path'];
-                $fullPath = storage_path("app/public/{$photoPath}");
+            $photoPath = $data['photo_path'];
+            $fullPath = storage_path("app/public/{$photoPath}");
 
-                if (! file_exists($fullPath)) {
-                    throw new \RuntimeException("File foto tidak ditemukan: {$fullPath}");
+            if (! file_exists($fullPath)) {
+                throw new \RuntimeException("File foto tidak ditemukan: {$fullPath}");
+            }
+
+            // ── Auto YOLO Analysis ──
+            $imageHash = hash_file('sha256', $fullPath);
+            $imageHash = $imageHash !== false ? $imageHash : null;
+
+            $aiResult = null;
+            if ($imageHash) {
+                $cached = Cache::get('yolo_result_'.$imageHash);
+                if ($cached) {
+                    $aiResult = $cached;
+                } else {
+                    try {
+                        $fastApiUrl = rtrim(config('services.fastapi.url', env('FASTAPI_URL', 'http://127.0.0.1:8000')), '/');
+                        $response = Http::timeout(10)
+                            ->connectTimeout(5)
+                            ->attach('file', fopen($fullPath, 'r'), basename($photoPath))
+                            ->post($fastApiUrl.'/analyze?include_image=true');
+                        if ($response->successful()) {
+                            $body = $response->json();
+                            if (isset($body['overall_severity'])) {
+                                $aiResult = $body;
+                                Cache::put('yolo_result_'.$imageHash, $body, now()->addHours(24));
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        Log::warning('Telegram auto YOLO failed', [
+                            'error' => $e->getMessage(),
+                            'image_hash' => $imageHash,
+                        ]);
+                    }
                 }
+            }
+            $hasAiResult = is_array($aiResult);
 
+            $aiResultPath = null;
+            if ($hasAiResult && ! empty($aiResult['image_result'])) {
+                $aiResultPath = $this->saveBase64Image($aiResult['image_result'], 'reports/results');
+            }
+
+            // ── DB Transaction ──
+            return DB::transaction(function () use ($data, $photoPath, $fullPath, $imageHash, $aiResult, $hasAiResult, $aiResultPath) {
                 $year = date('Y');
                 $lastReport = Report::where('report_code', 'like', "LP-{$year}-%")
                     ->orderBy('report_code', 'desc')
@@ -555,18 +596,26 @@ class TelegramService
                     'latitude' => $data['latitude'],
                     'longitude' => $data['longitude'],
                     'image_original_path' => $newPath,
+                    'image_hash' => $imageHash,
                     'status' => 'Menunggu Verifikasi',
                     'source' => 'telegram',
                     'description' => $data['description'] ?? null,
                     'kerusakan_panjang' => $data['kerusakan_panjang'] ?? null,
                     'kerusakan_lebar' => $data['kerusakan_lebar'] ?? null,
                     'priority' => 'Sedang',
+                    'overall_severity' => $hasAiResult ? ($aiResult['overall_severity'] ?? null) : null,
+                    'total_detections' => $hasAiResult ? ($aiResult['total'] ?? 0) : 0,
+                    'ai_raw_output' => $hasAiResult ? $aiResult : null,
+                    'image_result_path' => $aiResultPath,
+                    'ai_analyzed_at' => $hasAiResult ? now() : null,
+                    'ai_analysis_count' => $hasAiResult ? 1 : 0,
                 ]);
 
                 ReportPhoto::create([
                     'report_id' => $report->id,
                     'reporter_name' => $data['reporter_name'],
                     'image_original_path' => $newPath,
+                    'image_hash' => $imageHash,
                     'latitude' => $data['latitude'],
                     'longitude' => $data['longitude'],
                     'koordinat_sumber' => 'telegram_location',
@@ -574,6 +623,11 @@ class TelegramService
                     'mobileclip_score' => $data['mobileclip_score'] ?? null,
                     'mobileclip_label' => $data['mobileclip_label'] ?? null,
                     'quality_scores' => $data['quality_scores'] ?? null,
+                    'ai_severity' => $hasAiResult ? ($aiResult['overall_severity'] ?? null) : null,
+                    'ai_raw_output' => $hasAiResult ? $aiResult : null,
+                    'image_result_path' => $aiResultPath,
+                    'ai_analyzed_at' => $hasAiResult ? now() : null,
+                    'ai_analysis_count' => $hasAiResult ? 1 : 0,
                 ]);
 
                 StatusLog::create([
@@ -649,6 +703,36 @@ class TelegramService
         } catch (\Exception $e) {
             Log::warning('DeltaJalan: Telegram API exception.', [
                 'method' => $method,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    private function saveBase64Image(string $base64String, string $folder): ?string
+    {
+        try {
+            if (str_contains($base64String, ',')) {
+                $base64String = explode(',', $base64String, 2)[1];
+            }
+
+            $imageData = base64_decode($base64String, strict: true);
+
+            if ($imageData === false) {
+                Log::warning('DeltaJalan: Gagal decode base64 image dari FastAPI.');
+
+                return null;
+            }
+
+            $filename = Str::uuid()->toString().'-result-'.time().'.jpg';
+            $path = $folder.'/'.$filename;
+
+            Storage::disk('public')->put($path, $imageData);
+
+            return $path;
+        } catch (\Exception $e) {
+            Log::warning('DeltaJalan: Gagal menyimpan foto hasil AI.', [
                 'error' => $e->getMessage(),
             ]);
 

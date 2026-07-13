@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { Icon } from "@/components/jk/Icon";
+import { resolveImageUrl } from "@/lib/imageUrl";
 import type { LaporanMarker, DistrictSummary, MapStats } from "@/types/laporan";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
@@ -435,7 +436,7 @@ export function PetaInteraktif({
 
       const photoHtml = r.first_photo_url
         ? `<div style="position:relative;height:116px;overflow:hidden;">
-            <img src="${r.first_photo_url}" loading="lazy" style="width:100%;height:116px;object-fit:cover;" alt="" />
+            <img src="${resolveImageUrl(r.first_photo_url) ?? ''}" loading="lazy" style="width:100%;height:116px;object-fit:cover;" alt="" />
             <div style="position:absolute;top:0;left:0;right:0;height:100%;background:linear-gradient(0deg,rgba(0,0,0,0.55) 0%,rgba(0,0,0,0.01) 50%,rgba(0,0,0,0.01) 100%);pointer-events:none;"></div>
             <div style="position:absolute;bottom:10px;left:12px;right:40px;">
               <p style="margin:0;font-size:15px;font-weight:700;color:white;text-shadow:0 1px 4px rgba(0,0,0,0.4);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.road_name}</p>

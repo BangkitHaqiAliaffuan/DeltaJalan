@@ -5,8 +5,7 @@ import { SkeletonDetailReport } from "@/components/jk/Skeleton";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { SafeImage } from "@/components/jk/SafeImage";
 import { useBlobImage } from "@/hooks/useBlobImage";
-import { API_BASE_URL, normalizeSeverityKey, setAiResult, setFormData } from "@/lib/aiStore";
-import { AnalyzingOverlay, type AnalyzeStage } from "@/components/jk/AnalyzingOverlay";
+import { API_BASE_URL } from "@/lib/aiStore";
 import { getToken, getCurrentUser } from "@/lib/auth";
 import {
   formatDate,
@@ -91,7 +90,9 @@ function DetailReportPage() {
   const [tolakAlasan, setTolakAlasan] = useState("");
   const [showTolak, setShowTolak] = useState(false);
   const [showApproval, setShowApproval] = useState(false);
-  const [analyzeStage, setAnalyzeStage] = useState<AnalyzeStage | null>(null);
+  const [showTeamPicker, setShowTeamPicker] = useState(false);
+  const [teams, setTeams] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedTeamId, setSelectedTeamId] = useState("");
   const [progressUpdates, setProgressUpdates] = useState<ProgressUpdate[]>([]);
   const uniqueDays = new Set(progressUpdates.map((u) => u.day_number).filter(Boolean)).size;
   const [showProgressModal, setShowProgressModal] = useState(false);
@@ -183,90 +184,73 @@ function DetailReportPage() {
     if (!report) return;
     setActionLoading(true);
     try {
+      const isWargaTelegram = report.source && ["warga", "telegram"].includes(report.source);
+      const endpoint = isWargaTelegram
+        ? `${API_BASE_URL}/reports/${report.id}/approve-and-assign`
+        : `${API_BASE_URL}/reports/${report.id}/approve`;
+
       const body: Record<string, unknown> = { priority };
-      const res = await fetch(`${API_BASE_URL}/reports/${report.id}/approve`, {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       const json = await res.json();
       if (!res.ok) {
-        setActionMsg(json.message ?? "Gagal menyetujui.");
+        if (json.needs_team) {
+          setShowApproval(false);
+          setShowTeamPicker(true);
+          if (teams.length === 0) {
+            fetchTeams();
+          }
+          return;
+        }
+        setActionMsg(json.message ?? "Gagal memproses.");
         return;
       }
 
-      const isWargaTelegram = report.source && ["warga", "telegram"].includes(report.source);
+      await refreshReport();
+      setActionMsg(json.message ?? "Laporan berhasil diproses.");
+      setShowApproval(false);
+      setShowTolak(false);
+    } catch {
+      setActionMsg("Kesalahan jaringan.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
 
-      if (isWargaTelegram) {
-        setShowApproval(false);
-        setShowTolak(false);
-        setAnalyzeStage("analyzing");
-        await new Promise((r) => setTimeout(r, 0));
+  async function fetchTeams() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/teams`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      setTeams(json.data ?? []);
+    } catch {
+      // silent — teams will be empty array
+    }
+  }
 
-        const aiRes = await fetch(`${API_BASE_URL}/reports/${report.id}/analyze-ai`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const aiJson = await aiRes.json();
-        if (!aiRes.ok) {
-          setActionMsg(aiJson.message ?? "Analisis AI gagal.");
-          setAnalyzeStage(null);
-          return;
-        }
-
-        setAnalyzeStage("processing");
-        await new Promise((r) => setTimeout(r, 300));
-
-        const aiData = aiJson.data;
-        const mappedDets = (aiData.detections ?? []).map((d: any) => ({
-          class: d.type ?? d.class,
-          severity: d.severity ?? aiData.overall_severity,
-          confidence: d.confidence,
-          bbox: d.bbox
-            ? { x1: d.bbox[0] ?? 0, y1: d.bbox[1] ?? 0, x2: d.bbox[2] ?? 0, y2: d.bbox[3] ?? 0 }
-            : { x1: 0, y1: 0, x2: 0, y2: 0 },
-        }));
-
-        setAiResult({
-          detections: mappedDets,
-          total: aiData.total_detections ?? mappedDets.length,
-          overall_severity: aiData.overall_severity,
-          image_result: aiData.image_result ?? "",
-          status: "success",
-        });
-
-        const reportRes = await fetch(`${API_BASE_URL}/reports/${report.id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const reportJson = await reportRes.json();
-        const freshReport = reportJson.data ?? reportJson.report ?? reportJson;
-
-        setFormData({
-          namaJalan: freshReport.road_name ?? report.road_name,
-          kecamatan: freshReport.district ?? report.district,
-          tanggal: formatDate(freshReport.created_at ?? report.created_at),
-          catatan: freshReport.description ?? report.description ?? "",
-          previewUrl: freshReport.image_original_url ?? report.image_original_url ?? "",
-          fileName: (freshReport as any).image_original_name ?? "foto.jpg",
-          lat: Number(freshReport.latitude ?? report.latitude),
-          lng: Number(freshReport.longitude ?? report.longitude),
-          kerusakanPanjang: String(freshReport.kerusakan_panjang ?? ""),
-          kerusakanLebar: String(freshReport.kerusakan_lebar ?? ""),
-        });
-
-        setAnalyzeStage("complete");
-        await new Promise((r) => setTimeout(r, 500));
-
-        navigate({ to: "/ai-result", search: { reportId: report.id, review: "1" } });
-      } else {
+  async function handleAssignWithTeam() {
+    if (!report || !selectedTeamId) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/reports/${report.id}/approve-and-assign`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ priority, assigned_team_id: selectedTeamId }),
+      });
+      const json = await res.json();
+      if (res.ok) {
         await refreshReport();
-        setActionMsg(json.message ?? "Laporan disetujui.");
-        setShowApproval(false);
-        setShowTolak(false);
+        setActionMsg(json.message ?? "Laporan berhasil diproses.");
+        setShowTeamPicker(false);
+      } else {
+        setActionMsg(json.message ?? "Gagal memproses.");
       }
     } catch {
       setActionMsg("Kesalahan jaringan.");
-      setAnalyzeStage(null);
     } finally {
       setActionLoading(false);
     }
@@ -463,7 +447,6 @@ function DetailReportPage() {
       isSupervisor &&
       (status === "Menunggu Verifikasi" || status === "Menunggu Review" || status === "Ditinjau")
     ) {
-      const isWargaTelegram = report?.source && ["warga", "telegram"].includes(report.source);
       return (
         <FooterWrapper>
           {actionMsg && (
@@ -481,8 +464,8 @@ function DetailReportPage() {
               "Memproses…"
             ) : (
               <>
-                <Icon name={isWargaTelegram ? "auto_awesome" : "check"} className="!text-[20px]" />
-                {isWargaTelegram ? "Setujui & Analisis AI" : "Setujui & Tugaskan Tim"}
+                <Icon name="check" className="!text-[20px]" />
+                Setujui & Tugaskan Tim
               </>
             )}
           </button>
@@ -1066,16 +1049,8 @@ function DetailReportPage() {
           <ModalBase
             onClose={() => setShowApproval(false)}
             icon="check_circle"
-            badge={
-              ["warga", "telegram"].includes(report?.source ?? "")
-                ? "SETUJUI & ANALISIS"
-                : "SETUJUI & TUGASKAN"
-            }
-            title={
-              ["warga", "telegram"].includes(report?.source ?? "")
-                ? "Setujui & Analisis AI"
-                : "Setujui & Tugaskan Tim"
-            }
+            badge="SETUJUI & TUGASKAN"
+            title="Setujui & Tugaskan Tim"
             footer={
               <>
                 <button
@@ -1089,9 +1064,7 @@ function DetailReportPage() {
                   ) : (
                     <>
                       <Icon name="check" className="!text-[18px]" />
-                      {["warga", "telegram"].includes(report?.source ?? "")
-                        ? "Setujui & Analisis"
-                        : "Setujui & Tugaskan"}
+                      Setujui & Tugaskan
                     </>
                   )}
                 </button>
@@ -1106,16 +1079,10 @@ function DetailReportPage() {
             }
           >
             <div className="space-y-4">
-              {["warga", "telegram"].includes(report?.source ?? "") ? (
-                <p className="text-[13px] text-[#475569] leading-relaxed">
-                  Laporan akan disetujui. Analisis AI akan berjalan otomatis di latar belakang.
-                  Setelah selesai, Anda dapat mengonfirmasi hasil dan menugaskan tim satgas.
-                </p>
-              ) : (
-                <p className="text-[13px] text-[#475569] leading-relaxed">
-                  Laporan akan disetujui dan secara otomatis ditugaskan ke tim pelapor.
-                </p>
-              )}
+              <p className="text-[13px] text-[#475569] leading-relaxed">
+                Laporan akan disetujui, dianalisis AI, dan secara otomatis ditugaskan ke tim satgas
+                yang sesuai.
+              </p>
               <div>
                 <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">
                   Prioritas
@@ -1283,9 +1250,60 @@ function DetailReportPage() {
         )}
       </PageLayout>
 
-      {analyzeStage && (
+      {/* ── Team Picker Modal ── */}
+      {showTeamPicker && (
         <Portal>
-          <AnalyzingOverlay stage={analyzeStage} variant="single" />
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200">
+              <div className="px-5 pt-5 pb-2">
+                <div className="w-11 h-11 rounded-full bg-[#EFF6FF] flex items-center justify-center mb-3">
+                  <Icon name="group" className="!text-[22px] text-[#1A4F8A]" />
+                </div>
+                <h2 className="text-[16px] font-bold text-[#0F172A] mb-1">Pilih Tim Satgas</h2>
+                <p className="text-[13px] text-[#475569] leading-relaxed mb-4">
+                  Kecamatan ini belum memiliki tim satgas otomatis. Silakan pilih tim secara manual.
+                </p>
+              </div>
+              <div className="px-5 pb-2">
+                <select
+                  value={selectedTeamId}
+                  onChange={(e) => setSelectedTeamId(e.target.value)}
+                  className="w-full h-11 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+                >
+                  <option value="">Pilih tim…</option>
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="px-5 pb-5 pt-2 flex flex-col gap-2">
+                <button
+                  type="button"
+                  disabled={actionLoading || !selectedTeamId}
+                  onClick={handleAssignWithTeam}
+                  className="w-full h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {actionLoading ? (
+                    "Memproses…"
+                  ) : (
+                    <>
+                      <Icon name="check" className="!text-[18px]" />
+                      Tugaskan ke Tim Ini
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowTeamPicker(false)}
+                  className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
+                >
+                  Batal
+                </button>
+              </div>
+            </div>
+          </div>
         </Portal>
       )}
     </>

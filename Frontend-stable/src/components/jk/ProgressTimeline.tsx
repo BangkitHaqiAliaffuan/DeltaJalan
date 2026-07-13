@@ -1,5 +1,6 @@
 import { Icon } from "@/components/jk/Icon";
 import { SafeImage } from "@/components/jk/SafeImage";
+import { resolveImageUrl } from "@/lib/imageUrl";
 import type { ProgressUpdate } from "@/types/laporan";
 
 interface ProgressTimelineProps {
@@ -94,7 +95,7 @@ export function ProgressTimeline({ updates, estimasiHari }: ProgressTimelineProp
                   <div key={u.id} className="flex gap-3">
                     <div className="w-20 h-16 shrink-0 rounded-lg overflow-hidden border border-[#E2E8F0]">
                       <SafeImage
-                        src={u.foto_url}
+                        src={u.foto_url ? resolveImageUrl(u.foto_url) ?? "" : ""}
                         alt="Progress"
                         className="w-full h-full object-cover"
                       />

@@ -155,6 +155,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/reports/{id}/confirm-ai', [ReportController::class, 'confirmAiResult']);
 
     /**
+     * POST /api/reports/{id}/approve-and-assign
+     * Supervisor menyetujui laporan warga/telegram + AI analysis + auto-assign tim dalam satu langkah.
+     */
+    Route::post('/reports/{id}/approve-and-assign', [ReportController::class, 'approveAndAssign']);
+
+    /**
      * POST /api/reports/{id}/tolak
      * Supervisor menolak laporan dengan alasan.
      */
