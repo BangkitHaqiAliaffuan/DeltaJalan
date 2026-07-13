@@ -88,3 +88,7 @@ backend_AI/output_test/
 # Transient files
 summary.md
 exif-gps-android-issue.md
+
+# SSH keys — jangan commit
+*.pem
+*.key
