@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { PublicLayout } from "@/components/jk/PublicLayout";
 import { Icon } from "@/components/jk/Icon";
 import { API_BASE_URL } from "@/lib/aiStore";
@@ -48,7 +48,7 @@ const DISTRICT_OPTIONS = [
 ];
 
 const UPLOAD_LOG_KEY = "jalankita_upload_log";
-const UPLOAD_DAILY_LIMIT = 5;
+const UPLOAD_DAILY_LIMIT = 1;
 
 function getDeviceId(): string {
   const key = "jalankita_device_id";
@@ -113,11 +113,32 @@ function PublicLaporPage() {
   const [reporterNameError, setReporterNameError] = useState("");
   const [phoneError, setPhoneError] = useState("");
   const [success, setSuccess] = useState<{ reportCode: string } | null>(null);
+  const [serverRemaining, setServerRemaining] = useState<number | null>(null);
+
+  const fetchRemaining = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/v1/reports/remaining`, {
+        headers: { "X-Device-ID": getDeviceId() },
+      });
+      const json = await res.json();
+      if (json.success && json.data) {
+        setServerRemaining(json.data.remaining);
+      }
+    } catch {
+      // fallback to localStorage
+      setServerRemaining(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRemaining();
+  }, [fetchRemaining]);
 
   const cameraProps = getMobileCameraProps();
   const isCameraMode = "capture" in cameraProps;
   const isNative = isNativePlatform();
-  const isBlocked = getTodayUploadCount() >= UPLOAD_DAILY_LIMIT;
+  const isBlocked =
+    serverRemaining !== null ? serverRemaining <= 0 : getTodayUploadCount() >= UPLOAD_DAILY_LIMIT;
   const canSubmit =
     reporterName.trim().length > 0 &&
     phone.trim().length > 0 &&
@@ -243,6 +264,12 @@ function PublicLaporPage() {
     const newPreviews: string[] = [];
     const newQualityScores: (string | null)[] = [];
     const warnings: string[] = [];
+
+    if (incoming.length > remaining) {
+      warnings.push(
+        `Hanya ${remaining} foto yang bisa ditambahkan (maks 3 foto per laporan), ${incoming.length - remaining} foto diabaikan.`,
+      );
+    }
     let isFirstInBatch = true;
 
     for (const rawFile of toProcess) {
@@ -601,7 +628,7 @@ function PublicLaporPage() {
       const json = await res.json();
 
       if (res.ok && json.success) {
-        recordUpload();
+        fetchRemaining();
         setSuccess({ reportCode: json.data?.report?.report_code ?? "" });
       } else {
         if (json.error_code === "IMAGE_NOT_RELEVANT") {
@@ -611,6 +638,8 @@ function PublicLaporPage() {
             title: "Foto Tidak Relevan",
             message: json.message ?? "Foto tidak relevan dengan kerusakan jalan.",
           });
+        } else if (json.error_code === "FINGERPRINT_LIMIT_EXCEEDED" || json.error_code === "DEVICE_LIMIT_EXCEEDED") {
+          fetchRemaining();
         } else {
           setError(json.message ?? "Gagal mengirim laporan.");
         }
@@ -683,16 +712,34 @@ function PublicLaporPage() {
               <p className="font-label-lg text-label-lg font-semibold text-[#0F172A] mb-2">
                 Anda telah mencapai batas upload harian
               </p>
-              <p className="font-body-md text-body-md text-[#475569] mb-6">
-                Maksimal {UPLOAD_DAILY_LIMIT} laporan per hari. Silakan coba lagi besok.
+              <p className="font-body-md text-body-md text-[#475569] mb-2">
+                Maksimal 1 laporan per hari untuk pengguna umum.
               </p>
-              <Link
-                to="/"
-                className="inline-flex h-11 px-6 bg-gradient-to-r from-[#1e40af] to-[#2e68d8] text-white rounded-lg font-label-md text-label-md font-semibold items-center justify-center gap-2 hover:shadow-lg transition-all"
-              >
-                <Icon name="home" className="!text-[20px]" />
-                Kembali ke Beranda
-              </Link>
+              <p className="font-body-md text-body-md text-[#475569] mb-6">
+                Daftar atau login untuk mendapatkan kuota 5 laporan per hari.
+              </p>
+              <div className="flex flex-col gap-3 max-w-xs mx-auto">
+                <Link
+                  to="/daftar"
+                  className="w-full h-11 bg-gradient-to-r from-[#1e40af] to-[#2e68d8] text-white rounded-lg font-label-md text-label-md font-semibold flex items-center justify-center gap-2 hover:shadow-lg transition-all"
+                >
+                  <Icon name="person_add" className="!text-[20px]" />
+                  Daftar Akun (5 laporan/hari)
+                </Link>
+                <Link
+                  to="/masuk"
+                  className="w-full h-11 border border-[#1e40af] text-[#1e40af] rounded-lg font-label-md text-label-md font-semibold flex items-center justify-center gap-2 hover:bg-blue-50 transition-all"
+                >
+                  <Icon name="login" className="!text-[20px]" />
+                  Login
+                </Link>
+                <Link
+                  to="/"
+                  className="text-sm text-[#475569] hover:text-[#1e40af] transition-colors"
+                >
+                  Kembali ke Beranda
+                </Link>
+              </div>
             </div>
           </div>
         </main>
@@ -708,7 +755,7 @@ function PublicLaporPage() {
           <p className="text-sm text-blue-200 mt-1">Isi data kerusakan yang Anda temukan</p>
           <div className="mt-3 flex items-center gap-1.5 bg-white/15 rounded-full px-3 py-1.5 w-fit text-xs font-medium text-blue-100">
             <Icon name="assignment" className="!text-[14px]" />
-            Sisa: {UPLOAD_DAILY_LIMIT - getTodayUploadCount()} / {UPLOAD_DAILY_LIMIT} laporan
+            Sisa: 1 laporan hari ini — <Link to="/daftar" className="underline">Daftar</Link> untuk 5 laporan/hari
           </div>
         </section>
 
@@ -729,28 +776,33 @@ function PublicLaporPage() {
                       </div>
                     </div>
                   ) : photos.length === 0 ? (
-                    <div className="flex gap-3">
-                      <button
-                        type="button"
-                        onClick={handleNativeCamera}
-                        className="flex-1 border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors cursor-pointer"
-                      >
-                        <div className="flex flex-col items-center gap-2">
-                          <Icon name="camera_alt" className="!text-3xl text-[#757684]" />
-                          <p className="text-sm text-[#757684]">Ambil Foto</p>
-                        </div>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleNativeGallery}
-                        className="flex-1 border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors cursor-pointer"
-                      >
-                        <div className="flex flex-col items-center gap-2">
-                          <Icon name="photo_library" className="!text-3xl text-[#757684]" />
-                          <p className="text-sm text-[#757684]">Pilih dari Galeri</p>
-                        </div>
-                      </button>
-                    </div>
+                    <>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={handleNativeCamera}
+                          className="flex-1 border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors cursor-pointer"
+                        >
+                          <div className="flex flex-col items-center gap-2">
+                            <Icon name="camera_alt" className="!text-3xl text-[#757684]" />
+                            <p className="text-sm text-[#757684]">Ambil Foto</p>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleNativeGallery}
+                          className="flex-1 border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors cursor-pointer"
+                        >
+                          <div className="flex flex-col items-center gap-2">
+                            <Icon name="photo_library" className="!text-3xl text-[#757684]" />
+                            <p className="text-sm text-[#757684]">Pilih dari Galeri</p>
+                          </div>
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-[#64748B] text-center mt-1">
+                        Maksimal 3 foto per laporan
+                      </p>
+                    </>
                   ) : (
                     <>
                       <div className="grid grid-cols-2 gap-2">

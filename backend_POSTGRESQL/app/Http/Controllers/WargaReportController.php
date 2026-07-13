@@ -26,11 +26,11 @@ class WargaReportController extends Controller
 
     private const DAILY_LIMIT = 5;
 
-    private const FINGERPRINT_LIMIT = 5;
+    private const FINGERPRINT_LIMIT = 1;
 
     private const FINGERPRINT_TTL = 86400;
 
-    private const DEVICE_LIMIT = 5;
+    private const DEVICE_LIMIT = 1;
 
     private const DEVICE_TTL = 86400;
 
@@ -383,6 +383,49 @@ class WargaReportController extends Controller
         ]);
     }
 
+    /**
+     * GET /api/v1/reports/remaining — No auth required (but checks if authenticated).
+     * Returns remaining daily upload quota considering fingerprint, device ID, and user limits.
+     * Headers: X-Device-ID (optional), Authorization (optional)
+     */
+    public function checkRemaining(Request $request): JsonResponse
+    {
+        $limits = [];
+
+        // 1. Fingerprint limit (always)
+        $fingerprint = $this->buildFingerprint($request);
+        $fk = 'upload_fingerprint:'.$fingerprint.':'.date('Y-m-d');
+        $fingerprintCount = (int) Cache::get($fk, 0);
+        $limits[] = self::FINGERPRINT_LIMIT - $fingerprintCount;
+
+        // 2. Device ID limit (if header provided)
+        $deviceId = $request->header('X-Device-ID');
+        if ($deviceId && preg_match('/^[a-f0-9\-]{36}$/', $deviceId)) {
+            $dk = 'upload_device:'.$deviceId.':'.date('Y-m-d');
+            $deviceCount = (int) Cache::get($dk, 0);
+            $limits[] = self::DEVICE_LIMIT - $deviceCount;
+        }
+
+        // 3. User daily limit (if authenticated)
+        if ($user = $request->user()) {
+            $todayCount = Report::where('user_id', $user->id)
+                ->whereDate('created_at', today())
+                ->count();
+            $limits[] = self::DAILY_LIMIT - $todayCount;
+        }
+
+        $remaining = max(0, min($limits));
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'remaining' => $remaining,
+                'limit' => self::DAILY_LIMIT,
+                'reached' => $remaining <= 0,
+            ],
+        ]);
+    }
+
     // ── Shared Helpers ─────────────────────────────────────────────────
 
     private function checkDailyLimit(int $userId): ?JsonResponse
@@ -416,7 +459,7 @@ class WargaReportController extends Controller
         if ($count >= self::FINGERPRINT_LIMIT) {
             return response()->json([
                 'success' => false,
-                'message' => 'Batas upload harian ('.self::FINGERPRINT_LIMIT.' laporan) telah tercapai dari perangkat ini. Silakan coba lagi besok.',
+                'message' => 'Batas upload harian (1 laporan) telah tercapai. Daftar atau login akun untuk mendapatkan kuota 5 laporan per hari.',
                 'error_code' => 'FINGERPRINT_LIMIT_EXCEEDED',
             ], 429);
         }
@@ -444,7 +487,7 @@ class WargaReportController extends Controller
         if ($count >= self::DEVICE_LIMIT) {
             return response()->json([
                 'success' => false,
-                'message' => 'Batas upload harian ('.self::DEVICE_LIMIT.' laporan) telah tercapai dari perangkat ini. Silakan coba lagi besok.',
+                'message' => 'Batas upload harian (1 laporan) telah tercapai. Daftar atau login akun untuk mendapatkan kuota 5 laporan per hari.',
                 'error_code' => 'DEVICE_LIMIT_EXCEEDED',
             ], 429);
         }

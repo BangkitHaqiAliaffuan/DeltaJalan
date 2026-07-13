@@ -69,6 +69,14 @@ Route::get('/public/reports', [WargaReportController::class, 'indexByPhone'])
     ->middleware('throttle:10,1');
 Route::get('/public/stats', [WargaReportController::class, 'publicStats']);
 
+/**
+ * GET /api/v1/reports/remaining
+ * Cek sisa kuota upload harian — PUBLIK, tidak perlu autentikasi.
+ * Optional header: X-Device-ID untuk limit device, Authorization untuk limit user.
+ */
+Route::get('/v1/reports/remaining', [WargaReportController::class, 'checkRemaining'])
+    ->middleware('throttle:30,1');
+
 // ── Routes yang memerlukan autentikasi Sanctum ────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
     /**

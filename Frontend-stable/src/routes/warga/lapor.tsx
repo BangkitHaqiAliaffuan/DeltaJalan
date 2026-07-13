@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { getCurrentUser, getToken } from "@/lib/auth";
@@ -47,6 +47,18 @@ const DISTRICT_OPTIONS = [
   "Prambon",
 ];
 
+const UPLOAD_DAILY_LIMIT = 5;
+
+function getDeviceId(): string {
+  const key = "jalankita_device_id";
+  let id = localStorage.getItem(key);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
 function WargaLaporPage() {
   const user = getCurrentUser();
   const token = getToken() ?? "";
@@ -81,12 +93,35 @@ function WargaLaporPage() {
     title: string;
     message: string;
   }>({ isOpen: false, status: "no_exif_date", title: "", message: "" });
+  const [serverRemaining, setServerRemaining] = useState<number | null>(null);
+
+  const fetchRemaining = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/v1/reports/remaining`, {
+        headers: {
+          "X-Device-ID": getDeviceId(),
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const json = await res.json();
+      if (json.success && json.data) {
+        setServerRemaining(json.data.remaining);
+      }
+    } catch {
+      setServerRemaining(null);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchRemaining();
+  }, [fetchRemaining]);
 
   const cameraProps = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
     ? { capture: "environment" as const }
     : {};
   const isCameraMode = "capture" in cameraProps;
   const isNative = isNativePlatform();
+  const isBlocked = serverRemaining !== null && serverRemaining <= 0;
   const canSubmit =
     reporterName.trim().length > 0 &&
     roadName.trim().length > 0 &&
@@ -177,6 +212,12 @@ function WargaLaporPage() {
     const newPreviews: string[] = [];
     const newQualityScores: (string | null)[] = [];
     const warnings: string[] = [];
+
+    if (incoming.length > remaining) {
+      warnings.push(
+        `Hanya ${remaining} foto yang bisa ditambahkan (maks 3 foto per laporan), ${incoming.length - remaining} foto diabaikan.`,
+      );
+    }
     let isFirstInBatch = true;
 
     for (const rawFile of toProcess) {
@@ -501,13 +542,17 @@ function WargaLaporPage() {
 
       const res = await fetch(`${API_BASE_URL}/warga/reports`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "X-Device-ID": getDeviceId(),
+        },
         body: formData,
       });
 
       const json = await res.json();
 
       if (res.ok && json.success) {
+        fetchRemaining();
         setSuccess("Laporan berhasil dikirim! Menunggu verifikasi petugas.");
         setTimeout(() => navigate({ to: "/warga/laporan" }), 2000);
       } else {
@@ -532,385 +577,427 @@ function WargaLaporPage() {
   return (
     <PageLayout showBrand withBottomNav>
       <main className="pb-20">
-        <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] p-6 text-white">
-          <h1 className="text-xl font-bold tracking-tight">Laporkan Kerusakan Jalan</h1>
-          <p className="text-sm text-blue-200 mt-1">Isi data kerusakan yang Anda temukan</p>
-        </section>
-
-        <div className="max-w-xl mx-auto px-4 mt-6">
-          {success && (
-            <div className="mb-4 flex items-start gap-2.5 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
-              <Icon name="check_circle" className="text-[#16A34A] !text-[18px] shrink-0 mt-0.5" />
-              <p className="font-body-sm text-body-sm text-[#16A34A] leading-relaxed">{success}</p>
+        {isBlocked ? (
+          <>
+            <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] p-6 text-white">
+              <h1 className="text-xl font-bold tracking-tight">Batas Upload Tercapai</h1>
+            </section>
+            <div className="flex-1 flex items-center justify-center px-4 mt-12">
+              <div className="text-center">
+                <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+                  <Icon name="hourglass" className="!text-3xl text-[#D97706]" />
+                </div>
+                <p className="font-label-lg text-label-lg font-semibold text-[#0F172A] mb-2">
+                  Anda telah mencapai batas upload harian
+                </p>
+                <p className="font-body-md text-body-md text-[#475569] mb-6">
+                  Maksimal {UPLOAD_DAILY_LIMIT} laporan per hari. Silakan coba lagi besok.
+                </p>
+              </div>
             </div>
-          )}
+          </>
+        ) : (
+          <>
+            <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] p-6 text-white">
+              <h1 className="text-xl font-bold tracking-tight">Laporkan Kerusakan Jalan</h1>
+              <p className="text-sm text-blue-200 mt-1">Isi data kerusakan yang Anda temukan</p>
+              <div className="mt-3 flex items-center gap-1.5 bg-white/15 rounded-full px-3 py-1.5 w-fit text-xs font-medium text-blue-100">
+                <Icon name="assignment" className="!text-[14px]" />
+                {serverRemaining !== null
+                  ? `Sisa: ${serverRemaining} / ${UPLOAD_DAILY_LIMIT} laporan`
+                  : `${UPLOAD_DAILY_LIMIT} / ${UPLOAD_DAILY_LIMIT} laporan`}
+              </div>
+            </section>
+            <div className="max-w-xl mx-auto px-4 mt-6">
+              {success && (
+                <div className="mb-4 flex items-start gap-2.5 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+                  <Icon
+                    name="check_circle"
+                    className="text-[#16A34A] !text-[18px] shrink-0 mt-0.5"
+                  />
+                  <p className="font-body-sm text-body-sm text-[#16A34A] leading-relaxed">
+                    {success}
+                  </p>
+                </div>
+              )}
 
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
-                Foto Kerusakan
-              </label>
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
+                    Foto Kerusakan
+                  </label>
 
-              {isNative ? (
-                <>
-                  {processing ? (
-                    <div className="border-2 border-dashed border-[#c4c5d5] rounded-lg p-6 text-center">
-                      <div className="flex flex-col items-center gap-2 py-4">
-                        <span className="w-8 h-8 border-2 border-[#1e40af]/30 border-t-[#1e40af] rounded-full animate-spin" />
-                        <p className="text-xs text-[#476788]">Memproses foto...</p>
-                      </div>
-                    </div>
-                  ) : photos.length === 0 ? (
-                    <div className="flex gap-3">
-                      <button
-                        type="button"
-                        onClick={handleNativeCamera}
-                        className="flex-1 border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors cursor-pointer"
-                      >
-                        <div className="flex flex-col items-center gap-2">
-                          <Icon name="camera_alt" className="!text-3xl text-[#757684]" />
-                          <p className="text-sm text-[#757684]">Ambil Foto</p>
-                        </div>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleNativeGallery}
-                        className="flex-1 border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors cursor-pointer"
-                      >
-                        <div className="flex flex-col items-center gap-2">
-                          <Icon name="photo_library" className="!text-3xl text-[#757684]" />
-                          <p className="text-sm text-[#757684]">Pilih dari Galeri</p>
-                        </div>
-                      </button>
-                    </div>
-                  ) : (
+                  {isNative ? (
                     <>
-                      <div className="grid grid-cols-2 gap-2">
-                        {photoPreviews.map((preview, idx) => (
-                          <div
-                            key={idx}
-                            className="relative border border-[#c4c5d5] rounded-lg overflow-hidden"
-                          >
-                            {idx === 0 && (
-                              <span className="absolute top-1 left-1 bg-[#1e40af] text-white text-[10px] px-1.5 py-0.5 rounded font-semibold z-10">
-                                Utama
-                              </span>
-                            )}
+                      {processing ? (
+                        <div className="border-2 border-dashed border-[#c4c5d5] rounded-lg p-6 text-center">
+                          <div className="flex flex-col items-center gap-2 py-4">
+                            <span className="w-8 h-8 border-2 border-[#1e40af]/30 border-t-[#1e40af] rounded-full animate-spin" />
+                            <p className="text-xs text-[#476788]">Memproses foto...</p>
+                          </div>
+                        </div>
+                      ) : photos.length === 0 ? (
+                        <>
+                          <div className="flex gap-3">
                             <button
                               type="button"
-                              onClick={() => removePhoto(idx)}
-                              className="absolute top-1 right-1 bg-black/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs z-10 hover:bg-black/70 transition-colors"
+                              onClick={handleNativeCamera}
+                              className="flex-1 border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors cursor-pointer"
                             >
-                              ✕
+                              <div className="flex flex-col items-center gap-2">
+                                <Icon name="camera_alt" className="!text-3xl text-[#757684]" />
+                                <p className="text-sm text-[#757684]">Ambil Foto</p>
+                              </div>
                             </button>
-                            <img
-                              src={preview}
-                              alt={`Foto ${idx + 1}`}
-                              className="w-full h-28 object-cover"
-                            />
-                            <p className="text-[10px] text-[#476788] truncate px-1 py-0.5 bg-gray-50">
-                              {photos[idx]?.name}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="flex gap-2 flex-wrap">
-                        <button
-                          type="button"
-                          onClick={handleNativeCamera}
-                          className="flex-1 h-10 border border-[#c4c5d5] rounded-lg text-xs text-[#475569] font-semibold hover:bg-gray-50 transition-colors cursor-pointer"
-                        >
-                          Ganti Foto
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleNativeGallery}
-                          className="flex-1 h-10 border border-[#c4c5d5] rounded-lg text-xs text-[#475569] font-semibold hover:bg-gray-50 transition-colors cursor-pointer"
-                        >
-                          {photos.length < 3
-                            ? `Tambah Foto (${3 - photos.length} sisa)`
-                            : "Pilih Ulang"}
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </>
-              ) : (
-                <>
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center cursor-pointer hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors"
-                  >
-                    {processing ? (
-                      <div className="flex flex-col items-center gap-2 py-4">
-                        <span className="w-8 h-8 border-2 border-[#1e40af]/30 border-t-[#1e40af] rounded-full animate-spin" />
-                        <p className="text-xs text-[#476788]">Kompresi dan validasi foto...</p>
-                      </div>
-                    ) : photos.length > 0 ? (
-                      <div>
-                        <div className="grid grid-cols-2 gap-2">
-                          {photoPreviews.map((preview, idx) => (
-                            <div
-                              key={idx}
-                              className="relative border border-[#c4c5d5] rounded-lg overflow-hidden"
+                            <button
+                              type="button"
+                              onClick={handleNativeGallery}
+                              className="flex-1 border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors cursor-pointer"
                             >
-                              {idx === 0 && (
-                                <span className="absolute top-1 left-1 bg-[#1e40af] text-white text-[10px] px-1.5 py-0.5 rounded font-semibold z-10">
-                                  Utama
-                                </span>
-                              )}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  removePhoto(idx);
-                                }}
-                                className="absolute top-1 right-1 bg-black/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs z-10 hover:bg-black/70 transition-colors"
-                              >
-                                ✕
-                              </button>
-                              <img
-                                src={preview}
-                                alt={`Foto ${idx + 1}`}
-                                className="w-full h-28 object-cover"
-                              />
-                              <p className="text-[10px] text-[#476788] truncate px-1 py-0.5 bg-gray-50">
-                                {photos[idx]?.name}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                        {photos.length < 3 && (
-                          <p className="text-xs text-[#1e40af] mt-2 flex items-center justify-center gap-1">
-                            <Icon name="add_photo_alternate" className="!text-[14px]" />
-                            Ketuk untuk tambah foto ({3 - photos.length} sisa)
+                              <div className="flex flex-col items-center gap-2">
+                                <Icon name="photo_library" className="!text-3xl text-[#757684]" />
+                                <p className="text-sm text-[#757684]">Pilih dari Galeri</p>
+                              </div>
+                            </button>
+                          </div>
+                          <p className="text-[11px] text-[#64748B] text-center mt-1">
+                            Maksimal 3 foto per laporan
                           </p>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center gap-2 py-4">
-                        <Icon name="camera_alt" className="!text-4xl text-[#757684]" />
-                        <p className="text-sm text-[#757684]">
-                          {isCameraMode ? "Ketuk untuk mengambil foto" : "Ketuk untuk memilih foto"}
-                        </p>
-                        <p className="text-xs text-[#757684]">JPEG/PNG, maks 5 MB, maks 3 foto</p>
-                      </div>
-                    )}
-                  </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept="image/jpeg,image/png"
-                    onChange={handlePhotosChange}
-                    className="hidden"
-                    {...cameraProps}
-                  />
-                  {cameraModel && (
-                    <div className="flex items-center gap-1.5 text-[11px] text-[#476788] mt-1">
-                      <Icon name="photo_camera" className="!text-[14px]" />
-                      <span>Kamera: {cameraModel}</span>
-                    </div>
-                  )}
-                </>
-              )}
+                        </>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-2 gap-2">
+                            {photoPreviews.map((preview, idx) => (
+                              <div
+                                key={idx}
+                                className="relative border border-[#c4c5d5] rounded-lg overflow-hidden"
+                              >
+                                {idx === 0 && (
+                                  <span className="absolute top-1 left-1 bg-[#1e40af] text-white text-[10px] px-1.5 py-0.5 rounded font-semibold z-10">
+                                    Utama
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => removePhoto(idx)}
+                                  className="absolute top-1 right-1 bg-black/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs z-10 hover:bg-black/70 transition-colors"
+                                >
+                                  ✕
+                                </button>
+                                <img
+                                  src={preview}
+                                  alt={`Foto ${idx + 1}`}
+                                  className="w-full h-28 object-cover"
+                                />
+                                <p className="text-[10px] text-[#476788] truncate px-1 py-0.5 bg-gray-50">
+                                  {photos[idx]?.name}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
 
-              {uploadWarnings.length > 0 && (
-                <div className="flex flex-col gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-                  {uploadWarnings.map((w, i) => (
-                    <p key={i} className="text-xs text-[#D97706] flex items-start gap-1.5">
-                      <Icon name="warning" className="!text-[14px] shrink-0 mt-0.5" />
-                      {w}
-                    </p>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
-                Nama Pelapor
-              </label>
-              <div className="w-full h-11 px-4 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] bg-gray-50 flex items-center">
-                <Icon name="person" className="!text-[18px] text-[#476788] mr-2" />
-                <span>{reporterName}</span>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
-                Lokasi
-              </label>
-              <div className="flex gap-2">
-                <div className="flex-1 h-11 px-4 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] bg-gray-50 flex items-center gap-2">
-                  {locating ? (
-                    <>
-                      <span className="w-4 h-4 border-2 border-[#1e40af]/30 border-t-[#1e40af] rounded-full animate-spin" />
-                      <span className="text-sm text-[#476788]">{locatingMessage}</span>
+                          <div className="flex gap-2 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={handleNativeCamera}
+                              className="flex-1 h-10 border border-[#c4c5d5] rounded-lg text-xs text-[#475569] font-semibold hover:bg-gray-50 transition-colors cursor-pointer"
+                            >
+                              Ganti Foto
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleNativeGallery}
+                              className="flex-1 h-10 border border-[#c4c5d5] rounded-lg text-xs text-[#475569] font-semibold hover:bg-gray-50 transition-colors cursor-pointer"
+                            >
+                              {photos.length < 3
+                                ? `Tambah Foto (${3 - photos.length} sisa)`
+                                : "Pilih Ulang"}
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </>
                   ) : (
                     <>
-                      <Icon name="my_location" className="!text-[18px] text-[#16A34A]" />
-                      <span className="text-sm text-[#0F172A]">
-                        {latitude}, {longitude}
-                      </span>
-                      <span className="text-[10px] text-[#476788] ml-auto">
-                        {locationSource === "exif" ? "dari foto" : "dari perangkat"}
-                      </span>
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className="border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center cursor-pointer hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors"
+                      >
+                        {processing ? (
+                          <div className="flex flex-col items-center gap-2 py-4">
+                            <span className="w-8 h-8 border-2 border-[#1e40af]/30 border-t-[#1e40af] rounded-full animate-spin" />
+                            <p className="text-xs text-[#476788]">Kompresi dan validasi foto...</p>
+                          </div>
+                        ) : photos.length > 0 ? (
+                          <div>
+                            <div className="grid grid-cols-2 gap-2">
+                              {photoPreviews.map((preview, idx) => (
+                                <div
+                                  key={idx}
+                                  className="relative border border-[#c4c5d5] rounded-lg overflow-hidden"
+                                >
+                                  {idx === 0 && (
+                                    <span className="absolute top-1 left-1 bg-[#1e40af] text-white text-[10px] px-1.5 py-0.5 rounded font-semibold z-10">
+                                      Utama
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      removePhoto(idx);
+                                    }}
+                                    className="absolute top-1 right-1 bg-black/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs z-10 hover:bg-black/70 transition-colors"
+                                  >
+                                    ✕
+                                  </button>
+                                  <img
+                                    src={preview}
+                                    alt={`Foto ${idx + 1}`}
+                                    className="w-full h-28 object-cover"
+                                  />
+                                  <p className="text-[10px] text-[#476788] truncate px-1 py-0.5 bg-gray-50">
+                                    {photos[idx]?.name}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                            {photos.length < 3 && (
+                              <p className="text-xs text-[#1e40af] mt-2 flex items-center justify-center gap-1">
+                                <Icon name="add_photo_alternate" className="!text-[14px]" />
+                                Ketuk untuk tambah foto ({3 - photos.length} sisa)
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-2 py-4">
+                            <Icon name="camera_alt" className="!text-4xl text-[#757684]" />
+                            <p className="text-sm text-[#757684]">
+                              {isCameraMode
+                                ? "Ketuk untuk mengambil foto"
+                                : "Ketuk untuk memilih foto"}
+                            </p>
+                            <p className="text-xs text-[#757684]">
+                              JPEG/PNG, maks 5 MB, maks 3 foto
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        accept="image/jpeg,image/png"
+                        onChange={handlePhotosChange}
+                        className="hidden"
+                        {...cameraProps}
+                      />
+                      {cameraModel && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-[#476788] mt-1">
+                          <Icon name="photo_camera" className="!text-[14px]" />
+                          <span>Kamera: {cameraModel}</span>
+                        </div>
+                      )}
                     </>
                   )}
+
+                  {uploadWarnings.length > 0 && (
+                    <div className="flex flex-col gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                      {uploadWarnings.map((w, i) => (
+                        <p key={i} className="text-xs text-[#D97706] flex items-start gap-1.5">
+                          <Icon name="warning" className="!text-[14px] shrink-0 mt-0.5" />
+                          {w}
+                        </p>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-              {geoError && (
-                <p className="text-xs text-[#E11D48] flex items-center gap-1 mt-1">
-                  <Icon name="warning" className="!text-[14px]" />
-                  {geoError}
-                </p>
-              )}
-            </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
-                Nama Jalan
-              </label>
-              {locationSource && (
-                <p className="text-[11px] text-[#16A34A] flex items-center gap-1 mb-1">
-                  <Icon name="check_circle" className="!text-[12px]" />
-                  Terisi otomatis {locationSource === "exif"
-                    ? "dari GPS foto"
-                    : "dari lokasi Anda"}{" "}
-                  — dapat diedit
-                </p>
-              )}
-              <input
-                value={roadName}
-                onChange={(e) => setRoadName(e.target.value)}
-                placeholder="Contoh: Jl. Raya Sidoarjo"
-                className="w-full h-11 px-4 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af]"
-              />
-            </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
+                    Nama Pelapor
+                  </label>
+                  <div className="w-full h-11 px-4 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] bg-gray-50 flex items-center">
+                    <Icon name="person" className="!text-[18px] text-[#476788] mr-2" />
+                    <span>{reporterName}</span>
+                  </div>
+                </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
-                Kecamatan
-              </label>
-              {locationSource && (
-                <p className="text-[11px] text-[#16A34A] flex items-center gap-1 mb-1">
-                  <Icon name="check_circle" className="!text-[12px]" />
-                  Terisi otomatis {locationSource === "exif"
-                    ? "dari GPS foto"
-                    : "dari lokasi Anda"}{" "}
-                  — dapat diedit
-                </p>
-              )}
-              <select
-                value={district}
-                onChange={(e) => setDistrict(e.target.value)}
-                className="w-full h-11 px-4 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af]"
-              >
-                <option value="">Pilih kecamatan</option>
-                {DISTRICT_OPTIONS.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-            </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
+                    Lokasi
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="flex-1 h-11 px-4 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] bg-gray-50 flex items-center gap-2">
+                      {locating ? (
+                        <>
+                          <span className="w-4 h-4 border-2 border-[#1e40af]/30 border-t-[#1e40af] rounded-full animate-spin" />
+                          <span className="text-sm text-[#476788]">{locatingMessage}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Icon name="my_location" className="!text-[18px] text-[#16A34A]" />
+                          <span className="text-sm text-[#0F172A]">
+                            {latitude}, {longitude}
+                          </span>
+                          <span className="text-[10px] text-[#476788] ml-auto">
+                            {locationSource === "exif" ? "dari foto" : "dari perangkat"}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  {geoError && (
+                    <p className="text-xs text-[#E11D48] flex items-center gap-1 mt-1">
+                      <Icon name="warning" className="!text-[14px]" />
+                      {geoError}
+                    </p>
+                  )}
+                </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="font-label-md text-label-md font-semibold text-[#0F172A] flex items-center gap-1">
-                Alamat Lengkap
-                {locationSource && (
-                  <span className="text-[10px] font-normal text-[#64748B] bg-[#F1F5F9] px-1.5 py-0.5 rounded">
-                    otomatis
-                  </span>
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
+                    Nama Jalan
+                  </label>
+                  {locationSource && (
+                    <p className="text-[11px] text-[#16A34A] flex items-center gap-1 mb-1">
+                      <Icon name="check_circle" className="!text-[12px]" />
+                      Terisi otomatis{" "}
+                      {locationSource === "exif" ? "dari GPS foto" : "dari lokasi Anda"} — dapat
+                      diedit
+                    </p>
+                  )}
+                  <input
+                    value={roadName}
+                    onChange={(e) => setRoadName(e.target.value)}
+                    placeholder="Contoh: Jl. Raya Sidoarjo"
+                    className="w-full h-11 px-4 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af]"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
+                    Kecamatan
+                  </label>
+                  {locationSource && (
+                    <p className="text-[11px] text-[#16A34A] flex items-center gap-1 mb-1">
+                      <Icon name="check_circle" className="!text-[12px]" />
+                      Terisi otomatis{" "}
+                      {locationSource === "exif" ? "dari GPS foto" : "dari lokasi Anda"} — dapat
+                      diedit
+                    </p>
+                  )}
+                  <select
+                    value={district}
+                    onChange={(e) => setDistrict(e.target.value)}
+                    className="w-full h-11 px-4 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af]"
+                  >
+                    <option value="">Pilih kecamatan</option>
+                    {DISTRICT_OPTIONS.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-label-md text-label-md font-semibold text-[#0F172A] flex items-center gap-1">
+                    Alamat Lengkap
+                    {locationSource && (
+                      <span className="text-[10px] font-normal text-[#64748B] bg-[#F1F5F9] px-1.5 py-0.5 rounded">
+                        otomatis
+                      </span>
+                    )}
+                  </label>
+                  <div className="w-full px-4 py-2.5 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] bg-gray-50 flex items-center gap-2 min-h-11">
+                    <Icon name="map" className="!text-[18px] text-[#476788] shrink-0" />
+                    {locating ? (
+                      <span className="text-[#94A3B8]">Mengidentifikasi lokasi...</span>
+                    ) : fullAddress ? (
+                      <span>{fullAddress}</span>
+                    ) : (
+                      <span className="text-[#94A3B8]">Belum tersedia</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
+                    Deskripsi (opsional)
+                  </label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Jelaskan kondisi kerusakan yang Anda lihat..."
+                    rows={3}
+                    className="w-full px-4 py-3 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af] resize-none"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
+                    Dimensi Kerusakan (opsional)
+                  </label>
+                  <p className="text-[11px] text-[#64748B] flex items-center gap-1 mb-1">
+                    <Icon name="info" className="!text-[12px]" />
+                    Perkiraan ukuran kerusakan
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      value={panjang}
+                      onChange={(e) => setPanjang(e.target.value)}
+                      placeholder="Panjang (m)"
+                      min="0.01"
+                      max="100"
+                      step="0.01"
+                      className="w-full h-11 px-4 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af]"
+                    />
+                    <input
+                      type="number"
+                      value={lebar}
+                      onChange={(e) => setLebar(e.target.value)}
+                      placeholder="Lebar (m)"
+                      min="0.01"
+                      max="100"
+                      step="0.01"
+                      className="w-full h-11 px-4 border border-[#c4c5d6] rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af]"
+                    />
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                    <Icon name="error" className="text-[#E11D48] !text-[18px] shrink-0 mt-0.5" />
+                    <p className="font-body-sm text-body-sm text-[#E11D48] leading-relaxed">
+                      {error}
+                    </p>
+                  </div>
                 )}
-              </label>
-              <div className="w-full px-4 py-2.5 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] bg-gray-50 flex items-center gap-2 min-h-11">
-                <Icon name="map" className="!text-[18px] text-[#476788] shrink-0" />
-                {locating ? (
-                  <span className="text-[#94A3B8]">Mengidentifikasi lokasi...</span>
-                ) : fullAddress ? (
-                  <span>{fullAddress}</span>
-                ) : (
-                  <span className="text-[#94A3B8]">Belum tersedia</span>
-                )}
+
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={loading || locating || !canSubmit}
+                  className="w-full h-12 bg-gradient-to-r from-[#1e40af] to-[#2e68d8] text-white rounded-xl font-label-md text-label-md font-semibold flex items-center justify-center gap-2 mt-2 hover:shadow-lg hover:shadow-[#1e40af]/25 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Mengirim...
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="send" className="!text-[20px]" />
+                      Kirim Laporan
+                    </>
+                  )}
+                </button>
               </div>
             </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
-                Deskripsi (opsional)
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Jelaskan kondisi kerusakan yang Anda lihat..."
-                rows={3}
-                className="w-full px-4 py-3 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af] resize-none"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
-                Dimensi Kerusakan (opsional)
-              </label>
-              <p className="text-[11px] text-[#64748B] flex items-center gap-1 mb-1">
-                <Icon name="info" className="!text-[12px]" />
-                Perkiraan ukuran kerusakan
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="number"
-                  value={panjang}
-                  onChange={(e) => setPanjang(e.target.value)}
-                  placeholder="Panjang (m)"
-                  min="0.01"
-                  max="100"
-                  step="0.01"
-                  className="w-full h-11 px-4 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af]"
-                />
-                <input
-                  type="number"
-                  value={lebar}
-                  onChange={(e) => setLebar(e.target.value)}
-                  placeholder="Lebar (m)"
-                  min="0.01"
-                  max="100"
-                  step="0.01"
-                  className="w-full h-11 px-4 border border-[#c4c5d6] rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af]"
-                />
-              </div>
-            </div>
-
-            {error && (
-              <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-                <Icon name="error" className="text-[#E11D48] !text-[18px] shrink-0 mt-0.5" />
-                <p className="font-body-sm text-body-sm text-[#E11D48] leading-relaxed">{error}</p>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={loading || locating || !canSubmit}
-              className="w-full h-12 bg-gradient-to-r from-[#1e40af] to-[#2e68d8] text-white rounded-xl font-label-md text-label-md font-semibold flex items-center justify-center gap-2 mt-2 hover:shadow-lg hover:shadow-[#1e40af]/25 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Mengirim...
-                </>
-              ) : (
-                <>
-                  <Icon name="send" className="!text-[20px]" />
-                  Kirim Laporan
-                </>
-              )}
-            </button>
-          </div>
-        </div>
+          </>
+        )}
       </main>
 
       <FraudWarningModal
