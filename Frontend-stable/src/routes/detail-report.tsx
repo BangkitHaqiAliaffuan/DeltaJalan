@@ -21,6 +21,7 @@ import { TimelineCard } from "@/components/jk/TimelineCard";
 import { ProgressTimeline } from "@/components/jk/ProgressTimeline";
 import { ProgressUpdateModal } from "@/components/jk/ProgressUpdateModal";
 import { BeforeAfterSlider } from "@/components/jk/BeforeAfterSlider";
+import { DetectionList } from "@/components/jk/DetectionList";
 import { Portal } from "@/components/jk/Portal";
 import { ModalBase } from "@/components/jk/ModalBase";
 import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
@@ -71,7 +72,9 @@ function DetailReportPage() {
   const userRole = user?.role ?? "petugas";
   const [backPath, setBackPath] = useState("/tugas-saya");
   const [isClient, setIsClient] = useState(false);
-  useEffect(() => { setIsClient(true); }, []);
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   useEffect(() => {
     setBackPath(userRole === "supervisor" ? "/supervisor" : "/tugas-saya");
   }, [userRole]);
@@ -163,7 +166,13 @@ function DetailReportPage() {
   // Supervisor: auto-set status to "Ditinjau" when viewing
   useEffect(() => {
     if (!reportId || userRole !== "supervisor") return;
-    if (!report || (report.status !== "Menunggu Verifikasi" && report.status !== "Menunggu Review" && report.status !== "Ditinjau")) return;
+    if (
+      !report ||
+      (report.status !== "Menunggu Verifikasi" &&
+        report.status !== "Menunggu Review" &&
+        report.status !== "Ditinjau")
+    )
+      return;
     fetch(`${API_BASE_URL}/reports/${reportId}/mulai-review`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
@@ -450,7 +459,10 @@ function DetailReportPage() {
     );
 
     // Supervisor: Menunggu Verifikasi / Menunggu Review / Ditinjau → Setujui + Tolak
-    if (isSupervisor && (status === "Menunggu Verifikasi" || status === "Menunggu Review" || status === "Ditinjau")) {
+    if (
+      isSupervisor &&
+      (status === "Menunggu Verifikasi" || status === "Menunggu Review" || status === "Ditinjau")
+    ) {
       const isWargaTelegram = report?.source && ["warga", "telegram"].includes(report.source);
       return (
         <FooterWrapper>
@@ -520,9 +532,7 @@ function DetailReportPage() {
               </>
             )}
           </button>
-          <div className="flex gap-3">
-            {showBack()}
-          </div>
+          <div className="flex gap-3">{showBack()}</div>
         </FooterWrapper>
       );
     }
@@ -644,647 +654,641 @@ function DetailReportPage() {
 
   return (
     <>
-    <PageLayout
-      back={backPath}
-      title="Detail Laporan"
-      right={<span className="font-id-code text-[12px] text-[#64748B]">{report.report_code}</span>}
-      onRefresh={refreshReport}
-    >
-      <main>
-        <div className="max-w-2xl mx-auto p-4 pb-[140px] flex flex-col gap-4">
-          {/* ── Foto & Analisis AI per foto ── */}
-          {report.photos && report.photos.length > 0 ? (
-            report.photos.map((photo, i) => (
-              <div
-                key={photo.id}
-                className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden"
-              >
-                {photo.image_original_url &&
-                photo.image_result_url &&
-                photo.image_result_url !== photo.image_original_url ? (
+      <PageLayout
+        back={backPath}
+        title="Detail Laporan"
+        right={
+          <span className="font-id-code text-[12px] text-[#64748B]">{report.report_code}</span>
+        }
+        onRefresh={refreshReport}
+      >
+        <main>
+          <div className="max-w-2xl mx-auto p-4 pb-[140px] flex flex-col gap-4">
+            {/* ── Foto & Analisis AI per foto ── */}
+            {report.photos && report.photos.length > 0 ? (
+              report.photos.map((photo, i) => (
+                <div
+                  key={photo.id}
+                  className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden"
+                >
+                  {photo.image_original_url &&
+                  photo.image_result_url &&
+                  photo.image_result_url !== photo.image_original_url ? (
+                    <BeforeAfterSlider
+                      beforeSrc={resolveImageUrl(photo.image_original_url) ?? ""}
+                      afterSrc={resolveImageUrl(photo.image_result_url) ?? ""}
+                      beforeLabel={`Foto ${i + 1} — Asli`}
+                      afterLabel={`Foto ${i + 1} — AI`}
+                      panjang={photo.kerusakan_panjang}
+                      lebar={photo.kerusakan_lebar}
+                    />
+                  ) : photo.image_original_url ? (
+                    <div
+                      className="bg-[#0F172A] flex items-center justify-center"
+                      style={{ minHeight: 280 }}
+                    >
+                      <SafeImage
+                        src={resolveImageUrl(photo.image_original_url) ?? ""}
+                        alt={`Foto ${i + 1}`}
+                        className="w-full h-full object-contain max-h-[55vh]"
+                      />
+                    </div>
+                  ) : null}
+                  {photo.photo_taken_at && (
+                    <div className="px-3 py-2 border-t border-[#E2E8F0] flex items-center gap-1.5 text-[11px] text-[#64748B]">
+                      <Icon name="calendar_today" className="!text-[13px]" />
+                      <span>
+                        Photo diambil pada{" "}
+                        {new Date(photo.photo_taken_at).toLocaleDateString("id-ID", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })}
+                      </span>
+                    </div>
+                  )}
+                  {photo.mobileclip_score != null && (
+                    <div className="px-3 py-2 border-t border-[#E2E8F0] flex items-center gap-1.5 text-[11px]">
+                      <Icon
+                        name={photo.mobileclip_score >= 0.15 ? "check_circle" : "warning"}
+                        className={`!text-[13px] ${photo.mobileclip_score >= 0.15 ? "text-[#16A34A]" : "text-[#F59E0B]"}`}
+                      />
+                      <span
+                        className={
+                          photo.mobileclip_score >= 0.15 ? "text-[#16A34A]" : "text-[#F59E0B]"
+                        }
+                      >
+                        AI: {photo.mobileclip_label} ({(photo.mobileclip_score * 100).toFixed(0)}%)
+                      </span>
+                    </div>
+                  )}
+                  {photo.quality_scores?.status && photo.quality_scores.status !== "good" && (
+                    <div className="px-3 py-2 border-t border-[#E2E8F0] flex items-center gap-1.5 text-[11px]">
+                      <Icon
+                        name={
+                          photo.quality_scores.status === "blurry" ||
+                          photo.quality_scores.status === "too_dark"
+                            ? "visibility_off"
+                            : "warning"
+                        }
+                        className="!text-[13px] text-[#F59E0B]"
+                      />
+                      <span className="text-[#F59E0B]">
+                        Kualitas foto: {qualityLabel(photo.quality_scores.status)} (ketajaman:{" "}
+                        {photo.quality_scores.blurScore.toFixed(0)}, kecerahan:{" "}
+                        {photo.quality_scores.meanBrightness.toFixed(0)})
+                      </span>
+                    </div>
+                  )}
+                  {(() => {
+                    const rawDetections = Array.isArray(photo.ai_raw_output)
+                      ? photo.ai_raw_output
+                      : (photo.ai_raw_output?.detections ?? []);
+                    const hasDetectionData =
+                      rawDetections.length > 0 ||
+                      photo.ai_jenis_kerusakan ||
+                      photo.ai_severity ||
+                      photo.ai_confidence != null ||
+                      photo.total_detections != null;
+                    if (!hasDetectionData) return null;
+                    return (
+                      <div className="border-t border-[#E2E8F0]">
+                        <DetectionList
+                          detections={rawDetections}
+                          totalDetections={photo.total_detections}
+                          overallConfidence={photo.ai_confidence}
+                          kerusakanPanjang={photo.kerusakan_panjang}
+                          kerusakanLebar={photo.kerusakan_lebar}
+                        />
+                      </div>
+                    );
+                  })()}
+                </div>
+              ))
+            ) : report.image_original_url ? (
+              <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
+                {report.image_result_url &&
+                report.image_result_url !== report.image_original_url ? (
                   <BeforeAfterSlider
-                    beforeSrc={resolveImageUrl(photo.image_original_url) ?? ""}
-                    afterSrc={resolveImageUrl(photo.image_result_url) ?? ""}
-                    beforeLabel={`Foto ${i + 1} — Asli`}
-                    afterLabel={`Foto ${i + 1} — AI`}
-                    panjang={photo.kerusakan_panjang}
-                    lebar={photo.kerusakan_lebar}
+                    beforeSrc={resolveImageUrl(report.image_original_url) ?? ""}
+                    afterSrc={resolveImageUrl(report.image_result_url) ?? ""}
+                    beforeLabel="Foto Asli"
+                    afterLabel="Hasil AI"
+                    panjang={report.kerusakan_panjang}
+                    lebar={report.kerusakan_lebar}
                   />
-                ) : photo.image_original_url ? (
+                ) : (
                   <div
                     className="bg-[#0F172A] flex items-center justify-center"
                     style={{ minHeight: 280 }}
                   >
                     <SafeImage
-                      src={resolveImageUrl(photo.image_original_url) ?? ""}
-                      alt={`Foto ${i + 1}`}
+                      src={resolveImageUrl(report.image_original_url) ?? ""}
+                      alt="Foto"
                       className="w-full h-full object-contain max-h-[55vh]"
                     />
                   </div>
-                ) : null}
-                {photo.photo_taken_at && (
-                  <div className="px-3 py-2 border-t border-[#E2E8F0] flex items-center gap-1.5 text-[11px] text-[#64748B]">
-                    <Icon name="calendar_today" className="!text-[13px]" />
-                    <span>Photo diambil pada {new Date(photo.photo_taken_at).toLocaleDateString("id-ID", { year: "numeric", month: "long", day: "numeric" })}</span>
-                  </div>
                 )}
-                {photo.mobileclip_score != null && (
-                  <div className="px-3 py-2 border-t border-[#E2E8F0] flex items-center gap-1.5 text-[11px]">
-                    <Icon
-                      name={photo.mobileclip_score >= 0.15 ? "check_circle" : "warning"}
-                      className={`!text-[13px] ${photo.mobileclip_score >= 0.15 ? "text-[#16A34A]" : "text-[#F59E0B]"}`}
-                    />
-                    <span className={photo.mobileclip_score >= 0.15 ? "text-[#16A34A]" : "text-[#F59E0B]"}>
-                      AI: {photo.mobileclip_label} ({(photo.mobileclip_score * 100).toFixed(0)}%)
-                    </span>
-                  </div>
+              </div>
+            ) : null}
+
+            {/* ── Progress Bar (estimasi_hari > 0) ── */}
+            {report.estimasi_hari != null && report.estimasi_hari > 0 && (
+              <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-label-md text-[13px] font-bold text-[#0F172A] flex items-center gap-1.5">
+                    <Icon name="progress_activity" className="!text-lg text-[#1A4F8A]" />
+                    Progress Perbaikan
+                  </h3>
+                  <span className="text-[12px] font-semibold text-[#1A4F8A]">
+                    Hari {Math.min(uniqueDays, report.estimasi_hari)} dari {report.estimasi_hari}
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#1A4F8A] rounded-full transition-all duration-500"
+                    style={{
+                      width: `${Math.min((uniqueDays / report.estimasi_hari) * 100, 100)}%`,
+                    }}
+                  />
+                </div>
+                {uniqueDays >= report.estimasi_hari && (
+                  <p className="text-[11px] text-[#10B981] font-medium mt-1.5 flex items-center gap-1">
+                    <Icon name="check_circle" className="!text-[14px]" />
+                    Estimasi terpenuhi, silakan selesaikan laporan
+                  </p>
                 )}
-                {photo.quality_scores?.status && photo.quality_scores.status !== "good" && (
-                  <div className="px-3 py-2 border-t border-[#E2E8F0] flex items-center gap-1.5 text-[11px]">
-                    <Icon
-                      name={photo.quality_scores.status === "blurry" || photo.quality_scores.status === "too_dark" ? "visibility_off" : "warning"}
-                      className="!text-[13px] text-[#F59E0B]"
-                    />
-                    <span className="text-[#F59E0B]">
-                      Kualitas foto: {qualityLabel(photo.quality_scores.status)} (ketajaman: {photo.quality_scores.blurScore.toFixed(0)}, kecerahan: {photo.quality_scores.meanBrightness.toFixed(0)})
-                    </span>
-                  </div>
+              </div>
+            )}
+
+            {/* ── Progress Timeline ── */}
+            {progressUpdates.length > 0 && (
+              <ProgressTimeline updates={progressUpdates} estimasiHari={report.estimasi_hari} />
+            )}
+
+            {/* ── After Photo Gallery ── */}
+            <AfterPhotoGallery report={report} />
+
+            {/* ── Badges ── */}
+            <div className="flex flex-wrap items-center gap-2">
+              {(() => {
+                const sev = report.overall_severity ?? report.ai_severity;
+                if (!sev) return null;
+                const s = getSevStyle(normalizeSeverityKey(sev));
+                return (
+                  <span
+                    className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${s.badge}`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+                    {normalizeSeverityKey(sev)}
+                  </span>
+                );
+              })()}
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-[#E2E8F0] text-[#475569]">
+                <span className={`w-2 h-2 rounded-full ${statusDotStyle(report.status ?? "")}`} />
+                {displayStatus(report.status ?? "-")}
+              </span>
+              {report.source === "warga" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-50 text-[#7C3AED] border border-purple-200 whitespace-nowrap">
+                  Warga
+                </span>
+              )}
+              {report.source === "telegram" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-sky-50 text-[#0284C7] border border-sky-200 whitespace-nowrap">
+                  Telegram
+                </span>
+              )}
+              <DeadlineCard report={report} isClient={isClient} now={now} compact />
+            </div>
+
+            {/* ── Info Jalan ── */}
+            <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
+              <h2 className="font-headline-sm text-[17px] font-bold text-[#0F172A] mb-3">
+                {report.road_name}
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                <InfoRow icon="location_on" value={`Kec. ${report.district}`} />
+                {report.assigned_team_name && (
+                  <InfoRow icon="group" value={`Tim: ${report.assigned_team_name}`} />
                 )}
-                {(photo.ai_jenis_kerusakan ||
-                  photo.ai_severity ||
-                  photo.ai_confidence != null ||
-                  photo.total_detections != null) && (
-                  <div className="p-3 border-t border-[#E2E8F0]">
-                    <div className="flex items-start gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-[#F1F5F9] flex items-center justify-center shrink-0">
-                        <Icon name="insights" className="!text-[16px] text-[#1A4F8A]" />
-                      </div>
-                      <div className="flex-1 min-w-0 space-y-1">
-                        {photo.ai_jenis_kerusakan && (
-                          <p className="text-[13px] font-semibold text-[#0F172A]">
-                            {photo.ai_jenis_kerusakan}
-                          </p>
-                        )}
-                        <div className="flex flex-wrap items-center gap-2">
-                          {photo.ai_severity && (
-                            <span
-                              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
-                                photo.ai_severity === "berat"
-                                  ? "bg-[#E11D48] text-white border-[#E11D48]"
-                                  : photo.ai_severity === "sedang"
-                                    ? "bg-orange-50 text-[#F97316] border-orange-200"
-                                    : "bg-amber-50 text-[#F59E0B] border-amber-200"
-                              }`}
-                            >
-                              {normalizeSeverityKey(photo.ai_severity)}
-                            </span>
-                          )}
-                          {photo.ai_confidence != null && (
-                            <span className="text-[11px] text-[#64748B] font-medium">
-                              {(photo.ai_confidence * 100).toFixed(0)}% yakin
-                            </span>
-                          )}
-                          {photo.total_detections != null && (
-                            <span className="text-[11px] text-[#64748B]">
-                              {photo.total_detections} area terdeteksi
-                            </span>
-                          )}
-                        </div>
-                        {(Array.isArray(photo.ai_raw_output)
-                            ? photo.ai_raw_output
-                            : photo.ai_raw_output?.detections
-                          )?.map((det, i) => {
-                          const dt = det.type || det.class || '';
-                          if (!dt) return null;
-                          const sev = det.severity ? normalizeSeverityKey(det.severity) : '';
-                          const isBerat = sev.includes('Berat');
-                          const isSedang = sev.includes('Sedang');
-                          return (
-                            <div key={i} className="flex items-center gap-1.5 text-[11px] text-[#475569]">
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#1A4F8A]" />
-                              <span className="font-medium">{dt}</span>
-                              {sev && (
-                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
-                                  isBerat
-                                    ? 'bg-[#E11D48] text-white border-[#E11D48]'
-                                    : isSedang
-                                      ? 'bg-orange-50 text-[#F97316] border-orange-200'
-                                      : 'bg-amber-50 text-[#F59E0B] border-amber-200'
-                                }`}>
-                                  {sev}
-                                </span>
-                              )}
-                              <span>{(det.confidence * 100).toFixed(0)}%</span>
-                            </div>
-                          );
-                        })}
-                      </div>
+                {report.kerusakan_panjang != null && (
+                  <InfoRow
+                    icon="straighten"
+                    value={
+                      report.kerusakan_lebar != null
+                        ? `${report.kerusakan_panjang}m × ${report.kerusakan_lebar}m (${(report.kerusakan_panjang * report.kerusakan_lebar).toFixed(1)} m²)`
+                        : `${report.kerusakan_panjang}m`
+                    }
+                  />
+                )}
+                <InfoRow
+                  icon="calendar_month"
+                  value={report.created_at ? formatDate(report.created_at) : "-"}
+                />
+                <InfoRow icon="person" value={report.reporter_name} />
+                {report.report_code && <InfoRow icon="tag" value={report.report_code} />}
+              </div>
+              {report.description && (
+                <div className="mt-3 pt-3 border-t border-[#E2E8F0]">
+                  <p className="text-[11px] font-semibold text-[#475569] mb-1 flex items-center gap-1">
+                    <Icon name="description" className="!text-[14px]" />
+                    Deskripsi Laporan
+                  </p>
+                  <p className="text-[13px] text-[#0F172A] leading-relaxed whitespace-pre-wrap">
+                    {report.description}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* ── Timeline Perbaikan ── */}
+            {hasTimeline && <TimelineCard events={statusHistory} />}
+
+            {/* ── Lokasi ── */}
+            {mapPoints.length > 0 && (
+              <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
+                <div className="p-4 pb-2">
+                  <h3 className="font-label-md text-[13px] font-bold text-[#0F172A]">Lokasi</h3>
+                  {report.latitude && report.longitude && (
+                    <p className="text-[11px] text-[#64748B] mt-0.5 font-mono">
+                      {report.latitude.toFixed(6)}, {report.longitude.toFixed(6)}
+                    </p>
+                  )}
+                  {report.full_address && (
+                    <p className="text-[12px] text-[#475569] mt-1 flex items-start gap-1">
+                      <Icon name="map" className="!text-[14px] mt-0.5 shrink-0" />
+                      <span>{report.full_address}</span>
+                    </p>
+                  )}
+                </div>
+                <div className="h-48 overflow-hidden" style={{ isolation: "isolate" }}>
+                  <ReportMap
+                    points={mapPoints}
+                    onPointClick={(pt) => {
+                      if (userRole === "supervisor") {
+                        const url = `https://www.google.com/maps?q=${pt.lat},${pt.lng}`;
+                        window.open(url, "_blank", "noopener,noreferrer");
+                      } else {
+                        navigate({
+                          to: "/map",
+                          search: { highlight: report.id, lat: pt.lat, lng: pt.lng },
+                        });
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* ── Duplikasi ── */}
+            {report.duplicate_of && (
+              <div className="bg-white border border-[#FDE68A] rounded-xl overflow-hidden">
+                <div className="flex items-start gap-3 p-4">
+                  <div className="w-9 h-9 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
+                    <span className="text-[18px]">⚠️</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-[13px] font-bold text-[#92400E] mb-1">
+                      Terindikasi Duplikat
+                    </h3>
+                    <p className="text-[12px] text-[#92400E]/80 mb-2">
+                      Laporan ini memiliki kemiripan dengan laporan{" "}
+                      <strong>{report.duplicate_of.report_code}</strong> (
+                      {report.duplicate_of.road_name}, {report.duplicate_of.district}).
+                    </p>
+                    {report.latitude != null &&
+                      report.longitude != null &&
+                      report.duplicate_of.latitude != null &&
+                      report.duplicate_of.longitude != null && (
+                        <p className="text-[12px] text-[#92400E]/80 mb-2">
+                          Jarak:{" "}
+                          {formatDistance(
+                            haversineDistance(
+                              report.latitude,
+                              report.longitude,
+                              report.duplicate_of.latitude,
+                              report.duplicate_of.longitude,
+                            ),
+                          )}{" "}
+                          dari laporan tersebut
+                        </p>
+                      )}
+                    <div className="flex items-center gap-2">
+                      {report.duplicate_of.latitude && report.duplicate_of.longitude && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigate({
+                              to: "/map",
+                              search: {
+                                highlight: report.duplicate_of!.id,
+                                lat: report.duplicate_of!.latitude!,
+                                lng: report.duplicate_of!.longitude!,
+                              },
+                            });
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-[11px] font-semibold text-[#92400E] hover:bg-amber-100 transition-colors"
+                        >
+                          Lihat di Peta
+                        </button>
+                      )}
                     </div>
                   </div>
-                )}
+                </div>
               </div>
-            ))
-          ) : report.image_original_url ? (
-            <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
-              {report.image_result_url && report.image_result_url !== report.image_original_url ? (
-                <BeforeAfterSlider
-                  beforeSrc={resolveImageUrl(report.image_original_url) ?? ""}
-                  afterSrc={resolveImageUrl(report.image_result_url) ?? ""}
-                  beforeLabel="Foto Asli"
-                  afterLabel="Hasil AI"
-                  panjang={report.kerusakan_panjang}
-                  lebar={report.kerusakan_lebar}
-                />
-              ) : (
-                <div
-                  className="bg-[#0F172A] flex items-center justify-center"
-                  style={{ minHeight: 280 }}
+            )}
+          </div>
+        </main>
+
+        {renderFooter()}
+
+        {/* ── Tolak Modal ── */}
+        {showTolak && (
+          <ModalBase
+            onClose={() => setShowTolak(false)}
+            icon="block"
+            badge="TOLAK LAPORAN"
+            title="Tolak Laporan"
+            footer={
+              <>
+                <button
+                  type="button"
+                  disabled={actionLoading || !tolakAlasan.trim()}
+                  onClick={handleTolak}
+                  className="w-full h-11 bg-[#E11D48] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#BE123C] active:scale-95 transition-all disabled:opacity-50"
                 >
-                  <SafeImage
-                    src={resolveImageUrl(report.image_original_url) ?? ""}
-                    alt="Foto"
-                    className="w-full h-full object-contain max-h-[55vh]"
-                  />
-                </div>
-              )}
-            </div>
-          ) : null}
-
-          {/* ── Progress Bar (estimasi_hari > 0) ── */}
-          {report.estimasi_hari != null && report.estimasi_hari > 0 && (
-            <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-label-md text-[13px] font-bold text-[#0F172A] flex items-center gap-1.5">
-                  <Icon name="progress_activity" className="!text-lg text-[#1A4F8A]" />
-                  Progress Perbaikan
-                </h3>
-                <span className="text-[12px] font-semibold text-[#1A4F8A]">
-                  Hari {Math.min(uniqueDays, report.estimasi_hari)} dari {report.estimasi_hari}
-                </span>
-              </div>
-              <div className="w-full h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-[#1A4F8A] rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min((uniqueDays / report.estimasi_hari) * 100, 100)}%` }}
-                />
-              </div>
-              {uniqueDays >= report.estimasi_hari && (
-                <p className="text-[11px] text-[#10B981] font-medium mt-1.5 flex items-center gap-1">
-                  <Icon name="check_circle" className="!text-[14px]" />
-                  Estimasi terpenuhi, silakan selesaikan laporan
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* ── Progress Timeline ── */}
-          {progressUpdates.length > 0 && <ProgressTimeline updates={progressUpdates} estimasiHari={report.estimasi_hari} />}
-
-          {/* ── After Photo Gallery ── */}
-          <AfterPhotoGallery report={report} />
-
-          {/* ── Badges ── */}
-          <div className="flex flex-wrap items-center gap-2">
-            {(() => {
-              const sev = report.overall_severity ?? report.ai_severity;
-              if (!sev) return null;
-              const s = getSevStyle(normalizeSeverityKey(sev));
-              return (
-                <span
-                  className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${s.badge}`}
+                  {actionLoading ? (
+                    "Memproses…"
+                  ) : (
+                    <>
+                      <Icon name="close" className="!text-[18px]" />
+                      Tolak Laporan
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowTolak(false)}
+                  className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-                  {normalizeSeverityKey(sev)}
-                </span>
-              );
-            })()}
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-[#E2E8F0] text-[#475569]">
-              <span className={`w-2 h-2 rounded-full ${statusDotStyle(report.status ?? "")}`} />
-              {displayStatus(report.status ?? "-")}
-            </span>
-            {report.source === "warga" && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-purple-50 text-[#7C3AED] border border-purple-200 whitespace-nowrap">
-                Warga
-              </span>
-            )}
-            {report.source === "telegram" && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-sky-50 text-[#0284C7] border border-sky-200 whitespace-nowrap">
-                Telegram
-              </span>
-            )}
-            <DeadlineCard report={report} isClient={isClient} now={now} compact />
-          </div>
-
-          {/* ── Info Jalan ── */}
-          <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
-            <h2 className="font-headline-sm text-[17px] font-bold text-[#0F172A] mb-3">
-              {report.road_name}
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-              <InfoRow icon="location_on" value={`Kec. ${report.district}`} />
-              {report.assigned_team_name && (
-                <InfoRow icon="group" value={`Tim: ${report.assigned_team_name}`} />
-              )}
-              {report.kerusakan_panjang != null && (
-                <InfoRow
-                  icon="straighten"
-                  value={
-                    report.kerusakan_lebar != null
-                      ? `${report.kerusakan_panjang}m × ${report.kerusakan_lebar}m (${(report.kerusakan_panjang * report.kerusakan_lebar).toFixed(1)} m²)`
-                      : `${report.kerusakan_panjang}m`
-                  }
-                />
-              )}
-              <InfoRow
-                icon="calendar_month"
-                value={report.created_at ? formatDate(report.created_at) : "-"}
-              />
-              <InfoRow icon="person" value={report.reporter_name} />
-              {report.report_code && <InfoRow icon="tag" value={report.report_code} />}
-            </div>
-            {report.description && (
-              <div className="mt-3 pt-3 border-t border-[#E2E8F0]">
-                <p className="text-[11px] font-semibold text-[#475569] mb-1 flex items-center gap-1">
-                  <Icon name="description" className="!text-[14px]" />
-                  Deskripsi Laporan
-                </p>
-                <p className="text-[13px] text-[#0F172A] leading-relaxed whitespace-pre-wrap">
-                  {report.description}
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* ── Timeline Perbaikan ── */}
-          {hasTimeline && <TimelineCard events={statusHistory} />}
-
-          {/* ── Lokasi ── */}
-          {mapPoints.length > 0 && (
-            <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
-              <div className="p-4 pb-2">
-                <h3 className="font-label-md text-[13px] font-bold text-[#0F172A]">Lokasi</h3>
-                {report.latitude && report.longitude && (
-                  <p className="text-[11px] text-[#64748B] mt-0.5 font-mono">
-                    {report.latitude.toFixed(6)}, {report.longitude.toFixed(6)}
-                  </p>
-                )}
-                {report.full_address && (
-                  <p className="text-[12px] text-[#475569] mt-1 flex items-start gap-1">
-                    <Icon name="map" className="!text-[14px] mt-0.5 shrink-0" />
-                    <span>{report.full_address}</span>
-                  </p>
-                )}
-              </div>
-              <div className="h-48 overflow-hidden" style={{ isolation: "isolate" }}>
-                <ReportMap
-                  points={mapPoints}
-                  onPointClick={(pt) => {
-                    if (userRole === "supervisor") {
-                      const url = `https://www.google.com/maps?q=${pt.lat},${pt.lng}`;
-                      window.open(url, "_blank", "noopener,noreferrer");
-                    } else {
-                      navigate({
-                        to: "/map",
-                        search: { highlight: report.id, lat: pt.lat, lng: pt.lng },
-                      });
-                    }
-                  }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* ── Duplikasi ── */}
-          {report.duplicate_of && (
-            <div className="bg-white border border-[#FDE68A] rounded-xl overflow-hidden">
-              <div className="flex items-start gap-3 p-4">
-                <div className="w-9 h-9 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
-                  <span className="text-[18px]">⚠️</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-[13px] font-bold text-[#92400E] mb-1">
-                    Terindikasi Duplikat
-                  </h3>
-                  <p className="text-[12px] text-[#92400E]/80 mb-2">
-                    Laporan ini memiliki kemiripan dengan laporan{" "}
-                    <strong>{report.duplicate_of.report_code}</strong> (
-                    {report.duplicate_of.road_name}, {report.duplicate_of.district}).
-                  </p>
-                  {report.latitude != null &&
-                    report.longitude != null &&
-                    report.duplicate_of.latitude != null &&
-                    report.duplicate_of.longitude != null && (
-                      <p className="text-[12px] text-[#92400E]/80 mb-2">
-                        Jarak:{" "}
-                        {formatDistance(
-                          haversineDistance(
-                            report.latitude,
-                            report.longitude,
-                            report.duplicate_of.latitude,
-                            report.duplicate_of.longitude,
-                          ),
-                        )}{" "}
-                        dari laporan tersebut
-                      </p>
-                    )}
-                  <div className="flex items-center gap-2">
-                    {report.duplicate_of.latitude && report.duplicate_of.longitude && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          navigate({
-                            to: "/map",
-                            search: {
-                              highlight: report.duplicate_of!.id,
-                              lat: report.duplicate_of!.latitude!,
-                              lng: report.duplicate_of!.longitude!,
-                            },
-                          });
-                        }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-[11px] font-semibold text-[#92400E] hover:bg-amber-100 transition-colors"
-                      >
-                        Lihat di Peta
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </main>
-
-      {renderFooter()}
-
-      {/* ── Tolak Modal ── */}
-      {showTolak && (
-        <ModalBase
-          onClose={() => setShowTolak(false)}
-          icon="block"
-          badge="TOLAK LAPORAN"
-          title="Tolak Laporan"
-          footer={
-            <>
-              <button
-                type="button"
-                disabled={actionLoading || !tolakAlasan.trim()}
-                onClick={handleTolak}
-                className="w-full h-11 bg-[#E11D48] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#BE123C] active:scale-95 transition-all disabled:opacity-50"
-              >
-                {actionLoading ? (
-                  "Memproses…"
-                ) : (
-                  <>
-                    <Icon name="close" className="!text-[18px]" />
-                    Tolak Laporan
-                  </>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowTolak(false)}
-                className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
-              >
-                Batal
-              </button>
-            </>
-          }
-        >
-          <div>
-            <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">
-              Alasan Penolakan <span className="text-[#E11D48]">*</span>
-            </label>
-            <textarea
-              value={tolakAlasan}
-              onChange={(e) => setTolakAlasan(e.target.value)}
-              className="w-full h-24 px-3 py-2 rounded-lg border border-[#D0DAE8] resize-none text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
-              placeholder="Jelaskan alasan mengapa laporan ini ditolak…"
-            />
-          </div>
-          <div>
-            <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">
-              Catatan (opsional)
-            </label>
-            <input
-              value={catatan}
-              onChange={(e) => setCatatan(e.target.value)}
-              className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
-              placeholder="Catatan tambahan…"
-            />
-          </div>
-        </ModalBase>
-      )}
-
-      {/* ── Approve Modal ── */}
-      {showApproval && (
-        <ModalBase
-          onClose={() => setShowApproval(false)}
-          icon="check_circle"
-          badge={["warga", "telegram"].includes(report?.source ?? "") ? "SETUJUI & ANALISIS" : "SETUJUI & TUGASKAN"}
-          title={["warga", "telegram"].includes(report?.source ?? "") ? "Setujui & Analisis AI" : "Setujui & Tugaskan Tim"}
-          footer={
-            <>
-              <button
-                type="button"
-                disabled={actionLoading}
-                onClick={handleSetujui}
-                className="w-full h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-95 transition-all disabled:opacity-50"
-              >
-                {actionLoading ? (
-                  "Memproses…"
-                ) : (
-                  <>
-                    <Icon name="check" className="!text-[18px]" />
-                    {["warga", "telegram"].includes(report?.source ?? "") ? "Setujui & Analisis" : "Setujui & Tugaskan"}
-                  </>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowApproval(false)}
-                className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
-              >
-                Batal
-              </button>
-            </>
-          }
-        >
-          <div className="space-y-4">
-            {["warga", "telegram"].includes(report?.source ?? "") ? (
-              <p className="text-[13px] text-[#475569] leading-relaxed">
-                Laporan akan disetujui. Analisis AI akan berjalan otomatis di latar belakang.
-                Setelah selesai, Anda dapat mengonfirmasi hasil dan menugaskan tim satgas.
-              </p>
-            ) : (
-              <p className="text-[13px] text-[#475569] leading-relaxed">
-                Laporan akan disetujui dan secara otomatis ditugaskan ke tim pelapor.
-              </p>
-            )}
+                  Batal
+                </button>
+              </>
+            }
+          >
             <div>
-              <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">Prioritas</label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as "Rendah" | "Sedang" | "Tinggi")}
-                className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
-              >
-                <option value="Rendah">Rendah</option>
-                <option value="Sedang">Sedang</option>
-                <option value="Tinggi">Tinggi</option>
-              </select>
+              <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">
+                Alasan Penolakan <span className="text-[#E11D48]">*</span>
+              </label>
+              <textarea
+                value={tolakAlasan}
+                onChange={(e) => setTolakAlasan(e.target.value)}
+                className="w-full h-24 px-3 py-2 rounded-lg border border-[#D0DAE8] resize-none text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+                placeholder="Jelaskan alasan mengapa laporan ini ditolak…"
+              />
             </div>
-          </div>
-        </ModalBase>
-      )}
+            <div>
+              <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">
+                Catatan (opsional)
+              </label>
+              <input
+                value={catatan}
+                onChange={(e) => setCatatan(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+                placeholder="Catatan tambahan…"
+              />
+            </div>
+          </ModalBase>
+        )}
 
-      {/* ── Estimasi Modal (mulai perbaikan) ── */}
-      {showEstimasi && report && (
-        <ModalBase
-          onClose={() => setShowEstimasi(false)}
-          icon="play_arrow"
-          badge="MULAI PENGERJAAN"
-          title="Estimasi Waktu Penyelesaian"
-          footer={
-            <>
-              <button
-                type="button"
-                disabled={actionLoading}
-                onClick={handleMulaiEksekusi}
-                className="w-full h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-95 transition-all disabled:opacity-50"
-              >
-                {actionLoading ? (
-                  "Memproses…"
-                ) : (
-                  <>
-                    <Icon name="play_arrow" className="!text-[18px]" />
-                    Mulai Pengerjaan
-                  </>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowEstimasi(false)}
-                className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
-              >
-                Batal
-              </button>
-            </>
-          }
-        >
-          <div>
-            <p className="text-[13px] text-[#475569] mb-4 leading-relaxed">
-              Perkirakan waktu yang dibutuhkan untuk menyelesaikan perbaikan laporan ini.
-            </p>
-            <div className="space-y-3">
-              <label
-                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                  estimasiMode === "same-day"
-                    ? "border-[#1A4F8A] bg-[#EFF6FF]"
-                    : "border-[#D0DAE8] bg-white"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="estimasi"
-                  checked={estimasiMode === "same-day"}
-                  onChange={() => setEstimasiMode("same-day")}
-                  className="accent-[#1A4F8A]"
-                />
-                <div>
-                  <p className="text-[13px] font-semibold text-[#0F172A]">Same day</p>
-                  <p className="text-[11px] text-[#64748B]">Selesai hari ini juga</p>
-                </div>
-              </label>
-              <label
-                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                  estimasiMode === "multi-day"
-                    ? "border-[#1A4F8A] bg-[#EFF6FF]"
-                    : "border-[#D0DAE8] bg-white"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="estimasi"
-                  checked={estimasiMode === "multi-day"}
-                  onChange={() => setEstimasiMode("multi-day")}
-                  className="accent-[#1A4F8A]"
-                />
-                <div>
-                  <p className="text-[13px] font-semibold text-[#0F172A]">Estimasi hari</p>
-                  <p className="text-[11px] text-[#64748B]">Butuh beberapa hari pengerjaan</p>
-                </div>
-              </label>
-              {estimasiMode === "multi-day" && (
-                <div className="pl-8">
-                  <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">
-                    Berapa hari?
-                  </label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    max={90}
-                    value={estimasiHari}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      if (raw === "") { setEstimasiHari(1); return; }
-                      const num = parseInt(raw, 10);
-                      if (!isNaN(num)) setEstimasiHari(Math.max(1, Math.min(90, num)));
-                    }}
-                    className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A] appearance-none [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden"
-                  />
-                </div>
+        {/* ── Approve Modal ── */}
+        {showApproval && (
+          <ModalBase
+            onClose={() => setShowApproval(false)}
+            icon="check_circle"
+            badge={
+              ["warga", "telegram"].includes(report?.source ?? "")
+                ? "SETUJUI & ANALISIS"
+                : "SETUJUI & TUGASKAN"
+            }
+            title={
+              ["warga", "telegram"].includes(report?.source ?? "")
+                ? "Setujui & Analisis AI"
+                : "Setujui & Tugaskan Tim"
+            }
+            footer={
+              <>
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={handleSetujui}
+                  className="w-full h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {actionLoading ? (
+                    "Memproses…"
+                  ) : (
+                    <>
+                      <Icon name="check" className="!text-[18px]" />
+                      {["warga", "telegram"].includes(report?.source ?? "")
+                        ? "Setujui & Analisis"
+                        : "Setujui & Tugaskan"}
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowApproval(false)}
+                  className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
+                >
+                  Batal
+                </button>
+              </>
+            }
+          >
+            <div className="space-y-4">
+              {["warga", "telegram"].includes(report?.source ?? "") ? (
+                <p className="text-[13px] text-[#475569] leading-relaxed">
+                  Laporan akan disetujui. Analisis AI akan berjalan otomatis di latar belakang.
+                  Setelah selesai, Anda dapat mengonfirmasi hasil dan menugaskan tim satgas.
+                </p>
+              ) : (
+                <p className="text-[13px] text-[#475569] leading-relaxed">
+                  Laporan akan disetujui dan secara otomatis ditugaskan ke tim pelapor.
+                </p>
               )}
+              <div>
+                <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">
+                  Prioritas
+                </label>
+                <select
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as "Rendah" | "Sedang" | "Tinggi")}
+                  className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+                >
+                  <option value="Rendah">Rendah</option>
+                  <option value="Sedang">Sedang</option>
+                  <option value="Tinggi">Tinggi</option>
+                </select>
+              </div>
             </div>
-          </div>
-        </ModalBase>
-      )}
+          </ModalBase>
+        )}
 
-      {/* ── Confirm Mulai Modal ── */}
-      <ConfirmDialog
-        open={showMulaiConfirm}
-        title="Mulai Pengerjaan?"
-        message={
-          report
-            ? `Mulai perbaikan ${report.report_code} — ${report.road_name}?${
-                estimasiMode === "same-day"
-                  ? "\nEstimasi: Selesai hari ini"
-                  : `\nEstimasi: ${estimasiHari} hari`
-              }`
-            : ""
-        }
-        confirmText="Ya, Mulai"
-        cancelText="Batal"
-        confirmLoading={actionLoading}
-        onConfirm={handleMulaiConfirm}
-        onCancel={() => { setShowMulaiConfirm(false); setShowEstimasi(true); }}
-        icon="play_arrow"
-        confirmClassName="flex-1 px-4 py-2.5 text-[13px] font-bold text-white bg-[#1A4F8A] rounded-xl hover:bg-[#153d6e] disabled:opacity-40 transition-all flex items-center justify-center gap-1.5"
-      />
+        {/* ── Estimasi Modal (mulai perbaikan) ── */}
+        {showEstimasi && report && (
+          <ModalBase
+            onClose={() => setShowEstimasi(false)}
+            icon="play_arrow"
+            badge="MULAI PENGERJAAN"
+            title="Estimasi Waktu Penyelesaian"
+            footer={
+              <>
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={handleMulaiEksekusi}
+                  className="w-full h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {actionLoading ? (
+                    "Memproses…"
+                  ) : (
+                    <>
+                      <Icon name="play_arrow" className="!text-[18px]" />
+                      Mulai Pengerjaan
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowEstimasi(false)}
+                  className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
+                >
+                  Batal
+                </button>
+              </>
+            }
+          >
+            <div>
+              <p className="text-[13px] text-[#475569] mb-4 leading-relaxed">
+                Perkirakan waktu yang dibutuhkan untuk menyelesaikan perbaikan laporan ini.
+              </p>
+              <div className="space-y-3">
+                <label
+                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    estimasiMode === "same-day"
+                      ? "border-[#1A4F8A] bg-[#EFF6FF]"
+                      : "border-[#D0DAE8] bg-white"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="estimasi"
+                    checked={estimasiMode === "same-day"}
+                    onChange={() => setEstimasiMode("same-day")}
+                    className="accent-[#1A4F8A]"
+                  />
+                  <div>
+                    <p className="text-[13px] font-semibold text-[#0F172A]">Same day</p>
+                    <p className="text-[11px] text-[#64748B]">Selesai hari ini juga</p>
+                  </div>
+                </label>
+                <label
+                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    estimasiMode === "multi-day"
+                      ? "border-[#1A4F8A] bg-[#EFF6FF]"
+                      : "border-[#D0DAE8] bg-white"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="estimasi"
+                    checked={estimasiMode === "multi-day"}
+                    onChange={() => setEstimasiMode("multi-day")}
+                    className="accent-[#1A4F8A]"
+                  />
+                  <div>
+                    <p className="text-[13px] font-semibold text-[#0F172A]">Estimasi hari</p>
+                    <p className="text-[11px] text-[#64748B]">Butuh beberapa hari pengerjaan</p>
+                  </div>
+                </label>
+                {estimasiMode === "multi-day" && (
+                  <div className="pl-8">
+                    <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">
+                      Berapa hari?
+                    </label>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={90}
+                      value={estimasiHari}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (raw === "") {
+                          setEstimasiHari(1);
+                          return;
+                        }
+                        const num = parseInt(raw, 10);
+                        if (!isNaN(num)) setEstimasiHari(Math.max(1, Math.min(90, num)));
+                      }}
+                      className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A] appearance-none [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </ModalBase>
+        )}
 
-      {/* ── Progress Update Modal ── */}
-      {showProgressModal && report && (
-        <ProgressUpdateModal
-          reportId={report.id}
-          reportCode={report.report_code}
-          token={token}
-          onClose={() => {
-            setShowProgressModal(false);
-            loadProgress();
+        {/* ── Confirm Mulai Modal ── */}
+        <ConfirmDialog
+          open={showMulaiConfirm}
+          title="Mulai Pengerjaan?"
+          message={
+            report
+              ? `Mulai perbaikan ${report.report_code} — ${report.road_name}?${
+                  estimasiMode === "same-day"
+                    ? "\nEstimasi: Selesai hari ini"
+                    : `\nEstimasi: ${estimasiHari} hari`
+                }`
+              : ""
+          }
+          confirmText="Ya, Mulai"
+          cancelText="Batal"
+          confirmLoading={actionLoading}
+          onConfirm={handleMulaiConfirm}
+          onCancel={() => {
+            setShowMulaiConfirm(false);
+            setShowEstimasi(true);
           }}
-          onSuccess={() => {
-            loadProgress();
-            setActionMsg("Progress berhasil diupload.");
-          }}
+          icon="play_arrow"
+          confirmClassName="flex-1 px-4 py-2.5 text-[13px] font-bold text-white bg-[#1A4F8A] rounded-xl hover:bg-[#153d6e] disabled:opacity-40 transition-all flex items-center justify-center gap-1.5"
         />
-      )}
-    </PageLayout>
 
-    {analyzeStage && (
-      <Portal>
-        <AnalyzingOverlay stage={analyzeStage} variant="single" />
-      </Portal>
-    )}
-  </>
+        {/* ── Progress Update Modal ── */}
+        {showProgressModal && report && (
+          <ProgressUpdateModal
+            reportId={report.id}
+            reportCode={report.report_code}
+            token={token}
+            onClose={() => {
+              setShowProgressModal(false);
+              loadProgress();
+            }}
+            onSuccess={() => {
+              loadProgress();
+              setActionMsg("Progress berhasil diupload.");
+            }}
+          />
+        )}
+      </PageLayout>
+
+      {analyzeStage && (
+        <Portal>
+          <AnalyzingOverlay stage={analyzeStage} variant="single" />
+        </Portal>
+      )}
+    </>
   );
 }
 
@@ -1334,8 +1338,7 @@ function DeadlineCard({
   const isSelesai = ["Selesai", "Ditolak"].includes(status);
 
   function getStartTime(): string {
-    if (status === "Sedang Diperbaiki")
-      return report.perbaikan_dimulai_at || report.created_at;
+    if (status === "Sedang Diperbaiki") return report.perbaikan_dimulai_at || report.created_at;
     if (["Disetujui", "Ditugaskan"].includes(status))
       return report.assigned_at || report.created_at;
     return report.created_at;
@@ -1413,8 +1416,18 @@ function DeadlineCard({
     const d = new Date(iso);
     const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
     const months = [
-      "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-      "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+      "Januari",
+      "Februari",
+      "Maret",
+      "April",
+      "Mei",
+      "Juni",
+      "Juli",
+      "Agustus",
+      "September",
+      "Oktober",
+      "November",
+      "Desember",
     ];
     const dayName = days[d.getDay()];
     const date = d.getDate();
@@ -1455,18 +1468,14 @@ function DeadlineCard({
               style={{ width: `${persen}%`, backgroundColor: colors.hex }}
             />
           </div>
-          <span className={`text-[11px] font-semibold ${colors.text}`}>
-            {Math.round(persen)}%
-          </span>
+          <span className={`text-[11px] font-semibold ${colors.text}`}>{Math.round(persen)}%</span>
         </div>
       )}
 
       <div className="border-t border-[#E2E8F0] pt-3">
         {isSelesai ? (
           <div>
-            <span className="text-[12px] text-[#64748B]">
-              Tidak ada tenggat aktif
-            </span>
+            <span className="text-[12px] text-[#64748B]">Tidak ada tenggat aktif</span>
             {status === "Ditolak" && (
               <div className="flex items-center gap-1 mt-2 text-[11px] text-[#94A3B8]">
                 <Icon name="info" className="!text-[12px] shrink-0" />
@@ -1477,9 +1486,7 @@ function DeadlineCard({
         ) : !isClient ? (
           <span className="text-[12px] text-[#64748B]">Memuat...</span>
         ) : (
-          <span className={`text-[15px] font-bold ${colors.text}`}>
-            {formatCountdown(sisaMs)}
-          </span>
+          <span className={`text-[15px] font-bold ${colors.text}`}>{formatCountdown(sisaMs)}</span>
         )}
       </div>
     </div>

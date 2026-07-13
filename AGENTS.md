@@ -116,7 +116,8 @@ docker compose exec php composer {command}           # composer via Docker
 
 ### Telegram Bot
 
-Webhook endpoint: `POST /telegram/webhook` (no `/api` prefix)
+Webhook endpoint: `POST /telegram/webhook` (no `/api` prefix) — di `routes/web.php`.
+Dikecualikan dari CSRF via `$middleware->validateCsrfTokens()` di `bootstrap/app.php`.
 Set webhook via:
 ```bash
 curl -X POST "https://api.telegram.org/bot{TOKEN}/setWebhook" \

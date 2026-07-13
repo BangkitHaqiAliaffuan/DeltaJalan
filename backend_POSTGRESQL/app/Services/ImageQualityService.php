@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class ImageQualityService
 {
@@ -31,18 +32,33 @@ class ImageQualityService
                 ];
             }
 
+            Log::warning('[ImageQualityService] FastAPI responded with non-success', [
+                'endpoint' => $endpoint,
+                'status' => $response->status(),
+            ]);
+
             return [
                 'success' => false,
                 'status' => 'analysis_error',
                 'error' => "FastAPI responded with HTTP {$response->status()}",
             ];
         } catch (ConnectionException $e) {
+            Log::warning('[ImageQualityService] FastAPI /analyze-quality tidak dapat dijangkau (connection timeout/refused)', [
+                'endpoint' => $endpoint,
+                'error' => $e->getMessage(),
+            ]);
+
             return [
                 'success' => false,
                 'status' => 'analysis_error',
                 'error' => 'Connection failed: '.$e->getMessage(),
             ];
         } catch (\Exception $e) {
+            Log::warning('[ImageQualityService] FastAPI /analyze-quality unexpected error', [
+                'endpoint' => $endpoint,
+                'error' => $e->getMessage(),
+            ]);
+
             return [
                 'success' => false,
                 'status' => 'analysis_error',

@@ -1,11 +1,11 @@
 <?php
 
 use App\Http\Middleware\CheckRole;
+use App\Http\Middleware\EnsureCorsHeaders;
 use App\Http\Middleware\ForceJsonResponse;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use App\Http\Middleware\EnsureCorsHeaders;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -50,6 +50,19 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => CheckRole::class,
         ]);
+
+        /*
+        |----------------------------------------------------------------------
+        | CSRF Exception — Telegram Webhook
+        |----------------------------------------------------------------------
+        |
+        | Telegram mengirim POST tanpa CSRF token ke /telegram/webhook.
+        | Route ini di web.php, jadi perlu dikecualikan dari CSRF protection.
+        |
+        */
+        $middleware->validateCsrfTokens(except: [
+            'telegram/webhook',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         /*
@@ -75,9 +88,10 @@ return Application::configure(basePath: dirname(__DIR__))
         |
         */
         $exceptions->respond(function (Response $response, Throwable $e, Request $request) {
-            if ($request->is('api/*') && !$response->headers->has('Access-Control-Allow-Origin')) {
+            if ($request->is('api/*') && ! $response->headers->has('Access-Control-Allow-Origin')) {
                 $response->headers->set('Access-Control-Allow-Origin', $request->headers->get('Origin', '*'));
             }
+
             return $response;
         });
     })->create();

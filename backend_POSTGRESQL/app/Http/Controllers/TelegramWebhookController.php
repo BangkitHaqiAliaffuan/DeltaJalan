@@ -438,11 +438,32 @@ class TelegramWebhookController extends Controller
 
         if ($quality !== null && $quality['blocked']) {
             $this->telegram->sendMessage($chatId,
-                'Foto terlalu '.($quality['status'] === 'blurry' ? 'kabur' : 'gelap').'. Silakan kirim ulang foto dengan pencahayaan dan fokus yang baik.'."\n\nKetik /lapor untuk mencoba lagi."
+                'Foto terlalu '.($quality['status'] === 'blurry' ? 'kabur' : 'gelap').'. Silakan kirim ulang foto dengan pencahayaan dan fokus yang baik.'."\n\nKetik /lapor untuk coba lagi."
             );
             $session->update(['state' => 'idle', 'data' => null]);
 
+            Log::info('[Telegram] handlePhoto — quality check blocked', [
+                'chat_id' => $chatId,
+                'status' => $quality['status'],
+                'blurScore' => $quality['blurScore'],
+                'meanBrightness' => $quality['meanBrightness'],
+            ]);
+
             return response()->json(['ok' => true]);
+        }
+
+        if ($quality === null) {
+            Log::warning('[Telegram] handlePhoto — quality check bypassed (FastAPI unreachable)', [
+                'chat_id' => $chatId,
+                'photo_path' => $path,
+            ]);
+        } else {
+            Log::info('[Telegram] handlePhoto — quality check passed', [
+                'chat_id' => $chatId,
+                'status' => $quality['status'],
+                'blurScore' => $quality['blurScore'],
+                'meanBrightness' => $quality['meanBrightness'],
+            ]);
         }
 
         $data = $session->data ?? [];
@@ -564,11 +585,32 @@ class TelegramWebhookController extends Controller
 
         if ($quality !== null && $quality['blocked']) {
             $this->telegram->sendMessage($chatId,
-                'Foto terlalu '.($quality['status'] === 'blurry' ? 'kabur' : 'gelap').'. Silakan kirim ulang foto dengan pencahayaan dan fokus yang baik.'."\n\nKetik /lapor untuk mencoba lagi."
+                'Foto terlalu '.($quality['status'] === 'blurry' ? 'kabur' : 'gelap').'. Silakan kirim ulang foto dengan pencahayaan dan fokus yang baik.'."\n\nKetik /lapor untuk coba lagi."
             );
             $session->update(['state' => 'idle', 'data' => null]);
 
+            Log::info('[Telegram] handleDocument — quality check blocked', [
+                'chat_id' => $chatId,
+                'status' => $quality['status'],
+                'blurScore' => $quality['blurScore'],
+                'meanBrightness' => $quality['meanBrightness'],
+            ]);
+
             return response()->json(['ok' => true]);
+        }
+
+        if ($quality === null) {
+            Log::warning('[Telegram] handleDocument — quality check bypassed (FastAPI unreachable)', [
+                'chat_id' => $chatId,
+                'photo_path' => $path,
+            ]);
+        } else {
+            Log::info('[Telegram] handleDocument — quality check passed', [
+                'chat_id' => $chatId,
+                'status' => $quality['status'],
+                'blurScore' => $quality['blurScore'],
+                'meanBrightness' => $quality['meanBrightness'],
+            ]);
         }
 
         $data = $session->data ?? [];

@@ -157,38 +157,57 @@ export function getSeverityConfig(key: string | null | undefined) {
 // Severity color mapping
 export const SEVERITY_CONFIG: Record<
   string,
-  { bg: string; text: string; border: string; label: string }
+  { bg: string; text: string; border: string; label: string; color: string }
 > = {
   "Rusak Berat": {
     bg: "bg-[#E11D48]",
     text: "text-white",
     border: "border-[#E11D48]",
     label: "Rusak Berat",
+    color: "#E11D48",
   },
   "Rusak Sedang": {
     bg: "bg-orange-50",
     text: "text-[#F97316]",
     border: "border-orange-200",
     label: "Rusak Sedang",
+    color: "#F97316",
   },
   "Rusak Ringan": {
     bg: "bg-amber-50",
     text: "text-[#F59E0B]",
     border: "border-amber-200",
     label: "Rusak Ringan",
+    color: "#F59E0B",
   },
   Baik: {
     bg: "bg-emerald-50",
     text: "text-[#10B981]",
     border: "border-emerald-200",
     label: "Baik",
+    color: "#10B981",
   },
 };
 
+// ── Damage class config ──────────────────────────────────────────────────
+
+export const CLASS_CONFIG: Record<string, { icon: string; color: string; bg: string }> = {
+  Lubang: { icon: "circle", color: "#E11D48", bg: "bg-[#E11D48]/15" },
+  "Retak Kulit Buaya": { icon: "grid_view", color: "#F97316", bg: "bg-[#F97316]/15" },
+  "Retak Memanjang": { icon: "straight", color: "#F59E0B", bg: "bg-[#F59E0B]/15" },
+  "Retak Melintang": { icon: "horizontal_rule", color: "#1A4F8A", bg: "bg-[#1A4F8A]/15" },
+};
+
+export function getClassConfig(label: string | undefined | null) {
+  return (
+    CLASS_CONFIG[label ?? ""] ?? { icon: "help_outline", color: "#64748B", bg: "bg-[#64748B]/15" }
+  );
+}
+
 // ── API Configuration ─────────────────────────────────────────────────────
-// Di browser: path relatif agar Vite proxy → Laravel (port 8080)
-// Di Capacitor: perlu full URL karena tidak ada Vite proxy.
-// Capacitor injects window.Capacitor — dicek tanpa import agar bundle aman.
+// VITE_API_BASE_URL bisa absolute (production: https://api.deltajalan.web.id/api)
+// atau relative (fallback: /api → Vite proxy handle).
+// Kedua mode (browser & Capacitor) pakai URL yang sama dari .env.
 function getApiBaseUrl(): string {
   if (
     typeof window !== "undefined" &&
@@ -196,11 +215,21 @@ function getApiBaseUrl(): string {
     (window as Record<string, unknown>).Capacitor.isNativePlatform?.() === true
   ) {
     const url = import.meta.env.VITE_API_BASE_URL ?? "http://10.0.2.2:8080/api";
-    console.log("[DEBUG] getApiBaseUrl — Capacitor path, VITE_API_BASE_URL:", import.meta.env.VITE_API_BASE_URL, "→ returns:", url);
+    console.log(
+      "[DEBUG] getApiBaseUrl — Capacitor path, VITE_API_BASE_URL:",
+      import.meta.env.VITE_API_BASE_URL,
+      "→ returns:",
+      url,
+    );
     return url;
   }
   const url = import.meta.env.VITE_API_BASE_URL ?? "/api";
-  console.log("[DEBUG] getApiBaseUrl — Browser path, VITE_API_BASE_URL:", import.meta.env.VITE_API_BASE_URL, "→ returns:", url);
+  console.log(
+    "[DEBUG] getApiBaseUrl — Browser path, VITE_API_BASE_URL:",
+    import.meta.env.VITE_API_BASE_URL,
+    "→ returns:",
+    url,
+  );
   return url;
 }
 

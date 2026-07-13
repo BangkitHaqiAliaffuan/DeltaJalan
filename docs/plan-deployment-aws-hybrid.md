@@ -16,6 +16,7 @@
 6. [Phase 4: GitHub Actions CI/CD](#6-phase-4-github-actions-cicd)
 7. [Phase 5: Domain & DNS](#7-phase-5-domain--dns)
 8. [Phase 6: Monitoring & Maintenance](#8-phase-6-monitoring--maintenance)
+    - 8.7 [Logging Improvements](#87-logging-improvements)
 9. [Biaya Total](#9-biaya-total)
 10. [Risk Register](#10-risk-register)
 11. [Urutan Eksekusi](#11-urutan-eksekusi)
@@ -75,12 +76,22 @@
 ```
 1. User buka app.xxx.com → Vercel SSR TanStack Start
 2. User submit laporan → Frontend POST /api/reports → Vercel proxy → api.xxx.com (Lightsail)
-3. Laravel terima foto → simpan ke storage/app/public/
-4. Laravel forward foto ke Lambda URL → POST /analyze
+3. Laravel terima foto:
+   a. Validasi input + Sidoarjo boundary check
+   b. MobileCLIP relevance check (POST /analyze-relevance → Lambda/Local AI)
+   c. Image quality check (POST /analyze-quality → Lambda/Local AI / PHP native)
+   d. Simpan foto ke storage/app/public/
+4. Laravel forward foto ke Lambda URL → POST /analyze (YOLO WBF ensemble)
 5. Lambda load 2 model ONNX → inference parallel → WBF ensemble → return JSON
-6. Laravel simpan hasil deteksi + severity ke PostgreSQL
-7. Return response ke frontend
+6. Laravel simpan: deteksi, severity, ai_analyzed_at, ai_analysis_count
+7. Return response + ai_severity + ai_total_detections ke frontend
 8. Frontend tampilkan hasil ke user
+
+Alur Telegram (tambahan — quality + relevance di-cek saat UPLOAD foto, bukan konfirmasi):
+1. User kirim foto → EXIF + date validasi
+2. MobileCLIP relevance check → jika tidak relevan, reject langsung
+3. Image quality check → jika blur/too_dark, reject langsung
+4. Baru minta lokasi → deskripsi → dimensi → konfirmasi
 ```
 
 ### Alur Deploy
@@ -144,6 +155,26 @@ Akun dibuat **setelah 15 Juli 2025**:
 
 > **Tujuan:** Ganti FastAPI server (`server.py` yang berjalan di `:8000`) dengan AWS Lambda yang di-trigger via Function URL.
 > **Mengapa Lambda?** Always Free (1M request + 400K GB-detik/bln), tidak perlu bayar server idle.
+
+### Catatan: Service yang Tetap di Laravel (Bukan Lambda)
+
+Dua endpoint AI **tidak perlu di-port ke Lambda** karena sudah disediakan service PHP-native:
+
+| Service | File | Endpoint FastAPI Asli | Cara Baru |
+|---|---|---|---|
+| **MobileCLIP relevance** | `app/Services/MobileClipService.php` | `POST /analyze-relevance` | PHP HTTP call ke Lambda (tetap forward) — atau skip jika tidak diperlukan |
+| **Image quality check** | `app/Services/ImageQualityService.php` | `POST /analyze-quality` ✅ **BARU** | PHP HTTP call ke Lambda / bisa di-port ke PHP native (GD/Imagick) |
+
+**ImageQualityService** (ditambahkan Juli 2026):
+- Mendeteksi: blur (Laplacian variance), terlalu gelap, terlalu terang, kontras rendah
+- Threshold sama persis dengan frontend: blur < 100, dark < 50, bright > 200, contrast < 25
+- Graceful degradation: jika FastAPI unreachable → skip check (return null, log warning)
+- Dipanggil di: `TelegramWebhookController@handlePhoto` + `@handleDocument` (saat upload foto, bukan saat konfirmasi)
+
+**MobileClipService** (existing):
+- Relevance guard menggunakan MobileCLIP2-S0
+- Threshold: relevance score < 0.15 → block
+- Juga dipanggil saat upload foto di Telegram flow
 
 ### 3.1 Export Model ke ONNX
 
@@ -356,28 +387,42 @@ def _preprocess(img: Image.Image) -> np.ndarray:
 
 def _run_onnx(session: ort.InferenceSession, tensor: np.ndarray) -> list[list[float]]:
     """
-    Run ONNX inference, parse output tensor (nx6: x1,y1,x2,y2,conf,cls).
-    Output YOLOv8: [1, 84, 8400] → transpose, filter, scale.
+    Run ONNX inference, parse output tensor.
+    Output YOLOv8: shape [1, num_classes+4, num_anchors] → transpose, filter by conf.
     """
     outputs = session.run(None, {INPUT_NAME: tensor})
-    predictions = np.squeeze(outputs[0]).T  # (8400, 84)
+    raw = outputs[0]  # shape: [1, C, N] where C = 4 bbox + num_classes
 
-    # Filter by confidence
-    mask = predictions[:, 4] >= CONF_THRESHOLD
+    predictions = np.squeeze(raw).T  # → [N, C]
+
+    # bbox coords are in predictions[:, 0:4] (cx, cy, w, h)
+    # class scores start at predictions[:, 4:]
+    num_classes = predictions.shape[1] - 4
+
+    if num_classes < 1:
+        return []
+
+    class_scores = predictions[:, 4:]           # [N, num_classes]
+    confidences = class_scores.max(axis=1)       # [N]
+    class_ids = class_scores.argmax(axis=1)      # [N]
+
+    mask = confidences >= CONF_THRESHOLD
     predictions = predictions[mask]
+    confidences = confidences[mask]
+    class_ids = class_ids[mask]
 
     if len(predictions) == 0:
         return []
 
     boxes = []
-    for pred in predictions:
+    for i, pred in enumerate(predictions):
         xc, yc, w, h = pred[0], pred[1], pred[2], pred[3]
-        x1 = int((xc - w / 2) * (640 / 640))  # scale to 640 coords
-        y1 = int((yc - h / 2) * (640 / 640))
-        x2 = int((xc + w / 2) * (640 / 640))
-        y2 = int((yc + h / 2) * (640 / 640))
-        conf = float(pred[4])
-        cls = int(pred[5:].argmax())
+        x1 = int(xc - w / 2)
+        y1 = int(yc - h / 2)
+        x2 = int(xc + w / 2)
+        y2 = int(yc + h / 2)
+        conf = float(confidences[i])
+        cls = int(class_ids[i])
         boxes.append([x1, y1, x2, y2, conf, cls])
 
     return boxes
@@ -600,17 +645,27 @@ def _draw_detections(
     img_cv: np.ndarray,
     merged_boxes: list[list[float]],
 ) -> tuple[str, list[dict[str, Any]], str]:
-    """Draw bounding boxes + encode to base64 JPEG."""
+    """
+    Draw bounding boxes + encode to base64 JPEG.
+    Input boxes are normalized (0-1), scale to pixel untuk drawing.
+    Bbox di response tetap normalized (0-1) untuk frontend overlay.
+    """
     h_img, w_img = img_cv.shape[:2]
     line_w = max(4, int(min(w_img, h_img) * 0.003))
     label_scale = max(0.55, round(min(w_img, h_img) * 0.0004, 2))
     label_th = max(1, int(min(w_img, h_img) * 0.0008))
 
     detections: list[dict[str, Any]] = []
-    for x1, y1, x2, y2, conf, cls in merged_boxes:
+    for x1n, y1n, x2n, y2n, conf, cls in merged_boxes:
         cls = int(cls)
         name = CLASS_LABELS.get(cls, "Unknown")
         sev = SEVERITY_MAP.get(name, "Rusak Ringan")
+
+        # Scale normalized (0-1) to pixel coordinates for drawing
+        x1 = int(x1n * w_img)
+        y1 = int(y1n * h_img)
+        x2 = int(x2n * w_img)
+        y2 = int(y2n * h_img)
 
         area_px = (x2 - x1) * (y2 - y1)
         if cls == 0 and area_px < SMALL_BBOX_AREA_RATIO * w_img * h_img:
@@ -632,7 +687,7 @@ def _draw_detections(
             "severity": sev,
             "confidence": round(conf, 3),
             "confidence_pct": f"{conf:.0%}",
-            "bbox": {"x1": x1, "y1": y1, "x2": x2, "y2": y2},
+            "bbox": {"x1": x1n, "y1": y1n, "x2": x2n, "y2": y2n},
             "area_px": area_px,
         })
 
@@ -822,9 +877,9 @@ Outputs:
 **Metode A — Via AWS CLI (paling sederhana):**
 
 ```bash
-# Build Docker image
+# Build Docker image (wajib linux/amd64 untuk Lambda + DOCKER_BUILDKIT=0 agar manifest OCI)
 cd backend_AI/lambda
-docker build -t jalankita-ai .
+DOCKER_BUILDKIT=0 docker build --platform linux/amd64 -t jalankita-ai .
 
 # Login ECR
 aws ecr get-login-password --region ap-southeast-1 | \
@@ -999,9 +1054,9 @@ sudo systemctl start postgresql
 
 ```bash
 cd /tmp
-php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
-php composer-setup.php --install-dir=/usr/local/bin --filename=composer
-php -r "unlink('composer-setup.php');"
+sudo php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+sudo php composer-setup.php --install-dir=/usr/local/bin --filename=composer
+sudo php -r "unlink('composer-setup.php');"
 composer --version
 ```
 
@@ -1035,15 +1090,15 @@ sudo -u postgres psql
 ```
 
 ```sql
-CREATE DATABASE jalankita;
-CREATE USER jalankita WITH PASSWORD 'GantiDenganPasswordKuat123!';
-GRANT ALL PRIVILEGES ON DATABASE jalankita TO jalankita;
+CREATE DATABASE deltajalan_backend;
+CREATE USER deltajalan WITH PASSWORD 'GantiDenganPasswordKuat123!';
+GRANT ALL PRIVILEGES ON DATABASE deltajalan_backend TO deltajalan;
 
 -- Beri akses schema public
-\c jalankita
-GRANT ALL ON SCHEMA public TO jalankita;
-GRANT ALL ON ALL TABLES IN SCHEMA public TO jalankita;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO jalankita;
+\c deltajalan_backend
+GRANT ALL ON SCHEMA public TO deltajalan;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO deltajalan;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO deltajalan;
 
 \q
 ```
@@ -1068,8 +1123,8 @@ APP_URL=https://api.jalankita.sidoarjo.go.id
 DB_CONNECTION=pgsql
 DB_HOST=localhost
 DB_PORT=5432
-DB_DATABASE=jalankita
-DB_USERNAME=jalankita
+DB_DATABASE=deltajalan_backend
+DB_USERNAME=deltajalan
 DB_PASSWORD=GantiDenganPasswordKuat123!
 
 SESSION_DRIVER=database
@@ -1081,7 +1136,25 @@ QUEUE_CONNECTION=database
 
 FILESYSTEM_DISK=local
 
+# ── AI Service (Lambda Function URL) ──
 FASTAPI_URL=https://xxxxx.lambda-url.ap-southeast-1.on.aws/
+
+# ── Google reCAPTCHA v3 ──
+# Aktifkan untuk production — kosongkan untuk development (skip verify)
+RECAPTCHA_SECRET=6LezSUstAAAAABxHH5tTUlEtSnDT4z3cu8ng390u
+
+# ── LocationIQ (reverse geocoding) ──
+LOCATIONIQ_KEY=pk.f5d5ab673156566cb03ba95c9e4ab2ee
+
+# ── Telegram Bot ──
+TELEGRAM_BOT_TOKEN=8756306369:AAG_3bySmTBqhaZwuDd6ZLPUCtTwLw1Wtwk
+TELEGRAM_WEBHOOK_SECRET=jalankita-telegram-2026
+# Set webhook URL: https://api.jalankita.go.id/api/telegram/webhook
+
+# ── VAPID Keys (WebPush notifications) ──
+VAPID_PUBLIC_KEY=BJ2Y0r8-5g9AwX9v19hT599mpmJqZM9yjNSe3qmzD8UGf6dEYb8PHwEHbe4Fs0PZBJy8TZM1-W-jAbweuUtN-e0
+VAPID_PRIVATE_KEY=UImFGElzAiyjGMWeWLNZhadRpoG3I6BF_T8eqbDshSY
+VAPID_SUBJECT=mailto:admin@dispu.binamarga.go.id
 
 LOG_CHANNEL=stack
 LOG_LEVEL=warning
@@ -1322,18 +1395,33 @@ Jangan buka port 5432 (PostgreSQL) — cukup koneksi lokal via unix socket.
 
 ---
 
-## 5. Phase 3: Frontend Vercel
+## 5. Phase 3: ✅ Frontend Vercel (Sudah Berjalan)
 
-> **Tujuan:** TanStack Start SSR berjalan di Vercel Hobby ($0/bln) dengan Nitro.
+> **Status:** ✅ **SUDAH DEPLOY** — Frontend TanStack Start SSR berjalan di Vercel Hobby ($0/bln).
+> **Domain:** [https://app.jalankita.sidoarjo.go.id](https://app.jalankita.sidoarjo.go.id) (atau vercel.app sementara)
+> **Auto-deploy:** Setiap push ke `main` — Vercel otomatis build + deploy.
 
-### 5.1 Install Nitro
+### 5.0 Catatan Deploy yang sudah dilakukan
+
+```bash
+# Root directory di Vercel: Frontend-stable/
+# Framework preset: Otomatis detect TanStack Start
+# Build command: default (Vite + Nitro)
+# Env vars sudah di-set di dashboard Vercel
+
+# VITE_API_BASE_URL: https://api.jalankita.sidoarjo.go.id/api
+# VITE_LOCATIONIQ_KEY: pk.xxxx
+# VITE_RECAPTCHA_SITE_KEY: 6Lezxxxx (aktifkan untuk production)
+```
+
+### 5.1 Install Nitro (referensi — sudah dilakukan)
 
 ```bash
 cd Frontend-stable
 npm install nitro
 ```
 
-### 5.2 Update vite.config.ts
+### 5.2 Update vite.config.ts (referensi — sudah dilakukan)
 
 File: `Frontend-stable/vite.config.ts`
 
@@ -1581,9 +1669,10 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: jalankita-ai
           IMAGE_TAG: ${{ github.sha }}
+          DOCKER_BUILDKIT: 0
         run: |
           cd backend_AI/lambda
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker build --platform linux/amd64 -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
@@ -1774,6 +1863,34 @@ crontab -l | { cat; echo "0 3 * * * /home/ubuntu/backup.sh"; } | crontab -
 }
 ```
 
+### 8.7 Logging Improvements (Identified in Audit — Perlu Dilakukan)
+
+Beberapa service saat ini **silent saat error** — perlu ditambah logging agar debug lebih mudah:
+
+| Service | Masalah | Fix |
+|---|---|---|
+| `ImageQualityService.php` | Tidak log apapun saat FastAPI unreachable — bypass terjadi diam-diam | Tambah `Log::warning()` di catch block |
+| `TelegramWebhookController::handlePhoto()` | Tidak log hasil quality check (pass/block/bypass) | Tambah `Log::info()` setiap quality check selesai |
+| `MobileClipService.php` | Sama — silent saat FastAPI unreachable | Tambah `Log::warning()` |
+| `TelegramService::submitReport()` | Error hanya log `error` tanpa detail | Tambah context: `photo_path`, `mobileclip_score`, `quality_scores` |
+
+**Contoh logging yang perlu ditambahkan:**
+```php
+// ImageQualityService.php — catch block
+Log::warning('[ImageQualityService] FastAPI /analyze-quality tidak dapat dijangkau', [
+    'endpoint' => $endpoint,
+    'error' => $e->getMessage(),
+]);
+
+// TelegramWebhookController.php — handlePhoto
+Log::info('[Telegram] Quality check at upload', [
+    'chat_id' => $chatId,
+    'status' => $quality['status'] ?? 'bypass',
+    'blurScore' => $quality['blurScore'] ?? null,
+    'meanBrightness' => $quality['meanBrightness'] ?? null,
+]);
+```
+
 ---
 
 ## 9. Biaya Total
@@ -1831,6 +1948,11 @@ crontab -l | { cat; echo "0 3 * * * /home/ubuntu/backup.sh"; } | crontab -
 | R8 | GitHub Actions SSH timeout >15m | Low | Rendah — deploy gagal | Retry; split composer install ke step terpisah |
 | R9 | Domain .go.id sulit didapat | Medium | Tinggi — pakai domain lain | Siapkan .com atau .sch.id sebagai cadangan |
 | R10 | ngrok URL berubah (dev) | Low | Rendah | Hanya untuk development; production pakai Lightsail |
+| R11 | **Zero test coverage** (0%) | High | Tinggi — regression tidak terdeteksi | Prioritaskan test untuk core business logic (store, storePublic, analyze) |
+| R12 | **Logging terlalu silent** — ImageQualityService & MobileClipService tidak log error | Medium | Medium — sulit debug bypass | Tambah `Log::warning()` saat FastAPI unreachable |
+| R13 | **Telegram quality check bypass** jika FastAPI mati | Medium | Tinggi — foto blur lolos | Logging; pertimbangkan port quality check ke PHP native (GD library) |
+| R14 | **Orphan records 500+** di DB (user_id tidak ada) | Medium | Medium — data tidak bisa di-query | Cleanup sebelum migrasi production |
+| R15 | **AnalyzeReportJob tidak pernah di-dispatch** — async fallback tidak jalan | Low | Rendah — sync sudah jalan | Integrasikan di `processAndCreateReport()` |
 
 ---
 
@@ -1848,25 +1970,31 @@ crontab -l | { cat; echo "0 3 * * * /home/ubuntu/backup.sh"; } | crontab -
 | 6 | **Phase 2** | Launch Lightsail + provisioning | 2-3 jam | AWS akun |
 | 7 | **Phase 2** | Setup Laravel + Nginx + DB | 2 jam | Step 6 |
 | 8 | **Phase 2** | Setup Supervisor + Cron + Optimasi RAM | 1 jam | Step 7 |
-| 9 | **Phase 3** | Install Nitro, update vite.config, test build | 1 jam | Repo lokal |
-| 10 | **Phase 3** | Deploy ke Vercel + set env vars | 30 menit | Step 9 |
-| 11 | **Phase 4** | Setup SSH key + GitHub Secrets | 15 menit | Step 6 |
-| 12 | **Phase 4** | Buat workflow backend + AI | 1 jam | Step 11 |
-| 13 | **Phase 5** | Cloudflare DNS + SSL Certbot | 1 jam | Domain + Step 6 |
+| 9 | **Phase 3** | ✅ Install Nitro, update vite.config, test build | ✅ **SELESAI** | — |
+| 10 | **Phase 3** | ✅ Deploy ke Vercel + set env vars | ✅ **SELESAI** | — |
+| 11 | **Phase 3** | ✅ Custom domain + auto-deploy | ✅ **SELESAI** | — |
+| 12 | **Phase 4** | Setup SSH key + GitHub Secrets | 15 menit | Step 6 |
+| 13 | **Phase 4** | Buat workflow backend + AI | 1 jam | Step 12 |
+| 14 | **Phase 5** | Cloudflare DNS + SSL Certbot | 1 jam | Domain + Step 6 |
+| 15 | **Phase 6** | Setup backup + monitoring + logging improvements | 1 jam | Step 14 |
 
-### Checklist Go-Live
+### Checklist Go-Live (Update Juli 2026)
 
-- [ ] Lambda: `curl` test AI inference sukses
-- [ ] Lightsail: `php artisan test` lulus (atau test endpoint /api/health)
-- [ ] Vercel: frontend bisa diakses via domain
-- [ ] Lightsail: queue worker berjalan (`supervisorctl status`)
-- [ ] Lightsail: cron scheduler berjalan (`php artisan schedule:list`)
-- [ ] Lightsail: SSL valid (`curl -I https://api.domain.com`)
-- [ ] CI/CD: Push ke `main` → backend auto-deploy
-- [ ] CI/CD: Health check berjalan tiap 30 menit
-- [ ] Backup: cron backup berjalan (`ls -la /home/ubuntu/backups/`)
-- [ ] Monitoring: billing alert AWS aktif
+✅ = Already done  |  ☐ = Still needs to be done
+
+- ☐ **Lambda**: `curl` test AI inference sukses
+- ☐ **Lightsail**: `php artisan test` lulus (atau test endpoint /api/health)
+- ☐ **Lightsail**: logging improvements ditambahkan (`ImageQualityService` + `TelegramWebhookController`)
+- ✅ **Vercel**: frontend sudah deploy + domain — selesai
+- ☐ **Lightsail**: queue worker berjalan (`supervisorctl status`)
+- ☐ **Lightsail**: cron scheduler berjalan (`php artisan schedule:list`)
+- ☐ **Lightsail**: SSL valid (`curl -I https://api.domain.com`)
+- ☐ **CI/CD**: Push ke `main` → backend auto-deploy
+- ☐ **CI/CD**: Health check berjalan tiap 30 menit
+- ☐ **Backup**: cron backup berjalan (`ls -la /home/ubuntu/backups/`)
+- ☐ **Monitoring**: billing alert AWS aktif
+- ☐ **DB Cleanup**: hapus 500+ orphan records sebelum migrasi data dev
 
 ---
 
-> **Dokumen ini dibuat Juni 2026.** Harga dan kebijakan AWS/GitHub/Vercel dapat berubah. Selalu cek halaman pricing resmi sebelum eksekusi.
+> **Dokumen ini diperbarui 10 Juli 2026.** Harga dan kebijakan AWS/GitHub/Vercel dapat berubah. Selalu cek halaman pricing resmi sebelum eksekusi.

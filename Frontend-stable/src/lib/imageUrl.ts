@@ -34,12 +34,10 @@ export function resolveImageUrl(url: string | null | undefined): string | null {
     }
     return url;
   } catch {
-    if (isNative) {
-      const apiOrigin = getApiOrigin();
-      if (apiOrigin) {
-        const sep = url.startsWith("/") ? "" : "/";
-        return `${apiOrigin}${sep}${url}`;
-      }
+    const apiOrigin = getApiOrigin();
+    if (apiOrigin) {
+      const sep = url.startsWith("/") ? "" : "/";
+      return `${apiOrigin}${sep}${url}`;
     }
     return url;
   }

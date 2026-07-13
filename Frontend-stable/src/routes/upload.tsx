@@ -5,7 +5,12 @@ import { PageLayout } from "@/components/jk/PageLayout";
 import { getCurrentUser, getToken } from "@/lib/auth";
 import { useSurveyList } from "@/hooks/useSurveyQueries";
 import { usePatrolSchedules } from "@/hooks/usePatrolScheduleQueries";
-import { readExifGps, isNativePlatform, convertFileSrc, nativeTakePhoto } from "@/hooks/useLocationFromPhoto";
+import {
+  readExifGps,
+  isNativePlatform,
+  convertFileSrc,
+  nativeTakePhoto,
+} from "@/hooks/useLocationFromPhoto";
 import { PhotoExifGps } from "@jalankita/capacitor-exif-gps";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -105,14 +110,12 @@ function UploadPage() {
   const actualTasks = tasks;
   const actualIsFetching = isFetching;
 
-  const schedulesQuery = usePatrolSchedules(
-    teamId ? { team_id: teamId } : undefined,
-  );
+  const schedulesQuery = usePatrolSchedules(teamId ? { team_id: teamId } : undefined);
   const schedules: PatrolSchedule[] =
     (schedulesQuery.data as { data?: PatrolSchedule[] })?.data ?? [];
 
   function isPatrolDay(date: Date, schedule: PatrolSchedule): boolean {
-    const dayNames = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
+    const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
     const dayName = dayNames[date.getDay()];
     if (!schedule.hari.includes(dayName as any)) return false;
 
@@ -125,7 +128,7 @@ function UploadPage() {
         dateWeekStart.setDate(dateWeekStart.getDate() - dateWeekStart.getDay());
         dateWeekStart.setHours(0, 0, 0, 0);
         const weeks = Math.floor(
-          (dateWeekStart.getTime() - startWeekStart.getTime()) / (7 * 86400000)
+          (dateWeekStart.getTime() - startWeekStart.getTime()) / (7 * 86400000),
         );
         return weeks % 2 === 0;
       }
@@ -513,7 +516,9 @@ function UploadPage() {
         severity: d.severity ?? analyzeJson.overall_severity,
         confidence: d.confidence,
         bbox: d.bbox
-          ? { x1: d.bbox[0] ?? 0, y1: d.bbox[1] ?? 0, x2: d.bbox[2] ?? 0, y2: d.bbox[3] ?? 0 }
+          ? Array.isArray(d.bbox)
+            ? { x1: d.bbox[0], y1: d.bbox[1], x2: d.bbox[2], y2: d.bbox[3] }
+            : { x1: d.bbox.x1 ?? 0, y1: d.bbox.y1 ?? 0, x2: d.bbox.x2 ?? 0, y2: d.bbox.y2 ?? 0 }
           : { x1: 0, y1: 0, x2: 0, y2: 0 },
       }));
 
@@ -614,7 +619,9 @@ function UploadPage() {
           severity: d.severity ?? a.severity,
           confidence: d.confidence,
           bbox: d.bbox
-            ? { x1: d.bbox[0] ?? 0, y1: d.bbox[1] ?? 0, x2: d.bbox[2] ?? 0, y2: d.bbox[3] ?? 0 }
+            ? Array.isArray(d.bbox)
+              ? { x1: d.bbox[0], y1: d.bbox[1], x2: d.bbox[2], y2: d.bbox[3] }
+              : { x1: d.bbox.x1 ?? 0, y1: d.bbox.y1 ?? 0, x2: d.bbox.x2 ?? 0, y2: d.bbox.y2 ?? 0 }
             : { x1: 0, y1: 0, x2: 0, y2: 0 },
         })),
         severity: a.severity ?? "ringan",
@@ -1269,7 +1276,9 @@ function UploadPage() {
             <div className="text-center py-16 text-[#476788]">
               <Icon name="calendar_month" className="!text-5xl mb-3 opacity-30 mx-auto" />
               <p className="font-body-md text-body-md">Tidak ada jadwal patroli untuk hari ini</p>
-              <p className="text-sm text-[#64748B] mt-1">Cek Tugas Saya untuk melihat jadwal Anda</p>
+              <p className="text-sm text-[#64748B] mt-1">
+                Cek Tugas Saya untuk melihat jadwal Anda
+              </p>
               <button
                 type="button"
                 onClick={handleClearCache}
@@ -1378,7 +1387,8 @@ function UploadPage() {
           {!isFetching && task && (
             <div className="mt-3 text-center">
               <p className="text-[11px] text-[#94A3B8] flex items-center justify-center gap-1">
-                <Icon name="info" className="!text-[12px]" />{actualTasks.length} kecamatan ditugaskan untuk hari ini
+                <Icon name="info" className="!text-[12px]" />
+                {actualTasks.length} kecamatan ditugaskan untuk hari ini
               </p>
             </div>
           )}

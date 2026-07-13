@@ -19,6 +19,7 @@ import {
   type Detection,
   type BatchPhotoResult,
 } from "@/lib/aiStore";
+import { DetectionCard } from "@/components/jk/DetectionCard";
 import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import { getCurrentUser, getToken } from "@/lib/auth";
@@ -27,7 +28,12 @@ import {
   isExifBlocking,
   type PhotoDateValidationStatus,
 } from "@/lib/validatePhotoDate";
-import { readExifGps, isNativePlatform, nativeTakePhoto, convertFileSrc } from "@/hooks/useLocationFromPhoto";
+import {
+  readExifGps,
+  isNativePlatform,
+  nativeTakePhoto,
+  convertFileSrc,
+} from "@/hooks/useLocationFromPhoto";
 import { PhotoExifGps } from "@jalankita/capacitor-exif-gps";
 import { compressImage } from "@/lib/compressImage";
 import "leaflet/dist/leaflet.css";
@@ -41,13 +47,17 @@ export const Route = createFileRoute("/ai-result")({
   head: () => ({ meta: [{ title: "Hasil Deteksi AI — DeltaJalan" }] }),
 });
 
-// ── Warna bounding box per kelas ───────────────────────────────────────────
-const CLASS_COLORS: Record<string, string> = {
+// ── Warna bounding box overlay per kelas (di foto preview) ─────────────────
+const BBOX_COLORS: Record<string, string> = {
   "Lubang Besar": "#C85000",
   "Lubang Kecil": "#00A0C8",
   "Retak Kulit Buaya": "#C87800",
   "Retak Memanjang": "#A000A0",
 };
+
+function getBboxColor(className: string): string {
+  return BBOX_COLORS[className] ?? "#6B7280";
+}
 
 // ── Sub-komponen ───────────────────────────────────────────────────────────
 
@@ -59,30 +69,6 @@ function SeverityBadge({ severity }: { severity: string }) {
     >
       {cfg.label}
     </span>
-  );
-}
-
-function DetectionCard({ det, index }: { det: Detection; index: number }) {
-  const color = CLASS_COLORS[det.class] ?? "#6B7280";
-  const pct = Math.round(det.confidence * 100);
-  return (
-    <div className="flex items-start gap-3 p-3 bg-white rounded-lg border border-[#D0DAE8]">
-      <div className="w-3 h-3 rounded-full shrink-0 mt-1" style={{ backgroundColor: color }} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <span className="font-label-md text-[13px] font-bold text-on-surface truncate">
-            #{index + 1} {det.class}
-          </span>
-          <SeverityBadge severity={det.severity} />
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
-            <div className="h-full rounded-full bg-selesai" style={{ width: `${pct}%` }} />
-          </div>
-          <span className="font-id-code text-[11px] text-on-surface-variant shrink-0">{pct}%</span>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -231,7 +217,7 @@ function DeteksiFoto({
             onError={() => {}}
           />
           {detections.map((det, i) => {
-            const color = CLASS_COLORS[det.class] ?? "#6B7280";
+            const color = getBboxColor(det.class);
             return (
               <div
                 key={i}
@@ -428,7 +414,9 @@ function AiResultPage() {
       if (geo.fullAddress) {
         return { namaJalan: "", kecamatan: null, fullAddress: geo.fullAddress };
       }
-    } catch { /* silent */ }
+    } catch {
+      /* silent */
+    }
     return null;
   }
 
@@ -650,7 +638,9 @@ function AiResultPage() {
         const capUrl = convertFileSrc(photo.uri);
         const resp = await fetch(capUrl);
         const blob = await resp.blob();
-        const file = new File([blob], photo.name || "photo.jpg", { type: blob.type || "image/jpeg" });
+        const file = new File([blob], photo.name || "photo.jpg", {
+          type: blob.type || "image/jpeg",
+        });
 
         if (!["image/jpeg", "image/jpg", "image/png"].includes(file.type)) {
           toast.error("Format file tidak didukung. Gunakan JPEG atau PNG.");
@@ -721,10 +711,13 @@ function AiResultPage() {
       await new Promise((r) => setTimeout(r, 0));
       try {
         const token = getToken() ?? "";
-        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? "/api"}/reports/${reportReviewId}/confirm-ai`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL ?? "/api"}/reports/${reportReviewId}/confirm-ai`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           throw new Error(err.message ?? "Gagal mengonfirmasi AI");
@@ -1193,7 +1186,12 @@ function AiResultPage() {
                   </div>
                   <div className="flex flex-col gap-2">
                     {displayDets.map((det, i) => (
-                      <DetectionCard key={i} det={det} index={i} />
+                      <DetectionCard
+                        key={i}
+                        label={det.class}
+                        severity={det.severity}
+                        confidence={det.confidence}
+                      />
                     ))}
                   </div>
                 </section>
@@ -1472,7 +1470,11 @@ function AiResultPage() {
                   className="w-full h-11 border border-primary-container text-primary-container rounded-lg flex items-center justify-center gap-2 font-label-md text-[14px] font-bold hover:bg-primary-container/5 transition-colors"
                 >
                   <Icon name={reportReviewId ? "arrow_back" : "refresh"} className="!text-[20px]" />
-                  {reportReviewId ? "Kembali ke Detail" : isBatch ? "Upload Batch Baru" : "Analisis Ulang dengan Foto Baru"}
+                  {reportReviewId
+                    ? "Kembali ke Detail"
+                    : isBatch
+                      ? "Upload Batch Baru"
+                      : "Analisis Ulang dengan Foto Baru"}
                 </button>
               </div>
             </>

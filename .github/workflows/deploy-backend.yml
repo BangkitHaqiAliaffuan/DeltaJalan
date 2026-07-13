@@ -1,0 +1,57 @@
+name: Deploy Backend to Lightsail
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend_POSTGRESQL/**'
+      - '.github/workflows/deploy-backend.yml'
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy Laravel via SSH
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to Lightsail via SSH
+        uses: appleboy/ssh-action@v1.2.1
+        with:
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ${{ secrets.LIGHTSAIL_USER }}
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          script: |
+            set -e
+
+            echo "[1/7] Pull latest code..."
+            cd /var/www/jalankita
+            git pull origin main
+
+            echo "[2/7] Composer install (production)..."
+            cd backend_POSTGRESQL
+            export COMPOSER_ALLOW_SUPERUSER=1
+            composer install --no-dev --optimize-autoloader --no-interaction
+
+            echo "[3/7] Run migrations..."
+            php artisan migrate --force
+
+            echo "[4/7] Clear & rebuild cache..."
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+
+            echo "[5/7] Restart queue worker..."
+            sudo supervisorctl restart jalankita-worker:*
+
+            echo "[6/7] Reload PHP-FPM..."
+            sudo systemctl reload php8.3-fpm
+
+            echo "[7/7] Deploy selesai!"
+            echo "Timestamp: $(date)"

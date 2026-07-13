@@ -1,0 +1,8 @@
+ESLint: 0 errors, 1 warnings in 1 files
+═══════════════════════════════════════
+Top rules:
+  react-hooks/exhaustive-deps (1x)
+
+Top files:
+  src/routes/tugas-saya.tsx (1 issues)
+    react-hooks/exhaustive-deps (1)

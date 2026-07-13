@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class MobileClipService
 {
@@ -30,6 +31,11 @@ class MobileClipService
                 ];
             }
 
+            Log::warning('[MobileClipService] FastAPI responded with non-success', [
+                'endpoint' => $endpoint,
+                'status'   => $response->status(),
+            ]);
+
             return [
                 'success' => false,
                 'score'   => null,
@@ -37,6 +43,11 @@ class MobileClipService
                 'error'   => "FastAPI responded with HTTP {$response->status()}",
             ];
         } catch (ConnectionException $e) {
+            Log::warning('[MobileClipService] FastAPI /analyze-relevance tidak dapat dijangkau (connection timeout/refused)', [
+                'endpoint' => $endpoint,
+                'error'    => $e->getMessage(),
+            ]);
+
             return [
                 'success' => false,
                 'score'   => null,
@@ -44,6 +55,11 @@ class MobileClipService
                 'error'   => 'Connection failed: '.$e->getMessage(),
             ];
         } catch (\Exception $e) {
+            Log::warning('[MobileClipService] FastAPI /analyze-relevance unexpected error', [
+                'endpoint' => $endpoint,
+                'error'    => $e->getMessage(),
+            ]);
+
             return [
                 'success' => false,
                 'score'   => null,
@@ -56,7 +72,9 @@ class MobileClipService
     public function checkBlocking(string $filePath, string $fileName): ?array
     {
         $result = $this->analyzeRelevance($filePath, $fileName);
-        if (!$result['success']) return null;
+        if (! $result['success']) {
+            return null;
+        }
 
         $score = (float) ($result['score'] ?? 0);
 

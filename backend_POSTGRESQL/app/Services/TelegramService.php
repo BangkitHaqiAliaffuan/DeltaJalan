@@ -591,6 +591,9 @@ class TelegramService
             Log::error('DeltaJalan: Gagal submit report dari Telegram.', [
                 'error' => $e->getMessage(),
                 'chat_id' => $data['chat_id'] ?? null,
+                'photo_path' => $data['photo_path'] ?? null,
+                'mobileclip_score' => $data['mobileclip_score'] ?? null,
+                'quality_scores' => $data['quality_scores'] ?? null,
             ]);
 
             return null;

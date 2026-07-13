@@ -13,7 +13,6 @@ use App\Http\Controllers\SettingController;
 use App\Http\Controllers\StatusLogController;
 use App\Http\Controllers\SurveyTaskController;
 use App\Http\Controllers\TeamController;
-use App\Http\Controllers\TelegramWebhookController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WargaReportController;
 use App\Http\Controllers\WorkerLocationController;
@@ -330,7 +329,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/teams/{id}/roads', [TeamController::class, 'assignRoads']);
     Route::delete('/teams/{id}/roads/{taskId}', [TeamController::class, 'unassignRoad']);
 
-        // ── Reverse Geocode (OSM Nominatim + local roads) ──────────────────────
+    // ── Reverse Geocode (OSM Nominatim + local roads) ──────────────────────
     Route::get('/v1/reverse-geocode', ReverseGeocodeController::class);
 
     // ── Roads (OSM data) ────────────────────────────────────────────────────
@@ -361,5 +360,4 @@ Route::middleware('auth:sanctum')->group(function () {
 // ── EXIF Test (public, untuk halaman test-exif.html) ──────────────────────────
 Route::post('/test/extract-exif', [ReportController::class, 'extractFullExif']);
 
-// ── Telegram Bot Webhook (public) ────────────────────────────────────────────
-Route::post('/telegram/webhook', [TelegramWebhookController::class, 'handle']);
+// ── Telegram Bot Webhook (public) ── dipindah ke routes/web.php

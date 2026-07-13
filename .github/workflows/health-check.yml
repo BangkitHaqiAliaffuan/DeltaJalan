@@ -1,0 +1,31 @@
+name: Health Check
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'  # Setiap 30 menit
+  workflow_dispatch:          # Bisa di-run manual
+
+jobs:
+  check:
+    name: Endpoint Health Check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+
+    steps:
+      - name: Check Frontend
+        run: |
+          curl -sSf -o /dev/null -w "Frontend: HTTP %{http_code}\n" \
+            https://app.jalankita.sidoarjo.go.id/ || \
+            echo "FAIL Frontend DOWN"
+
+      - name: Check API Health
+        run: |
+          curl -sSf -o /dev/null -w "API Health: HTTP %{http_code}\n" \
+            https://api.jalankita.sidoarjo.go.id/api/health || \
+            echo "FAIL API DOWN"
+
+      - name: Check Lambda AI
+        run: |
+          curl -sSf -o /dev/null -w "Lambda AI: HTTP %{http_code}\n" \
+            https://sxhryovsbl4g6kbsvageizvane0tiqat.lambda-url.ap-southeast-1.on.aws/ || \
+            echo "FAIL Lambda AI DOWN"

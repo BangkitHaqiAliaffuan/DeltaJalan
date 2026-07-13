@@ -1,0 +1,37 @@
+﻿============================================================
+  Test ONNX Standalone (simulasi Lambda environment)
+============================================================
+[OK] onnxruntime versi: 1.27.0
+
+--- Memuat model: best.onnx (2.9 MB) ---
+[OK] Model berhasil dimuat dalam 0.11s
+     Input : images, shape=[1, 3, 640, 640], type=tensor(float)
+     Output: output0, shape=[1, 8, 8400], type=tensor(float)
+
+--- Inference dummy (best) ---
+[OK] Inference sukses dalam 0.05s
+     Output shape: (1, 8, 8400)
+     Output dtype: float32
+     Prediksi: 8400 anchor points, 8 values per anchor
+[FAIL] Inference gagal: 'charmap' codec can't encode character '\u2192' in position 49: character maps to <undefined>
+
+--- Memuat model: best_stable.onnx (11.0 MB) ---
+[OK] Model berhasil dimuat dalam 0.10s
+     Input : images, shape=[1, 3, 640, 640], type=tensor(float)
+     Output: output0, shape=[1, 8, 8400], type=tensor(float)
+
+--- Inference dummy (best_stable) ---
+[OK] Inference sukses dalam 0.10s
+     Output shape: (1, 8, 8400)
+     Output dtype: float32
+     Prediksi: 8400 anchor points, 8 values per anchor
+[FAIL] Inference gagal: 'charmap' codec can't encode character '\u2192' in position 49: character maps to <undefined>
+
+============================================================
+  HASIL AKHIR
+============================================================
+  [FAIL] best.onnx: inference_failed
+  [FAIL] best_stable.onnx: inference_failed
+
+[FAIL] Ada model yang perlu diperbaiki sebelum deploy Lambda.
+============================================================
