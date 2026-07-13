@@ -5,7 +5,7 @@ import { SkeletonDetailReport } from "@/components/jk/Skeleton";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { SafeImage } from "@/components/jk/SafeImage";
 import { useBlobImage } from "@/hooks/useBlobImage";
-import { API_BASE_URL } from "@/lib/aiStore";
+import { API_BASE_URL, normalizeSeverityKey } from "@/lib/aiStore";
 import { getToken, getCurrentUser } from "@/lib/auth";
 import {
   formatDate,

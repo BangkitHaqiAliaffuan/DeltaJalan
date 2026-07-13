@@ -44,11 +44,13 @@ class WargaReportController extends Controller
                 'latitude' => ['required', 'numeric', 'between:-11,6'],
                 'longitude' => ['required', 'numeric', 'between:95,141'],
                 'description' => ['nullable', 'string', 'max:2000'],
-                'image' => ['required', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
+                'images' => ['required', 'array', 'min:1', 'max:3'],
+                'images.*' => ['required', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
                 'kerusakan_panjang' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
                 'kerusakan_lebar' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
                 'full_address' => ['nullable', 'string', 'max:500'],
-                'quality_scores' => ['nullable', 'json'],
+                'quality_scores' => ['nullable', 'array', 'max:3'],
+                'quality_scores.*' => ['nullable', 'json'],
                 'captcha_token' => ['nullable', 'string'],
             ]);
         } catch (ValidationException $e) {
@@ -99,11 +101,13 @@ class WargaReportController extends Controller
                 'latitude' => ['required', 'numeric', 'between:-11,6'],
                 'longitude' => ['required', 'numeric', 'between:95,141'],
                 'description' => ['nullable', 'string', 'max:2000'],
-                'image' => ['required', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
+                'images' => ['required', 'array', 'min:1', 'max:3'],
+                'images.*' => ['required', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
                 'kerusakan_panjang' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
                 'kerusakan_lebar' => ['nullable', 'numeric', 'min:0.01', 'max:100'],
                 'full_address' => ['nullable', 'string', 'max:500'],
-                'quality_scores' => ['nullable', 'json'],
+                'quality_scores' => ['nullable', 'array', 'max:3'],
+                'quality_scores.*' => ['nullable', 'json'],
                 'captcha_token' => ['nullable', 'string'],
             ]);
         } catch (ValidationException $e) {
@@ -487,133 +491,184 @@ class WargaReportController extends Controller
 
     private function processAndCreateReport(Request $request, array $validated, int $userId): JsonResponse
     {
-        $imageFile = $request->file('image');
+        $files = $request->file('images', []);
+        $files = array_slice($files, 0, 3);
+        $qualityInputs = $request->input('quality_scores', []);
 
-        $exifCheck = $this->validatePhotoDateExif($imageFile->getPathname());
+        $processedPhotos = [];
+        $warnings = [];
 
-        if ($exifCheck['status'] === 'future_date') {
-            return response()->json([
-                'success' => false,
-                'message' => $exifCheck['message'],
-                'error_code' => 'PHOTO_FUTURE_DATE',
-            ], 422);
-        }
+        $severityLevels = ['Baik' => 0, 'Rusak Ringan' => 1, 'Rusak Sedang' => 2, 'Rusak Berat' => 3];
 
-        if ($exifCheck['status'] === 'too_old') {
-            return response()->json([
-                'success' => false,
-                'message' => $exifCheck['message'],
-                'error_code' => 'PHOTO_TOO_OLD',
-            ], 422);
-        }
+        foreach ($files as $idx => $imageFile) {
+            // ── EXIF Date Validation (blocking for ALL photos) ──
+            $exifCheck = $this->validatePhotoDateExif($imageFile->getPathname());
 
-        if ($exifCheck['status'] === 'no_exif_date') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Foto tidak memiliki metadata tanggal. Gunakan foto asli dari kamera.',
-                'error_code' => 'PHOTO_NO_EXIF_DATE',
-            ], 422);
-        }
-
-        if ($exifCheck['status'] === 'exif_read_error') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Metadata foto tidak dapat dibaca. Gunakan foto asli dari kamera perangkat Anda.',
-                'error_code' => 'PHOTO_EXIF_READ_ERROR',
-            ], 422);
-        }
-
-        $imageHash = $this->calculateImageHash($imageFile->getPathname());
-
-        if ($imageHash !== null) {
-            $existingPhoto = ReportPhoto::where('image_hash', $imageHash)->first();
-            if ($existingPhoto) {
-                $existingReport = Report::find($existingPhoto->report_id);
-                if ($existingReport) {
+            if ($exifCheck['status'] !== 'valid') {
+                $errorCode = match ($exifCheck['status']) {
+                    'future_date' => 'PHOTO_FUTURE_DATE',
+                    'too_old' => 'PHOTO_TOO_OLD',
+                    'no_exif_date' => 'PHOTO_NO_EXIF_DATE',
+                    default => 'PHOTO_EXIF_READ_ERROR',
+                };
+                if ($idx === 0) {
                     return response()->json([
                         'success' => false,
-                        'message' => 'Foto ini sudah pernah digunakan untuk laporan '.$existingReport->report_code.'.',
-                        'error_code' => 'DUPLICATE_IMAGE',
+                        'message' => $exifCheck['message'],
+                        'error_code' => $errorCode,
                     ], 422);
                 }
+                $warnings[] = 'Foto ke-'.($idx + 1).': '.$exifCheck['message'];
+
+                continue;
             }
-        }
 
-        $exifGps = $this->extractExifGps($imageFile->getPathname());
-        $systemNotes = null;
+            // ── Image Hash + Dedup ──
+            $imageHash = $this->calculateImageHash($imageFile->getPathname());
 
-        if ($exifGps) {
-            $gpsDistance = $this->haversineDistance(
-                $exifGps['lat'], $exifGps['lng'],
-                (float) $validated['latitude'], (float) $validated['longitude']
+            if ($imageHash !== null) {
+                $existingPhoto = ReportPhoto::where('image_hash', $imageHash)->first();
+                if ($existingPhoto) {
+                    if ($idx === 0) {
+                        $existingReport = Report::find($existingPhoto->report_id);
+                        $code = $existingReport ? $existingReport->report_code : 'unknown';
+
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Foto ini sudah pernah digunakan untuk laporan {$code}.",
+                            'error_code' => 'DUPLICATE_IMAGE',
+                        ], 422);
+                    }
+                    $warnings[] = 'Foto ke-'.($idx + 1).' sudah pernah digunakan, dilewati.';
+
+                    continue;
+                }
+            }
+
+            // ── EXIF GPS ──
+            $exifGps = $this->extractExifGps($imageFile->getPathname());
+
+            // ── GPS Distance Check (only first photo) ──
+            $systemNotes = null;
+            if ($idx === 0) {
+                if ($exifGps) {
+                    $gpsDistance = $this->haversineDistance(
+                        $exifGps['lat'], $exifGps['lng'],
+                        (float) $validated['latitude'], (float) $validated['longitude']
+                    );
+                    if ($gpsDistance > 1000) {
+                        $systemNotes = '[INFO] GPS EXIF foto berjarak '.round($gpsDistance).'m dari koordinat form.';
+                    }
+                } else {
+                    $systemNotes = '[INFO] Foto tidak memiliki GPS EXIF, menggunakan koordinat dari browser.';
+                }
+            }
+
+            // ── MobileCLIP (skip + warning for all photos) ──
+            $mobileclipResult = app(MobileClipService::class)->checkBlocking(
+                $imageFile->getPathname(),
+                $imageFile->getClientOriginalName()
             );
 
-            if ($gpsDistance > 1000) {
-                $systemNotes = '[INFO] GPS EXIF foto berjarak '.round($gpsDistance).'m dari koordinat form.';
+            if ($mobileclipResult !== null && $mobileclipResult['blocked']) {
+                $warnings[] = 'Foto ke-'.($idx + 1).' tidak relevan dengan kerusakan jalan, dilewati.';
+
+                continue;
             }
-        } else {
-            $systemNotes = '[INFO] Foto tidak memiliki GPS EXIF, menggunakan koordinat dari browser.';
+
+            $mobileclipScore = $mobileclipResult !== null ? $mobileclipResult['score'] : null;
+            $mobileclipLabel = $mobileclipResult !== null ? $mobileclipResult['label'] : null;
+
+            // ── Auto YOLO Analysis ──
+            $aiResult = null;
+            if ($imageHash) {
+                $cached = Cache::get('yolo_result_'.$imageHash);
+                if ($cached) {
+                    $aiResult = $cached;
+                } else {
+                    try {
+                        $fastApiUrl = rtrim(config('services.fastapi.url', env('FASTAPI_URL', 'http://127.0.0.1:8000')), '/');
+                        $response = Http::timeout(10)
+                            ->connectTimeout(5)
+                            ->attach('file', fopen($imageFile->getPathname(), 'r'), $imageFile->getClientOriginalName())
+                            ->post($fastApiUrl.'/analyze?include_image=true');
+                        if ($response->successful()) {
+                            $data = $response->json();
+                            if (isset($data['overall_severity'])) {
+                                $aiResult = $data;
+                                Cache::put('yolo_result_'.$imageHash, $data, now()->addHours(24));
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        Log::warning('Auto YOLO failed', [
+                            'error' => $e->getMessage(),
+                            'image_hash' => $imageHash,
+                        ]);
+                    }
+                }
+            }
+            $hasAiResult = is_array($aiResult);
+
+            $aiResultPath = null;
+            if ($hasAiResult && ! empty($aiResult['image_result'])) {
+                $aiResultPath = $this->saveBase64Image($aiResult['image_result'], 'reports/results');
+            }
+
+            // ── Quality Scores (per-photo) ──
+            $qualityScores = null;
+            if (! empty($qualityInputs[$idx])) {
+                $decoded = json_decode($qualityInputs[$idx], true);
+                if (is_array($decoded)) {
+                    $qualityScores = $decoded;
+                }
+            }
+
+            $processedPhotos[] = [
+                'file' => $imageFile,
+                'imageHash' => $imageHash,
+                'exifCheck' => $exifCheck,
+                'exifGps' => $exifGps,
+                'systemNotes' => $systemNotes,
+                'mobileclipScore' => $mobileclipScore,
+                'mobileclipLabel' => $mobileclipLabel,
+                'aiResult' => $aiResult,
+                'hasAiResult' => $hasAiResult,
+                'aiResultPath' => $aiResultPath,
+                'qualityScores' => $qualityScores,
+            ];
         }
 
-        $mobileclipScore = null;
-        $mobileclipLabel = null;
+        // ── Guard: no valid photos ──
+        if (empty($processedPhotos)) {
+            $errMsg = 'Tidak ada foto valid yang bisa diproses.';
+            if (! empty($warnings)) {
+                $errMsg .= ' '.implode(' ', $warnings);
+            }
 
-        $mobileclipResult = app(MobileClipService::class)->checkBlocking(
-            $imageFile->getPathname(),
-            $imageFile->getClientOriginalName()
-        );
-
-        if ($mobileclipResult !== null && $mobileclipResult['blocked']) {
             return response()->json([
                 'success' => false,
-                'message' => 'Foto tidak relevan dengan kerusakan jalan. Silakan unggah foto yang menunjukkan kondisi jalan, seperti lubang, retak, atau kerusakan infrastruktur jalan lainnya.',
-                'error_code' => 'IMAGE_NOT_RELEVANT',
-                'mobileclip_score' => $mobileclipResult['score'],
+                'message' => $errMsg,
+                'error_code' => 'NO_VALID_PHOTOS',
             ], 422);
         }
 
-        if ($mobileclipResult !== null) {
-            $mobileclipScore = $mobileclipResult['score'];
-            $mobileclipLabel = $mobileclipResult['label'];
-        }
-
-        // ── Auto YOLO Analysis ──
-        $aiResult = null;
-        if ($imageHash) {
-            $cached = Cache::get('yolo_result_'.$imageHash);
-            if ($cached) {
-                $aiResult = $cached;
-            } else {
-                try {
-                    $fastApiUrl = rtrim(config('services.fastapi.url', env('FASTAPI_URL', 'http://127.0.0.1:8000')), '/');
-                    $response = Http::timeout(10)
-                        ->connectTimeout(5)
-                        ->attach('file', fopen($imageFile->getPathname(), 'r'), $imageFile->getClientOriginalName())
-                        ->post($fastApiUrl.'/analyze?include_image=true');
-                    if ($response->successful()) {
-                        $data = $response->json();
-                        if (isset($data['overall_severity'])) {
-                            $aiResult = $data;
-                            Cache::put('yolo_result_'.$imageHash, $data, now()->addHours(24));
-                        }
-                    }
-                } catch (\Exception $e) {
-                    Log::warning('Auto YOLO failed', [
-                        'error' => $e->getMessage(),
-                        'image_hash' => $imageHash,
-                    ]);
+        // ── Aggregate severity across all photos ──
+        $topSeverity = 0;
+        $topSeverityLabel = 'Baik';
+        foreach ($processedPhotos as $pp) {
+            if ($pp['hasAiResult'] && isset($pp['aiResult']['overall_severity'])) {
+                $level = $severityLevels[$pp['aiResult']['overall_severity']] ?? 0;
+                if ($level > $topSeverity) {
+                    $topSeverity = $level;
+                    $topSeverityLabel = $pp['aiResult']['overall_severity'];
                 }
             }
         }
-        $hasAiResult = is_array($aiResult);
 
-        $aiResultPath = null;
-        if ($hasAiResult && ! empty($aiResult['image_result'])) {
-            $aiResultPath = $this->saveBase64Image($aiResult['image_result'], 'reports/results');
-        }
+        $allSystemNotes = array_values(array_filter(array_column($processedPhotos, 'systemNotes')));
 
         try {
-            $report = DB::transaction(function () use ($validated, $imageFile, $imageHash, $exifGps, $exifCheck, $userId, $systemNotes, $mobileclipScore, $mobileclipLabel, $hasAiResult, $aiResult, $aiResultPath) {
+            $report = DB::transaction(function () use ($processedPhotos, $validated, $userId, $topSeverityLabel, $allSystemNotes) {
 
                 $reportCode = null;
                 do {
@@ -622,24 +677,32 @@ class WargaReportController extends Controller
                         ->orderBy('report_code', 'desc')
                         ->first();
 
-                    if ($lastReport) {
-                        $lastNumber = (int) substr($lastReport->report_code, -5);
-                        $nextNumber = $lastNumber + 1;
-                    } else {
-                        $nextNumber = 1;
-                    }
-
-                    $code = sprintf('LP-%s-%05d', $year, $nextNumber);
+                    $lastNumber = $lastReport ? (int) substr($lastReport->report_code, -5) : 0;
+                    $code = sprintf('LP-%s-%05d', $year, $lastNumber + 1);
                     $reportCode = $code;
                 } while (Report::where('report_code', $reportCode)->exists());
 
-                $ext = $imageFile->getClientOriginalExtension() ?: $imageFile->guessExtension() ?: 'jpg';
-                $filename = Str::uuid()->toString().'-'.time().'.'.$ext;
+                // ── Save primary photo ──
+                $primary = $processedPhotos[0];
+                $primaryFile = $primary['file'];
+                $ext = $primaryFile->getClientOriginalExtension() ?: $primaryFile->guessExtension() ?: 'jpg';
+                $primaryFilename = Str::uuid()->toString().'-'.time().'.'.$ext;
+                $primaryPath = $this->savePhotoToStorage($primaryFile, $primaryFilename);
 
-                $photoPath = $this->savePhotoToStorage($imageFile, $filename);
-
-                if (! $photoPath) {
+                if (! $primaryPath) {
                     throw new \RuntimeException('Gagal menyimpan foto ke storage.');
+                }
+
+                // ── Count AI stats ──
+                $totalAiAnalysis = 0;
+                $latestAiAnalyzedAt = null;
+                $hasPrimaryAi = $primary['hasAiResult'];
+                $primaryAi = $primary['aiResult'];
+                foreach ($processedPhotos as $pp) {
+                    if ($pp['hasAiResult']) {
+                        $totalAiAnalysis++;
+                        $latestAiAnalyzedAt = now();
+                    }
                 }
 
                 $report = Report::create([
@@ -650,8 +713,8 @@ class WargaReportController extends Controller
                     'district' => $validated['district'],
                     'latitude' => $validated['latitude'],
                     'longitude' => $validated['longitude'],
-                    'image_original_path' => $photoPath,
-                    'image_hash' => $imageHash,
+                    'image_original_path' => $primaryPath,
+                    'image_hash' => $primary['imageHash'],
                     'status' => 'Menunggu Verifikasi',
                     'source' => 'warga',
                     'description' => $validated['description'] ?? null,
@@ -660,45 +723,54 @@ class WargaReportController extends Controller
                     'kerusakan_lebar' => $validated['kerusakan_lebar'] ?? null,
                     'catatan_petugas' => null,
                     'priority' => 'Sedang',
-                    'overall_severity' => $hasAiResult ? ($aiResult['overall_severity'] ?? null) : null,
-                    'total_detections' => $hasAiResult ? ($aiResult['total'] ?? 0) : 0,
-                    'ai_raw_output' => $hasAiResult ? $aiResult : null,
-                    'image_result_path' => $aiResultPath,
-                    'ai_analyzed_at' => $hasAiResult ? now() : null,
-                    'ai_analysis_count' => $hasAiResult ? 1 : 0,
+                    'overall_severity' => $topSeverityLabel,
+                    'total_detections' => $hasPrimaryAi ? ($primaryAi['total'] ?? 0) : 0,
+                    'ai_raw_output' => $hasPrimaryAi ? $primaryAi : null,
+                    'image_result_path' => $primary['aiResultPath'],
+                    'ai_analyzed_at' => $latestAiAnalyzedAt,
+                    'ai_analysis_count' => $totalAiAnalysis,
                 ]);
 
-                $photoData = [
-                    'report_id' => $report->id,
-                    'reporter_name' => $validated['reporter_name'],
-                    'image_original_path' => $photoPath,
-                    'image_hash' => $imageHash,
-                    'latitude' => $exifGps ? $exifGps['lat'] : $validated['latitude'],
-                    'longitude' => $exifGps ? $exifGps['lng'] : $validated['longitude'],
-                    'koordinat_sumber' => $exifGps ? 'exif' : 'form',
-                    'sort_order' => 0,
-                    'original_filename' => $imageFile->getClientOriginalName(),
-                    'photo_taken_at' => $exifCheck['photo_date'],
-                    'mobileclip_score' => $mobileclipScore,
-                    'mobileclip_label' => $mobileclipLabel,
-                    'ai_severity' => $hasAiResult ? ($aiResult['overall_severity'] ?? null) : null,
-                    'ai_raw_output' => $hasAiResult ? $aiResult : null,
-                    'image_result_path' => $aiResultPath,
-                    'ai_analyzed_at' => $hasAiResult ? now() : null,
-                    'ai_analysis_count' => $hasAiResult ? 1 : 0,
-                ];
+                // ── Save each photo as ReportPhoto ──
+                foreach ($processedPhotos as $ppIdx => $pp) {
+                    $tFile = $pp['file'];
+                    $tExt = $tFile->getClientOriginalExtension() ?: $tFile->guessExtension() ?: 'jpg';
+                    $tFilename = Str::uuid()->toString().'-'.time().'-'.$ppIdx.'.'.$tExt;
+                    $tPath = $this->savePhotoToStorage($tFile, $tFilename);
 
-                if (! empty($validated['quality_scores'])) {
-                    $decoded = json_decode($validated['quality_scores'], true);
-                    if (is_array($decoded)) {
-                        $photoData['quality_scores'] = $decoded;
+                    if (! $tPath) {
+                        throw new \RuntimeException('Gagal menyimpan foto ke storage.');
                     }
+
+                    $exifGps = $pp['exifGps'];
+
+                    $photoData = [
+                        'report_id' => $report->id,
+                        'reporter_name' => $validated['reporter_name'],
+                        'image_original_path' => $tPath,
+                        'image_hash' => $pp['imageHash'],
+                        'latitude' => $exifGps ? $exifGps['lat'] : $validated['latitude'],
+                        'longitude' => $exifGps ? $exifGps['lng'] : $validated['longitude'],
+                        'koordinat_sumber' => $exifGps ? 'exif' : 'form',
+                        'sort_order' => $ppIdx,
+                        'original_filename' => $tFile->getClientOriginalName(),
+                        'photo_taken_at' => $pp['exifCheck']['photo_date'],
+                        'mobileclip_score' => $pp['mobileclipScore'],
+                        'mobileclip_label' => $pp['mobileclipLabel'],
+                        'quality_scores' => $pp['qualityScores'],
+                        'ai_severity' => $pp['hasAiResult'] ? ($pp['aiResult']['overall_severity'] ?? null) : null,
+                        'ai_raw_output' => $pp['hasAiResult'] ? $pp['aiResult'] : null,
+                        'image_result_path' => $pp['aiResultPath'],
+                        'ai_analyzed_at' => $pp['hasAiResult'] ? now() : null,
+                        'ai_analysis_count' => $pp['hasAiResult'] ? 1 : 0,
+                    ];
+
+                    ReportPhoto::create($photoData);
                 }
 
-                ReportPhoto::create($photoData);
-
-                if ($systemNotes) {
-                    $report->update(['system_notes' => $systemNotes]);
+                // ── System notes ──
+                if (! empty($allSystemNotes)) {
+                    $report->update(['system_notes' => implode(' | ', $allSystemNotes)]);
                 }
 
                 return $report;
@@ -708,17 +780,22 @@ class WargaReportController extends Controller
                 'report_id' => $report->id,
                 'report_code' => $report->report_code,
                 'user_id' => $userId,
+                'total_photos' => count($processedPhotos),
             ]);
+
+            $primary = $processedPhotos[0];
 
             return response()->json([
                 'success' => true,
                 'message' => 'Laporan berhasil dikirim dan sedang menunggu verifikasi petugas.',
                 'data' => [
                     'report' => $report->toArray(),
-                    'mobileclip_score' => $mobileclipScore,
-                    'mobileclip_label' => $mobileclipLabel,
-                    'ai_severity' => $hasAiResult ? ($aiResult['overall_severity'] ?? null) : null,
-                    'ai_total_detections' => $hasAiResult ? ($aiResult['total'] ?? 0) : 0,
+                    'total_photos' => count($processedPhotos),
+                    'warnings' => $warnings,
+                    'mobileclip_score' => $primary['mobileclipScore'],
+                    'mobileclip_label' => $primary['mobileclipLabel'],
+                    'ai_severity' => $primary['hasAiResult'] ? ($primary['aiResult']['overall_severity'] ?? null) : null,
+                    'ai_total_detections' => $primary['hasAiResult'] ? ($primary['aiResult']['total'] ?? 0) : 0,
                 ],
             ], 201);
 

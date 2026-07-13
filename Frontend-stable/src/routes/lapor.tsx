@@ -91,8 +91,9 @@ function PublicLaporPage() {
   const [lebar, setLebar] = useState("");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
-  const [photo, setPhoto] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const [qualityScoresArray, setQualityScoresArray] = useState<(string | null)[]>([]);
   const [loading, setLoading] = useState(false);
   const [locating, setLocating] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -107,7 +108,7 @@ function PublicLaporPage() {
     title: string;
     message: string;
   }>({ isOpen: false, status: "no_exif_date", title: "", message: "" });
-  const [qualityScores, setQualityScores] = useState<string>("");
+  const [uploadWarnings, setUploadWarnings] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [reporterNameError, setReporterNameError] = useState("");
   const [phoneError, setPhoneError] = useState("");
@@ -124,10 +125,19 @@ function PublicLaporPage() {
     district.length > 0 &&
     latitude.length > 0 &&
     longitude.length > 0 &&
-    photo !== null;
+    photos.length >= 1;
 
   function closeFraudModal() {
     setFraudModal((s) => ({ ...s, isOpen: false }));
+  }
+
+  function removePhoto(index: number) {
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
+    setPhotoPreviews((prev) => prev.filter((_, i) => i !== index));
+    setQualityScoresArray((prev) => prev.filter((_, i) => i !== index));
+    if (index === 0) {
+      setCameraModel("");
+    }
   }
 
   function handleNameBlur() {
@@ -219,69 +229,102 @@ function PublicLaporPage() {
     setLocating(false);
   }
 
-  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function handlePhotosChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const incoming = Array.from(e.target.files || []);
+    if (incoming.length === 0) return;
+    const remaining = 3 - photos.length;
+    const toProcess = incoming.slice(0, remaining);
 
     setProcessing(true);
-    setCameraModel("");
     setFraudModal((s) => ({ ...s, isOpen: false }));
+    setUploadWarnings([]);
 
-    const compressedFile = await compressImage(file);
+    const newPhotos: File[] = [];
+    const newPreviews: string[] = [];
+    const newQualityScores: (string | null)[] = [];
+    const warnings: string[] = [];
+    let isFirstInBatch = true;
 
-    // Validasi EXIF tanggal dulu — blocking, pakai threshold 7 hari (warga)
-    const dateValidation = await validatePhotoDate(compressedFile, 7);
-    if (dateValidation.status !== "valid") {
-      setFraudModal({
-        isOpen: true,
-        status: dateValidation.status,
-        title: dateValidation.title,
-        message: dateValidation.message,
-      });
-      setProcessing(false);
-      return;
-    }
+    for (const rawFile of toProcess) {
+      const compressed = await compressImage(rawFile);
 
-    // Cek kualitas foto (blur + brightness)
-    const qualityCheck = await analyzeImageQuality(compressedFile);
-    if (qualityCheck.status !== "good") {
-      setFraudModal({
-        isOpen: true,
-        status: qualityCheck.status,
-        title: qualityCheck.title,
-        message: qualityCheck.message,
-      });
-      if (!qualityCheck.isWarningOnly) {
-        setQualityScores(JSON.stringify(qualityCheck));
-        setProcessing(false);
-        return;
+      const dateVal = await validatePhotoDate(compressed, 7);
+      if (dateVal.status !== "valid") {
+        if (photos.length === 0 && newPhotos.length === 0) {
+          setFraudModal({
+            isOpen: true,
+            status: dateVal.status,
+            title: dateVal.title,
+            message: dateVal.message,
+          });
+          setProcessing(false);
+          return;
+        }
+        warnings.push(`"${rawFile.name}": ${dateVal.message}`);
+        isFirstInBatch = false;
+        continue;
       }
-    }
-    setQualityScores(
-      JSON.stringify({
+
+      const qualityCheck = await analyzeImageQuality(compressed);
+      if (qualityCheck.status !== "good" && !qualityCheck.isWarningOnly) {
+        if (photos.length === 0 && newPhotos.length === 0) {
+          setFraudModal({
+            isOpen: true,
+            status: qualityCheck.status,
+            title: qualityCheck.title,
+            message: qualityCheck.message,
+          });
+          setProcessing(false);
+          return;
+        }
+        warnings.push(`"${rawFile.name}": ${qualityCheck.message}`);
+        isFirstInBatch = false;
+        continue;
+      }
+
+      const cleanQuality = JSON.stringify({
         ...qualityCheck,
         title: undefined,
         message: undefined,
         isWarningOnly: undefined,
-      }),
-    );
+      });
 
-    // Baca kamera (non-blocking, hanya display)
-    try {
-      const tags = await exifr.parse(compressedFile, ["Make", "Model"]);
-      if (tags) {
-        const make = (tags.Make as string) ?? "";
-        const model = (tags.Model as string) ?? "";
-        if (make || model) setCameraModel([make, model].filter(Boolean).join(" "));
+      if (photos.length === 0 && isFirstInBatch) {
+        try {
+          const tags = await exifr.parse(compressed, ["Make", "Model"]);
+          if (tags) {
+            const make = (tags.Make as string) ?? "";
+            const model = (tags.Model as string) ?? "";
+            if (make || model) setCameraModel([make, model].filter(Boolean).join(" "));
+          }
+        } catch {
+          /* empty */
+        }
       }
-    } catch {
-      // Non-blocking — camera model hanya display
+
+      newPhotos.push(compressed);
+      newPreviews.push(URL.createObjectURL(compressed));
+      newQualityScores.push(cleanQuality);
+      isFirstInBatch = false;
     }
 
-    // EXIF lolos — set foto dan lanjut GPS
-    setPhoto(compressedFile);
-    setPhotoPreview(URL.createObjectURL(compressedFile));
-    await processPhotoForGps(compressedFile);
+    if (newPhotos.length === 0) {
+      setUploadWarnings(warnings);
+      setProcessing(false);
+      return;
+    }
+
+    setPhotos((prev) => [...prev, ...newPhotos].slice(0, 3));
+    setPhotoPreviews((prev) => [...prev, ...newPreviews].slice(0, 3));
+    setQualityScoresArray((prev) => [...prev, ...newQualityScores].slice(0, 3));
+
+    if (warnings.length > 0) setUploadWarnings(warnings);
+
+    // GPS from first photo if this is the first batch
+    if (photos.length === 0 && newPhotos.length > 0) {
+      await processPhotoForGps(newPhotos[0]);
+    }
+
     setProcessing(false);
   }
 
@@ -292,6 +335,7 @@ function PublicLaporPage() {
     setProcessing(true);
     setCameraModel("");
     setFraudModal((s) => ({ ...s, isOpen: false }));
+    setUploadWarnings([]);
 
     // Pre-fetch geolocation SELAGIH dalam user gesture (button tap)
     const geoPromise = getBrowserLocation({ timeout: 10000, enableHighAccuracy: true });
@@ -302,46 +346,42 @@ function PublicLaporPage() {
       return;
     }
 
-    const dateValidation = await validatePhotoDate(result.file, 7);
-    if (dateValidation.status !== "valid") {
+    const dateVal = await validatePhotoDate(result.file, 7);
+    if (dateVal.status !== "valid") {
       setFraudModal({
         isOpen: true,
-        status: dateValidation.status,
-        title: dateValidation.title,
-        message: dateValidation.message,
+        status: dateVal.status,
+        title: dateVal.title,
+        message: dateVal.message,
       });
       setProcessing(false);
       return;
     }
 
-    const compressedFile = await compressImage(result.file);
+    const compressed = await compressImage(result.file);
 
-    // Cek kualitas foto (blur + brightness)
-    const qualityCheck = await analyzeImageQuality(compressedFile);
-    if (qualityCheck.status !== "good") {
+    const qualityCheck = await analyzeImageQuality(compressed);
+    if (qualityCheck.status !== "good" && !qualityCheck.isWarningOnly) {
       setFraudModal({
         isOpen: true,
         status: qualityCheck.status,
         title: qualityCheck.title,
         message: qualityCheck.message,
       });
-      if (!qualityCheck.isWarningOnly) {
-        setQualityScores(JSON.stringify(qualityCheck));
-        setProcessing(false);
-        return;
-      }
+      setProcessing(false);
+      return;
     }
-    setQualityScores(
-      JSON.stringify({
-        ...qualityCheck,
-        title: undefined,
-        message: undefined,
-        isWarningOnly: undefined,
-      }),
-    );
 
-    setPhoto(compressedFile);
-    setPhotoPreview(URL.createObjectURL(compressedFile));
+    const cleanQuality = JSON.stringify({
+      ...qualityCheck,
+      title: undefined,
+      message: undefined,
+      isWarningOnly: undefined,
+    });
+
+    setPhotos([compressed]);
+    setPhotoPreviews([URL.createObjectURL(compressed)]);
+    setQualityScoresArray([cleanQuality]);
 
     if (result.lat != null && result.lng != null) {
       await applyCoordinates(result.lat, result.lng, "exif");
@@ -350,7 +390,7 @@ function PublicLaporPage() {
       if (geo?.latitude && geo?.longitude) {
         await applyCoordinates(geo.latitude, geo.longitude, "geolocation");
       } else {
-        await processPhotoForGps(compressedFile);
+        await processPhotoForGps(compressed);
       }
     }
 
@@ -360,80 +400,122 @@ function PublicLaporPage() {
   async function handleNativeGallery() {
     if (processing) return;
     setProcessing(true);
-    setCameraModel("");
     setFraudModal((s) => ({ ...s, isOpen: false }));
+    setUploadWarnings([]);
 
-    // Pre-fetch geolocation SELAGIH dalam user gesture (button tap)
     const geoPromise = getBrowserLocation({ timeout: 10000, enableHighAccuracy: true });
 
-    const pickResult = await PhotoExifGps.pickPhotos({ limit: 1 });
+    const pickResult = await PhotoExifGps.pickPhotos({ limit: 3 });
     if (!pickResult.photos?.length) {
       setProcessing(false);
       return;
     }
-    const photo = pickResult.photos[0];
 
-    const capUrl = convertFileSrc(photo.uri);
-    let blob: Blob;
-    try {
-      const resp = await fetch(capUrl);
-      blob = await resp.blob();
-    } catch {
-      setError("Gagal membaca foto");
-      setProcessing(false);
-      return;
-    }
-    const file = new File([blob], photo.name || "gallery.jpg", { type: blob.type || "image/jpeg" });
+    const newPhotos: File[] = [];
+    const newPreviews: string[] = [];
+    const newQualityScores: (string | null)[] = [];
+    const warnings: string[] = [];
+    let isFirstInBatch = true;
 
-    const dateValidation = await validatePhotoDate(file, 7);
-    if (dateValidation.status !== "valid") {
-      setFraudModal({
-        isOpen: true,
-        status: dateValidation.status,
-        title: dateValidation.title,
-        message: dateValidation.message,
-      });
-      setProcessing(false);
-      return;
-    }
-
-    const compressedFile = await compressImage(file);
-
-    // Cek kualitas foto (blur + brightness)
-    const qualityCheck = await analyzeImageQuality(compressedFile);
-    if (qualityCheck.status !== "good") {
-      setFraudModal({
-        isOpen: true,
-        status: qualityCheck.status,
-        title: qualityCheck.title,
-        message: qualityCheck.message,
-      });
-      if (!qualityCheck.isWarningOnly) {
-        setQualityScores(JSON.stringify(qualityCheck));
-        setProcessing(false);
-        return;
+    for (const pick of pickResult.photos) {
+      const capUrl = convertFileSrc(pick.uri);
+      let blob: Blob;
+      try {
+        const resp = await fetch(capUrl);
+        blob = await resp.blob();
+      } catch {
+        warnings.push(`"${pick.name}": Gagal membaca foto`);
+        isFirstInBatch = false;
+        continue;
       }
-    }
-    setQualityScores(
-      JSON.stringify({
+      const file = new File([blob], pick.name || "gallery.jpg", {
+        type: blob.type || "image/jpeg",
+      });
+
+      const dateVal = await validatePhotoDate(file, 7);
+      if (dateVal.status !== "valid") {
+        if (newPhotos.length === 0) {
+          setFraudModal({
+            isOpen: true,
+            status: dateVal.status,
+            title: dateVal.title,
+            message: dateVal.message,
+          });
+          setProcessing(false);
+          return;
+        }
+        warnings.push(`"${pick.name}": ${dateVal.message}`);
+        isFirstInBatch = false;
+        continue;
+      }
+
+      const compressed = await compressImage(file);
+
+      const qualityCheck = await analyzeImageQuality(compressed);
+      if (qualityCheck.status !== "good" && !qualityCheck.isWarningOnly) {
+        if (newPhotos.length === 0) {
+          setFraudModal({
+            isOpen: true,
+            status: qualityCheck.status,
+            title: qualityCheck.title,
+            message: qualityCheck.message,
+          });
+          setProcessing(false);
+          return;
+        }
+        warnings.push(`"${pick.name}": ${qualityCheck.message}`);
+        isFirstInBatch = false;
+        continue;
+      }
+
+      const cleanQuality = JSON.stringify({
         ...qualityCheck,
         title: undefined,
         message: undefined,
         isWarningOnly: undefined,
-      }),
-    );
+      });
 
-    setPhoto(compressedFile);
-    setPhotoPreview(URL.createObjectURL(compressedFile));
+      if (isFirstInBatch) {
+        try {
+          const tags = await exifr.parse(compressed, ["Make", "Model"]);
+          if (tags) {
+            const make = (tags.Make as string) ?? "";
+            const model = (tags.Model as string) ?? "";
+            if (make || model) setCameraModel([make, model].filter(Boolean).join(" "));
+          }
+        } catch {
+          /* empty */
+        }
+      }
 
-    if (photo.lat != null && photo.lng != null) {
-      await applyCoordinates(photo.lat, photo.lng, "exif");
+      newPhotos.push(compressed);
+      newPreviews.push(URL.createObjectURL(compressed));
+      newQualityScores.push(cleanQuality);
+      isFirstInBatch = false;
+    }
+
+    if (newPhotos.length === 0) {
+      setUploadWarnings(warnings);
+      setProcessing(false);
+      return;
+    }
+
+    setPhotos(newPhotos.slice(0, 3));
+    setPhotoPreviews(newPreviews.slice(0, 3));
+    setQualityScoresArray(newQualityScores.slice(0, 3));
+    if (warnings.length > 0) setUploadWarnings(warnings);
+
+    // GPS from first photo
+    const first = newPhotos[0];
+    const firstPick = pickResult.photos[0];
+    if (firstPick.lat != null && firstPick.lng != null) {
+      await applyCoordinates(firstPick.lat, firstPick.lng, "exif");
     } else {
       const geo = await geoPromise;
       if (geo?.latitude && geo?.longitude) {
         await applyCoordinates(geo.latitude, geo.longitude, "geolocation");
       } else {
-        await processPhotoForGps(compressedFile);
+        await processPhotoForGps(first);
       }
     }
 
@@ -474,7 +556,7 @@ function PublicLaporPage() {
     if (!roadName) missing.push("Nama Jalan");
     if (!district) missing.push("Kecamatan");
     if (!latitude || !longitude) missing.push("Koordinat lokasi");
-    if (!photo) missing.push("Foto Kerusakan");
+    if (photos.length === 0) missing.push("Foto Kerusakan");
     if (missing.length > 0) {
       setError(`Lengkapi field berikut: ${missing.join(", ")}`);
       return;
@@ -497,12 +579,16 @@ function PublicLaporPage() {
       formData.append("district", district);
       formData.append("latitude", latitude);
       formData.append("longitude", longitude);
-      formData.append("image", photo as Blob);
+      photos.forEach((f, i) => {
+        formData.append(`images[${i}]`, f as Blob);
+        if (qualityScoresArray[i]) {
+          formData.append(`quality_scores[${i}]`, qualityScoresArray[i]);
+        }
+      });
       if (description) formData.append("description", description);
       if (panjang) formData.append("kerusakan_panjang", panjang);
       if (lebar) formData.append("kerusakan_lebar", lebar);
       if (fullAddress) formData.append("full_address", fullAddress);
-      if (qualityScores) formData.append("quality_scores", qualityScores);
       if (captchaToken) formData.append("captcha_token", captchaToken);
 
       const res = await fetch(`${API_BASE_URL}/public/reports`, {
@@ -641,62 +727,79 @@ function PublicLaporPage() {
                         <p className="text-xs text-[#476788]">Memproses foto...</p>
                       </div>
                     </div>
+                  ) : photos.length === 0 ? (
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={handleNativeCamera}
+                        className="flex-1 border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors cursor-pointer"
+                      >
+                        <div className="flex flex-col items-center gap-2">
+                          <Icon name="camera_alt" className="!text-3xl text-[#757684]" />
+                          <p className="text-sm text-[#757684]">Ambil Foto</p>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleNativeGallery}
+                        className="flex-1 border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors cursor-pointer"
+                      >
+                        <div className="flex flex-col items-center gap-2">
+                          <Icon name="photo_library" className="!text-3xl text-[#757684]" />
+                          <p className="text-sm text-[#757684]">Pilih dari Galeri</p>
+                        </div>
+                      </button>
+                    </div>
                   ) : (
                     <>
-                      {photoPreview ? (
-                        <div className="border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center">
-                          <div className="relative">
+                      <div className="grid grid-cols-2 gap-2">
+                        {photoPreviews.map((preview, idx) => (
+                          <div
+                            key={idx}
+                            className="relative border border-[#c4c5d5] rounded-lg overflow-hidden"
+                          >
+                            {idx === 0 && (
+                              <span className="absolute top-1 left-1 bg-[#1e40af] text-white text-[10px] px-1.5 py-0.5 rounded font-semibold z-10">
+                                Utama
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => removePhoto(idx)}
+                              className="absolute top-1 right-1 bg-black/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs z-10 hover:bg-black/70 transition-colors"
+                            >
+                              ✕
+                            </button>
                             <img
-                              src={photoPreview}
-                              alt="Preview"
-                              className="max-h-48 mx-auto rounded-lg"
+                              src={preview}
+                              alt={`Foto ${idx + 1}`}
+                              className="w-full h-28 object-cover"
                             />
-                            <p className="text-xs text-[#476788] mt-2">{photo?.name}</p>
+                            <p className="text-[10px] text-[#476788] truncate px-1 py-0.5 bg-gray-50">
+                              {photos[idx]?.name}
+                            </p>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="flex gap-3">
-                          <button
-                            type="button"
-                            onClick={handleNativeCamera}
-                            className="flex-1 border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors cursor-pointer"
-                          >
-                            <div className="flex flex-col items-center gap-2">
-                              <Icon name="camera_alt" className="!text-3xl text-[#757684]" />
-                              <p className="text-sm text-[#757684]">Ambil Foto</p>
-                            </div>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleNativeGallery}
-                            className="flex-1 border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors cursor-pointer"
-                          >
-                            <div className="flex flex-col items-center gap-2">
-                              <Icon name="photo_library" className="!text-3xl text-[#757684]" />
-                              <p className="text-sm text-[#757684]">Pilih dari Galeri</p>
-                            </div>
-                          </button>
-                        </div>
-                      )}
+                        ))}
+                      </div>
 
-                      {photoPreview && (
-                        <div className="flex gap-3">
-                          <button
-                            type="button"
-                            onClick={handleNativeCamera}
-                            className="flex-1 h-10 border border-[#c4c5d5] rounded-lg text-xs text-[#475569] font-semibold hover:bg-gray-50 transition-colors cursor-pointer"
-                          >
-                            Ambil Ulang
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleNativeGallery}
-                            className="flex-1 h-10 border border-[#c4c5d5] rounded-lg text-xs text-[#475569] font-semibold hover:bg-gray-50 transition-colors cursor-pointer"
-                          >
-                            Ganti dari Galeri
-                          </button>
-                        </div>
-                      )}
+                      <div className="flex gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={handleNativeCamera}
+                          className="flex-1 h-10 border border-[#c4c5d5] rounded-lg text-xs text-[#475569] font-semibold hover:bg-gray-50 transition-colors cursor-pointer"
+                        >
+                          Ganti Foto
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleNativeGallery}
+                          className="flex-1 h-10 border border-[#c4c5d5] rounded-lg text-xs text-[#475569] font-semibold hover:bg-gray-50 transition-colors cursor-pointer"
+                        >
+                          {photos.length < 3
+                            ? `Tambah Foto (${3 - photos.length} sisa)`
+                            : "Pilih Ulang"}
+                        </button>
+                      </div>
                     </>
                   )}
                 </>
@@ -704,30 +807,62 @@ function PublicLaporPage() {
                 <>
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-[#c4c5d5] rounded-lg p-6 text-center cursor-pointer hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors"
+                    className="border-2 border-dashed border-[#c4c5d5] rounded-lg p-4 text-center cursor-pointer hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors"
                   >
                     {processing ? (
                       <div className="flex flex-col items-center gap-2 py-4">
                         <span className="w-8 h-8 border-2 border-[#1e40af]/30 border-t-[#1e40af] rounded-full animate-spin" />
                         <p className="text-xs text-[#476788]">Kompresi dan validasi foto...</p>
                       </div>
-                    ) : photoPreview ? (
-                      <div className="relative">
-                        <img
-                          src={photoPreview}
-                          alt="Preview"
-                          className="max-h-48 mx-auto rounded-lg"
-                        />
-                        <p className="text-xs text-[#476788] mt-2">{photo?.name}</p>
+                    ) : photos.length > 0 ? (
+                      <div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {photoPreviews.map((preview, idx) => (
+                            <div
+                              key={idx}
+                              className="relative border border-[#c4c5d5] rounded-lg overflow-hidden"
+                            >
+                              {idx === 0 && (
+                                <span className="absolute top-1 left-1 bg-[#1e40af] text-white text-[10px] px-1.5 py-0.5 rounded font-semibold z-10">
+                                  Utama
+                                </span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removePhoto(idx);
+                                }}
+                                className="absolute top-1 right-1 bg-black/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs z-10 hover:bg-black/70 transition-colors"
+                              >
+                                ✕
+                              </button>
+                              <img
+                                src={preview}
+                                alt={`Foto ${idx + 1}`}
+                                className="w-full h-28 object-cover"
+                              />
+                              <p className="text-[10px] text-[#476788] truncate px-1 py-0.5 bg-gray-50">
+                                {photos[idx]?.name}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                        {photos.length < 3 && (
+                          <p className="text-xs text-[#1e40af] mt-2 flex items-center justify-center gap-1">
+                            <Icon name="add_photo_alternate" className="!text-[14px]" />
+                            Ketuk untuk tambah foto ({3 - photos.length} sisa)
+                          </p>
+                        )}
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center gap-2">
+                      <div className="flex flex-col items-center gap-2 py-4">
                         <Icon name="camera_alt" className="!text-4xl text-[#757684]" />
                         <p className="text-sm text-[#757684]">Ketuk untuk mengambil foto</p>
                         <p className="text-xs text-[#757684]">
                           {isCameraMode
                             ? "Kamera akan terbuka otomatis"
-                            : "Foto harus memiliki data GPS asli"}
+                            : "JPEG/PNG, maks 5 MB, maks 3 foto"}
                         </p>
                       </div>
                     )}
@@ -735,8 +870,9 @@ function PublicLaporPage() {
                   <input
                     ref={fileInputRef}
                     type="file"
+                    multiple
                     accept="image/jpeg,image/png"
-                    onChange={handlePhotoChange}
+                    onChange={handlePhotosChange}
                     className="hidden"
                     {...cameraProps}
                   />
@@ -748,6 +884,17 @@ function PublicLaporPage() {
                     </div>
                   )}
                 </>
+              )}
+
+              {uploadWarnings.length > 0 && (
+                <div className="flex flex-col gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                  {uploadWarnings.map((w, i) => (
+                    <p key={i} className="text-xs text-[#D97706] flex items-start gap-1.5">
+                      <Icon name="warning" className="!text-[14px] shrink-0 mt-0.5" />
+                      {w}
+                    </p>
+                  ))}
+                </div>
               )}
             </div>
 
