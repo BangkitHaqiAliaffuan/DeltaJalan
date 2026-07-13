@@ -19,7 +19,6 @@ import { ReportMap, type ReportMapPoint } from "@/components/jk/ReportMap";
 import { TimelineCard } from "@/components/jk/TimelineCard";
 import { ProgressTimeline } from "@/components/jk/ProgressTimeline";
 import { ProgressUpdateModal } from "@/components/jk/ProgressUpdateModal";
-import { BeforeAfterSlider } from "@/components/jk/BeforeAfterSlider";
 import { DetectionList } from "@/components/jk/DetectionList";
 import { Portal } from "@/components/jk/Portal";
 import { ModalBase } from "@/components/jk/ModalBase";
@@ -81,6 +80,7 @@ function DetailReportPage() {
   const [report, setReport] = useState<Laporan | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [originalPhotoView, setOriginalPhotoView] = useState<Record<string, boolean>>({});
 
   // Action state
   const [priority, setPriority] = useState<"Rendah" | "Sedang" | "Tinggi">("Sedang");
@@ -657,14 +657,47 @@ function DetailReportPage() {
                   {photo.image_original_url &&
                   photo.image_result_url &&
                   photo.image_result_url !== photo.image_original_url ? (
-                    <BeforeAfterSlider
-                      beforeSrc={resolveImageUrl(photo.image_original_url) ?? ""}
-                      afterSrc={resolveImageUrl(photo.image_result_url) ?? ""}
-                      beforeLabel={`Foto ${i + 1} — Asli`}
-                      afterLabel={`Foto ${i + 1} — AI`}
-                      panjang={photo.kerusakan_panjang}
-                      lebar={photo.kerusakan_lebar}
-                    />
+                    <div className="relative bg-[#0F172A]" style={{ minHeight: 280 }}>
+                      <SafeImage
+                        src={
+                          resolveImageUrl(
+                            originalPhotoView[photo.id]
+                              ? photo.image_original_url
+                              : photo.image_result_url,
+                          ) ?? ""
+                        }
+                        alt={`Foto ${i + 1}`}
+                        className="w-full h-full object-contain max-h-[55vh]"
+                      />
+                      <div className="absolute top-3 left-3 flex gap-1.5 z-10">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOriginalPhotoView((prev) => ({ ...prev, [photo.id]: false }))
+                          }
+                          className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-colors ${
+                            !originalPhotoView[photo.id]
+                              ? "bg-[#1e40af] text-white"
+                              : "bg-black/50 text-white/60 hover:text-white"
+                          }`}
+                        >
+                          Deteksi AI
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOriginalPhotoView((prev) => ({ ...prev, [photo.id]: true }))
+                          }
+                          className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-colors ${
+                            originalPhotoView[photo.id]
+                              ? "bg-[#1e40af] text-white"
+                              : "bg-black/50 text-white/60 hover:text-white"
+                          }`}
+                        >
+                          Asli
+                        </button>
+                      </div>
+                    </div>
                   ) : photo.image_original_url ? (
                     <div
                       className="bg-[#0F172A] flex items-center justify-center"
@@ -752,14 +785,43 @@ function DetailReportPage() {
               <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
                 {report.image_result_url &&
                 report.image_result_url !== report.image_original_url ? (
-                  <BeforeAfterSlider
-                    beforeSrc={resolveImageUrl(report.image_original_url) ?? ""}
-                    afterSrc={resolveImageUrl(report.image_result_url) ?? ""}
-                    beforeLabel="Foto Asli"
-                    afterLabel="Hasil AI"
-                    panjang={report.kerusakan_panjang}
-                    lebar={report.kerusakan_lebar}
-                  />
+                  <div className="relative bg-[#0F172A]" style={{ minHeight: 280 }}>
+                    <SafeImage
+                      src={
+                        resolveImageUrl(
+                          originalPhotoView["report"]
+                            ? report.image_original_url
+                            : report.image_result_url,
+                        ) ?? ""
+                      }
+                      alt="Foto"
+                      className="w-full h-full object-contain max-h-[55vh]"
+                    />
+                    <div className="absolute top-3 left-3 flex gap-1.5 z-10">
+                      <button
+                        type="button"
+                        onClick={() => setOriginalPhotoView((prev) => ({ ...prev, report: false }))}
+                        className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-colors ${
+                          !originalPhotoView["report"]
+                            ? "bg-[#1e40af] text-white"
+                            : "bg-black/50 text-white/60 hover:text-white"
+                        }`}
+                      >
+                        Deteksi AI
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOriginalPhotoView((prev) => ({ ...prev, report: true }))}
+                        className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-colors ${
+                          originalPhotoView["report"]
+                            ? "bg-[#1e40af] text-white"
+                            : "bg-black/50 text-white/60 hover:text-white"
+                        }`}
+                      >
+                        Asli
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <div
                     className="bg-[#0F172A] flex items-center justify-center"

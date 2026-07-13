@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { getToken } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/aiStore";
@@ -25,10 +25,39 @@ function WargaLaporanDetailPage() {
   const [report, setReport] = useState<any>(null);
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [photoIdx, setPhotoIdx] = useState(0);
 
   useEffect(() => {
     loadDetail();
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const allPhotos = report?.photos ?? [];
+  const currentPhoto = allPhotos[photoIdx];
+  const totalPhotos = allPhotos.length;
+
+  const goToPhoto = useCallback(
+    (i: number) => {
+      if (totalPhotos === 0) return;
+      setPhotoIdx(((i % totalPhotos) + totalPhotos) % totalPhotos);
+    },
+    [totalPhotos],
+  );
+
+  const prevPhoto = useCallback(() => goToPhoto(photoIdx - 1), [goToPhoto, photoIdx]);
+  const nextPhoto = useCallback(() => goToPhoto(photoIdx + 1), [goToPhoto, photoIdx]);
+
+  useEffect(() => {
+    setPhotoIdx(0);
+  }, [report?.id]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") prevPhoto();
+      if (e.key === "ArrowRight") nextPhoto();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [prevPhoto, nextPhoto]);
 
   async function loadDetail() {
     setLoading(true);
@@ -80,7 +109,6 @@ function WargaLaporanDetailPage() {
   }
 
   const statusInfo = getStatusBadge(report.status);
-  const photo = report.photos?.[0];
 
   return (
     <main className="pb-4">
@@ -97,13 +125,34 @@ function WargaLaporanDetailPage() {
       </section>
 
       <div className="max-w-xl mx-auto px-4 mt-6">
-        {photo?.image_original_url && (
-          <div className="mb-4 rounded-lg overflow-hidden border border-[#D0DAE8]">
+        {currentPhoto?.image_original_url && (
+          <div className="relative mb-4 rounded-lg overflow-hidden border border-[#D0DAE8] bg-[#0F172A]">
             <img
-              src={resolveImageUrl(photo.image_original_url) ?? ""}
-              alt="Foto kerusakan"
-              className="w-full object-cover max-h-64"
+              src={resolveImageUrl(currentPhoto.image_original_url) ?? ""}
+              alt={`Foto ${photoIdx + 1}`}
+              className="w-full object-contain max-h-64"
             />
+            {totalPhotos > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={prevPhoto}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 flex items-center justify-center transition-colors"
+                >
+                  <Icon name="chevron_left" className="!text-[18px] text-white" />
+                </button>
+                <button
+                  type="button"
+                  onClick={nextPhoto}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 hover:bg-black/60 flex items-center justify-center transition-colors"
+                >
+                  <Icon name="chevron_right" className="!text-[18px] text-white" />
+                </button>
+                <div className="absolute bottom-2 right-2 bg-black/50 text-white text-[11px] px-2 py-0.5 rounded-full font-medium">
+                  {photoIdx + 1}/{totalPhotos}
+                </div>
+              </>
+            )}
           </div>
         )}
 

@@ -500,13 +500,14 @@ function PublicLaporPage() {
       return;
     }
 
-    setPhotos(newPhotos.slice(0, 3));
-    setPhotoPreviews(newPreviews.slice(0, 3));
-    setQualityScoresArray(newQualityScores.slice(0, 3));
+    setPhotos((prev) => [...prev, ...newPhotos].slice(0, 3));
+    setPhotoPreviews((prev) => [...prev, ...newPreviews].slice(0, 3));
+    setQualityScoresArray((prev) => [...prev, ...newQualityScores].slice(0, 3));
     if (warnings.length > 0) setUploadWarnings(warnings);
 
     // GPS from first photo
-    const first = newPhotos[0];
+    const allPhotos = photos.concat(newPhotos).slice(0, 3);
+    const first = allPhotos[0];
     const firstPick = pickResult.photos[0];
     if (firstPick.lat != null && firstPick.lng != null) {
       await applyCoordinates(firstPick.lat, firstPick.lng, "exif");
