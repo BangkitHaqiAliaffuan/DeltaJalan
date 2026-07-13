@@ -483,13 +483,7 @@ function PublicLaporPage() {
     setLoading(true);
 
     const captchaToken = await getRecaptchaToken();
-    const siteKeyConfigured = !!import.meta.env.VITE_RECAPTCHA_SITE_KEY;
-    console.log(
-      "[CaptchaCheck] Token:",
-      captchaToken ? `didapat (${captchaToken.length} chars)` : "null",
-    );
-    console.log("[CaptchaCheck] Site key terkonfigurasi:", siteKeyConfigured);
-    if (!captchaToken && siteKeyConfigured) {
+    if (!captchaToken && import.meta.env.VITE_RECAPTCHA_SITE_KEY) {
       setError("Verifikasi keamanan gagal. Silakan reload halaman.");
       setLoading(false);
       return;
@@ -523,14 +517,6 @@ function PublicLaporPage() {
         recordUpload();
         setSuccess({ reportCode: json.data?.report?.report_code ?? "" });
       } else {
-        console.error(
-          "[SubmitError] Status:",
-          res.status,
-          "| error_code:",
-          json.error_code,
-          "| message:",
-          json.message,
-        );
         if (json.error_code === "IMAGE_NOT_RELEVANT") {
           setFraudModal({
             isOpen: true,
@@ -538,11 +524,6 @@ function PublicLaporPage() {
             title: "Foto Tidak Relevan",
             message: json.message ?? "Foto tidak relevan dengan kerusakan jalan.",
           });
-        } else if (json.error_code === "RECAPTCHA_FAILED") {
-          console.warn(
-            "[CaptchaCheck] Server menolak token reCAPTCHA — score terlalu rendah atau token expired",
-          );
-          setError(json.message ?? "Verifikasi keamanan gagal.");
         } else {
           setError(json.message ?? "Gagal mengirim laporan.");
         }
