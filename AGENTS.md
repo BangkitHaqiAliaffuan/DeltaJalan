@@ -38,7 +38,8 @@ Scripts & `.env` are OS-specific — no cross-contamination.
 - **Never** run `migrate:fresh`, `migrate:reset`, `db:wipe`, or `DROP` without asking. Allowed: `migrate`, `db:seed`, `cache:clear`, `config:clear`.
 - **Never** run `migrate:fresh`, `migrate:reset`, `db:wipe`, or `DROP` even if you think you have user consent — always wait for the user to explicitly type the command before proceeding.
 - **Never** commit or push unless the user explicitly says "commit", "push", or "commit dan push". You may stage files.
-- **Production SSH key**: `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA8xwr8n4igJxAtnDakuFYbfePqVKqzhOatluUhPhlWy deploy@deltajalan.web.id` (terdaftar di GitHub → BangkitHaqiAliaffuan)
+- **Sebelum commit**, wajib cek secara mendalam apakah ada secret/key file, file binary tak terduga, file temp, atau file pribadi (`.pem`, `.key`, `.env`, `*.json` berisi token, dll) yang akan ikut ter-commit. Pastikan sudah masuk `.gitignore` atau di `git rm --cached`. Jalankan `git status --short` dan inspeksi setiap file baru/berubah sebelum commit. Jika ragu, tanya user.
+- **Production SSH key** (public only): `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA8xwr8n4igJxAtnDakuFYbfePqVKqzhOatluUhPhlWy deploy@deltajalan.web.id` (terdaftar di GitHub → BangkitHaqiAliaffuan)
 - Before any 10s+ command, warn the user with estimated duration.
 - Before writing code involving any library/framework, use Context7 MCP (`resolve-library-id` → `query-docs`) and cite sources. See "Context7" section below.
 

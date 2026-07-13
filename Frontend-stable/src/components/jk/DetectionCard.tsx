@@ -31,7 +31,7 @@ export function DetectionCard({ label, severity, confidence }: DetectionCardProp
         <span className="text-[11px] mt-0.5">{sevCfg.label}</span>
       </div>
       <div
-        className="w-[38px] h-[38px] rounded-full flex items-center justify-center shrink-0"
+        className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
         style={{
           border: `2px solid ${sevCfg.color}`,
           backgroundColor: `${sevCfg.color}14`,

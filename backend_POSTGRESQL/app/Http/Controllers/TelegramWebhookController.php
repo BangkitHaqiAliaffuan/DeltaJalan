@@ -373,11 +373,12 @@ class TelegramWebhookController extends Controller
     private function handlePhoto(TelegramSession $session, int|string $chatId, array $photoArray, array $from): JsonResponse
     {
         $this->telegram->sendMessage($chatId,
-            '⚠️ Foto yang dikirim langsung akan dikompresi oleh Telegram dan '
-            .'kehilangan metadata EXIF (data GPS, tanggal pengambilan).'."\n\n"
-            .'Silakan kirim ulang foto sebagai <b>dokumen</b> (ikon 📎) '
-            .'agar kualitas dan metadata tetap terjaga.'."\n\n"
-            .'State laporan tetap tersimpan — cukup kirim dokumen tanpa perlu /lapor lagi.'
+            '⚠️ Foto yang dikirim langsung lewat chat akan diturunkan kualitasnya, '
+            .'dan data <b>tanggal</b> serta <b>lokasi GPS</b> tidak bisa diambil dari foto tersebut.'."\n\n"
+            .'Silakan kirim ulang foto kerusakan jalan sebagai <b>dokumen/file</b> '
+            .'dengan menekan ikon 📎 (attachment) lalu pilih <b>"Dokumen"</b> atau <b>"File"</b>, '
+            .'bukan "Foto" atau "Kamera".'."\n\n"
+            .'State laporan tetap tersimpan — cukup kirim file tanpa perlu /lapor lagi.'
         );
 
         return response()->json(['ok' => true]);
