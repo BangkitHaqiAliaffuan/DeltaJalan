@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DailyUploadCounter;
 use App\Models\Report;
 use App\Models\ReportPhoto;
 use App\Models\StatusLog;
@@ -28,11 +29,7 @@ class WargaReportController extends Controller
 
     private const FINGERPRINT_LIMIT = 1;
 
-    private const FINGERPRINT_TTL = 86400;
-
     private const DEVICE_LIMIT = 1;
-
-    private const DEVICE_TTL = 86400;
 
     public function store(Request $request): JsonResponse
     {
@@ -83,7 +80,24 @@ class WargaReportController extends Controller
             return $dailyLimitResult;
         }
 
-        return $this->processAndCreateReport($request, $validated, $userId);
+        $fingerprintCheck = $this->checkFingerprintLimit($request);
+        if ($fingerprintCheck !== null) {
+            return $fingerprintCheck;
+        }
+
+        $deviceCheck = $this->checkDeviceLimit($request);
+        if ($deviceCheck !== null) {
+            return $deviceCheck;
+        }
+
+        $response = $this->processAndCreateReport($request, $validated, $userId);
+
+        if ($response->getStatusCode() === 201) {
+            $this->incrementFingerprintCounter($request);
+            $this->incrementDeviceCounter($request);
+        }
+
+        return $response;
     }
 
     /**
@@ -394,15 +408,21 @@ class WargaReportController extends Controller
 
         // 1. Fingerprint limit (always)
         $fingerprint = $this->buildFingerprint($request);
-        $fk = 'upload_fingerprint:'.$fingerprint.':'.date('Y-m-d');
-        $fingerprintCount = (int) Cache::get($fk, 0);
+        $fpCounter = DailyUploadCounter::where('identifier_type', 'fingerprint')
+            ->where('identifier_hash', $fingerprint)
+            ->where('report_date', today())
+            ->first();
+        $fingerprintCount = $fpCounter?->count ?? 0;
         $limits[] = self::FINGERPRINT_LIMIT - $fingerprintCount;
 
         // 2. Device ID limit (if header provided)
         $deviceId = $request->header('X-Device-ID');
         if ($deviceId && preg_match('/^[a-f0-9\-]{36}$/', $deviceId)) {
-            $dk = 'upload_device:'.$deviceId.':'.date('Y-m-d');
-            $deviceCount = (int) Cache::get($dk, 0);
+            $devCounter = DailyUploadCounter::where('identifier_type', 'device_id')
+                ->where('identifier_hash', $deviceId)
+                ->where('report_date', today())
+                ->first();
+            $deviceCount = $devCounter?->count ?? 0;
             $limits[] = self::DEVICE_LIMIT - $deviceCount;
         }
 
@@ -453,8 +473,12 @@ class WargaReportController extends Controller
     private function checkFingerprintLimit(Request $request): ?JsonResponse
     {
         $fingerprint = $this->buildFingerprint($request);
-        $key = 'upload_fingerprint:'.$fingerprint.':'.date('Y-m-d');
-        $count = (int) Cache::get($key, 0);
+        $counter = DailyUploadCounter::where('identifier_type', 'fingerprint')
+            ->where('identifier_hash', $fingerprint)
+            ->where('report_date', today())
+            ->first();
+
+        $count = $counter?->count ?? 0;
 
         if ($count >= self::FINGERPRINT_LIMIT) {
             return response()->json([
@@ -470,8 +494,16 @@ class WargaReportController extends Controller
     private function incrementFingerprintCounter(Request $request): void
     {
         $fingerprint = $this->buildFingerprint($request);
-        $key = 'upload_fingerprint:'.$fingerprint.':'.date('Y-m-d');
-        Cache::increment($key, 1, self::FINGERPRINT_TTL);
+        DailyUploadCounter::updateOrCreate(
+            [
+                'identifier_type' => 'fingerprint',
+                'identifier_hash' => $fingerprint,
+                'report_date' => today(),
+            ],
+            [
+                'count' => DB::raw('COALESCE(count, 0) + 1'),
+            ]
+        );
     }
 
     private function checkDeviceLimit(Request $request): ?JsonResponse
@@ -481,8 +513,12 @@ class WargaReportController extends Controller
             return null;
         }
 
-        $key = 'upload_device:'.$deviceId.':'.date('Y-m-d');
-        $count = (int) Cache::get($key, 0);
+        $counter = DailyUploadCounter::where('identifier_type', 'device_id')
+            ->where('identifier_hash', $deviceId)
+            ->where('report_date', today())
+            ->first();
+
+        $count = $counter?->count ?? 0;
 
         if ($count >= self::DEVICE_LIMIT) {
             return response()->json([
@@ -502,8 +538,16 @@ class WargaReportController extends Controller
             return;
         }
 
-        $key = 'upload_device:'.$deviceId.':'.date('Y-m-d');
-        Cache::increment($key, 1, self::DEVICE_TTL);
+        DailyUploadCounter::updateOrCreate(
+            [
+                'identifier_type' => 'device_id',
+                'identifier_hash' => $deviceId,
+                'report_date' => today(),
+            ],
+            [
+                'count' => DB::raw('COALESCE(count, 0) + 1'),
+            ]
+        );
     }
 
     private function verifyRecaptcha(string $token): true|JsonResponse
