@@ -718,17 +718,17 @@ function PublicLaporPage() {
               <p className="font-body-md text-body-md text-[#475569] mb-6">
                 Daftar atau login untuk mendapatkan kuota 5 laporan per hari.
               </p>
-              <div className="flex flex-col gap-3 max-w-xs mx-auto">
+              <div className="flex flex-col gap-3 items-center">
                 <Link
                   to="/daftar"
-                  className="w-full h-11 bg-gradient-to-r from-[#1e40af] to-[#2e68d8] text-white rounded-lg font-label-md text-label-md font-semibold flex items-center justify-center gap-2 hover:shadow-lg transition-all"
+                  className="inline-flex h-11 px-6 bg-gradient-to-r from-[#1e40af] to-[#2e68d8] text-white rounded-lg font-label-md text-label-md font-semibold items-center justify-center gap-2 hover:shadow-lg transition-all"
                 >
                   <Icon name="person_add" className="!text-[20px]" />
                   Daftar Akun (5 laporan/hari)
                 </Link>
                 <Link
                   to="/masuk"
-                  className="w-full h-11 border border-[#1e40af] text-[#1e40af] rounded-lg font-label-md text-label-md font-semibold flex items-center justify-center gap-2 hover:bg-blue-50 transition-all"
+                  className="inline-flex h-11 px-6 border border-[#1e40af] text-[#1e40af] rounded-lg font-label-md text-label-md font-semibold items-center justify-center gap-2 hover:bg-blue-50 transition-all"
                 >
                   <Icon name="login" className="!text-[20px]" />
                   Login
@@ -755,7 +755,7 @@ function PublicLaporPage() {
           <p className="text-sm text-blue-200 mt-1">Isi data kerusakan yang Anda temukan</p>
           <div className="mt-3 flex items-center gap-1.5 bg-white/15 rounded-full px-3 py-1.5 w-fit text-xs font-medium text-blue-100">
             <Icon name="assignment" className="!text-[14px]" />
-            Sisa: 1 laporan hari ini — <Link to="/daftar" className="underline">Daftar</Link> untuk 5 laporan/hari
+            Sisa: 1 laporan hari ini — <Link to="/daftar" className="underline">Daftar</Link>
           </div>
         </section>
 
