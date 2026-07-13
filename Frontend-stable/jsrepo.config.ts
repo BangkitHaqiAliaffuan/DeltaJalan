@@ -1,8 +1,8 @@
-import { defineConfig } from 'jsrepo';
+import { defineConfig } from "jsrepo";
 
 export default defineConfig({
   registries: ["https://reactbits.dev/r"],
   paths: {
-    component: './src/components/reactbits',
+    component: "./src/components/reactbits",
   },
 });

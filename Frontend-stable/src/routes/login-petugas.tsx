@@ -60,7 +60,9 @@ function PetugasLoginPage() {
       }
 
       if (data.user.role === "warga") {
-        setError("Akun warga tidak dapat masuk melalui halaman ini. Silakan gunakan halaman masuk warga.");
+        setError(
+          "Akun warga tidak dapat masuk melalui halaman ini. Silakan gunakan halaman masuk warga.",
+        );
         return;
       }
 

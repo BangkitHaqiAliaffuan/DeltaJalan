@@ -85,20 +85,25 @@ export function ReportCard({ report, actions, options, cardLink }: ReportCardPro
 
   const rootClassName = `bg-white rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ease-out overflow-hidden flex flex-col ${isTerlambat ? "border-2 border-[#E11D48]" : isDuplicate ? "border border-[#F59E0B]" : "border border-[#E2E8F0]"}`;
 
-  const Wrapper = cardLink ? Link : 'div';
+  const Wrapper = cardLink ? Link : "div";
   const wrapperProps = cardLink
-    ? { to: cardLink.to, params: cardLink.params, search: cardLink.search, className: rootClassName }
+    ? {
+        to: cardLink.to,
+        params: cardLink.params,
+        search: cardLink.search,
+        className: rootClassName,
+      }
     : { className: rootClassName };
 
-  const ImageLink = cardLink ? 'div' : Link;
+  const ImageLink = cardLink ? "div" : Link;
   const imageLinkProps = cardLink
-    ? { className: 'block group' }
-    : { to: '/detail-report', search: { reportId: report.id }, className: 'block group' };
+    ? { className: "block group" }
+    : { to: "/detail-report", search: { reportId: report.id }, className: "block group" };
 
-  const HeaderLink = cardLink ? 'div' : Link;
+  const HeaderLink = cardLink ? "div" : Link;
   const headerLinkProps = cardLink
-    ? { className: 'no-underline block' }
-    : { to: '/detail-report', search: { reportId: report.id }, className: 'no-underline block' };
+    ? { className: "no-underline block" }
+    : { to: "/detail-report", search: { reportId: report.id }, className: "no-underline block" };
 
   return (
     <Wrapper {...(wrapperProps as any)}>
@@ -175,21 +180,26 @@ export function ReportCard({ report, actions, options, cardLink }: ReportCardPro
         </div>
 
         {/* ── Mini Progress Bar ── */}
-        {report.status === "Sedang Diperbaiki" && report.estimasi_hari != null && report.estimasi_hari > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-semibold text-[#1A4F8A]">
-                Hari {Math.min((report.progress_updates_count ?? 0) + 1, report.estimasi_hari)}/{report.estimasi_hari}
-              </span>
+        {report.status === "Sedang Diperbaiki" &&
+          report.estimasi_hari != null &&
+          report.estimasi_hari > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-semibold text-[#1A4F8A]">
+                  Hari {Math.min((report.progress_updates_count ?? 0) + 1, report.estimasi_hari)}/
+                  {report.estimasi_hari}
+                </span>
+              </div>
+              <div className="w-full h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[#1A4F8A] rounded-full"
+                  style={{
+                    width: `${Math.min(((report.progress_updates_count ?? 0) / report.estimasi_hari) * 100, 100)}%`,
+                  }}
+                />
+              </div>
             </div>
-            <div className="w-full h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
-              <div
-                className="h-full bg-[#1A4F8A] rounded-full"
-                style={{ width: `${Math.min(((report.progress_updates_count ?? 0) / report.estimasi_hari) * 100, 100)}%` }}
-              />
-            </div>
-          </div>
-        )}
+          )}
 
         <div className="h-px bg-[#F1F5F9] -mx-4" />
 

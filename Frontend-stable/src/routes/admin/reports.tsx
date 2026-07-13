@@ -379,7 +379,15 @@ function AdminReports() {
   );
 }
 
-const ALL_STATUSES = ["Menunggu Verifikasi", "Menunggu Review", "Hasil AI", "Disetujui", "Ditolak", "Sedang Diperbaiki", "Selesai"];
+const ALL_STATUSES = [
+  "Menunggu Verifikasi",
+  "Menunggu Review",
+  "Hasil AI",
+  "Disetujui",
+  "Ditolak",
+  "Sedang Diperbaiki",
+  "Selesai",
+];
 
 function StatusChangeModal({
   id,

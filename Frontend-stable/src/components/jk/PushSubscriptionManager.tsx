@@ -14,8 +14,7 @@ async function ensureSw(): Promise<ServiceWorkerRegistration | null> {
     const existing = await navigator.serviceWorker.getRegistration();
     if (existing) return existing;
     return await navigator.serviceWorker.register("/sw.js", { type: "module" });
-  } catch (err) {
-    console.error("[SW] Gagal register service worker:", err);
+  } catch {
     return null;
   }
 }
@@ -26,7 +25,6 @@ async function doSubscribe(): Promise<boolean> {
       headers: { Authorization: `Bearer ${getToken()}` },
     });
     if (!res.ok) {
-      console.error("[PushSubscribe] Gagal fetch VAPID key:", res.status, res.statusText);
       return false;
     }
     const json = await res.json();
@@ -52,12 +50,8 @@ async function doSubscribe(): Promise<boolean> {
         auth_key: subJson.keys!.auth,
       }),
     });
-    if (!saveRes.ok) {
-      console.error("[PushSubscribe] Gagal simpan subscription:", saveRes.status, saveRes.statusText);
-    }
     return saveRes.ok;
-  } catch (err) {
-    console.error("[PushSubscribe]", err);
+  } catch {
     return false;
   }
 }
@@ -78,12 +72,8 @@ async function doUnsubscribe(): Promise<boolean> {
       },
       body: JSON.stringify({ endpoint }),
     });
-    if (!res.ok) {
-      console.error("[PushUnsubscribe] Gagal:", res.status, res.statusText);
-    }
     return res.ok;
-  } catch (err) {
-    console.error("[PushUnsubscribe]", err);
+  } catch {
     return false;
   }
 }
@@ -141,7 +131,7 @@ export function PushSubscriptionManager() {
     if (ok) {
       setSubscribed(true);
     } else {
-      setError("Gagal mengaktifkan — lihat konsol untuk detail");
+      setError("Gagal mengaktifkan — silakan coba lagi");
     }
     setLoading(false);
   }
@@ -153,7 +143,7 @@ export function PushSubscriptionManager() {
     if (ok) {
       setSubscribed(false);
     } else {
-      setError("Gagal menonaktifkan — lihat konsol untuk detail");
+      setError("Gagal menonaktifkan — silakan coba lagi");
     }
     setLoading(false);
   }
@@ -164,9 +154,7 @@ export function PushSubscriptionManager() {
     <div className="flex flex-col items-end gap-1">
       <div className="flex items-center gap-2">
         {permission === "denied" ? (
-          <span className="text-[11px] text-on-surface-variant">
-            Notifikasi diblokir
-          </span>
+          <span className="text-[11px] text-on-surface-variant">Notifikasi diblokir</span>
         ) : subscribed ? (
           <button
             type="button"
@@ -187,9 +175,7 @@ export function PushSubscriptionManager() {
           </button>
         )}
       </div>
-      {error && (
-        <span className="text-[10px] text-red-500">{error}</span>
-      )}
+      {error && <span className="text-[10px] text-red-500">{error}</span>}
     </div>
   );
 }

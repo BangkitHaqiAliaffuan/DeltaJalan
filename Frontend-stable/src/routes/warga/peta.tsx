@@ -55,7 +55,9 @@ function WargaPetaPage() {
       }
     }
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
 
   function handleViewDetail(id: string) {

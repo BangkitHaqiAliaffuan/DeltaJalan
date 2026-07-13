@@ -165,13 +165,7 @@ export default function Counter({
         }}
       >
         {places.map((place) => (
-          <Digit
-            key={place}
-            place={place}
-            value={value}
-            height={height}
-            digitStyle={digitStyle}
-          />
+          <Digit key={place} place={place} value={value} height={height} digitStyle={digitStyle} />
         ))}
       </span>
       {gradientHeight > 0 && (

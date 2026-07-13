@@ -56,16 +56,19 @@ function collectPhotos(r: Laporan): SliderPhoto[] {
   const photos: SliderPhoto[] = [];
   if (r.photos && r.photos.length > 0) {
     r.photos.forEach((p, i) => {
-      if (p.image_original_url) photos.push({ url: resolveImageUrl(p.image_original_url)!, label: `Foto ${i + 1}` });
+      if (p.image_original_url)
+        photos.push({ url: resolveImageUrl(p.image_original_url)!, label: `Foto ${i + 1}` });
       if (p.image_result_url && p.image_result_url !== p.image_original_url)
         photos.push({ url: resolveImageUrl(p.image_result_url)!, label: `Hasil AI ${i + 1}` });
     });
   } else {
-    if (r.image_original_url) photos.push({ url: resolveImageUrl(r.image_original_url)!, label: "Foto Asli" });
+    if (r.image_original_url)
+      photos.push({ url: resolveImageUrl(r.image_original_url)!, label: "Foto Asli" });
     if (r.image_result_url && r.image_result_url !== r.image_original_url)
       photos.push({ url: resolveImageUrl(r.image_result_url)!, label: "Hasil Deteksi AI" });
   }
-  if (r.after_photo_url) photos.push({ url: resolveImageUrl(r.after_photo_url)!, label: "Setelah Perbaikan" });
+  if (r.after_photo_url)
+    photos.push({ url: resolveImageUrl(r.after_photo_url)!, label: "Setelah Perbaikan" });
   return photos;
 }
 
@@ -432,7 +435,8 @@ export function ReportDetail({
             <div className="flex flex-col gap-4">
               {report.photos.map((photo, i) => {
                 const origUrl = resolveImageUrl(photo.image_original_url) ?? "";
-                const detUrl = resolveImageUrl(photo.image_result_url ?? photo.image_original_url) ?? "";
+                const detUrl =
+                  resolveImageUrl(photo.image_result_url ?? photo.image_original_url) ?? "";
                 if (!origUrl) return null;
                 return (
                   <div key={photo.id}>
@@ -710,7 +714,10 @@ function DetailBeforeAfter({ report }: { report: Laporan }) {
             </div>
           ))
         ) : (
-          <BeforeAfterSlider beforeSrc={singleBefore!} afterSrc={resolveImageUrl(report.after_photo_url) ?? ""} />
+          <BeforeAfterSlider
+            beforeSrc={singleBefore!}
+            afterSrc={resolveImageUrl(report.after_photo_url) ?? ""}
+          />
         )}
       </div>
     </div>

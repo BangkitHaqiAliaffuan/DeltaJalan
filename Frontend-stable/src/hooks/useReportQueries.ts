@@ -1,10 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { API_BASE_URL } from "@/lib/aiStore";
-import type {
-  Laporan,
-  MapStats,
-  DistrictSummary,
-} from "@/types/laporan";
+import type { Laporan, MapStats, DistrictSummary } from "@/types/laporan";
 
 import { apiFetch } from "@/lib/api";
 

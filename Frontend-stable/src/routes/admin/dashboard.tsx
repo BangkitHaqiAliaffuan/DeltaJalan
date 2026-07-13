@@ -132,8 +132,6 @@ function AdminDashboard() {
   const selesaiBulanIni = bulanIni?.selesai ?? stats?.selesai ?? 0;
   const totalBulanIni = bulanIni?.total ?? 0;
 
-  
-
   if (isLoading) {
     return (
       <div>

@@ -36,7 +36,7 @@ export function BottomNav() {
   const role = user?.role;
   const isPetugas = role === "petugas";
   const isWarga = role === "warga";
-  const items = isWarga ? WARGA_ITEMS : (isPetugas ? PETUGAS_ITEMS : SUPERVISOR_ITEMS);
+  const items = isWarga ? WARGA_ITEMS : isPetugas ? PETUGAS_ITEMS : SUPERVISOR_ITEMS;
 
   return (
     <nav

@@ -318,7 +318,11 @@ function EditReportPage() {
                         <div className="flex gap-3">
                           {(photo.image_result_url || photo.image_original_url) && (
                             <img
-                              src={resolveImageUrl(photo.image_result_url || photo.image_original_url) ?? ""}
+                              src={
+                                resolveImageUrl(
+                                  photo.image_result_url || photo.image_original_url,
+                                ) ?? ""
+                              }
                               alt={`Foto ${(photo.sort_order ?? 0) + 1}`}
                               className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
                             />

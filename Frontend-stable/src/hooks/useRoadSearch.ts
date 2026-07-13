@@ -190,7 +190,6 @@ async function searchLocationIQ(query: string): Promise<RoadSuggestion[]> {
 
     // ── Lapis 1: koordinat di luar Sidoarjo ───────────────────────────
     if (!isInSidoarjoBbox(lat, lng)) {
-
       continue;
     }
 
@@ -199,13 +198,11 @@ async function searchLocationIQ(query: string): Promise<RoadSuggestion[]> {
     // ── Lapis 2: display_name wajib mengandung "Sidoarjo" ─────────────
     const displayName = (item.display_name ?? "").toLowerCase();
     if (!displayName.includes("sidoarjo")) {
-
       continue;
     }
 
     // ── Lapis 3: hanya hasil bertipe road ─────────────────────────────
     if (item.addresstype && !ROAD_ADDRESSTYPES.has(item.addresstype)) {
-
       continue;
     }
 
@@ -215,7 +212,6 @@ async function searchLocationIQ(query: string): Promise<RoadSuggestion[]> {
     const cityFields = [addr.city, addr.county, addr.town, addr.state_district, addr.village];
     const hasSidoarjoCity = cityFields.some((f) => f && f.toLowerCase().includes("sidoarjo"));
     if (!hasSidoarjoCity) {
-
       continue;
     }
 
@@ -238,7 +234,6 @@ async function searchLocationIQ(query: string): Promise<RoadSuggestion[]> {
       }
     }
     if (!roadName) {
-
       continue;
     }
 
@@ -261,11 +256,8 @@ async function searchLocationIQ(query: string): Promise<RoadSuggestion[]> {
       }
     }
     if (!kecamatan) {
-
       continue;
     }
-
-
 
     const labelParts = [roadName];
     labelParts.push(`Kec. ${kecamatan}`);
@@ -280,8 +272,6 @@ async function searchLocationIQ(query: string): Promise<RoadSuggestion[]> {
       placeId: item.place_id,
     });
   }
-
-
 
   // Deduplikasi berdasarkan roadName + kecamatan
   const seen = new Set<string>();

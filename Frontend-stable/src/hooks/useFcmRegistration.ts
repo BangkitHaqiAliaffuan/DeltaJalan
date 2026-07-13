@@ -84,8 +84,7 @@ export function useFcmRegistration() {
           if (ok) tokenStoredRef.current = true;
         });
 
-        await PushNotifications.addListener("registrationError", (err) => {
-        });
+        await PushNotifications.addListener("registrationError", (err) => {});
 
         await PushNotifications.addListener("pushNotificationReceived", (notification) => {});
 
@@ -109,8 +108,7 @@ export function useFcmRegistration() {
         }
 
         await PushNotifications.register();
-      } catch (err) {
-      }
+      } catch (err) {}
     }
 
     init();

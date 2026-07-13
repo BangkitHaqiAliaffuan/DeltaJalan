@@ -393,9 +393,7 @@ function WargaLaporPage() {
 
     setLoading(true);
 
-    console.log("[warga/lapor] getRecaptchaToken...");
     const captchaToken = await getRecaptchaToken();
-    console.log("[warga/lapor] captchaToken:", captchaToken ? `${captchaToken.slice(0, 20)}... (ADA)` : "null");
     if (!captchaToken && import.meta.env.VITE_RECAPTCHA_SITE_KEY) {
       setError("Verifikasi keamanan gagal. Silakan reload halaman.");
       setLoading(false);

@@ -16,8 +16,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   static getDerivedStateFromError(error: Error) {
     return { error };
   }
-  componentDidCatch(error: Error, info: ErrorInfo) {
-  }
+  componentDidCatch(error: Error, info: ErrorInfo) {}
   render() {
     if (this.state.error) {
       return (
@@ -82,10 +81,7 @@ createRoot(rootEl).render(
   </ErrorBoundary>,
 );
 
-if (
-  "serviceWorker" in navigator
-  && !(window.Capacitor?.isNativePlatform?.() === true)
-) {
+if ("serviceWorker" in navigator && !(window.Capacitor?.isNativePlatform?.() === true)) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js", { scope: "/" });
   });

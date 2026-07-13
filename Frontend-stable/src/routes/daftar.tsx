@@ -147,14 +147,21 @@ function RegisterPage() {
                 {error && (
                   <div className="mb-4 flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
                     <Icon name="error" className="text-[#E11D48] !text-[18px] shrink-0 mt-0.5" />
-                    <p className="font-body-sm text-body-sm text-[#E11D48] leading-relaxed">{error}</p>
+                    <p className="font-body-sm text-body-sm text-[#E11D48] leading-relaxed">
+                      {error}
+                    </p>
                   </div>
                 )}
 
                 {success && (
                   <div className="mb-4 flex items-start gap-2.5 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
-                    <Icon name="check_circle" className="text-[#16A34A] !text-[18px] shrink-0 mt-0.5" />
-                    <p className="font-body-sm text-body-sm text-[#16A34A] leading-relaxed">{success}</p>
+                    <Icon
+                      name="check_circle"
+                      className="text-[#16A34A] !text-[18px] shrink-0 mt-0.5"
+                    />
+                    <p className="font-body-sm text-body-sm text-[#16A34A] leading-relaxed">
+                      {success}
+                    </p>
                   </div>
                 )}
 
@@ -166,13 +173,21 @@ function RegisterPage() {
                   }}
                 >
                   <div className="flex flex-col gap-1.5">
-                    <label className="font-label-md text-label-md font-semibold text-[#0F172A]">Nama Lengkap</label>
+                    <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
+                      Nama Lengkap
+                    </label>
                     <div className="relative flex items-center">
-                      <Icon name="person" className="absolute left-3.5 text-[#757684] !text-[18px] pointer-events-none" />
+                      <Icon
+                        name="person"
+                        className="absolute left-3.5 text-[#757684] !text-[18px] pointer-events-none"
+                      />
                       <input
                         type="text"
                         value={name}
-                        onChange={(e) => { setName(e.target.value); setNameError(""); }}
+                        onChange={(e) => {
+                          setName(e.target.value);
+                          setNameError("");
+                        }}
                         onBlur={handleNameBlur}
                         placeholder="Nama lengkap"
                         autoComplete="name"
@@ -189,9 +204,14 @@ function RegisterPage() {
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="font-label-md text-label-md font-semibold text-[#0F172A]">Email</label>
+                    <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
+                      Email
+                    </label>
                     <div className="relative flex items-center">
-                      <Icon name="mail" className="absolute left-3.5 text-[#757684] !text-[18px] pointer-events-none" />
+                      <Icon
+                        name="mail"
+                        className="absolute left-3.5 text-[#757684] !text-[18px] pointer-events-none"
+                      />
                       <input
                         type="email"
                         value={email}
@@ -205,13 +225,21 @@ function RegisterPage() {
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="font-label-md text-label-md font-semibold text-[#0F172A]">No. Telepon</label>
+                    <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
+                      No. Telepon
+                    </label>
                     <div className="relative flex items-center">
-                      <Icon name="phone" className="absolute left-3.5 text-[#757684] !text-[18px] pointer-events-none" />
+                      <Icon
+                        name="phone"
+                        className="absolute left-3.5 text-[#757684] !text-[18px] pointer-events-none"
+                      />
                       <input
                         type="tel"
                         value={phone}
-                        onChange={(e) => { setPhone(e.target.value); setPhoneError(""); }}
+                        onChange={(e) => {
+                          setPhone(e.target.value);
+                          setPhoneError("");
+                        }}
                         onBlur={handlePhoneBlur}
                         placeholder="08xxxxxxxxxx"
                         autoComplete="tel"
@@ -232,7 +260,9 @@ function RegisterPage() {
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="font-label-md text-label-md font-semibold text-[#0F172A]">Kata Sandi</label>
+                    <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
+                      Kata Sandi
+                    </label>
                     <div className="relative flex items-center">
                       <input
                         type={showPw ? "text" : "password"}
@@ -250,13 +280,18 @@ function RegisterPage() {
                         className="absolute right-3.5 text-[#757684] hover:text-[#475569] transition-colors"
                         aria-label={showPw ? "Sembunyikan" : "Tampilkan"}
                       >
-                        <Icon name={showPw ? "visibility_off" : "visibility"} className="!text-[20px]" />
+                        <Icon
+                          name={showPw ? "visibility_off" : "visibility"}
+                          className="!text-[20px]"
+                        />
                       </button>
                     </div>
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="font-label-md text-label-md font-semibold text-[#0F172A]">Konfirmasi Kata Sandi</label>
+                    <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
+                      Konfirmasi Kata Sandi
+                    </label>
                     <input
                       type="password"
                       value={passwordConfirmation}

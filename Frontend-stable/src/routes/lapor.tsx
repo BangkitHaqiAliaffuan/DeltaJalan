@@ -257,7 +257,14 @@ function PublicLaporPage() {
         return;
       }
     }
-    setQualityScores(JSON.stringify({ ...qualityCheck, title: undefined, message: undefined, isWarningOnly: undefined }));
+    setQualityScores(
+      JSON.stringify({
+        ...qualityCheck,
+        title: undefined,
+        message: undefined,
+        isWarningOnly: undefined,
+      }),
+    );
 
     // Baca kamera (non-blocking, hanya display)
     try {
@@ -324,7 +331,14 @@ function PublicLaporPage() {
         return;
       }
     }
-    setQualityScores(JSON.stringify({ ...qualityCheck, title: undefined, message: undefined, isWarningOnly: undefined }));
+    setQualityScores(
+      JSON.stringify({
+        ...qualityCheck,
+        title: undefined,
+        message: undefined,
+        isWarningOnly: undefined,
+      }),
+    );
 
     setPhoto(compressedFile);
     setPhotoPreview(URL.createObjectURL(compressedFile));
@@ -400,7 +414,14 @@ function PublicLaporPage() {
         return;
       }
     }
-    setQualityScores(JSON.stringify({ ...qualityCheck, title: undefined, message: undefined, isWarningOnly: undefined }));
+    setQualityScores(
+      JSON.stringify({
+        ...qualityCheck,
+        title: undefined,
+        message: undefined,
+        isWarningOnly: undefined,
+      }),
+    );
 
     setPhoto(compressedFile);
     setPhotoPreview(URL.createObjectURL(compressedFile));
@@ -461,9 +482,7 @@ function PublicLaporPage() {
 
     setLoading(true);
 
-    console.log("[lapor] getRecaptchaToken...");
     const captchaToken = await getRecaptchaToken();
-    console.log("[lapor] captchaToken:", captchaToken ? `${captchaToken.slice(0, 20)}... (ADA)` : "null");
     if (!captchaToken && import.meta.env.VITE_RECAPTCHA_SITE_KEY) {
       setError("Verifikasi keamanan gagal. Silakan reload halaman.");
       setLoading(false);
@@ -496,9 +515,6 @@ function PublicLaporPage() {
 
       if (res.ok && json.success) {
         recordUpload();
-        if (json.data?.mobileclip_score != null) {
-          console.log("[MobileCLIP] score:", json.data.mobileclip_score, "| label:", json.data.mobileclip_label);
-        }
         setSuccess({ reportCode: json.data?.report?.report_code ?? "" });
       } else {
         if (json.error_code === "IMAGE_NOT_RELEVANT") {

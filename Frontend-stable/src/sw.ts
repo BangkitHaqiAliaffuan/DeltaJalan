@@ -8,22 +8,20 @@ declare const self: ServiceWorkerGlobalScope;
 
 precacheAndRoute(self.__WB_MANIFEST ?? []);
 
-const OLD_CACHE_PATTERNS = [
-  /^api-v1$/,
-  /^images-v1$/,
-  /^static-v1$/,
-  /^cdn-v1$/,
-];
+const OLD_CACHE_PATTERNS = [/^api-v1$/, /^images-v1$/, /^static-v1$/, /^cdn-v1$/];
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys
-          .filter((key) => OLD_CACHE_PATTERNS.some((p) => p.test(key)))
-          .map((key) => caches.delete(key)),
-      );
-    }).then(() => self.clients.claim()),
+    caches
+      .keys()
+      .then((keys) => {
+        return Promise.all(
+          keys
+            .filter((key) => OLD_CACHE_PATTERNS.some((p) => p.test(key)))
+            .map((key) => caches.delete(key)),
+        );
+      })
+      .then(() => self.clients.claim()),
   );
 });
 

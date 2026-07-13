@@ -79,7 +79,12 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
       },
     };
 
-    if (apiBase && !apiBase.startsWith("/") && typeof input === "string" && input.startsWith("/api/")) {
+    if (
+      apiBase &&
+      !apiBase.startsWith("/") &&
+      typeof input === "string" &&
+      input.startsWith("/api/")
+    ) {
       const base = apiBase.replace(/\/+$/, "");
       const path = input.replace(/^\/api/, "");
       return _originalFetch!(base + (path.startsWith("/") ? path : "/" + path), ngrokInit);

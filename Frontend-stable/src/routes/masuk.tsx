@@ -11,8 +11,7 @@ export const Route = createFileRoute("/masuk")({
       { title: "Masuk — DeltaJalan Warga" },
       {
         name: "description",
-        content:
-          "Masuk untuk melaporkan kerusakan jalan di Kabupaten Sidoarjo.",
+        content: "Masuk untuk melaporkan kerusakan jalan di Kabupaten Sidoarjo.",
       },
     ],
   }),

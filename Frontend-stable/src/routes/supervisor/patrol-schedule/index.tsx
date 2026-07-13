@@ -134,9 +134,7 @@ function PatrolScheduleIndex() {
   const schedules: PatrolSchedule[] = schedulesQuery.data?.data ?? [];
   const teams: Team[] = teamsQuery.data?.data ?? [];
   const teamsWithSchedule = new Set(
-    schedules
-      .filter((s) => s.status === "aktif")
-      .map((s) => s.team_id),
+    schedules.filter((s) => s.status === "aktif").map((s) => s.team_id),
   );
   const availableTeams = teams.filter((t) => !teamsWithSchedule.has(t.id));
 
@@ -307,7 +305,7 @@ function PatrolScheduleIndex() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 @[1100px]:grid-cols-3 gap-4">
-                {schedules.map((s) => (
+            {schedules.map((s) => (
               <ScheduleCard
                 key={s.id}
                 schedule={s}
@@ -315,7 +313,6 @@ function PatrolScheduleIndex() {
                 onDelete={() => setDeleteId(s.id)}
                 onToggle={() => toggleMut.mutate(s.id)}
                 onGenerate={() => openGenerate(s)}
-
               />
             ))}
           </div>
@@ -360,7 +357,10 @@ function PatrolScheduleIndex() {
                 Tim Satgas <span className="text-[#E11D48]">*</span>
               </label>
               <SearchSelect
-                options={(modal === "create" ? availableTeams : teams).map((t) => ({ value: t.id, label: t.name }))}
+                options={(modal === "create" ? availableTeams : teams).map((t) => ({
+                  value: t.id,
+                  label: t.name,
+                }))}
                 value={form.team_id}
                 onChange={(v) => {
                   const kec = teams.find((t) => t.id === v)?.uptd?.kecamatan_wilayah ?? [];
@@ -412,7 +412,9 @@ function PatrolScheduleIndex() {
                     </span>
                   ))
                 ) : (
-                  <span className="text-[12px] text-[#94A3B8]">Pilih tim satgas terlebih dahulu</span>
+                  <span className="text-[12px] text-[#94A3B8]">
+                    Pilih tim satgas terlebih dahulu
+                  </span>
                 )}
               </div>
               {form.kecamatan_list.length > 0 && (
@@ -483,7 +485,6 @@ function PatrolScheduleIndex() {
                 <option value="pengaduan">Pengaduan</option>
               </select>
             </div>
-
           </ModalBase>
         ) : null}
 
@@ -689,7 +690,9 @@ function ScheduleCard({
 
       <div className="flex items-center gap-1 pt-3 border-t border-[#E2E8F0]">
         <button
-          onClick={() => navigate({ to: "/supervisor/patrol-schedule/detail", search: { id: schedule.id } })}
+          onClick={() =>
+            navigate({ to: "/supervisor/patrol-schedule/detail", search: { id: schedule.id } })
+          }
           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-[#1e40af] hover:bg-[#EEF3FA] transition-colors"
         >
           <Icon name="calendar_view_week" className="!text-[14px]" /> Detail

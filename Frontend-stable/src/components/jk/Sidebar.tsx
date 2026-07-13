@@ -37,7 +37,12 @@ export function Sidebar() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
-  const menuItems = user?.role === "supervisor" ? SUPERVISOR_MENU : user?.role === "warga" ? WARGA_MENU : PETUGAS_MENU;
+  const menuItems =
+    user?.role === "supervisor"
+      ? SUPERVISOR_MENU
+      : user?.role === "warga"
+        ? WARGA_MENU
+        : PETUGAS_MENU;
 
   useEffect(() => {
     setUser(getCurrentUser());
@@ -166,7 +171,11 @@ export function Sidebar() {
                 className="text-white/60 text-[11px] truncate leading-tight capitalize"
                 style={{ fontFamily: "'Inter', sans-serif" }}
               >
-                {displayUser.role === "supervisor" ? "Supervisor" : displayUser.role === "warga" ? "Warga" : "Petugas Lapangan"}
+                {displayUser.role === "supervisor"
+                  ? "Supervisor"
+                  : displayUser.role === "warga"
+                    ? "Warga"
+                    : "Petugas Lapangan"}
               </span>
             )}
           </div>

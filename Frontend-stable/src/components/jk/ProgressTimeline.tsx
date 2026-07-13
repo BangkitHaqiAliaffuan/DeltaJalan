@@ -12,8 +12,18 @@ function formatDayHeader(iso: string | null): string {
   try {
     const d = new Date(iso);
     const months = [
-      "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-      "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+      "Januari",
+      "Februari",
+      "Maret",
+      "April",
+      "Mei",
+      "Juni",
+      "Juli",
+      "Agustus",
+      "September",
+      "Oktober",
+      "November",
+      "Desember",
     ];
     return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
   } catch {
@@ -66,9 +76,7 @@ export function ProgressTimeline({ updates, estimasiHari }: ProgressTimelineProp
               <div className="relative z-10 mb-2">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-[#EFF6FF] border border-[#BFDBFE]">
-                    <span className="text-[11px] font-bold text-[#2563EB]">
-                      {day}
-                    </span>
+                    <span className="text-[11px] font-bold text-[#2563EB]">{day}</span>
                   </div>
                   <div>
                     <p className="text-[12px] font-semibold text-[#0F172A]">

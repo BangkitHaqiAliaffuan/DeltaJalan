@@ -69,7 +69,10 @@ function WargaLaporanDetailPage() {
       <main className="pb-4 text-center py-12 text-[#476788]">
         <Icon name="error" className="!text-5xl mb-3 opacity-30" />
         <p>Laporan tidak ditemukan.</p>
-        <Link to="/warga/laporan" className="text-[#1e40af] font-semibold text-sm mt-2 inline-block">
+        <Link
+          to="/warga/laporan"
+          className="text-[#1e40af] font-semibold text-sm mt-2 inline-block"
+        >
           Kembali ke daftar
         </Link>
       </main>
@@ -96,14 +99,20 @@ function WargaLaporanDetailPage() {
       <div className="max-w-xl mx-auto px-4 mt-6">
         {photo?.image_original_url && (
           <div className="mb-4 rounded-lg overflow-hidden border border-[#D0DAE8]">
-            <img src={resolveImageUrl(photo.image_original_url) ?? ""} alt="Foto kerusakan" className="w-full object-cover max-h-64" />
+            <img
+              src={resolveImageUrl(photo.image_original_url) ?? ""}
+              alt="Foto kerusakan"
+              className="w-full object-cover max-h-64"
+            />
           </div>
         )}
 
         <div className="bg-white border border-[#D0DAE8] rounded-lg p-4 mb-4 space-y-3">
           <div>
             <p className="text-xs text-[#476788] font-medium">Nama Jalan</p>
-            <p className="font-label-md text-label-md font-semibold text-[#0F172A]">{report.road_name}</p>
+            <p className="font-label-md text-label-md font-semibold text-[#0F172A]">
+              {report.road_name}
+            </p>
           </div>
           <div>
             <p className="text-xs text-[#476788] font-medium">Kecamatan</p>
@@ -117,7 +126,15 @@ function WargaLaporanDetailPage() {
           )}
           <div>
             <p className="text-xs text-[#476788] font-medium">Tanggal Laporan</p>
-            <p className="font-body-sm text-body-sm text-[#0F172A]">{new Date(report.created_at).toLocaleDateString("id-ID", { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+            <p className="font-body-sm text-body-sm text-[#0F172A]">
+              {new Date(report.created_at).toLocaleDateString("id-ID", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </p>
           </div>
         </div>
 
@@ -143,7 +160,9 @@ function WargaLaporanDetailPage() {
               <div className="w-3 h-3 rounded-full bg-[#1e40af] shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-medium text-[#0F172A]">{statusInfo.label}</p>
-                <p className="text-xs text-[#476788]">{formatDateRelative(report.created_at, true)}</p>
+                <p className="text-xs text-[#476788]">
+                  {formatDateRelative(report.created_at, true)}
+                </p>
               </div>
             </div>
           ) : (
@@ -152,17 +171,25 @@ function WargaLaporanDetailPage() {
                 const isLast = i === timeline.length - 1;
                 const statusLabel = getStatusBadge(item.new_status).label;
                 const dateStr = new Date(item.created_at).toLocaleDateString("id-ID", {
-                  year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
                 });
 
                 return (
                   <div key={i} className="flex gap-3 pb-4 relative">
                     <div className="flex flex-col items-center">
-                      <div className={`w-3 h-3 rounded-full ${isLast ? "bg-[#1e40af]" : "bg-[#c4c5d5]"} shrink-0 mt-1`} />
+                      <div
+                        className={`w-3 h-3 rounded-full ${isLast ? "bg-[#1e40af]" : "bg-[#c4c5d5]"} shrink-0 mt-1`}
+                      />
                       {!isLast && <div className="w-px flex-1 bg-[#D0DAE8] mt-1" />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[#0F172A]">{item.notes ?? statusLabel}</p>
+                      <p className="text-sm font-medium text-[#0F172A]">
+                        {item.notes ?? statusLabel}
+                      </p>
                       {item.notes && statusLabel !== item.notes && (
                         <p className="text-xs text-[#476788]">{statusLabel}</p>
                       )}

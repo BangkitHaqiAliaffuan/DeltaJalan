@@ -200,9 +200,7 @@ function DetailPatroliPage() {
                         <p className="text-[13px] font-medium text-[#0F172A] truncate">
                           {r.report_code || "Laporan"}
                         </p>
-                        {r.overall_severity && (
-                          <SeverityBadge severity={r.overall_severity} />
-                        )}
+                        {r.overall_severity && <SeverityBadge severity={r.overall_severity} />}
                       </div>
                       {r.road_name && (
                         <p className="text-[11px] text-[#64748B] mt-0.5 truncate">

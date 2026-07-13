@@ -37,7 +37,7 @@ function getKecamatanCenter(kec: string): { lat: number; lng: number } | null {
 }
 
 function isPatrolDay(date: Date, schedule: PatrolSchedule): boolean {
-  const dayNames = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
+  const dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
   const dayName = dayNames[date.getDay()];
   if (!schedule.hari.includes(dayName as Hari)) return false;
 
@@ -50,7 +50,7 @@ function isPatrolDay(date: Date, schedule: PatrolSchedule): boolean {
       dateWeekStart.setDate(dateWeekStart.getDate() - dateWeekStart.getDay());
       dateWeekStart.setHours(0, 0, 0, 0);
       const weeks = Math.floor(
-        (dateWeekStart.getTime() - startWeekStart.getTime()) / (7 * 86400000)
+        (dateWeekStart.getTime() - startWeekStart.getTime()) / (7 * 86400000),
       );
       return weeks % 2 === 0;
     }
@@ -187,9 +187,7 @@ export function PatrolScheduleCard({
 
             {/* Active day cards */}
             <div
-              className={`flex flex-wrap justify-center ${
-                compact ? "gap-2 mb-3" : "gap-3 mb-4"
-              }`}
+              className={`flex flex-wrap justify-center ${compact ? "gap-2 mb-3" : "gap-3 mb-4"}`}
             >
               {hariList.map((h, i) => {
                 const k = kecList[i];
@@ -198,9 +196,7 @@ export function PatrolScheduleCard({
                   <div
                     key={h}
                     className={`flex flex-col items-center rounded-lg border text-center transition-all min-w-0 max-w-full ${
-                      compact
-                        ? "px-2 py-2 w-[100px]"
-                        : "px-3 py-3 w-[130px]"
+                      compact ? "px-2 py-2 w-[100px]" : "px-3 py-3 w-[130px]"
                     } ${
                       isToday
                         ? "border-[#10B981]/40 bg-[#F0FDF4] ring-2 ring-[#10B981]/20"

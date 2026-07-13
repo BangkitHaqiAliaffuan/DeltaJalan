@@ -18,8 +18,7 @@ export const Route = createFileRoute("/")({
       { title: "DeltaJalan — Deteksi Cepat, Penanganan Tepat" },
       {
         name: "description",
-        content:
-          "Sistem pelaporan kerusakan jalan Kabupaten Sidoarjo — Dinas PU Bina Marga.",
+        content: "Sistem pelaporan kerusakan jalan Kabupaten Sidoarjo — Dinas PU Bina Marga.",
       },
     ],
   }),
@@ -139,13 +138,25 @@ const faqData = [
   },
 ];
 
-function StatCard({ target, suffix, label, icon }: { target: number; suffix: string; label: string; icon: string }) {
+function StatCard({
+  target,
+  suffix,
+  label,
+  icon,
+}: {
+  target: number;
+  suffix: string;
+  label: string;
+  icon: string;
+}) {
   return (
     <div className="!bg-white !border-[#c7d2fe] rounded-xl p-5 md:p-6 text-center border hover:!border-[#4338ca]/30 hover:shadow-md transition-all">
       <Icon name={icon} className="!text-[28px] text-[#1e40af] mb-3" />
       <div className="font-headline-lg text-headline-lg font-extrabold text-[#0F172A] flex items-center justify-center">
         <Counter value={target} fontSize={36} textColor="#0F172A" fontWeight={800} />
-        <span className="font-headline-lg text-headline-lg font-extrabold text-[#0F172A]">{suffix}</span>
+        <span className="font-headline-lg text-headline-lg font-extrabold text-[#0F172A]">
+          {suffix}
+        </span>
       </div>
       <p className="font-label-sm text-label-sm text-[#3730a3] mt-1">{label}</p>
     </div>
@@ -160,7 +171,8 @@ function LandingPage() {
 
   const { data: statsRes } = useQuery({
     queryKey: ["public-stats"],
-    queryFn: () => apiFetch("/api/public/stats").then<{ success: boolean; data: StatsData }>((r) => r.json()),
+    queryFn: () =>
+      apiFetch("/api/public/stats").then<{ success: boolean; data: StatsData }>((r) => r.json()),
     refetchInterval: 120_000,
   });
 
@@ -174,7 +186,13 @@ function LandingPage() {
 
   useEffect(() => {
     const ctx = gsap.context(() => {
-      gsap.from(".hero-buttons", { y: 30, opacity: 0, duration: 0.8, ease: "power3.out", delay: 0.6 });
+      gsap.from(".hero-buttons", {
+        y: 30,
+        opacity: 0,
+        duration: 0.8,
+        ease: "power3.out",
+        delay: 0.6,
+      });
       gsap.from(".hero-scroll", { opacity: 0, duration: 0.6, delay: 1.2 });
     });
 
@@ -206,7 +224,9 @@ function LandingPage() {
       >
         <Link to="/" className="flex items-center gap-2.5">
           <img src="/logo.png" alt="DeltaJalan" className="w-8 h-8" />
-          <span className={`font-headline-md text-headline-md font-bold tracking-tight transition-colors ${scrolled ? "text-[#0F172A]" : "text-white"}`}>
+          <span
+            className={`font-headline-md text-headline-md font-bold tracking-tight transition-colors ${scrolled ? "text-[#0F172A]" : "text-white"}`}
+          >
             DeltaJalan
           </span>
         </Link>
@@ -263,9 +283,7 @@ function LandingPage() {
           <Link
             to={dashboardUrl(user!.role)}
             className={`md:hidden w-9 h-9 rounded-full flex items-center justify-center font-label-md text-label-md font-bold transition-all ${
-              scrolled
-                ? "bg-[#1e40af] text-white"
-                : "bg-white text-[#1e40af]"
+              scrolled ? "bg-[#1e40af] text-white" : "bg-white text-[#1e40af]"
             }`}
           >
             {user!.initials || user!.name?.charAt(0) || "U"}
@@ -274,9 +292,7 @@ function LandingPage() {
           <Link
             to="/masuk"
             className={`md:hidden font-label-md text-label-md font-semibold px-4 py-2 rounded-lg transition-all ${
-              scrolled
-                ? "bg-[#1e40af] text-white"
-                : "bg-white text-[#1e40af]"
+              scrolled ? "bg-[#1e40af] text-white" : "bg-white text-[#1e40af]"
             }`}
           >
             Masuk
@@ -285,9 +301,18 @@ function LandingPage() {
       </nav>
 
       {/* ── HERO ── */}
-      <section ref={heroRef} className="relative min-h-[100dvh] flex items-center justify-center overflow-hidden pt-16">
+      <section
+        ref={heroRef}
+        className="relative min-h-[100dvh] flex items-center justify-center overflow-hidden pt-16"
+      >
         <div className="absolute inset-0">
-          <video autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover">
+          <video
+            autoPlay
+            muted
+            loop
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover"
+          >
             <source src="/background%20video.mp4" type="video/mp4" />
           </video>
           <div className="absolute inset-0 bg-gradient-to-b from-[#1e40af]/85 via-[#1e40af]/75 to-[#0f2b6d]/95" />
@@ -297,7 +322,9 @@ function LandingPage() {
           <AnimatedContent distance={0} duration={0.8} initialOpacity={0} scale={0.95}>
             <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-4 py-1.5 mb-8">
               <Icon name="verified" className="!text-[14px] text-white/80" />
-              <span className="font-label-sm text-label-sm text-white/80">Portal Resmi Kabupaten Sidoarjo</span>
+              <span className="font-label-sm text-label-sm text-white/80">
+                Portal Resmi Kabupaten Sidoarjo
+              </span>
             </div>
           </AnimatedContent>
 
@@ -369,10 +396,30 @@ function LandingPage() {
       <AnimatedContent distance={60} duration={0.8}>
         <section className="py-16 md:py-20 px-6 bg-white">
           <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-            <StatCard target={stats?.kecamatan_count ?? 18} suffix="" label="Kecamatan" icon="location_city" />
-            <StatCard target={stats?.total_reports ?? 0} suffix="+" label="Laporan" icon="description" />
-            <StatCard target={stats?.completed_reports ?? 0} suffix="+" label="Selesai" icon="check_circle" />
-            <StatCard target={stats?.in_progress ?? 0} suffix="+" label="Proses Aktif" icon="engineering" />
+            <StatCard
+              target={stats?.kecamatan_count ?? 18}
+              suffix=""
+              label="Kecamatan"
+              icon="location_city"
+            />
+            <StatCard
+              target={stats?.total_reports ?? 0}
+              suffix="+"
+              label="Laporan"
+              icon="description"
+            />
+            <StatCard
+              target={stats?.completed_reports ?? 0}
+              suffix="+"
+              label="Selesai"
+              icon="check_circle"
+            />
+            <StatCard
+              target={stats?.in_progress ?? 0}
+              suffix="+"
+              label="Proses Aktif"
+              icon="engineering"
+            />
           </div>
         </section>
       </AnimatedContent>
@@ -402,7 +449,9 @@ function LandingPage() {
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#1e40af] to-[#2e68d8] flex items-center justify-center mx-auto mb-4">
                     <Icon name={f.icon} className="!text-[22px] text-white" />
                   </div>
-                  <h3 className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-2">{f.title}</h3>
+                  <h3 className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-2">
+                    {f.title}
+                  </h3>
                   <p className="font-body-sm text-body-sm text-[#3730a3]">{f.desc}</p>
                 </SpotlightCard>
               ))}
@@ -433,10 +482,14 @@ function LandingPage() {
                   spotlightColor="rgba(99, 102, 241, 0.15)"
                 >
                   <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#1e40af] to-[#2e68d8] flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#1e40af]/20">
-                    <span className="font-headline-md text-headline-md font-bold text-white">{s.number}</span>
+                    <span className="font-headline-md text-headline-md font-bold text-white">
+                      {s.number}
+                    </span>
                   </div>
                   <Icon name={s.icon} className="!text-[32px] text-[#4338ca] mb-3" />
-                  <h3 className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-2">{s.title}</h3>
+                  <h3 className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-2">
+                    {s.title}
+                  </h3>
                   <p className="font-body-sm text-body-sm text-[#3730a3]">{s.desc}</p>
                 </SpotlightCard>
               ))}
@@ -475,12 +528,18 @@ function LandingPage() {
                   className="!bg-white !border-[#c7d2fe] rounded-xl p-6 flex gap-5 hover:!border-[#4338ca]/30 transition-all"
                   spotlightColor="rgba(99, 102, 241, 0.1)"
                 >
-                  <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${d.gradient} flex items-center justify-center shrink-0 shadow-md`}>
+                  <div
+                    className={`w-14 h-14 rounded-xl bg-gradient-to-br ${d.gradient} flex items-center justify-center shrink-0 shadow-md`}
+                  >
                     <Icon name={d.icon} className="!text-[26px] text-white" />
                   </div>
                   <div>
-                    <h3 className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-1.5">{d.title}</h3>
-                    <p className="font-body-sm text-body-sm text-[#3730a3] leading-relaxed">{d.desc}</p>
+                    <h3 className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-1.5">
+                      {d.title}
+                    </h3>
+                    <p className="font-body-sm text-body-sm text-[#3730a3] leading-relaxed">
+                      {d.desc}
+                    </p>
                   </div>
                 </SpotlightCard>
               ))}
@@ -509,14 +568,20 @@ function LandingPage() {
                 Cakupan Wilayah
               </h2>
               <p className="mt-3 font-body-md text-body-md text-[#3730a3] max-w-lg mx-auto">
-                DeltaJalan melayani seluruh wilayah Kabupaten Sidoarjo yang terdiri dari 18 kecamatan.
+                DeltaJalan melayani seluruh wilayah Kabupaten Sidoarjo yang terdiri dari 18
+                kecamatan.
               </p>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
               {(stats?.kecamatan ?? []).map((k) => (
-                <div key={k} className="bg-[#eef2ff] rounded-lg px-3 py-2.5 text-center border border-[#c7d2fe] hover:border-[#4338ca]/30 hover:bg-[#1e40af]/5 transition-all">
-                  <span className="font-label-sm text-label-sm text-[#0F172A] font-medium">{k}</span>
+                <div
+                  key={k}
+                  className="bg-[#eef2ff] rounded-lg px-3 py-2.5 text-center border border-[#c7d2fe] hover:border-[#4338ca]/30 hover:bg-[#1e40af]/5 transition-all"
+                >
+                  <span className="font-label-sm text-label-sm text-[#0F172A] font-medium">
+                    {k}
+                  </span>
                 </div>
               ))}
             </div>
@@ -542,7 +607,9 @@ function LandingPage() {
                 <div className="bg-white rounded-2xl p-8 border border-[#c7d2fe] shadow-sm">
                   <div className="flex items-center gap-2 text-[#10b981] mb-4">
                     <Icon name="check_circle" className="!text-[18px]" />
-                    <span className="font-label-sm text-label-sm font-medium">{activeTesti.status}</span>
+                    <span className="font-label-sm text-label-sm font-medium">
+                      {activeTesti.status}
+                    </span>
                   </div>
                   <p className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-2">
                     {activeTesti.road_name}
@@ -560,8 +627,13 @@ function LandingPage() {
                 </div>
               ) : (
                 <div className="bg-white rounded-2xl p-8 border border-[#c7d2fe] shadow-sm text-center">
-                  <Icon name="sentiment_satisfied" className="!text-[40px] text-[#6366f1] mx-auto mb-3" />
-                  <p className="font-body-md text-body-md text-[#3730a3]">Belum ada laporan yang selesai ditangani.</p>
+                  <Icon
+                    name="sentiment_satisfied"
+                    className="!text-[40px] text-[#6366f1] mx-auto mb-3"
+                  />
+                  <p className="font-body-md text-body-md text-[#3730a3]">
+                    Belum ada laporan yang selesai ditangani.
+                  </p>
                 </div>
               )}
 
@@ -569,7 +641,9 @@ function LandingPage() {
                 <div className="flex items-center justify-center gap-3 mt-6">
                   <button
                     type="button"
-                    onClick={() => setTestiIndex((p) => (p === 0 ? testimonials.length - 1 : p - 1))}
+                    onClick={() =>
+                      setTestiIndex((p) => (p === 0 ? testimonials.length - 1 : p - 1))
+                    }
                     className="w-10 h-10 rounded-full bg-white border border-[#c7d2fe] flex items-center justify-center hover:bg-[#eef2ff] hover:border-[#4338ca]/30 transition-all active:scale-95"
                   >
                     <Icon name="chevron_left" className="!text-[18px] text-[#3730a3]" />
@@ -579,7 +653,9 @@ function LandingPage() {
                   </span>
                   <button
                     type="button"
-                    onClick={() => setTestiIndex((p) => (p === testimonials.length - 1 ? 0 : p + 1))}
+                    onClick={() =>
+                      setTestiIndex((p) => (p === testimonials.length - 1 ? 0 : p + 1))
+                    }
                     className="w-10 h-10 rounded-full bg-white border border-[#c7d2fe] flex items-center justify-center hover:bg-[#eef2ff] hover:border-[#4338ca]/30 transition-all active:scale-95"
                   >
                     <Icon name="chevron_right" className="!text-[18px] text-[#3730a3]" />
@@ -606,13 +682,21 @@ function LandingPage() {
 
             <div className="space-y-3">
               {faqData.map((item) => (
-                <details key={item.q} className="group bg-[#eef2ff] rounded-xl border border-[#c7d2fe] open:border-[#4338ca]/30 open:shadow-sm transition-all">
+                <details
+                  key={item.q}
+                  className="group bg-[#eef2ff] rounded-xl border border-[#c7d2fe] open:border-[#4338ca]/30 open:shadow-sm transition-all"
+                >
                   <summary className="flex items-center justify-between px-6 py-4 cursor-pointer font-label-md text-label-md font-medium text-[#0F172A] list-none">
                     {item.q}
-                    <Icon name="expand_more" className="!text-[20px] text-[#6366f1] transition-transform duration-200 group-open:rotate-180" />
+                    <Icon
+                      name="expand_more"
+                      className="!text-[20px] text-[#6366f1] transition-transform duration-200 group-open:rotate-180"
+                    />
                   </summary>
                   <div className="px-6 pb-4">
-                    <p className="font-body-sm text-body-sm text-[#3730a3] leading-relaxed">{item.a}</p>
+                    <p className="font-body-sm text-body-sm text-[#3730a3] leading-relaxed">
+                      {item.a}
+                    </p>
                   </div>
                 </details>
               ))}
@@ -630,7 +714,8 @@ function LandingPage() {
                 Mari Wujudkan Sidoarjo Tanpa Lubang
               </h2>
               <p className="mt-4 font-body-lg text-body-lg md:text-[18px] text-white/70 max-w-lg mx-auto">
-                Kontribusi Anda sangat berharga bagi keselamatan jutaan pengendara. Laporkan sekarang demi kenyamanan bersama.
+                Kontribusi Anda sangat berharga bagi keselamatan jutaan pengendara. Laporkan
+                sekarang demi kenyamanan bersama.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Link
@@ -660,10 +745,13 @@ function LandingPage() {
             <div className="md:col-span-2">
               <div className="flex items-center gap-2.5 mb-4">
                 <img src="/logo.png" alt="DeltaJalan" className="w-8 h-8 brightness-0 invert" />
-                <span className="font-headline-md text-headline-md font-bold text-white">DeltaJalan</span>
+                <span className="font-headline-md text-headline-md font-bold text-white">
+                  DeltaJalan
+                </span>
               </div>
               <p className="font-body-sm text-body-sm leading-relaxed max-w-sm">
-                Sistem informasi pelaporan terpadu untuk monitoring dan penanganan kerusakan jalan di wilayah Kabupaten Sidoarjo.
+                Sistem informasi pelaporan terpadu untuk monitoring dan penanganan kerusakan jalan
+                di wilayah Kabupaten Sidoarjo.
               </p>
               <div className="flex items-center gap-4 mt-4">
                 <span className="font-body-sm text-body-sm flex items-center gap-1.5">
@@ -679,27 +767,68 @@ function LandingPage() {
             <div>
               <h4 className="font-label-md text-label-md font-semibold text-white mb-4">Layanan</h4>
               <ul className="space-y-3">
-                <li><Link to={loggedIn ? "/warga/lapor" : "/lapor"} className="font-body-sm text-body-sm hover:text-white transition-colors">Pelaporan</Link></li>
-                <li><Link to="/lacak" className="font-body-sm text-body-sm hover:text-white transition-colors">Cek Status</Link></li>
-                <li><Link to="/warga/peta" className="font-body-sm text-body-sm hover:text-white transition-colors">Peta Jalan</Link></li>
+                <li>
+                  <Link
+                    to={loggedIn ? "/warga/lapor" : "/lapor"}
+                    className="font-body-sm text-body-sm hover:text-white transition-colors"
+                  >
+                    Pelaporan
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/lacak"
+                    className="font-body-sm text-body-sm hover:text-white transition-colors"
+                  >
+                    Cek Status
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/warga/peta"
+                    className="font-body-sm text-body-sm hover:text-white transition-colors"
+                  >
+                    Peta Jalan
+                  </Link>
+                </li>
               </ul>
             </div>
             <div>
-              <h4 className="font-label-md text-label-md font-semibold text-white mb-4">Kontak & Bantuan</h4>
+              <h4 className="font-label-md text-label-md font-semibold text-white mb-4">
+                Kontak & Bantuan
+              </h4>
               <ul className="space-y-3">
-                <li><Link to="/lacak" className="font-body-sm text-body-sm hover:text-white transition-colors">Pusat Bantuan</Link></li>
-                <li><span className="font-body-sm text-body-sm cursor-default flex items-center gap-1.5">
-                  <Icon name="phone" className="!text-[14px]" />
-                  031-8961100
-                </span></li>
-                <li><span className="font-body-sm text-body-sm cursor-default">Syarat & Ketentuan</span></li>
-                <li><span className="font-body-sm text-body-sm cursor-default">Kebijakan Privasi</span></li>
+                <li>
+                  <Link
+                    to="/lacak"
+                    className="font-body-sm text-body-sm hover:text-white transition-colors"
+                  >
+                    Pusat Bantuan
+                  </Link>
+                </li>
+                <li>
+                  <span className="font-body-sm text-body-sm cursor-default flex items-center gap-1.5">
+                    <Icon name="phone" className="!text-[14px]" />
+                    031-8961100
+                  </span>
+                </li>
+                <li>
+                  <span className="font-body-sm text-body-sm cursor-default">
+                    Syarat & Ketentuan
+                  </span>
+                </li>
+                <li>
+                  <span className="font-body-sm text-body-sm cursor-default">
+                    Kebijakan Privasi
+                  </span>
+                </li>
               </ul>
             </div>
           </div>
           <div className="mt-10 pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="font-body-sm text-body-sm">
-              &copy; 2024 DeltaJalan — Dinas PU Bina Marga & SDA Kab. Sidoarjo. Hak Cipta Dilindungi.
+              &copy; 2024 DeltaJalan — Dinas PU Bina Marga & SDA Kab. Sidoarjo. Hak Cipta
+              Dilindungi.
             </p>
             <span className="font-body-sm text-body-sm flex items-center gap-1">
               <Icon name="public" className="!text-[14px]" />

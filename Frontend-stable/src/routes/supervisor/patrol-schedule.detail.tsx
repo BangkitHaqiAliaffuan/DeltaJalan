@@ -18,8 +18,18 @@ export const Route = createFileRoute("/supervisor/patrol-schedule/detail")({
 const DAY_NAMES = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 const DAY_ABBR = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 const MONTHS = [
-  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
 ];
 
 function formatDateId(dateStr: string): string {
@@ -83,7 +93,7 @@ function DetailPage() {
         dateWeekStart.setDate(dateWeekStart.getDate() - dateWeekStart.getDay());
         dateWeekStart.setHours(0, 0, 0, 0);
         const weeks = Math.floor(
-          (dateWeekStart.getTime() - startWeekStart.getTime()) / (7 * 86400000)
+          (dateWeekStart.getTime() - startWeekStart.getTime()) / (7 * 86400000),
         );
         return weeks % 2 === 0;
       }
@@ -184,11 +194,13 @@ function DetailPage() {
 
   const taskCount = schedule?.team?.surveyTasks?.length ?? 0;
   const withReports = (schedule?.team?.surveyTasks ?? []).filter(
-    (t) => (t.reports_count ?? 0) > 0
+    (t) => (t.reports_count ?? 0) > 0,
   ).length;
 
-  const prevMonth = () => setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-  const nextMonth = () => setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  const prevMonth = () =>
+    setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  const nextMonth = () =>
+    setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
 
   if (isLoading) {
     return (
@@ -222,11 +234,15 @@ function DetailPage() {
           <div className="flex flex-wrap gap-x-6 gap-y-3 text-[13px]">
             <div>
               <span className="text-[#64748B]">Frekuensi</span>
-              <p className="font-semibold text-[#0F172A]">{freqLabel[schedule.frekuensi] ?? schedule.frekuensi}</p>
+              <p className="font-semibold text-[#0F172A]">
+                {freqLabel[schedule.frekuensi] ?? schedule.frekuensi}
+              </p>
             </div>
             <div>
               <span className="text-[#64748B]">Status</span>
-              <p className={`font-semibold ${schedule.status === "aktif" ? "text-[#10B981]" : "text-[#94A3B8]"}`}>
+              <p
+                className={`font-semibold ${schedule.status === "aktif" ? "text-[#10B981]" : "text-[#94A3B8]"}`}
+              >
                 {schedule.status === "aktif" ? "Aktif" : "Nonaktif"}
               </p>
             </div>
@@ -346,10 +362,7 @@ function DetailPage() {
                           {day}
                         </span>
                         {task && (
-                          <Icon
-                            name="check_circle"
-                            className="!text-[12px] text-[#10B981]"
-                          />
+                          <Icon name="check_circle" className="!text-[12px] text-[#10B981]" />
                         )}
                       </div>
                       {patrolInfo && (

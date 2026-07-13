@@ -79,11 +79,7 @@ export function formatCountdown(ms: number): string {
   return parts.join(" ") || "0 detik";
 }
 
-export function hitungProgress(
-  deadline: string,
-  start: string,
-  now: number,
-): { persen: number } {
+export function hitungProgress(deadline: string, start: string, now: number): { persen: number } {
   const deadlineMs = new Date(deadline).getTime();
   const startMs = new Date(start).getTime();
   const totalMs = deadlineMs - startMs || 1;

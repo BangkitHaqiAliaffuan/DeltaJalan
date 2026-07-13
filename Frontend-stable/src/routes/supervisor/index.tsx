@@ -124,7 +124,16 @@ function SupervisorDashboard() {
     if (filterSeverity) p.set("severity", filterSeverity);
     if (filterSla) p.set("status_deadline", filterSla);
     return p.toString();
-  }, [activeTab, page, searchQuery, filterStatus, filterUptd, filterSource, filterSeverity, filterSla]);
+  }, [
+    activeTab,
+    page,
+    searchQuery,
+    filterStatus,
+    filterUptd,
+    filterSource,
+    filterSeverity,
+    filterSla,
+  ]);
 
   const { data: paginatedResponse, isFetching } = useQuery({
     queryKey: ["reports", "paginated", paginatedParams],
@@ -143,7 +152,7 @@ function SupervisorDashboard() {
     },
     enabled: !!token,
     staleTime: 15_000,
-    refetchOnMount: 'always',
+    refetchOnMount: "always",
     refetchInterval: 30_000,
   });
 
@@ -452,7 +461,10 @@ function SupervisorDashboard() {
                   uptdStats.map((u) => {
                     const uptdName = teamToUptdMap[u.team_id] ?? u.team_name;
                     return (
-                      <div key={u.team_id} className="bg-white border border-[#D0DAE8] rounded-lg p-3">
+                      <div
+                        key={u.team_id}
+                        className="bg-white border border-[#D0DAE8] rounded-lg p-3"
+                      >
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-semibold text-sm text-[#0F1623]">{uptdName}</span>
                           <span className="text-xs text-[#476788]">{u.total} laporan</span>
@@ -574,7 +586,11 @@ function SupervisorDashboard() {
           <section className="px-4 flex-1">
             <div className="flex gap-2 mb-3 overflow-x-auto no-scrollbar">
               {[
-                { key: "menunggu", label: "Perlu Review", count: (stats?.menunggu_review ?? 0) + (stats?.menunggu_verifikasi ?? 0) },
+                {
+                  key: "menunggu",
+                  label: "Perlu Review",
+                  count: (stats?.menunggu_review ?? 0) + (stats?.menunggu_verifikasi ?? 0),
+                },
                 { key: "disetujui", label: "Disetujui", count: stats?.disetujui },
                 { key: "ditugaskan", label: "Ditugaskan", count: stats?.ditugaskan },
                 { key: "sedang_diperbaiki", label: "Diperbaiki", count: stats?.sedang_diperbaiki },

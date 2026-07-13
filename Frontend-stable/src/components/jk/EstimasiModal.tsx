@@ -5,7 +5,12 @@ import { Icon } from "./Icon";
 
 interface EstimasiModalProps {
   open: boolean;
-  report: { id: string; overall_severity?: string | null; report_code?: string; road_name?: string } | null;
+  report: {
+    id: string;
+    overall_severity?: string | null;
+    report_code?: string;
+    road_name?: string;
+  } | null;
   loading?: boolean;
   onConfirm: (targetId: string, estimasiHari: number | null) => Promise<void>;
   onClose: () => void;
@@ -117,7 +122,10 @@ export function EstimasiModal({ open, report, loading, onConfirm, onClose }: Est
                   value={estimasiHari}
                   onChange={(e) => {
                     const raw = e.target.value;
-                    if (raw === "") { setEstimasiHari(1); return; }
+                    if (raw === "") {
+                      setEstimasiHari(1);
+                      return;
+                    }
                     const num = parseInt(raw, 10);
                     if (!isNaN(num)) setEstimasiHari(Math.max(1, Math.min(90, num)));
                   }}
@@ -144,7 +152,9 @@ export function EstimasiModal({ open, report, loading, onConfirm, onClose }: Est
           setShowMulaiConfirm(false);
           await onConfirm(report.id, estimasiMode === "same-day" ? null : estimasiHari);
         }}
-        onCancel={() => { setShowMulaiConfirm(false); }}
+        onCancel={() => {
+          setShowMulaiConfirm(false);
+        }}
         icon="play_arrow"
         confirmClassName="flex-1 px-4 py-2.5 text-[13px] font-bold text-white bg-[#1A4F8A] rounded-xl hover:bg-[#153d6e] disabled:opacity-40 transition-all flex items-center justify-center gap-1.5"
       />

@@ -48,7 +48,9 @@ export function convertFileSrc(filePath: string): string {
     if (w.Capacitor?.convertFileSrc) {
       return w.Capacitor.convertFileSrc(filePath);
     }
-  } catch {}
+  } catch {
+    // fallback — return original path
+  }
   return filePath;
 }
 
@@ -79,7 +81,6 @@ export async function nativeTakePhoto(): Promise<{
     const file = new File([blob], `camera_${Date.now()}.jpg`, { type: "image/jpeg" });
 
     const gps = await readExifGps(file);
-    console.log("[GPS-nativeTakePhoto] exifr.gps result:", gps);
 
     return {
       file,
@@ -87,7 +88,6 @@ export async function nativeTakePhoto(): Promise<{
       lng: gps?.longitude ?? null,
     };
   } catch (err) {
-    console.log("[GPS-nativeTakePhoto] error:", err);
     return null;
   }
 }
@@ -358,7 +358,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
       signal: AbortSignal.timeout(8000),
     });
 
-      if (res.ok) {
+    if (res.ok) {
       const data = await res.json();
       const addr = data.address ?? {};
       tier1Raw = addr as Record<string, unknown>;
@@ -389,11 +389,9 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
       );
       if (kecamatan) {
       }
-
     } else {
     }
-  } catch (err) {
-  }
+  } catch (err) {}
   tiers.push({
     tier: 1,
     name: "Nominatim",
@@ -406,7 +404,6 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
   let tier2Raw: Record<string, unknown> | null = null;
   let tier2RawJson: unknown = null;
   if (!namaJalan) {
-
     try {
       const url = new URL(LOCATIONIQ_REVERSE_URL);
       url.searchParams.set("key", LOCATIONIQ_KEY);
@@ -454,11 +451,9 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
         }
         if (kecamatan) {
         }
-
       } else {
       }
-    } catch (err) {
-    }
+    } catch (err) {}
   }
   tiers.push({
     tier: 2,
@@ -479,8 +474,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<ReverseG
         roadFound = true;
       } else {
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
   tiers.push({
     tier: 3,
@@ -580,7 +574,6 @@ export interface ExifGps {
 export async function readExifGps(file: File): Promise<ExifGps | null> {
   try {
     const gps = await exifr.gps(file);
-    console.log("[GPS-readExifGps] exifr.gps returned:", gps);
     if (
       gps &&
       typeof gps.latitude === "number" &&
@@ -592,7 +585,6 @@ export async function readExifGps(file: File): Promise<ExifGps | null> {
     }
     return null;
   } catch (err) {
-    console.log("[GPS-readExifGps] error:", err);
     return null;
   }
 }
@@ -613,20 +605,17 @@ export function getBrowserLocation(options?: {
 }): Promise<ExifGps | null> {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
-      console.log("[GPS-getBrowserLocation] geolocation not supported");
       resolve(null);
       return;
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        console.log("[GPS-getBrowserLocation] success:", pos.coords.latitude, pos.coords.longitude);
         resolve({
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
         });
       },
       (err) => {
-        console.log("[GPS-getBrowserLocation] error:", err.code, err.message);
         resolve(null);
       },
       {
@@ -653,12 +642,9 @@ export async function readExifGpsFromServer(
       signal,
     });
     if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      console.log("[GPS-readExifGpsFromServer] HTTP", res.status, body);
       return null;
     }
     const data = await res.json();
-    console.log("[GPS-readExifGpsFromServer] response data:", data);
     if (typeof data.lat === "number" && typeof data.lng === "number") {
       return { latitude: data.lat, longitude: data.lng };
     }

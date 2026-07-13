@@ -444,22 +444,38 @@ export function PetaInteraktif({
         : `<div style="height:80px;background:#F1F5F9;border-radius:8px 8px 0 0;display:flex;align-items:center;justify-content:center;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z"/><circle cx="12" cy="13" r="3"/></svg></div>`;
 
       const infoItems = [
-        { icon: '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>', label: r.district ?? '-' },
-        { icon: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>', label: formatAge(r.created_at) },
+        {
+          icon: '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
+          label: r.district ?? "-",
+        },
+        {
+          icon: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+          label: formatAge(r.created_at),
+        },
       ];
       if (r.kerusakan_panjang != null && r.kerusakan_lebar != null) {
-        infoItems.push({ icon: '<path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/>', label: `${r.kerusakan_panjang}m × ${r.kerusakan_lebar}m` });
+        infoItems.push({
+          icon: '<path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/>',
+          label: `${r.kerusakan_panjang}m × ${r.kerusakan_lebar}m`,
+        });
       }
       if (r.assigned_team_name) {
-        infoItems.push({ icon: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/>', label: r.assigned_team_name });
+        infoItems.push({
+          icon: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/>',
+          label: r.assigned_team_name,
+        });
       }
 
-      const infoItemsHtml = infoItems.map((item) =>
-        `<div style="display:flex;align-items:center;gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">${item.icon}</svg><span style="font-size:11px;color:#475569;">${item.label}</span></div>`
-      ).join('');
+      const infoItemsHtml = infoItems
+        .map(
+          (item) =>
+            `<div style="display:flex;align-items:center;gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">${item.icon}</svg><span style="font-size:11px;color:#475569;">${item.label}</span></div>`,
+        )
+        .join("");
 
-      const marker = L.marker([r.latitude, r.longitude], { icon } as any).bindPopup(
-        `<div style="font-family:'Inter',sans-serif;min-width:190px;border-radius:8px;overflow:hidden;">
+      const marker = L.marker([r.latitude, r.longitude], { icon } as any)
+        .bindPopup(
+          `<div style="font-family:'Inter',sans-serif;min-width:190px;border-radius:8px;overflow:hidden;">
               <button onclick="window.__minimizePopup()" style="position:absolute;top:6px;right:6px;z-index:10;width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;transition:all .2s ease;" onmouseover="this.style.background='rgba(0,0,0,0.7)'" onmouseout="this.style.background='rgba(0,0,0,0.45)'">
                 <span style="font-size:13px;line-height:1;">&#x2715;</span>
               </button>
@@ -478,26 +494,30 @@ export function PetaInteraktif({
                   </span>
                 </div>
                 ${(() => {
-                  const showDetail = userRole === "petugas"
-                    ? false
-                    : userRole === "warga"
-                      ? currentUserId != null && r.user_id != null && String(r.user_id) === String(currentUserId)
-                      : true;
+                  const showDetail =
+                    userRole === "petugas"
+                      ? false
+                      : userRole === "warga"
+                        ? currentUserId != null &&
+                          r.user_id != null &&
+                          String(r.user_id) === String(currentUserId)
+                        : true;
                   return showDetail
                     ? `<button onclick="window.__mapViewDetail('${r.id}')" style="margin-top:4px;width:100%;padding:8px 0;background:#1A4F8A;color:white;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:background .2s;" onmouseover="this.style.background='#153d6e'" onmouseout="this.style.background='#1A4F8A'"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>Lihat Detail</button>`
                     : "";
                 })()}
               </div>
             </div>`,
-        { maxWidth: 320, className: "" },
-      ).bindTooltip(
-        `<div style="display:flex;align-items:center;gap:8px;">
+          { maxWidth: 320, className: "" },
+        )
+        .bindTooltip(
+          `<div style="display:flex;align-items:center;gap:8px;">
           <span style="font-weight:600;font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:white;">${r.road_name}</span>
           <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${sevConf.color};flex-shrink:0;"></span>
-          <span style="font-size:11px;color:${sevConf.color};font-weight:500;white-space:nowrap;">${sevConf.label.replace(/^Rusak\s*/, '')}</span>
+          <span style="font-size:11px;color:${sevConf.color};font-weight:500;white-space:nowrap;">${sevConf.label.replace(/^Rusak\s*/, "")}</span>
         </div>`,
-        { direction: "top", offset: [0, -8] }
-      );
+          { direction: "top", offset: [0, -8] },
+        );
 
       (marker as any).options.severity = sevKey;
       (marker as any).options.status = r.status;
@@ -538,7 +558,7 @@ export function PetaInteraktif({
     if (filters.district && geoJsonData && markers.length > 0) {
       if (filters.district !== lastFittedDistrictRef.current) {
         const feature = geoJsonData.features.find(
-          (f: any) => f.properties?.kecamatan === filters.district
+          (f: any) => f.properties?.kecamatan === filters.district,
         );
         if (feature) {
           const layer = L.geoJSON(feature);

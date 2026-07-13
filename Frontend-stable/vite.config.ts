@@ -36,9 +36,7 @@ export default defineConfig({
   cloudflare: !isVercel,
 
   // Vercel: SPA mode (static output). Local: SSR.
-  tanstackStart: isVercel
-    ? { spa: { enabled: true } }
-    : { server: { entry: "server" } },
+  tanstackStart: isVercel ? { spa: { enabled: true } } : { server: { entry: "server" } },
 
   plugins: [
     injectLeafletGlobalPlugin(),

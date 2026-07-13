@@ -32,7 +32,13 @@ function WargaDashboard() {
         setStats({
           total: json.meta?.total ?? items.length,
           diproses: items.filter((r) =>
-            ["Menunggu Verifikasi", "Menunggu Review", "Ditinjau", "Disetujui", "Sedang Diperbaiki"].includes(r.status)
+            [
+              "Menunggu Verifikasi",
+              "Menunggu Review",
+              "Ditinjau",
+              "Disetujui",
+              "Sedang Diperbaiki",
+            ].includes(r.status),
           ).length,
           selesai: items.filter((r) => r.status === "Selesai").length,
           ditolak: items.filter((r) => r.status === "Ditolak").length,
@@ -79,7 +85,10 @@ function WargaDashboard() {
             {loading ? (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="bg-[#EEF2FF] border border-[#C7D2FE] rounded-xl p-4 flex flex-col items-center justify-center gap-1.5 aspect-square animate-pulse">
+                  <div
+                    key={i}
+                    className="bg-[#EEF2FF] border border-[#C7D2FE] rounded-xl p-4 flex flex-col items-center justify-center gap-1.5 aspect-square animate-pulse"
+                  >
                     <div className="w-6 h-6 bg-[#C7D2FE] mb-2" />
                     <div className="w-12 h-7 bg-[#C7D2FE] mb-1" />
                     <div className="w-20 h-4 bg-[#C7D2FE]" />
@@ -89,10 +98,30 @@ function WargaDashboard() {
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
-                  { label: "Total", value: stats.total, icon: "description", color: "text-[#1e40af]" },
-                  { label: "Diproses", value: stats.diproses, icon: "sync", color: "text-[#D97706]" },
-                  { label: "Selesai", value: stats.selesai, icon: "check_circle", color: "text-[#16A34A]" },
-                  { label: "Ditolak", value: stats.ditolak, icon: "cancel", color: "text-[#DC2626]" },
+                  {
+                    label: "Total",
+                    value: stats.total,
+                    icon: "description",
+                    color: "text-[#1e40af]",
+                  },
+                  {
+                    label: "Diproses",
+                    value: stats.diproses,
+                    icon: "sync",
+                    color: "text-[#D97706]",
+                  },
+                  {
+                    label: "Selesai",
+                    value: stats.selesai,
+                    icon: "check_circle",
+                    color: "text-[#16A34A]",
+                  },
+                  {
+                    label: "Ditolak",
+                    value: stats.ditolak,
+                    icon: "cancel",
+                    color: "text-[#DC2626]",
+                  },
                 ].map(({ label, value, icon, color }) => (
                   <div
                     key={label}
@@ -154,7 +183,7 @@ function WargaDashboard() {
                   <ReportCard
                     key={r.id}
                     report={r}
-                    cardLink={{ to: '/warga/laporan/$id', params: { id: r.id } }}
+                    cardLink={{ to: "/warga/laporan/$id", params: { id: r.id } }}
                   />
                 ))}
               </div>
