@@ -94,6 +94,7 @@ function WargaLaporPage() {
     message: string;
   }>({ isOpen: false, status: "no_exif_date", title: "", message: "" });
   const [serverRemaining, setServerRemaining] = useState<number | null>(null);
+  const [initialized, setInitialized] = useState(false);
 
   const fetchRemaining = useCallback(async () => {
     try {
@@ -109,6 +110,8 @@ function WargaLaporPage() {
       }
     } catch {
       setServerRemaining(null);
+    } finally {
+      setInitialized(true);
     }
   }, [token]);
 
@@ -572,6 +575,16 @@ function WargaLaporPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (!initialized) {
+    return (
+      <PageLayout showBrand withBottomNav>
+        <main className="flex-1 flex items-center justify-center">
+          <span className="w-8 h-8 border-2 border-[#1e40af]/30 border-t-[#1e40af] rounded-full animate-spin" />
+        </main>
+      </PageLayout>
+    );
   }
 
   return (

@@ -114,6 +114,7 @@ function PublicLaporPage() {
   const [phoneError, setPhoneError] = useState("");
   const [success, setSuccess] = useState<{ reportCode: string } | null>(null);
   const [serverRemaining, setServerRemaining] = useState<number | null>(null);
+  const [initialized, setInitialized] = useState(false);
 
   const fetchRemaining = useCallback(async () => {
     try {
@@ -127,6 +128,8 @@ function PublicLaporPage() {
     } catch {
       // fallback to localStorage
       setServerRemaining(null);
+    } finally {
+      setInitialized(true);
     }
   }, []);
 
@@ -649,6 +652,16 @@ function PublicLaporPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (!initialized) {
+    return (
+      <PublicLayout back="/">
+        <main className="flex-1 flex items-center justify-center">
+          <span className="w-8 h-8 border-2 border-[#1e40af]/30 border-t-[#1e40af] rounded-full animate-spin" />
+        </main>
+      </PublicLayout>
+    );
   }
 
   if (success) {
