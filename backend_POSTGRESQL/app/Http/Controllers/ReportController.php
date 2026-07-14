@@ -3245,13 +3245,13 @@ class ReportController extends Controller
 
         $user = auth()->user();
 
-        // Hanya pemilik laporan yang bisa menghapus
-        if ($report->user_id !== $user->id) {
+        // Hanya pemilik laporan yang bisa menghapus, kecuali supervisor
+        if ($report->user_id !== $user->id && $user->role !== 'supervisor') {
             return response()->json(['success' => false, 'message' => 'Anda tidak memiliki akses untuk menghapus laporan ini.'], 403);
         }
 
         // Hanya laporan dengan status tertentu yang bisa dihapus
-        if (! in_array($report->status, ['Menunggu Review', 'Ditinjau', 'Diedit'])) {
+        if (! in_array($report->status, ['Menunggu Review', 'Ditinjau', 'Diedit', 'Ditolak'])) {
             return response()->json([
                 'success' => false,
                 'message' => "Laporan dengan status \"{$report->status}\" tidak dapat dihapus.",
