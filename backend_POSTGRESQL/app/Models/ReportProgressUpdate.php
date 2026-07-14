@@ -13,6 +13,10 @@ class ReportProgressUpdate extends Model
 
     protected $table = 'report_progress_updates';
 
+    protected $appends = [
+        'foto_url',
+    ];
+
     protected $fillable = [
         'report_id',
         'user_id',

@@ -275,9 +275,16 @@ class WargaReportController extends Controller
         $report = Report::where('id', $id)
             ->where('user_id', auth()->id())
             ->whereIn('source', ['warga', 'telegram'])
-            ->with(['photos' => function ($q) {
-                $q->orderBy('sort_order');
-            }])
+            ->with([
+                'photos' => function ($q) {
+                    $q->orderBy('sort_order');
+                },
+                'afterPhotos',
+                'assignedTeam',
+                'progressUpdates' => function ($q) {
+                    $q->with('user:id,name')->orderBy('created_at');
+                },
+            ])
             ->first();
 
         if (! $report) {
@@ -291,10 +298,32 @@ class WargaReportController extends Controller
             ->orderBy('created_at', 'asc')
             ->get(['old_status', 'new_status', 'notes', 'created_at', 'actor_name', 'actor_role']);
 
+        $reportData = $report->toArray();
+
+        // Transform after_photos: expose only needed fields
+        $reportData['after_photos'] = $report->afterPhotos->map(fn ($ap) => [
+            'id' => $ap->id,
+            'url' => $ap->url,
+            'sort_order' => $ap->sort_order,
+        ]);
+
+        // Transform progress_updates: add computed day_number + user_name
+        $mulai = $report->perbaikan_dimulai_at;
+        $reportData['progress_updates'] = $report->progressUpdates->map(fn ($u) => [
+            'id' => $u->id,
+            'foto_url' => $u->foto_url,
+            'catatan' => $u->catatan,
+            'user_name' => $u->user?->name,
+            'created_at' => $u->created_at?->toIso8601String(),
+            'day_number' => $mulai
+                ? $mulai->copy()->startOfDay()->diffInDays($u->created_at->copy()->startOfDay()) + 1
+                : 1,
+        ]);
+
         return response()->json([
             'success' => true,
             'data' => [
-                'report' => $report->toArray(),
+                'report' => $reportData,
                 'timeline' => $timeline,
             ],
         ]);
@@ -340,12 +369,14 @@ class WargaReportController extends Controller
                     'road_name' => $report->road_name,
                     'district' => $report->district,
                     'status' => $report->status,
+                    'overall_severity' => $report->overall_severity,
                     'created_at' => $report->created_at?->toIso8601String(),
                     'updated_at' => $report->updated_at?->toIso8601String(),
                     'description' => $report->description,
                     'photos' => $report->photos->map(function ($p) {
                         return [
                             'image_original_url' => $p->image_original_url,
+                            'image_result_url' => $p->image_result_url,
                             'photo_taken_at' => $p->photo_taken_at?->toIso8601String(),
                             'created_at' => $p->created_at?->toIso8601String(),
                             'mobileclip_score' => $p->mobileclip_score ? (float) $p->mobileclip_score : null,
@@ -404,9 +435,12 @@ class WargaReportController extends Controller
     public function publicShow(string $reportCode): JsonResponse
     {
         $report = Report::where('report_code', $reportCode)
-            ->with(['photos' => function ($q) {
-                $q->orderBy('sort_order');
-            }])
+            ->with([
+                'photos' => function ($q) {
+                    $q->orderBy('sort_order');
+                },
+                'afterPhotos',
+            ])
             ->first();
 
         if (! $report) {
@@ -429,6 +463,7 @@ class WargaReportController extends Controller
                     'road_name' => $report->road_name,
                     'district' => $report->district,
                     'status' => $report->status,
+                    'overall_severity' => $report->overall_severity,
                     'created_at' => $report->created_at?->toIso8601String(),
                     'updated_at' => $report->updated_at?->toIso8601String(),
                     'description' => $report->description,
@@ -437,6 +472,7 @@ class WargaReportController extends Controller
                     'photos' => $report->photos->map(function ($p) {
                         return [
                             'image_original_url' => $p->image_original_url,
+                            'image_result_url' => $p->image_result_url,
                             'photo_taken_at' => $p->photo_taken_at?->toIso8601String(),
                             'created_at' => $p->created_at?->toIso8601String(),
                             'mobileclip_score' => $p->mobileclip_score ? (float) $p->mobileclip_score : null,
@@ -444,6 +480,11 @@ class WargaReportController extends Controller
                             'quality_scores' => $p->quality_scores,
                         ];
                     }),
+                    'after_photos' => $report->afterPhotos->map(fn ($ap) => [
+                        'id' => $ap->id,
+                        'url' => $ap->url,
+                        'sort_order' => $ap->sort_order,
+                    ]),
                 ],
                 'timeline' => $timeline,
             ],

@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { API_BASE_URL } from "@/lib/aiStore";
 import { resolveImageUrl } from "@/lib/imageUrl";
-import { getStatusBadge } from "@/lib/format";
+import { getStatusBadge, getSeverityLabel } from "@/lib/format";
 import { sanitizeUrls } from "@/lib/imageUrl";
 
 export const Route = createFileRoute("/laporan/$reportCode")({
@@ -25,12 +25,14 @@ interface ReportData {
   road_name: string;
   district: string;
   status: string;
+  overall_severity: string | null;
   description: string | null;
   created_at: string;
   updated_at: string;
   rating: number | null;
   rating_comment: string | null;
-  photos: { image_original_url: string; created_at: string }[];
+  photos: { image_original_url: string; image_result_url?: string | null; created_at: string }[];
+  after_photos?: { id: number; url: string; sort_order: number }[];
 }
 
 interface TimelineItem {
@@ -88,6 +90,7 @@ function LaporanPublicPage() {
 
   const allPhotos = data?.report?.photos ?? [];
   const [photoIdx, setPhotoIdx] = useState(0);
+  const [showAiResult, setShowAiResult] = useState(false);
 
   const goToPhoto = useCallback(
     (i: number) => {
@@ -148,11 +151,42 @@ function LaporanPublicPage() {
                 <>
                   {allPhotos.length > 0 && currentPhoto?.image_original_url && (
                     <div className="relative mb-4 rounded-lg overflow-hidden border border-[#D0DAE8] bg-[#0F172A]">
+                      {currentPhoto.image_result_url && (
+                        <div className="absolute top-2 left-2 z-10 flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setShowAiResult(false)}
+                            className={`text-[11px] font-semibold px-2 py-0.5 rounded-full transition-colors ${
+                              !showAiResult
+                                ? "bg-white text-[#0F172A]"
+                                : "bg-black/40 text-white/70 hover:bg-black/60"
+                            }`}
+                          >
+                            Asli
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowAiResult(true)}
+                            className={`text-[11px] font-semibold px-2 py-0.5 rounded-full transition-colors ${
+                              showAiResult
+                                ? "bg-[#1e40af] text-white"
+                                : "bg-black/40 text-white/70 hover:bg-black/60"
+                            }`}
+                          >
+                            Hasil AI
+                          </button>
+                        </div>
+                      )}
                       <img
-                        src={resolveImageUrl(currentPhoto.image_original_url) ?? ""}
+                        src={resolveImageUrl(showAiResult && currentPhoto.image_result_url ? currentPhoto.image_result_url : currentPhoto.image_original_url) ?? ""}
                         alt={`Foto ${photoIdx + 1}`}
                         className="w-full object-contain max-h-48"
                       />
+                      {showAiResult && currentPhoto.image_result_url && (
+                        <div className="absolute bottom-2 left-2 bg-[#1e40af]/80 text-white text-[10px] px-2 py-0.5 rounded font-medium">
+                          Hasil Deteksi AI
+                        </div>
+                      )}
                       {allPhotos.length > 1 && (
                         <>
                           <button
@@ -182,11 +216,20 @@ function LaporanPublicPage() {
                       <span className="font-mono text-sm font-bold text-[#0F172A]">
                         {data.report.report_code}
                       </span>
-                      <span
-                        className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getStatusBadge(data.report.status).color}`}
-                      >
-                        {getStatusBadge(data.report.status).label}
-                      </span>
+                      <div className="flex gap-1">
+                        <span
+                          className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getStatusBadge(data.report.status).color}`}
+                        >
+                          {getStatusBadge(data.report.status).label}
+                        </span>
+                        {data.report.overall_severity && (
+                          <span
+                            className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getSeverityLabel(data.report.overall_severity).chip}`}
+                          >
+                            {getSeverityLabel(data.report.overall_severity).label}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <p className="font-label-md text-label-md font-semibold text-[#0F172A]">
                       {data.report.road_name}
@@ -235,6 +278,26 @@ function LaporanPublicPage() {
                             </div>
                           );
                         })}
+                      </div>
+                    </div>
+                  )}
+
+                  {data.report.after_photos && data.report.after_photos.length > 0 && (
+                    <div className="mb-4">
+                      <h3 className="font-label-sm text-label-sm font-semibold text-[#0F172A] mb-3 flex items-center gap-1.5">
+                        <Icon name="photo_library" className="!text-[16px] text-[#1e40af]" />
+                        Foto Setelah Perbaikan
+                      </h3>
+                      <div className="grid grid-cols-2 gap-2">
+                        {data.report.after_photos.map((ap) => (
+                          <div key={ap.id} className="rounded-lg overflow-hidden border border-[#D0DAE8] bg-[#0F172A]">
+                            <img
+                              src={resolveImageUrl(ap.url) ?? ""}
+                              alt={`Setelah perbaikan`}
+                              className="w-full object-cover h-32"
+                            />
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}

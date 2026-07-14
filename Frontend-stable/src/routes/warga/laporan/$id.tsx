@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { getToken } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/aiStore";
-import { formatDateRelative, getStatusBadge } from "@/lib/format";
+import { formatDateRelative, getStatusBadge, getSeverityLabel } from "@/lib/format";
 import { sanitizeUrls, resolveImageUrl } from "@/lib/imageUrl";
 
 const SHARE_BASE_URL = "https://delta-jalan.vercel.app";
@@ -28,6 +28,7 @@ function WargaLaporanDetailPage() {
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [photoIdx, setPhotoIdx] = useState(0);
+  const [showAiResult, setShowAiResult] = useState(false);
   const [selectedRating, setSelectedRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
@@ -181,20 +182,58 @@ function WargaLaporanDetailPage() {
             <h1 className="text-xl font-bold tracking-tight">Detail Laporan</h1>
             <p className="font-mono text-sm text-blue-200 mt-1">{report.report_code}</p>
           </div>
-          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusInfo.color}`}>
-            {statusInfo.label}
-          </span>
+          <div className="flex gap-1.5">
+            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusInfo.color}`}>
+              {statusInfo.label}
+            </span>
+            {report.overall_severity && (
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getSeverityLabel(report.overall_severity).chip}`}>
+                {getSeverityLabel(report.overall_severity).label}
+              </span>
+            )}
+          </div>
         </div>
       </section>
 
       <div className="max-w-xl mx-auto px-4 mt-6">
         {currentPhoto?.image_original_url && (
           <div className="relative mb-4 rounded-lg overflow-hidden border border-[#D0DAE8] bg-[#0F172A]">
+            {currentPhoto.image_result_url && (
+              <div className="absolute top-2 left-2 z-10 flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => setShowAiResult(false)}
+                  className={`text-[11px] font-semibold px-2 py-0.5 rounded-full transition-colors ${
+                    !showAiResult
+                      ? "bg-white text-[#0F172A]"
+                      : "bg-black/40 text-white/70 hover:bg-black/60"
+                  }`}
+                >
+                  Asli
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAiResult(true)}
+                  className={`text-[11px] font-semibold px-2 py-0.5 rounded-full transition-colors ${
+                    showAiResult
+                      ? "bg-[#1e40af] text-white"
+                      : "bg-black/40 text-white/70 hover:bg-black/60"
+                  }`}
+                >
+                  Hasil AI
+                </button>
+              </div>
+            )}
             <img
-              src={resolveImageUrl(currentPhoto.image_original_url) ?? ""}
+              src={resolveImageUrl(showAiResult && currentPhoto.image_result_url ? currentPhoto.image_result_url : currentPhoto.image_original_url) ?? ""}
               alt={`Foto ${photoIdx + 1}`}
               className="w-full object-contain max-h-64"
             />
+            {showAiResult && currentPhoto.image_result_url && (
+              <div className="absolute bottom-2 left-2 bg-[#1e40af]/80 text-white text-[10px] px-2 py-0.5 rounded font-medium">
+                Hasil Deteksi AI
+              </div>
+            )}
             {totalPhotos > 1 && (
               <>
                 <button
@@ -249,6 +288,29 @@ function WargaLaporanDetailPage() {
             </p>
           </div>
         </div>
+
+        {report.assigned_team_name && (
+          <div className="bg-white border border-[#D0DAE8] rounded-lg p-4 mb-4">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                <Icon name="groups" className="!text-[18px] text-[#1e40af]" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-[#476788] font-medium">Tim Penugasan</p>
+                <p className="font-label-md text-label-md font-semibold text-[#0F172A]">
+                  {report.assigned_team_name}
+                </p>
+                {report.assigned_at && (
+                  <p className="text-xs text-[#476788] mt-0.5">
+                    Ditugaskan {new Date(report.assigned_at).toLocaleDateString("id-ID", {
+                      year: "numeric", month: "long", day: "numeric"
+                    })}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mb-4 flex gap-2">
           <Link
@@ -321,6 +383,66 @@ function WargaLaporanDetailPage() {
             </div>
           )}
         </div>
+
+        {/* ── Foto Setelah Perbaikan ─────────────────────────────────────── */}
+        {report.after_photos && report.after_photos.length > 0 && (
+          <div className="bg-white border border-[#D0DAE8] rounded-lg p-4 mt-4">
+            <h3 className="font-label-md text-label-md font-semibold text-[#0F172A] mb-3 flex items-center gap-2">
+              <Icon name="photo_library" className="!text-lg text-[#1e40af]" />
+              Foto Setelah Perbaikan
+            </h3>
+            <div className="grid grid-cols-2 gap-2">
+              {report.after_photos.map((ap: { id: number; url: string; sort_order: number }) => (
+                <div key={ap.id} className="rounded-lg overflow-hidden border border-[#D0DAE8] bg-[#0F172A]">
+                  <img
+                    src={resolveImageUrl(ap.url) ?? ""}
+                    alt={`Setelah perbaikan ${ap.sort_order + 1}`}
+                    className="w-full object-cover h-36"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Progress Pengerjaan ─────────────────────────────────────────── */}
+        {report.progress_updates && report.progress_updates.length > 0 && (
+          <div className="bg-white border border-[#D0DAE8] rounded-lg p-4 mt-4">
+            <h3 className="font-label-md text-label-md font-semibold text-[#0F172A] mb-3 flex items-center gap-2">
+              <Icon name="construction" className="!text-lg text-[#1e40af]" />
+              Progress Pengerjaan
+            </h3>
+            <div className="space-y-3">
+              {report.progress_updates.map((pu: any) => (
+                <div key={pu.id} className="flex gap-3">
+                  {pu.foto_url && (
+                    <div className="w-20 h-20 rounded-lg overflow-hidden border border-[#D0DAE8] bg-[#0F172A] shrink-0">
+                      <img
+                        src={resolveImageUrl(pu.foto_url) ?? ""}
+                        alt={`Progress hari ke-${pu.day_number}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-[#476788] font-medium">
+                      Hari ke-{pu.day_number}
+                    </p>
+                    {pu.catatan && (
+                      <p className="text-sm text-[#0F172A] mt-0.5">{pu.catatan}</p>
+                    )}
+                    <p className="text-xs text-[#757684] mt-1">
+                      {pu.user_name && `${pu.user_name} • `}
+                      {pu.created_at && new Date(pu.created_at).toLocaleDateString("id-ID", {
+                        year: "numeric", month: "short", day: "numeric"
+                      })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── Rating Kepuasan ──────────────────────────────────────────────── */}
         {report.status === "Selesai" && (

@@ -264,6 +264,14 @@ class Report extends Model
         };
     }
 
+    /**
+     * Nama tim satgas yang ditugaskan (dari relasi assignedTeam).
+     */
+    public function getAssignedTeamNameAttribute(): ?string
+    {
+        return $this->assignedTeam?->name;
+    }
+
     // ── Relationships ─────────────────────────────────────────────────────
 
     /**

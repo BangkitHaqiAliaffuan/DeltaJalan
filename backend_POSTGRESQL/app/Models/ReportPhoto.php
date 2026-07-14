@@ -40,6 +40,11 @@ class ReportPhoto extends Model
         'ai_analysis_count',
     ];
 
+    protected $appends = [
+        'image_original_url',
+        'image_result_url',
+    ];
+
     protected $casts = [
         'photo_taken_at' => 'datetime',
         'mobileclip_score' => 'decimal:3',

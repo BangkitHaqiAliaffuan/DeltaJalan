@@ -162,6 +162,9 @@ export interface Laporan {
 
   // Progress updates count (from server withCount)
   progress_updates_count?: number;
+
+  // Progress updates detail (from enriched show())
+  progress_updates?: ProgressUpdate[];
 }
 
 export interface ReportPhoto {

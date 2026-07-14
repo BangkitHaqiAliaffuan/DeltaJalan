@@ -9,6 +9,10 @@ class ReportAfterPhoto extends Model
 {
     protected $table = 'report_after_photos';
 
+    protected $appends = [
+        'url',
+    ];
+
     protected $fillable = [
         'report_id',
         'file_path',
