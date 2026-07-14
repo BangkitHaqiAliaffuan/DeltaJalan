@@ -746,27 +746,9 @@ class WargaReportController extends Controller
                 continue;
             }
 
-            // ── Image Hash + Dedup ──
+            // ── Image Hash (nonaktif: duplicate check) ──
             $imageHash = $this->calculateImageHash($imageFile->getPathname());
-
-            if ($imageHash !== null) {
-                $existingPhoto = ReportPhoto::where('image_hash', $imageHash)->first();
-                if ($existingPhoto) {
-                    if ($idx === 0) {
-                        $existingReport = Report::find($existingPhoto->report_id);
-                        $code = $existingReport ? $existingReport->report_code : 'unknown';
-
-                        return response()->json([
-                            'success' => false,
-                            'message' => "Foto ini sudah pernah digunakan untuk laporan {$code}.",
-                            'error_code' => 'DUPLICATE_IMAGE',
-                        ], 422);
-                    }
-                    $warnings[] = 'Foto ke-'.($idx + 1).' sudah pernah digunakan, dilewati.';
-
-                    continue;
-                }
-            }
+            // ── DUPLICATE IMAGE [NONAKTIF] ─────────────────────────────────
 
             // ── EXIF GPS ──
             $exifGps = $this->extractExifGps($imageFile->getPathname());
