@@ -6,6 +6,8 @@ import { API_BASE_URL } from "@/lib/aiStore";
 import { formatDateRelative, getStatusBadge } from "@/lib/format";
 import { sanitizeUrls, resolveImageUrl } from "@/lib/imageUrl";
 
+const SHARE_BASE_URL = "https://delta-jalan.vercel.app";
+
 export const Route = createFileRoute("/warga/laporan/$id")({
   component: WargaLaporanDetailPage,
   head: () => ({ meta: [{ title: "Detail Laporan — DeltaJalan" }] }),
@@ -26,10 +28,71 @@ function WargaLaporanDetailPage() {
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [photoIdx, setPhotoIdx] = useState(0);
+  const [selectedRating, setSelectedRating] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [ratingComment, setRatingComment] = useState("");
+  const [ratingSubmitting, setRatingSubmitting] = useState(false);
+  const [ratingSubmitted, setRatingSubmitted] = useState(false);
 
   useEffect(() => {
     loadDetail();
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleShare() {
+    const url = `${SHARE_BASE_URL}/laporan/${report?.report_code}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Laporan ${report?.report_code} — DeltaJalan`,
+          text: `Laporan kerusakan jalan: ${report?.road_name} (${report?.district})`,
+          url,
+        });
+      } catch {
+        // user cancelled
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(url);
+        alert("Link laporan disalin!");
+      } catch {
+        // clipboard not available
+      }
+    }
+  }
+
+  async function handleSubmitRating() {
+    if (selectedRating === 0) return;
+    setRatingSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/warga/reports/${id}/rating`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          rating: selectedRating,
+          comment: ratingComment.trim() || null,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setRatingSubmitted(true);
+        setReport((prev: any) => ({
+          ...prev,
+          rating: selectedRating,
+          rating_comment: ratingComment.trim() || null,
+          rated_at: new Date().toISOString(),
+        }));
+      } else {
+        alert(json.message ?? "Gagal mengirim rating.");
+      }
+    } catch {
+      alert("Gagal terhubung ke server.");
+    } finally {
+      setRatingSubmitting(false);
+    }
+  }
 
   const allPhotos = report?.photos ?? [];
   const currentPhoto = allPhotos[photoIdx];
@@ -187,15 +250,23 @@ function WargaLaporanDetailPage() {
           </div>
         </div>
 
-        <div className="mb-4">
+        <div className="mb-4 flex gap-2">
           <Link
             to="/lacak"
             search={{ report_code: report.report_code }}
-            className="w-full flex items-center justify-center gap-2 py-2.5 border border-[#1e40af] text-[#1e40af] rounded-lg font-label-sm text-label-sm font-semibold hover:bg-blue-50 transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-[#1e40af] text-[#1e40af] rounded-lg font-label-sm text-label-sm font-semibold hover:bg-blue-50 transition-colors"
           >
             <Icon name="search" className="!text-[18px]" />
-            Lacak Laporan
+            Lacak
           </Link>
+          <button
+            type="button"
+            onClick={handleShare}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-[#1e40af] text-white rounded-lg font-label-sm text-label-sm font-semibold hover:bg-[#2e68d8] transition-colors active:scale-[0.98]"
+          >
+            <Icon name="share" className="!text-[18px]" />
+            Bagikan
+          </button>
         </div>
 
         <div className="bg-white border border-[#D0DAE8] rounded-lg p-4">
@@ -250,6 +321,80 @@ function WargaLaporanDetailPage() {
             </div>
           )}
         </div>
+
+        {/* ── Rating Kepuasan ──────────────────────────────────────────────── */}
+        {report.status === "Selesai" && (
+          <div className="bg-white border border-[#D0DAE8] rounded-lg p-4 mt-4">
+            <h3 className="font-label-md text-label-md font-semibold text-[#0F172A] mb-3 flex items-center gap-2">
+              <Icon name="rate_review" className="!text-lg text-[#1e40af]" />
+              Penilaian
+            </h3>
+
+            {report.rated_at || ratingSubmitted ? (
+              <div>
+                <div className="flex items-center gap-0.5 mb-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Icon
+                      key={star}
+                      name={star <= (report.rating ?? selectedRating) ? "star" : "star_border"}
+                      className={`!text-[22px] ${star <= (report.rating ?? selectedRating) ? "text-[#F59E0B]" : "text-[#D0DAE8]"}`}
+                    />
+                  ))}
+                </div>
+                {report.rating_comment && (
+                  <p className="text-sm text-[#475569] mt-1 italic">"{report.rating_comment}"</p>
+                )}
+                <p className="text-xs text-green-700 mt-2 flex items-center gap-1">
+                  <Icon name="check_circle" className="!text-[14px]" />
+                  Terima kasih! Penilaian Anda telah disimpan.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-xs text-[#476788] mb-2">
+                  Beri penilaian untuk laporan yang sudah selesai:
+                </p>
+                <div className="flex items-center gap-0.5 mb-3">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setSelectedRating(star)}
+                      onMouseEnter={() => setHoverRating(star)}
+                      onMouseLeave={() => setHoverRating(0)}
+                      className="p-0.5 transition-transform hover:scale-110 active:scale-95"
+                    >
+                      <Icon
+                        name={star <= (hoverRating || selectedRating) ? "star" : "star_border"}
+                        className={`!text-[26px] ${star <= (hoverRating || selectedRating) ? "text-[#F59E0B]" : "text-[#D0DAE8]"} transition-colors`}
+                      />
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={ratingComment}
+                  onChange={(e) => setRatingComment(e.target.value)}
+                  placeholder="Komentar (opsional)..."
+                  rows={2}
+                  maxLength={500}
+                  className="w-full px-3 py-2 border border-[#c4c5d5] rounded-lg font-body-sm text-body-sm text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af] resize-none mb-3"
+                />
+                <button
+                  type="button"
+                  onClick={handleSubmitRating}
+                  disabled={selectedRating === 0 || ratingSubmitting}
+                  className="w-full py-2.5 bg-gradient-to-r from-[#1e40af] to-[#2e68d8] text-white rounded-lg font-label-sm text-label-sm font-semibold flex items-center justify-center gap-1.5 hover:shadow-lg hover:shadow-[#1e40af]/25 active:scale-[0.98] transition-all disabled:opacity-50"
+                >
+                  {ratingSubmitting ? (
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    "Kirim Penilaian"
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </main>
   );

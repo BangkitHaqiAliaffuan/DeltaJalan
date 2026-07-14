@@ -105,6 +105,10 @@ class Report extends Model
         // AI analysis tracking
         'ai_analyzed_at',
         'ai_analysis_count',
+        // Rating kepuasan warga
+        'rating',
+        'rating_comment',
+        'rated_at',
     ];
 
     /**
@@ -134,6 +138,9 @@ class Report extends Model
 
         'ai_analyzed_at' => 'datetime',
         'ai_analysis_count' => 'integer',
+
+        'rating' => 'integer',
+        'rated_at' => 'datetime',
     ];
 
     /**

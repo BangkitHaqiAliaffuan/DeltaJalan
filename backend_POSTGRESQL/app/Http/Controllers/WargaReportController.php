@@ -398,6 +398,126 @@ class WargaReportController extends Controller
     }
 
     /**
+     * GET /api/v1/public/reports/{reportCode} — No auth required.
+     * Public report detail by report_code (for sharing). No lat/lng/phone exposed.
+     */
+    public function publicShow(string $reportCode): JsonResponse
+    {
+        $report = Report::where('report_code', $reportCode)
+            ->with(['photos' => function ($q) {
+                $q->orderBy('sort_order');
+            }])
+            ->first();
+
+        if (! $report) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Laporan dengan kode tersebut tidak ditemukan.',
+            ], 404);
+        }
+
+        $timeline = StatusLog::where('report_id', $report->id)
+            ->orderBy('created_at', 'asc')
+            ->get(['old_status', 'new_status', 'notes', 'created_at']);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'report' => [
+                    'id' => $report->id,
+                    'report_code' => $report->report_code,
+                    'road_name' => $report->road_name,
+                    'district' => $report->district,
+                    'status' => $report->status,
+                    'created_at' => $report->created_at?->toIso8601String(),
+                    'updated_at' => $report->updated_at?->toIso8601String(),
+                    'description' => $report->description,
+                    'rating' => $report->rating,
+                    'rating_comment' => $report->rating_comment,
+                    'photos' => $report->photos->map(function ($p) {
+                        return [
+                            'image_original_url' => $p->image_original_url,
+                            'photo_taken_at' => $p->photo_taken_at?->toIso8601String(),
+                            'created_at' => $p->created_at?->toIso8601String(),
+                            'mobileclip_score' => $p->mobileclip_score ? (float) $p->mobileclip_score : null,
+                            'mobileclip_label' => $p->mobileclip_label,
+                            'quality_scores' => $p->quality_scores,
+                        ];
+                    }),
+                ],
+                'timeline' => $timeline,
+            ],
+        ]);
+    }
+
+    /**
+     * POST /api/warga/reports/{id}/rating — Auth required (warga).
+     * Warga memberikan rating kepuasan untuk laporan yang sudah selesai.
+     */
+    public function rate(Request $request, string $id): JsonResponse
+    {
+        $report = Report::where('id', $id)
+            ->where('user_id', auth()->id())
+            ->whereIn('source', ['warga', 'telegram'])
+            ->first();
+
+        if (! $report) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Laporan tidak ditemukan.',
+            ], 404);
+        }
+
+        if ($report->status !== 'Selesai') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Hanya laporan yang sudah selesai yang dapat diberi rating.',
+            ], 422);
+        }
+
+        if ($report->rated_at !== null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda sudah memberikan rating untuk laporan ini.',
+            ], 422);
+        }
+
+        try {
+            $validated = $request->validate([
+                'rating' => ['required', 'integer', 'min:1', 'max:5'],
+                'comment' => ['nullable', 'string', 'max:500'],
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data rating tidak valid.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
+        $report->update([
+            'rating' => $validated['rating'],
+            'rating_comment' => $validated['comment'] ?? null,
+            'rated_at' => now(),
+        ]);
+
+        Log::info('DeltaJalan: Rating warga.', [
+            'report_id' => $report->id,
+            'report_code' => $report->report_code,
+            'rating' => $validated['rating'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Terima kasih! Penilaian Anda telah disimpan.',
+            'data' => [
+                'rating' => (int) $validated['rating'],
+                'rating_comment' => $validated['comment'] ?? null,
+            ],
+        ]);
+    }
+
+    /**
      * GET /api/v1/reports/remaining — No auth required (but checks if authenticated).
      * Returns remaining daily upload quota considering fingerprint, device ID, and user limits.
      * Headers: X-Device-ID (optional), Authorization (optional)

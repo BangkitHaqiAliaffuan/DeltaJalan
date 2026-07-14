@@ -77,6 +77,14 @@ Route::get('/public/stats', [WargaReportController::class, 'publicStats']);
 Route::get('/v1/reports/remaining', [WargaReportController::class, 'checkRemaining'])
     ->middleware('throttle:30,1');
 
+/**
+ * GET /api/v1/public/reports/{reportCode}
+ * Detail laporan publik berdasarkan kode laporan — untuk fitur Share Laporan.
+ * Tidak expose data sensitif (lat/lng/nama/phone).
+ */
+Route::get('/v1/public/reports/{reportCode}', [WargaReportController::class, 'publicShow'])
+    ->middleware('throttle:30,1');
+
 // ── Routes yang memerlukan autentikasi Sanctum ────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
     /**
@@ -368,6 +376,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/warga/reports', [WargaReportController::class, 'index'])
         ->middleware('role:warga');
     Route::get('/warga/reports/{id}', [WargaReportController::class, 'show'])
+        ->middleware('role:warga');
+    Route::post('/warga/reports/{id}/rating', [WargaReportController::class, 'rate'])
         ->middleware('role:warga');
 });
 
