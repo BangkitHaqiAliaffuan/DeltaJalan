@@ -70,9 +70,18 @@ cd backend_AI && pip install -r requirements.txt && python server.py  # :8000 (d
 bash scripts/update-lambda.sh               # build + push + update + test
 bash scripts/update-lambda.sh --skip-test   # build + push + update only
 
-# Deploy Laravel (via SSH di server)
-bash scripts/deploy-laravel.sh              # pull + migrate + cache + restart worker
-bash scripts/deploy-laravel.sh --force       # skip konfirmasi
+# Deploy Laravel (SSH ke server dulu, baru jalankan)
+# Script ini HARUS dijalankan DI SERVER via SSH, bukan lokal.
+# Langkah: SSH ke server, cd /var/www/deltajalan, lalu:
+#   git pull origin main
+#   cd backend_POSTGRESQL
+#   php artisan config:cache
+#   php artisan route:cache
+#   php artisan view:cache
+#   (migrate jika ada: php artisan migrate --force)
+#
+# Atau via SSH one-liner:
+# ssh -i "<key>" ubuntu@47.131.39.245 "cd /var/www/deltajalan && git pull origin main && cd backend_POSTGRESQL && php artisan config:cache && php artisan route:cache && php artisan view:cache"
 
 # All stacked (Linux native)
 bash scripts/start-android.sh                       # Laravel + ngrok + .env update
