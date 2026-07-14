@@ -383,14 +383,33 @@ export function PetaInteraktif({
     const L = LRef.current;
     if (!L) return;
 
-    // Create cluster group once (clustering disabled — all markers shown as pins)
+    // Create cluster group once
     if (!markerClusterRef.current) {
       const mcg = L.markerClusterGroup({
         chunkedLoading: true,
-        maxClusterRadius: 1,
-        disableClusteringAtZoom: 0,
+        maxClusterRadius: 80,
+        disableClusteringAtZoom: 16,
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: false,
+        iconCreateFunction: (cluster: any) => {
+          const markers = cluster.getAllChildMarkers();
+          const sevCount: Record<string, number> = { berat: 0, sedang: 0, ringan: 0, baik: 0 };
+          markers.forEach((m: any) => {
+            const sev = m.options?.severity || "baik";
+            if (sevCount[sev] != null) sevCount[sev]++;
+          });
+          const dominant = (Object.entries(sevCount) as [string, number][]).sort(
+            (a, b) => b[1] - a[1],
+          )[0][0];
+          const color = SEVERITY_CONFIG[dominant]?.color ?? "#6B7280";
+          const total = markers.length;
+          return L.divIcon({
+            html: `<div style="width:40px;height:40px;border-radius:50%;background:${color};color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);">${total}</div>`,
+            className: "",
+            iconSize: [40, 40],
+            iconAnchor: [20, 20],
+          });
+        },
       });
       map.addLayer(mcg);
       markerClusterRef.current = mcg;

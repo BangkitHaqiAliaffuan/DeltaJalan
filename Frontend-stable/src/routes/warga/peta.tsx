@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { PetaInteraktif } from "@/components/jk/PetaInteraktif";
 import { SkeletonMapArea } from "@/components/jk/Skeleton";
@@ -27,38 +28,22 @@ const defaultFilters: MapFilters = {
 function WargaPetaPage() {
   const token = getToken() ?? "";
   const navigate = useNavigate();
-  const [mapData, setMapData] = useState<MapDataResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
   const [filters] = useState<MapFilters>(defaultFilters);
 
   const user = getCurrentUser();
   const currentUserId = user?.id ?? null;
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      setError(false);
-      try {
-        const data = await authFetch<MapDataResponse>(
-          `${API_BASE_URL}/reports/map-data`,
-          token,
-        );
-        if (!cancelled) {
-          setMapData(data);
-        }
-      } catch {
-        if (!cancelled) setError(true);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
+  const { data: mapData, isLoading: loading, isError: error } = useQuery({
+    queryKey: ["warga-map-data", token],
+    queryFn: () => authFetch<MapDataResponse>(
+      `${API_BASE_URL}/reports/map-data`,
+      token,
+    ),
+    enabled: !!token,
+    staleTime: 60_000,
+    refetchInterval: false,
+    gcTime: 120_000,
+  });
 
   function handleViewDetail(id: string) {
     navigate({ to: "/warga/laporan/$id", params: { id } });
