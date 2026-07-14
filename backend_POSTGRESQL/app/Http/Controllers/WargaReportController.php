@@ -614,16 +614,24 @@ class WargaReportController extends Controller
     private function incrementFingerprintCounter(Request $request): void
     {
         $fingerprint = $this->buildFingerprint($request);
-        DailyUploadCounter::updateOrCreate(
-            [
-                'identifier_type' => 'fingerprint',
-                'identifier_hash' => $fingerprint,
-                'report_date' => today(),
-            ],
-            [
-                'count' => DB::raw('COALESCE(count, 0) + 1'),
-            ]
-        );
+        DB::transaction(function () use ($fingerprint) {
+            $counter = DailyUploadCounter::where('identifier_type', 'fingerprint')
+                ->where('identifier_hash', $fingerprint)
+                ->where('report_date', today())
+                ->lockForUpdate()
+                ->first();
+
+            if ($counter) {
+                $counter->increment('count');
+            } else {
+                DailyUploadCounter::create([
+                    'identifier_type' => 'fingerprint',
+                    'identifier_hash' => $fingerprint,
+                    'report_date' => today(),
+                    'count' => 1,
+                ]);
+            }
+        });
     }
 
     private function checkDeviceLimit(Request $request): ?JsonResponse
@@ -658,16 +666,24 @@ class WargaReportController extends Controller
             return;
         }
 
-        DailyUploadCounter::updateOrCreate(
-            [
-                'identifier_type' => 'device_id',
-                'identifier_hash' => $deviceId,
-                'report_date' => today(),
-            ],
-            [
-                'count' => DB::raw('COALESCE(count, 0) + 1'),
-            ]
-        );
+        DB::transaction(function () use ($deviceId) {
+            $counter = DailyUploadCounter::where('identifier_type', 'device_id')
+                ->where('identifier_hash', $deviceId)
+                ->where('report_date', today())
+                ->lockForUpdate()
+                ->first();
+
+            if ($counter) {
+                $counter->increment('count');
+            } else {
+                DailyUploadCounter::create([
+                    'identifier_type' => 'device_id',
+                    'identifier_hash' => $deviceId,
+                    'report_date' => today(),
+                    'count' => 1,
+                ]);
+            }
+        });
     }
 
     private function verifyRecaptcha(string $token): true|JsonResponse

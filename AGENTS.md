@@ -273,6 +273,25 @@ getPermissionState("accessMediaLocation") == GRANTED
 ### Process `getData()` AND `getClipData()`
 They are not mutually exclusive. Both may contain URIs (with overlap). Process independently with dedup.
 
+## PostgreSQL: jangan pakai `DB::raw` di `updateOrCreate`
+
+`updateOrCreate(..., ['count' => DB::raw('COALESCE(count, 0) + 1')])` menghasilkan SQL `INSERT ... VALUES (COALESCE(count, 0) + 1)`. PostgreSQL 16 **reject** karena kolom tabel target tidak bisa direferensi di VALUES clause — hanya valid di `DO UPDATE SET`.
+
+### Pattern aman untuk atomic counter
+
+```php
+DB::transaction(function () use ($identifier) {
+    $row = Model::where(...)->lockForUpdate()->first();
+    if ($row) {
+        $row->increment('count');
+    } else {
+        Model::create([..., 'count' => 1]);
+    }
+});
+```
+
+`lockForUpdate()` + `increment()` dijamin atomic di PostgreSQL.
+
 ## Leaflet fitBounds race condition
 Conditionally-rendered Leaflet maps that use `fitBounds` can crash on unmount during CSS zoom animation. Always pass `animate: false`:
 ```ts
