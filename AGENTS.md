@@ -39,6 +39,7 @@ Scripts & `.env` are OS-specific — no cross-contamination.
 - **Never** run `migrate:fresh`, `migrate:reset`, `db:wipe`, or `DROP` even if you think you have user consent — always wait for the user to explicitly type the command before proceeding.
 - **Never** commit or push unless the user explicitly says "commit", "push", or "commit dan push". You may stage files.
 - **Sebelum commit**, wajib cek secara mendalam apakah ada secret/key file, file binary tak terduga, file temp, atau file pribadi (`.pem`, `.key`, `.env`, `*.json` berisi token, dll) yang akan ikut ter-commit. Pastikan sudah masuk `.gitignore` atau di `git rm --cached`. Jalankan `git status --short` dan inspeksi setiap file baru/berubah sebelum commit. Jika ragu, tanya user.
+- **Commit message** harus dalam **Bahasa Indonesia** secara konsisten. Gunakan format `tipe: pesan singkat` (contoh: `fix: ...`, `feat: ...`, `refactor: ...`). Semua commit ke depannya wajib menggunakan bahasa Indonesia pada bagian deskripsi. Commit message bahasa Inggris dilarang.
 - **Production SSH key** (public only): `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA8xwr8n4igJxAtnDakuFYbfePqVKqzhOatluUhPhlWy deploy@deltajalan.web.id` (terdaftar di GitHub → BangkitHaqiAliaffuan)
 - **Sebelum SSH ke server**, wajib buat plan terlebih dahulu dan minta persetujuan user. Jelaskan secara spesifik perintah yang akan dijalankan.
 - **SSH key production**: `C:\DeltaJalan\LightsailDefaultKey-ap-southeast-1.pem` — user `ubuntu@47.131.39.245`

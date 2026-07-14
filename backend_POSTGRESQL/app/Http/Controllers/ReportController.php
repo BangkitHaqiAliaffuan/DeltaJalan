@@ -2386,11 +2386,11 @@ class ReportController extends Controller
             'ai_severity' => $aiData['overall_severity'],
             'ai_confidence' => $aiData['confidence'] ?? $aiData['max_confidence'] ?? null,
             'ai_analyzed_at' => $now,
-            'ai_analysis_count' => DB::raw('COALESCE(ai_analysis_count, 0) + 1'),
             'system_notes' => $report->system_notes
                 ? $report->system_notes.' | [APPROVED] Disetujui oleh '.auth()->user()->name
                 : '[APPROVED] Disetujui oleh '.auth()->user()->name,
         ]);
+        $report->increment('ai_analysis_count');
 
         // Update photo dengan data AI
         $photo->update([
@@ -2401,8 +2401,8 @@ class ReportController extends Controller
             'ai_raw_output' => $aiData['detections'] ?? $aiData,
             'image_result_path' => $resultPath,
             'ai_analyzed_at' => $now,
-            'ai_analysis_count' => DB::raw('COALESCE(ai_analysis_count, 0) + 1'),
         ]);
+        $photo->increment('ai_analysis_count');
 
         Log::info('DeltaJalan: Laporan warga/telegram disetujui & ditugaskan (approve-and-assign).', [
             'report_id' => $report->id,
