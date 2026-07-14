@@ -641,7 +641,10 @@ function PublicLaporPage() {
             title: "Foto Tidak Relevan",
             message: json.message ?? "Foto tidak relevan dengan kerusakan jalan.",
           });
-        } else if (json.error_code === "FINGERPRINT_LIMIT_EXCEEDED" || json.error_code === "DEVICE_LIMIT_EXCEEDED") {
+        } else if (
+          json.error_code === "FINGERPRINT_LIMIT_EXCEEDED" ||
+          json.error_code === "DEVICE_LIMIT_EXCEEDED"
+        ) {
           fetchRemaining();
         } else {
           setError(json.message ?? "Gagal mengirim laporan.");
@@ -734,14 +737,14 @@ function PublicLaporPage() {
               <div className="flex flex-col gap-3 items-center">
                 <Link
                   to="/daftar"
-                  className="inline-flex h-11 px-6 bg-gradient-to-r from-[#1e40af] to-[#2e68d8] text-white rounded-lg font-label-md text-label-md font-semibold items-center justify-center gap-2 hover:shadow-lg transition-all"
+                  className="inline-flex h-11 px-6 min-w-[260px] bg-gradient-to-r from-[#1e40af] to-[#2e68d8] text-white rounded-lg font-label-md text-label-md font-semibold items-center justify-center gap-2 hover:shadow-lg transition-all"
                 >
                   <Icon name="person_add" className="!text-[20px]" />
                   Daftar Akun (5 laporan/hari)
                 </Link>
                 <Link
                   to="/masuk"
-                  className="inline-flex h-11 px-6 border border-[#1e40af] text-[#1e40af] rounded-lg font-label-md text-label-md font-semibold items-center justify-center gap-2 hover:bg-blue-50 transition-all"
+                  className="inline-flex h-11 px-6 min-w-[260px] border border-[#1e40af] text-[#1e40af] rounded-lg font-label-md text-label-md font-semibold items-center justify-center gap-2 hover:bg-blue-50 transition-all"
                 >
                   <Icon name="login" className="!text-[20px]" />
                   Login
@@ -768,7 +771,10 @@ function PublicLaporPage() {
           <p className="text-sm text-blue-200 mt-1">Isi data kerusakan yang Anda temukan</p>
           <div className="mt-3 flex items-center gap-1.5 bg-white/15 rounded-full px-3 py-1.5 w-fit text-xs font-medium text-blue-100">
             <Icon name="assignment" className="!text-[14px]" />
-            Sisa: 1 laporan hari ini — <Link to="/daftar" className="underline">Daftar</Link>
+            Sisa: 1 laporan hari ini —{" "}
+            <Link to="/daftar" className="underline">
+              Daftar
+            </Link>
           </div>
         </section>
 

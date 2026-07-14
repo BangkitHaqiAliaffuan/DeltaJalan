@@ -329,13 +329,6 @@ function RegisterPage() {
                   >
                     Sudah punya akun? Masuk
                   </Link>
-                  <Link
-                    to="/login-petugas"
-                    className="font-label-sm text-label-sm text-[#475569] hover:text-[#1e40af] transition-colors flex items-center gap-1"
-                  >
-                    <Icon name="badge" className="!text-[16px]" />
-                    Masuk sebagai Petugas
-                  </Link>
                 </div>
               </div>
             </div>

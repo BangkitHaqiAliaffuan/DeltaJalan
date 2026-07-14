@@ -58,17 +58,14 @@ function WargaLoginPage() {
         return;
       }
 
+      if (data.user.role !== "warga") {
+        setError("Akun ini adalah akun petugas. Silakan gunakan halaman khusus petugas.");
+        return;
+      }
+
       saveAuth(data.user, data.token);
 
-      const path =
-        data.user.role === "warga"
-          ? "/warga"
-          : data.user.role === "admin"
-            ? "/admin/dashboard"
-            : data.user.role === "supervisor"
-              ? "/supervisor"
-              : "/home";
-      navigate({ to: path });
+      navigate({ to: "/warga" });
     } catch {
       setError("Tidak dapat terhubung ke server. Pastikan server berjalan.");
     } finally {
@@ -212,13 +209,6 @@ function WargaLoginPage() {
                   >
                     <Icon name="search" className="!text-[16px]" />
                     Lacak laporan tanpa login
-                  </Link>
-                  <Link
-                    to="/login-petugas"
-                    className="font-label-sm text-label-sm text-[#475569] hover:text-[#1e40af] transition-colors flex items-center gap-1 mt-1"
-                  >
-                    <Icon name="badge" className="!text-[16px]" />
-                    Masuk sebagai Petugas
                   </Link>
                 </div>
               </div>
