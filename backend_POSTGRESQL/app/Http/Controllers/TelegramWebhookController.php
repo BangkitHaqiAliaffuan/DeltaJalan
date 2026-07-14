@@ -129,7 +129,7 @@ class TelegramWebhookController extends Controller
                 'awaiting_location' => 'Silakan <b>bagikan lokasi</b> kerusakan melalui tombol di bawah. Ketik /batal untuk membatalkan.',
                 'awaiting_dimension' => 'Silakan masukkan angka (contoh: 2.5) atau pilih tombol di atas. Ketik /batal untuk membatalkan.',
                 'confirming' => 'Silakan pilih <b>Konfirmasi</b> atau <b>Batalkan</b> di atas. Ketik /batal untuk membatalkan.',
-                'confirming_duplicate' => 'Silakan pilih <b>Dukung Laporan Ini</b> atau <b>Buat Laporan Baru</b> di atas. Ketik /batal untuk membatalkan.',
+                'confirming_duplicate' => 'Silakan tap <b>Dukung Laporan Ini</b> di atas, atau ketik /batal untuk membatalkan.',
                 default => 'Maaf, perintah tidak dikenal. Gunakan /bantuan untuk melihat daftar perintah.'
             };
             $this->telegram->sendMessage($chatId, $msg);
@@ -253,15 +253,6 @@ class TelegramWebhookController extends Controller
 
         if ($data === 'support_report' && $session->state === 'confirming_duplicate') {
             return $this->handleSupportReport($session, $chatId);
-        }
-
-        if ($data === 'create_new_report' && $session->state === 'confirming_duplicate') {
-            $sessionData = $session->data ?? [];
-            unset($sessionData['nearby_report_id'], $sessionData['nearby_report_code'], $sessionData['nearby_road_name']);
-            $sessionData['confirmed_new_report'] = true;
-            $session->update(['data' => $sessionData, 'state' => 'confirming']);
-
-            return $this->handleConfirm($session, $chatId);
         }
 
         // Expired / invalid callback
@@ -848,12 +839,11 @@ class TelegramWebhookController extends Controller
             }
         }
 
-        // ── Spatial duplicate check (6m) — skip if user already chose "Buat Baru" ──
-        $skipSpatial = ! empty($data['confirmed_new_report']);
+        // ── Spatial duplicate check (6m) ──
         $lat = (float) $data['latitude'];
         $lng = (float) $data['longitude'];
         $duplicateCheck = app(DuplicateCheckService::class);
-        $nearby = ! $skipSpatial ? $duplicateCheck->checkSpatial($lat, $lng, 6) : null;
+        $nearby = $duplicateCheck->checkSpatial($lat, $lng, 6);
 
         if ($nearby) {
             $data['nearby_report_id'] = $nearby->id;
@@ -864,13 +854,12 @@ class TelegramWebhookController extends Controller
             $this->telegram->sendMessage($chatId,
                 'Kami menemukan laporan aktif di dekat lokasi Anda:'."\n"
                 ."<b>{$nearby->report_code}</b> — {$nearby->road_name}\n\n"
-                .'Apakah Anda ingin mendukung laporan ini?'."\n"
-                .'(Foto Anda akan ditambahkan sebagai bukti pendukung)',
+                .'Foto Anda akan ditambahkan sebagai bukti pendukung laporan ini.'."\n"
+                .'Ketik /batal jika Anda tidak setuju.',
                 [
                     'inline_keyboard' => [
                         [
                             ['text' => 'Dukung Laporan Ini', 'callback_data' => 'support_report'],
-                            ['text' => 'Buat Laporan Baru', 'callback_data' => 'create_new_report'],
                         ],
                     ],
                 ]
