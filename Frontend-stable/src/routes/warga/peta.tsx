@@ -41,12 +41,12 @@ function WargaPetaPage() {
       setLoading(true);
       setError(false);
       try {
-        const data = await authFetch<{ success: boolean; data: MapDataResponse }>(
+        const data = await authFetch<MapDataResponse>(
           `${API_BASE_URL}/reports/map-data`,
           token,
         );
-        if (!cancelled && data.success) {
-          setMapData(data.data);
+        if (!cancelled) {
+          setMapData(data);
         }
       } catch {
         if (!cancelled) setError(true);
