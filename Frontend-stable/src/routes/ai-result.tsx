@@ -3,6 +3,7 @@ import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { Portal } from "@/components/jk/Portal";
 import { FraudWarningModal } from "@/components/jk/FraudWarningModal";
+import { computeFileHash } from "@/lib/hash";
 import {
   getAiResult,
   getFormData,
@@ -278,13 +279,6 @@ function normSev(s: string): string {
   if (lower === "sedang" || lower === "rusak sedang") return "Rusak Sedang";
   if (lower === "ringan" || lower === "rusak ringan") return "Rusak Ringan";
   return "Baik";
-}
-
-async function computeFileHash(file: File): Promise<string> {
-  const buffer = await file.arrayBuffer();
-  const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 function reconstructAnalyses(photos: BatchPhotoResult[]): string {

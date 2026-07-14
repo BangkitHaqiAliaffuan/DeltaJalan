@@ -17,6 +17,7 @@ import { FraudWarningModal } from "@/components/jk/FraudWarningModal";
 import { validatePhotoDate } from "@/lib/validatePhotoDate";
 import type { PhotoDateValidationStatus } from "@/lib/validatePhotoDate";
 import { analyzeImageQuality } from "@/lib/imageQualityCheck";
+import { computeFileHash } from "@/lib/hash";
 import { PhotoExifGps } from "@jalankita/capacitor-exif-gps";
 import { validateIndonesianPhone, validateNamaLengkap } from "@/lib/validators";
 import { getRecaptchaToken } from "@/lib/recaptcha";
@@ -94,6 +95,7 @@ function PublicLaporPage() {
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [qualityScoresArray, setQualityScoresArray] = useState<(string | null)[]>([]);
+  const [photoHashes, setPhotoHashes] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [locating, setLocating] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -159,6 +161,7 @@ function PublicLaporPage() {
     setPhotos((prev) => prev.filter((_, i) => i !== index));
     setPhotoPreviews((prev) => prev.filter((_, i) => i !== index));
     setQualityScoresArray((prev) => prev.filter((_, i) => i !== index));
+    setPhotoHashes((prev) => prev.filter((_, i) => i !== index));
     if (index === 0) {
       setCameraModel("");
     }
@@ -266,6 +269,7 @@ function PublicLaporPage() {
     const newPhotos: File[] = [];
     const newPreviews: string[] = [];
     const newQualityScores: (string | null)[] = [];
+    const newHashes: string[] = [];
     const warnings: string[] = [];
 
     if (incoming.length > remaining) {
@@ -332,9 +336,17 @@ function PublicLaporPage() {
         }
       }
 
+      const hash = await computeFileHash(compressed);
+      if (photoHashes.includes(hash) || newHashes.includes(hash)) {
+        warnings.push(`"${rawFile.name}": Foto duplikat, dilewati`);
+        isFirstInBatch = false;
+        continue;
+      }
+
       newPhotos.push(compressed);
       newPreviews.push(URL.createObjectURL(compressed));
       newQualityScores.push(cleanQuality);
+      newHashes.push(hash);
       isFirstInBatch = false;
     }
 
@@ -347,6 +359,7 @@ function PublicLaporPage() {
     setPhotos((prev) => [...prev, ...newPhotos].slice(0, 3));
     setPhotoPreviews((prev) => [...prev, ...newPreviews].slice(0, 3));
     setQualityScoresArray((prev) => [...prev, ...newQualityScores].slice(0, 3));
+    setPhotoHashes((prev) => [...prev, ...newHashes].slice(0, 3));
 
     if (warnings.length > 0) setUploadWarnings(warnings);
 
@@ -409,9 +422,12 @@ function PublicLaporPage() {
       isWarningOnly: undefined,
     });
 
+    const hash = await computeFileHash(compressed);
+
     setPhotos([compressed]);
     setPhotoPreviews([URL.createObjectURL(compressed)]);
     setQualityScoresArray([cleanQuality]);
+    setPhotoHashes([hash]);
 
     if (result.lat != null && result.lng != null) {
       await applyCoordinates(result.lat, result.lng, "exif");
@@ -444,6 +460,7 @@ function PublicLaporPage() {
     const newPhotos: File[] = [];
     const newPreviews: string[] = [];
     const newQualityScores: (string | null)[] = [];
+    const newHashes: string[] = [];
     const warnings: string[] = [];
     let isFirstInBatch = true;
 
@@ -518,9 +535,17 @@ function PublicLaporPage() {
         }
       }
 
+      const hash = await computeFileHash(compressed);
+      if (photoHashes.includes(hash) || newHashes.includes(hash)) {
+        warnings.push(`"${pick.name}": Foto duplikat, dilewati`);
+        isFirstInBatch = false;
+        continue;
+      }
+
       newPhotos.push(compressed);
       newPreviews.push(URL.createObjectURL(compressed));
       newQualityScores.push(cleanQuality);
+      newHashes.push(hash);
       isFirstInBatch = false;
     }
 
@@ -533,6 +558,7 @@ function PublicLaporPage() {
     setPhotos((prev) => [...prev, ...newPhotos].slice(0, 3));
     setPhotoPreviews((prev) => [...prev, ...newPreviews].slice(0, 3));
     setQualityScoresArray((prev) => [...prev, ...newQualityScores].slice(0, 3));
+    setPhotoHashes((prev) => [...prev, ...newHashes].slice(0, 3));
     if (warnings.length > 0) setUploadWarnings(warnings);
 
     // GPS from first photo
