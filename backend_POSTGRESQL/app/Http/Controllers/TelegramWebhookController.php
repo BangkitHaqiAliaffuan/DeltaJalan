@@ -483,7 +483,8 @@ class TelegramWebhookController extends Controller
         if (! $exif) {
             $this->telegram->sendMessage($chatId,
                 'Foto tidak memiliki metadata EXIF. '
-                ."Gunakan foto asli dari kamera perangkat Anda.\n\nKetik /lapor untuk coba lagi."
+                ."Gunakan foto asli dari kamera perangkat Anda.\n\n"
+                ."Silakan kirim ulang foto. State laporan tetap tersimpan — cukup kirim file baru."
             );
 
             return response()->json(['ok' => true]);
@@ -494,7 +495,8 @@ class TelegramWebhookController extends Controller
         if ($dateCheck['status'] === 'no_exif_date') {
             $this->telegram->sendMessage($chatId,
                 'Foto tidak memiliki metadata tanggal. '
-                ."Gunakan foto asli dari kamera perangkat Anda.\n\nKetik /lapor untuk coba lagi."
+                ."Gunakan foto asli dari kamera perangkat Anda.\n\n"
+                ."Silakan kirim ulang foto. State laporan tetap tersimpan — cukup kirim file baru."
             );
 
             return response()->json(['ok' => true]);
@@ -502,7 +504,8 @@ class TelegramWebhookController extends Controller
 
         if ($dateCheck['status'] === 'future_date' || $dateCheck['status'] === 'too_old') {
             $this->telegram->sendMessage($chatId,
-                $dateCheck['message']."\n\nKetik /lapor untuk coba lagi."
+                $dateCheck['message']."\n\n"
+                .'Silakan kirim ulang foto. State laporan tetap tersimpan — cukup kirim file baru.'
             );
 
             return response()->json(['ok' => true]);
@@ -517,9 +520,8 @@ class TelegramWebhookController extends Controller
 
         if ($mobileclip !== null && $mobileclip['blocked']) {
             $this->telegram->sendMessage($chatId,
-                'Foto tidak relevan dengan kerusakan jalan. Silakan kirim foto yang menunjukkan kondisi jalan, seperti lubang, retak, atau kerusakan infrastruktur jalan lainnya.'."\n\nKetik /lapor untuk mencoba lagi."
+                'Foto tidak relevan dengan kerusakan jalan. Silakan kirim foto yang menunjukkan kondisi jalan, seperti lubang, retak, atau kerusakan infrastruktur jalan lainnya.'."\n\nSilakan kirim ulang foto. State laporan tetap tersimpan — cukup kirim file baru."
             );
-            $session->update(['state' => 'idle', 'data' => null]);
 
             return response()->json(['ok' => true]);
         }
@@ -532,9 +534,8 @@ class TelegramWebhookController extends Controller
 
         if ($quality !== null && $quality['blocked']) {
             $this->telegram->sendMessage($chatId,
-                'Foto terlalu '.($quality['status'] === 'blurry' ? 'kabur' : 'gelap').'. Silakan kirim ulang foto dengan pencahayaan dan fokus yang baik.'."\n\nKetik /lapor untuk coba lagi."
+                'Foto terlalu '.($quality['status'] === 'blurry' ? 'kabur' : 'gelap').'. Silakan kirim ulang foto dengan pencahayaan dan fokus yang baik.'."\n\nSilakan kirim ulang foto. State laporan tetap tersimpan — cukup kirim file baru."
             );
-            $session->update(['state' => 'idle', 'data' => null]);
 
             Log::info('[Telegram] handleDocument — quality check blocked', [
                 'chat_id' => $chatId,
