@@ -598,7 +598,7 @@ def lambda_handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]
         img_hash = _compute_sha256(image_bytes)
         cached = INFERENCE_CACHE.get(img_hash)
         if cached and (time.time() - cached["ts"]) < CACHE_TTL:
-            resp = {k: cached[k] for k in ("detections", "total", "overall_severity", "severity_score", "severity_detail", "status")}
+            resp = {k: cached[k] for k in ("detections", "total", "overall_severity", "severity_score", "severity_detail", "status", "image_result")}
             resp["from_cache"] = True
             return {
                 "statusCode": 200,

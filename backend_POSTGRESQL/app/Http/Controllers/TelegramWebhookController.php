@@ -296,12 +296,8 @@ class TelegramWebhookController extends Controller
 
         $this->telegram->sendMessage($chatId,
             "Silakan kirim <b>foto kerusakan jalan</b>.\n\n"
-            ."📎 <b>Cara kirim foto:</b>\n"
-            ."• Klik ikon 📎 (attachment)\n"
-            ."• Pilih <b>\"Dokumen\"</b> atau <b>\"File\"</b>\n"
-            ."• Jangan pilih \"Foto/Galeri\" atau \"Kamera\"\n\n"
-            .'Foto harus asli dari kamera (bukan screenshot). '
-            ."Maksimal 7 hari sejak pengambilan.\n\n"
+            ."Foto bisa langsung dari kamera Telegram, galeri, atau dikirim sebagai file.\n"
+            ."Untuk hasil terbaik, kirim sebagai <b>file/dokumen</b> (kualitas asli).\n\n"
             .'Ketik /batal kapan saja untuk membatalkan.',
             ['remove_keyboard' => true]
         );

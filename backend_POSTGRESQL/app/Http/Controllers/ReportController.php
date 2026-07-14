@@ -2177,18 +2177,18 @@ class ReportController extends Controller
             'ai_severity' => $aiData['overall_severity'],
             'overall_severity' => $aiData['overall_severity'],
             'ai_confidence' => $aiData['confidence'] ?? $aiData['max_confidence'] ?? null,
-            'total_detections' => $aiData['total_detections'] ?? 0,
+            'total_detections' => $aiData['total'] ?? 0,
             'ai_raw_output' => $aiData['detections'] ?? $aiData,
-            'image_result_path' => $resultPath,
+            'image_result_path' => $resultPath ?? $report->image_result_path,
         ]);
 
         $photo->update([
             'ai_jenis_kerusakan' => $aiData['detection_type'] ?? $aiData['overall_severity'],
             'ai_severity' => $aiData['overall_severity'],
             'ai_confidence' => $aiData['confidence'] ?? $aiData['max_confidence'] ?? null,
-            'total_detections' => $aiData['total_detections'] ?? 0,
+            'total_detections' => $aiData['total'] ?? 0,
             'ai_raw_output' => $aiData['detections'] ?? $aiData,
-            'image_result_path' => $resultPath,
+            'image_result_path' => $resultPath ?? $photo->image_result_path,
         ]);
 
         Log::info('DeltaJalan: Analisis AI laporan selesai (foreground).', [
@@ -2379,9 +2379,9 @@ class ReportController extends Controller
             'assigned_at' => $now,
             'ditugaskan_at' => $now,
             'overall_severity' => $aiData['overall_severity'],
-            'total_detections' => $aiData['total_detections'] ?? 0,
+            'total_detections' => $aiData['total'] ?? 0,
             'ai_raw_output' => $aiData['detections'] ?? $aiData,
-            'image_result_path' => $resultPath,
+            'image_result_path' => $resultPath ?? $report->image_result_path,
             'ai_jenis_kerusakan' => $aiData['detection_type'] ?? $aiData['overall_severity'],
             'ai_severity' => $aiData['overall_severity'],
             'ai_confidence' => $aiData['confidence'] ?? $aiData['max_confidence'] ?? null,
@@ -2397,9 +2397,9 @@ class ReportController extends Controller
             'ai_jenis_kerusakan' => $aiData['detection_type'] ?? $aiData['overall_severity'],
             'ai_severity' => $aiData['overall_severity'],
             'ai_confidence' => $aiData['confidence'] ?? $aiData['max_confidence'] ?? null,
-            'total_detections' => $aiData['total_detections'] ?? 0,
+            'total_detections' => $aiData['total'] ?? 0,
             'ai_raw_output' => $aiData['detections'] ?? $aiData,
-            'image_result_path' => $resultPath,
+            'image_result_path' => $resultPath ?? $photo->image_result_path,
             'ai_analyzed_at' => $now,
         ]);
         $photo->increment('ai_analysis_count');
