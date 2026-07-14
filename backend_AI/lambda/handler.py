@@ -271,10 +271,10 @@ def _weighted_boxes_fusion(
         if total_w <= 0:
             continue
 
-        x1 = int(sum(b[0] * b[4] * b[6] for b in boxes) / total_w)
-        y1 = int(sum(b[1] * b[4] * b[6] for b in boxes) / total_w)
-        x2 = int(sum(b[2] * b[4] * b[6] for b in boxes) / total_w)
-        y2 = int(sum(b[3] * b[4] * b[6] for b in boxes) / total_w)
+        x1 = sum(b[0] * b[4] * b[6] for b in boxes) / total_w
+        y1 = sum(b[1] * b[4] * b[6] for b in boxes) / total_w
+        x2 = sum(b[2] * b[4] * b[6] for b in boxes) / total_w
+        y2 = sum(b[3] * b[4] * b[6] for b in boxes) / total_w
 
         coverage = min(1.0, n / n_models)
         if conf_type == "max":
