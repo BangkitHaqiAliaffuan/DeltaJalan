@@ -276,14 +276,12 @@ class TelegramWebhookController extends Controller
             .'dan informasi Telegram) akan digunakan oleh Dinas PU Bina Marga Kab. Sidoarjo '
             .'untuk penanganan laporan kerusakan jalan.</i>',
             [
-                'reply_markup' => json_encode([
-                    'inline_keyboard' => [
-                        [
-                            ['text' => 'Lanjut', 'callback_data' => 'start_lanjut'],
-                            ['text' => 'Bantuan', 'callback_data' => 'start_bantuan'],
-                        ],
+                'inline_keyboard' => [
+                    [
+                        ['text' => 'Lanjut', 'callback_data' => 'start_lanjut'],
+                        ['text' => 'Bantuan', 'callback_data' => 'start_bantuan'],
                     ],
-                ]),
+                ],
             ]
         );
 
@@ -427,13 +425,11 @@ class TelegramWebhookController extends Controller
             ."/bantuan — Tampilkan panduan ini\n"
             ."/batal — Batalkan laporan",
             [
-                'reply_markup' => json_encode([
-                    'inline_keyboard' => [
-                        [
-                            ['text' => 'Mulai Lapor', 'callback_data' => 'start_lanjut'],
-                        ],
+                'inline_keyboard' => [
+                    [
+                        ['text' => 'Mulai Lapor', 'callback_data' => 'start_lanjut'],
                     ],
-                ]),
+                ],
             ]
         );
 
