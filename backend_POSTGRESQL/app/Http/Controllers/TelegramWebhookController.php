@@ -238,6 +238,14 @@ class TelegramWebhookController extends Controller
             return $this->handleDimensionDecision($session, $chatId, false);
         }
 
+        if ($data === 'start_lanjut') {
+            return $this->handleLapor($session, $chatId);
+        }
+
+        if ($data === 'start_bantuan') {
+            return $this->sendComprehensiveHelp($chatId);
+        }
+
         // Expired / invalid callback
         $this->telegram->sendMessage($chatId,
             'Sesi laporan sudah tidak aktif. Ketik /lapor untuk memulai laporan baru.'
@@ -260,15 +268,23 @@ class TelegramWebhookController extends Controller
         $this->telegram->sendMessage($chatId,
             "Selamat datang di <b>DeltaJalan — Laporan Warga</b>!\n\n"
             ."Bot ini membantu Anda melaporkan kerusakan jalan di Kabupaten Sidoarjo.\n\n"
-            ."Gunakan perintah di bawah:\n"
-            ."/lapor — Laporkan kerusakan jalan baru\n"
-            ."/status — Cek status laporan terakhir\n"
-            ."/bantuan — Bantuan penggunaan\n\n"
-            ."<b>Penting:</b> Anda WAJIB berada tepat di lokasi kerusakan jalan saat membagikan lokasi — sistem mengambil lokasi Anda.\n\n"
+            ."Sebelum memulai, pastikan:\n"
+            ."📸 Foto diambil dengan <b>KAMERA HP</b> (bukan screenshot)\n"
+            ."📍 Anda berada di lokasi kerusakan jalan\n"
+            ."📎 Foto dikirim sebagai <b>FILE/DOKUMEN</b> (agar data tanggal & lokasi terbaca)\n\n"
             .'<i>Dengan menggunakan bot ini, Anda menyetujui bahwa data (foto, lokasi, '
             .'dan informasi Telegram) akan digunakan oleh Dinas PU Bina Marga Kab. Sidoarjo '
             .'untuk penanganan laporan kerusakan jalan.</i>',
-            ['remove_keyboard' => true]
+            [
+                'reply_markup' => json_encode([
+                    'inline_keyboard' => [
+                        [
+                            ['text' => 'Lanjut', 'callback_data' => 'start_lanjut'],
+                            ['text' => 'Bantuan', 'callback_data' => 'start_bantuan'],
+                        ],
+                    ],
+                ]),
+            ]
         );
 
         return response()->json(['ok' => true]);
@@ -296,8 +312,12 @@ class TelegramWebhookController extends Controller
 
         $this->telegram->sendMessage($chatId,
             "Silakan kirim <b>foto kerusakan jalan</b>.\n\n"
-            ."Foto bisa langsung dari kamera Telegram, galeri, atau dikirim sebagai file.\n"
-            ."Untuk hasil terbaik, kirim sebagai <b>file/dokumen</b> (kualitas asli).\n\n"
+            ."📎 <b>Cara kirim foto:</b>\n"
+            ."• Klik ikon 📎 (attachment)\n"
+            ."• Pilih <b>\"Dokumen\"</b> atau <b>\"File\"</b>\n"
+            ."• Jangan pilih \"Foto/Galeri\" atau \"Kamera\"\n\n"
+            .'Foto harus asli dari kamera (bukan screenshot). '
+            ."Maksimal 7 hari sejak pengambilan.\n\n"
             .'Ketik /batal kapan saja untuk membatalkan.',
             ['remove_keyboard' => true]
         );
@@ -363,6 +383,58 @@ class TelegramWebhookController extends Controller
             ."3. Ketik deskripsi\n\n"
             .'Butuh bantuan lebih lanjut? Hubungi Dinas PU Bina Marga Kab. Sidoarjo.',
             ['remove_keyboard' => true]
+        );
+
+        return response()->json(['ok' => true]);
+    }
+
+    private function sendComprehensiveHelp(int|string $chatId): JsonResponse
+    {
+        $this->telegram->sendMessage($chatId,
+            "<b>📸 LAPORAN KERUSAKAN JALAN — PANDUAN LENGKAP</b>\n\n"
+            ."━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            ."<b>1. AMBIL FOTO</b>\n"
+            ."━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            ."• Buka aplikasi Kamera HP Anda\n"
+            ."• Arahkan ke kerusakan jalan dari jarak yang menunjukkan kondisi sekitar\n"
+            ."• Pastikan pencahayaan cukup dan fokus jelas\n"
+            ."• Foto otomatis menyimpan data lokasi & tanggal (EXIF)\n\n"
+            ."━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            ."<b>2. KIRIM FOTO KE BOT</b>\n"
+            ."━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            ."• Klik tombol <b>Mulai Lapor</b> di bawah\n"
+            ."• Klik ikon 📎 (attachment)\n"
+            ."• Pilih <b>\"Dokumen\"</b> atau <b>\"File\"</b>\n"
+            ."• Pilih foto yang sudah diambil\n"
+            ."• Tunggu hingga terkirim\n\n"
+            ."⚠️ <b>Penting:</b> Jangan kirim dari galeri langsung atau kamera "
+            ."Telegram — data lokasi & tanggal akan hilang!\n\n"
+            ."━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            ."<b>3. BAGIKAN LOKASI</b>\n"
+            ."━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            ."• Setelah foto diterima, klik tombol \"Kirim Lokasi Saya\"\n"
+            ."• Pastikan GPS HP Anda AKTIF\n"
+            ."• Anda WAJIB berada di lokasi kerusakan\n\n"
+            ."━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            ."<b>4. DESKRIPSI</b>\n"
+            ."━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            ."• Ketik deskripsi kerusakan (contoh: \"Lubang besar di tengah jalan\")\n"
+            ."• Konfirmasi data laporan\n"
+            ."• Selesai! Laporan akan diverifikasi petugas.\n\n"
+            ."━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            ."Perintah lain:\n"
+            ."/status — Cek status laporan\n"
+            ."/bantuan — Tampilkan panduan ini\n"
+            ."/batal — Batalkan laporan",
+            [
+                'reply_markup' => json_encode([
+                    'inline_keyboard' => [
+                        [
+                            ['text' => 'Mulai Lapor', 'callback_data' => 'start_lanjut'],
+                        ],
+                    ],
+                ]),
+            ]
         );
 
         return response()->json(['ok' => true]);
