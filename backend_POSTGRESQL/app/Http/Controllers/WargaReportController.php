@@ -787,9 +787,36 @@ class WargaReportController extends Controller
                 continue;
             }
 
-            // ── Image Hash (nonaktif: duplicate check) ──
+            // ── Image Hash (Anti-Duplikasi) ──
             $imageHash = $this->calculateImageHash($imageFile->getPathname());
-            // ── DUPLICATE IMAGE [NONAKTIF] ─────────────────────────────────
+            if ($imageHash !== null) {
+                $existingReport = Report::where('image_hash', $imageHash)->first();
+                if (! $existingReport) {
+                    $existingPhoto = ReportPhoto::where('image_hash', $imageHash)->first();
+                    if ($existingPhoto) {
+                        $existingReport = Report::find($existingPhoto->report_id);
+                    }
+                }
+                if ($existingReport && $idx === 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Foto ini sudah pernah digunakan untuk laporan '.
+                                        $existingReport->report_code.'.',
+                        'error_code' => 'DUPLICATE_IMAGE',
+                        'existing_report' => [
+                            'id' => $existingReport->id,
+                            'report_code' => $existingReport->report_code,
+                            'road_name' => $existingReport->road_name,
+                            'district' => $existingReport->district,
+                            'status' => $existingReport->status,
+                        ],
+                    ], 422);
+                }
+                if ($existingReport && $idx > 0) {
+                    $warnings[] = 'Foto ke-'.($idx + 1).' sudah digunakan pada laporan '.$existingReport->report_code.', dilewati.';
+                    continue;
+                }
+            }
 
             // ── EXIF GPS ──
             $exifGps = $this->extractExifGps($imageFile->getPathname());

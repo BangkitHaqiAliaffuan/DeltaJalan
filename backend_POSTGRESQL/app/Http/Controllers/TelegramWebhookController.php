@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\Report;
 use App\Models\TelegramSession;
 use App\Models\User;
+use App\Models\ReportPhoto;
+use App\Services\DuplicateCheckService;
 use App\Services\ImageQualityService;
 use App\Services\MobileClipService;
 use App\Services\TelegramService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class TelegramWebhookController extends Controller
 {
@@ -25,6 +28,7 @@ class TelegramWebhookController extends Controller
         'awaiting_description',
         'awaiting_dimension',
         'confirming',
+        'confirming_duplicate',
     ];
 
     public function __construct(TelegramService $telegram)
@@ -125,6 +129,7 @@ class TelegramWebhookController extends Controller
                 'awaiting_location' => 'Silakan <b>bagikan lokasi</b> kerusakan melalui tombol di bawah. Ketik /batal untuk membatalkan.',
                 'awaiting_dimension' => 'Silakan masukkan angka (contoh: 2.5) atau pilih tombol di atas. Ketik /batal untuk membatalkan.',
                 'confirming' => 'Silakan pilih <b>Konfirmasi</b> atau <b>Batalkan</b> di atas. Ketik /batal untuk membatalkan.',
+                'confirming_duplicate' => 'Silakan pilih <b>Dukung Laporan Ini</b> atau <b>Buat Laporan Baru</b> di atas. Ketik /batal untuk membatalkan.',
                 default => 'Maaf, perintah tidak dikenal. Gunakan /bantuan untuk melihat daftar perintah.'
             };
             $this->telegram->sendMessage($chatId, $msg);
@@ -244,6 +249,19 @@ class TelegramWebhookController extends Controller
 
         if ($data === 'start_bantuan') {
             return $this->sendComprehensiveHelp($chatId);
+        }
+
+        if ($data === 'support_report' && $session->state === 'confirming_duplicate') {
+            return $this->handleSupportReport($session, $chatId);
+        }
+
+        if ($data === 'create_new_report' && $session->state === 'confirming_duplicate') {
+            $sessionData = $session->data ?? [];
+            unset($sessionData['nearby_report_id'], $sessionData['nearby_report_code'], $sessionData['nearby_road_name']);
+            $sessionData['confirmed_new_report'] = true;
+            $session->update(['data' => $sessionData, 'state' => 'confirming']);
+
+            return $this->handleConfirm($session, $chatId);
         }
 
         // Expired / invalid callback
@@ -810,6 +828,58 @@ class TelegramWebhookController extends Controller
             }
         }
 
+        // ── Hash duplicate check ──
+        $fullPath = storage_path("app/public/{$data['photo_path']}");
+        if (file_exists($fullPath)) {
+            $imageHash = hash_file('sha256', $fullPath);
+            if ($imageHash !== false) {
+                $duplicateCheck = app(DuplicateCheckService::class);
+                $existingReport = $duplicateCheck->checkByHash($imageHash);
+                if ($existingReport) {
+                    $this->telegram->sendMessage($chatId,
+                        'Foto ini sudah pernah digunakan untuk laporan '
+                        ."<b>{$existingReport->report_code}</b>.\n\n"
+                        .'Silakan kirim foto lain. State laporan tetap tersimpan — cukup kirim file baru.'
+                    );
+                    $session->update(['state' => 'awaiting_photo']);
+
+                    return response()->json(['ok' => true]);
+                }
+            }
+        }
+
+        // ── Spatial duplicate check (6m) — skip if user already chose "Buat Baru" ──
+        $skipSpatial = ! empty($data['confirmed_new_report']);
+        $lat = (float) $data['latitude'];
+        $lng = (float) $data['longitude'];
+        $duplicateCheck = app(DuplicateCheckService::class);
+        $nearby = ! $skipSpatial ? $duplicateCheck->checkSpatial($lat, $lng, 6) : null;
+
+        if ($nearby) {
+            $data['nearby_report_id'] = $nearby->id;
+            $data['nearby_report_code'] = $nearby->report_code;
+            $data['nearby_road_name'] = $nearby->road_name;
+            $session->update(['data' => $data, 'state' => 'confirming_duplicate']);
+
+            $this->telegram->sendMessage($chatId,
+                'Kami menemukan laporan aktif di dekat lokasi Anda:'."\n"
+                ."<b>{$nearby->report_code}</b> — {$nearby->road_name}\n\n"
+                .'Apakah Anda ingin mendukung laporan ini?'."\n"
+                .'(Foto Anda akan ditambahkan sebagai bukti pendukung)',
+                [
+                    'inline_keyboard' => [
+                        [
+                            ['text' => 'Dukung Laporan Ini', 'callback_data' => 'support_report'],
+                            ['text' => 'Buat Laporan Baru', 'callback_data' => 'create_new_report'],
+                        ],
+                    ],
+                ]
+            );
+
+            return response()->json(['ok' => true]);
+        }
+
+        // ── Submit normal ──
         // Ensure user exists
         $user = $this->telegram->createOrFindUser($chatId, [
             'first_name' => $data['reporter_name'],
@@ -844,6 +914,86 @@ class TelegramWebhookController extends Controller
             .'Kode laporan: <b>'.htmlspecialchars($report->report_code, ENT_QUOTES, 'UTF-8').'</b>'."\n\n"
             .'Laporan Anda akan diverifikasi oleh petugas.'."\n"
             .'Gunakan /status untuk mengecek status laporan.'
+        );
+
+        return response()->json(['ok' => true]);
+    }
+
+    private function handleSupportReport(TelegramSession $session, int|string $chatId): JsonResponse
+    {
+        $data = $session->data ?? [];
+        $nearbyReportId = $data['nearby_report_id'] ?? null;
+
+        if (! $nearbyReportId) {
+            return $this->handleConfirm($session, $chatId);
+        }
+
+        $report = Report::find($nearbyReportId);
+        if (! $report) {
+            return $this->handleConfirm($session, $chatId);
+        }
+
+        // Copy photo as evidence to existing report
+        $photoPath = $data['photo_path'];
+        $fullPath = storage_path("app/public/{$photoPath}");
+
+        if (! file_exists($fullPath)) {
+            $this->telegram->sendMessage($chatId,
+                'Gagal memproses foto. Silakan coba lagi dengan mengetik /lapor.'
+            );
+            $session->update(['state' => 'idle', 'data' => null]);
+
+            return response()->json(['ok' => true]);
+        }
+
+        $imageHash = hash_file('sha256', $fullPath);
+        $ext = pathinfo($photoPath, PATHINFO_EXTENSION) ?: 'jpg';
+        $newFilename = Str::uuid()->toString().'-'.time().'.'.$ext;
+        $destDir = storage_path('app/public/reports/evidences');
+
+        if (! is_dir($destDir)) {
+            mkdir($destDir, 0755, true);
+        }
+
+        $copied = copy($fullPath, $destDir.'/'.$newFilename);
+        if (! $copied) {
+            $this->telegram->sendMessage($chatId,
+                'Gagal menyimpan foto. Silakan coba lagi dengan mengetik /lapor.'
+            );
+            $session->update(['state' => 'idle', 'data' => null]);
+
+            return response()->json(['ok' => true]);
+        }
+
+        $newPath = 'reports/evidences/'.$newFilename;
+
+        $sortOrder = ReportPhoto::where('report_id', $report->id)->count();
+
+        ReportPhoto::create([
+            'report_id' => $report->id,
+            'reporter_name' => $data['reporter_name'],
+            'image_original_path' => $newPath,
+            'image_hash' => $imageHash !== false ? $imageHash : null,
+            'latitude' => $data['latitude'],
+            'longitude' => $data['longitude'],
+            'koordinat_sumber' => 'telegram_location',
+            'sort_order' => $sortOrder,
+            'mobileclip_score' => $data['mobileclip_score'] ?? null,
+            'mobileclip_label' => $data['mobileclip_label'] ?? null,
+            'quality_scores' => $data['quality_scores'] ?? null,
+        ]);
+
+        // Update system notes
+        $notes = $report->system_notes;
+        $newNote = '[INFO] Didukung oleh warga melalui Telegram — '.$data['reporter_name'];
+        $report->update(['system_notes' => $notes ? $notes.' | '.$newNote : $newNote]);
+
+        $session->update(['state' => 'idle', 'data' => null]);
+
+        $this->telegram->sendMessage($chatId,
+            'Terima kasih! Laporan Anda telah mendukung '
+            .'<b>'.htmlspecialchars($report->report_code, ENT_QUOTES, 'UTF-8').'</b>.'."\n\n"
+            .'Tim satgas akan menindaklanjuti laporan ini.'
         );
 
         return response()->json(['ok' => true]);

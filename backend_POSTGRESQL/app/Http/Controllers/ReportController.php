@@ -125,112 +125,66 @@ class ReportController extends Controller
     public function checkDuplicate(Request $request): JsonResponse
     {
         try {
-            $lat = $request->query('latitude');
-            $lng = $request->query('longitude');
-            $district = $request->query('district');
-            $roadName = $request->query('road_name');
-            $fileHash = $request->query('file_hash');
-
+            $duplicateCheck = app(DuplicateCheckService::class);
             $foundReport = null;
 
-            // ── Prioritas 1: Pencarian Spasial (Haversine Formula) ─────
+            // ── Prioritas 1: Pencarian Spasial (Haversine, 6m) ──────
+            $lat = $request->query('latitude');
+            $lng = $request->query('longitude');
             if ($lat !== null && $lng !== null && is_numeric($lat) && is_numeric($lng)) {
-                $latF = (float) $lat;
-                $lngF = (float) $lng;
+                $nearby = $duplicateCheck->checkSpatial((float) $lat, (float) $lng, 6);
+                if ($nearby) {
+                    $foundReport = [
+                        'id' => $nearby->id,
+                        'report_code' => $nearby->report_code,
+                        'road_name' => $nearby->road_name,
+                        'district' => $nearby->district,
+                        'latitude' => $nearby->latitude ? (float) $nearby->latitude : null,
+                        'longitude' => $nearby->longitude ? (float) $nearby->longitude : null,
+                        'status' => $nearby->status,
+                        'created_at' => $nearby->created_at?->toIso8601String(),
+                    ];
+                }
+            }
 
-                if ($latF >= -11 && $latF <= 6 && $lngF >= 95 && $lngF <= 141) {
-                    $row = DB::selectOne("
-                        SELECT * FROM (
-                            SELECT id, report_code, road_name, district,
-                                   latitude, longitude, status, created_at,
-                                   (
-                                       6371000 * acos(
-                                           LEAST(1.0, cos(radians(:lat1)) * cos(radians(latitude::float))
-                                           * cos(radians(longitude::float) - radians(:lng1))
-                                           + sin(radians(:lat2)) * sin(radians(latitude::float)))
-                                       )
-                                   ) AS distance_meters
-                            FROM reports
-                            WHERE status != 'Selesai'
-                        ) sub
-                        WHERE distance_meters <= 15
-                        ORDER BY distance_meters ASC
-                        LIMIT 1
-                    ", [
-                        'lat1' => $latF, 'lng1' => $lngF,
-                        'lat2' => $latF,
-                    ]);
-
-                    if ($row) {
+            // ── Prioritas 2: Pencarian Tekstual (ILIKE) ──────────────
+            if (! $foundReport) {
+                $district = $request->query('district');
+                $roadName = $request->query('road_name');
+                if ($district) {
+                    $textualResult = $duplicateCheck->checkTextual($district, $roadName);
+                    if ($textualResult) {
                         $foundReport = [
-                            'id' => $row->id,
-                            'report_code' => $row->report_code,
-                            'road_name' => $row->road_name,
-                            'district' => $row->district,
-                            'latitude' => (float) $row->latitude,
-                            'longitude' => (float) $row->longitude,
-                            'status' => $row->status,
-                            'created_at' => $row->created_at,
+                            'id' => $textualResult->id,
+                            'report_code' => $textualResult->report_code,
+                            'road_name' => $textualResult->road_name,
+                            'district' => $textualResult->district,
+                            'latitude' => $textualResult->latitude ? (float) $textualResult->latitude : null,
+                            'longitude' => $textualResult->longitude ? (float) $textualResult->longitude : null,
+                            'status' => $textualResult->status,
+                            'created_at' => $textualResult->created_at?->toIso8601String(),
                         ];
                     }
                 }
             }
 
-            // ── Prioritas 2: Pencarian Tekstual (ILIKE) ──────────────
-            if (! $foundReport && $district) {
-                $query = Report::where('status', '!=', 'Selesai')
-                    ->where('district', $district);
-
-                if ($roadName && strlen(trim($roadName)) >= 1) {
-                    $query->where('road_name', 'ilike', '%'.trim($roadName).'%');
-                }
-
-                $textualResult = $query
-                    ->select([
-                        'id', 'report_code', 'road_name', 'district',
-                        'latitude', 'longitude', 'status', 'created_at',
-                    ])
-                    ->orderBy('created_at', 'desc')
-                    ->first();
-
-                if ($textualResult) {
-                    $foundReport = [
-                        'id' => $textualResult->id,
-                        'report_code' => $textualResult->report_code,
-                        'road_name' => $textualResult->road_name,
-                        'district' => $textualResult->district,
-                        'latitude' => $textualResult->latitude ? (float) $textualResult->latitude : null,
-                        'longitude' => $textualResult->longitude ? (float) $textualResult->longitude : null,
-                        'status' => $textualResult->status,
-                        'created_at' => $textualResult->created_at?->toIso8601String(),
-                    ];
-                }
-            }
-
             // ── Prioritas 3: Pencarian Berdasarkan Hash Gambar ──────
-            if (! $foundReport && $fileHash) {
-                $photoReportIds = ReportPhoto::where('image_hash', $fileHash)->pluck('report_id');
-                $imageResult = Report::whereIn('id', $photoReportIds)
-                    ->orWhere('image_hash', $fileHash)
-                    ->where('status', '!=', 'Selesai')
-                    ->select([
-                        'id', 'report_code', 'road_name', 'district',
-                        'latitude', 'longitude', 'status', 'created_at',
-                    ])
-                    ->orderBy('created_at', 'desc')
-                    ->first();
-
-                if ($imageResult) {
-                    $foundReport = [
-                        'id' => $imageResult->id,
-                        'report_code' => $imageResult->report_code,
-                        'road_name' => $imageResult->road_name,
-                        'district' => $imageResult->district,
-                        'latitude' => $imageResult->latitude ? (float) $imageResult->latitude : null,
-                        'longitude' => $imageResult->longitude ? (float) $imageResult->longitude : null,
-                        'status' => $imageResult->status,
-                        'created_at' => $imageResult->created_at?->toIso8601String(),
-                    ];
+            if (! $foundReport) {
+                $fileHash = $request->query('file_hash');
+                if ($fileHash) {
+                    $hashResult = $duplicateCheck->checkByHash($fileHash);
+                    if ($hashResult) {
+                        $foundReport = [
+                            'id' => $hashResult->id,
+                            'report_code' => $hashResult->report_code,
+                            'road_name' => $hashResult->road_name,
+                            'district' => $hashResult->district,
+                            'latitude' => $hashResult->latitude ? (float) $hashResult->latitude : null,
+                            'longitude' => $hashResult->longitude ? (float) $hashResult->longitude : null,
+                            'status' => $hashResult->status,
+                            'created_at' => $hashResult->created_at?->toIso8601String(),
+                        ];
+                    }
                 }
             }
 
@@ -551,13 +505,7 @@ class ReportController extends Controller
         $imageHash = $this->calculateImageHash($imageFile->getPathname());
 
         if ($imageHash !== null) {
-            $existingReport = Report::where('image_hash', $imageHash)->first();
-            if (! $existingReport) {
-                $existingPhoto = ReportPhoto::where('image_hash', $imageHash)->first();
-                if ($existingPhoto) {
-                    $existingReport = Report::find($existingPhoto->report_id);
-                }
-            }
+            $existingReport = app(DuplicateCheckService::class)->checkByHash($imageHash);
             if ($existingReport) {
                 return response()->json([
                     'success' => false,
