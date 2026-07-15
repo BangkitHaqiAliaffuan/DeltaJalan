@@ -104,7 +104,6 @@ export function statusBadgeStyle(status: string): string {
 
 export function statusDotStyle(status: string): string {
   const map: Record<string, string> = {
-    "Menunggu Verifikasi": "bg-[#F59E0B]",
     "Menunggu Review": "bg-[#F59E0B]",
     Ditinjau: "bg-[#F59E0B]",
     "Hasil AI": "bg-[#7C3AED]",
@@ -150,7 +149,6 @@ export function haversineDistance(lat1: number, lng1: number, lat2: number, lng2
 
 export function getStatusBadge(status: string): { label: string; color: string } {
   const map: Record<string, { label: string; color: string }> = {
-    "Menunggu Verifikasi": { label: "Menunggu Verifikasi", color: "bg-yellow-100 text-yellow-800" },
     "Menunggu Review": { label: "Menunggu Review", color: "bg-yellow-100 text-yellow-800" },
     Ditinjau: { label: "Ditinjau", color: "bg-blue-100 text-blue-800" },
     "Hasil AI": { label: "Hasil AI", color: "bg-purple-100 text-purple-800" },

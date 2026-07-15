@@ -33,7 +33,6 @@ function WargaDashboard() {
           total: json.meta?.total ?? items.length,
           diproses: items.filter((r) =>
             [
-              "Menunggu Verifikasi",
               "Menunggu Review",
               "Ditinjau",
               "Disetujui",

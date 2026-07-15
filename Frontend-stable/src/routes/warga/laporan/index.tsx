@@ -26,7 +26,6 @@ function matchFilter(report: Laporan, filter: string): boolean {
   if (filter === "all") return true;
   if (filter === "Diproses")
     return [
-      "Menunggu Verifikasi",
       "Menunggu Review",
       "Ditinjau",
       "Disetujui",
@@ -210,7 +209,7 @@ function WargaLaporanIndexPage() {
                 report={r}
                 cardLink={{ to: "/warga/laporan/$id", params: { id: r.id } }}
                 actions={
-                  ["Menunggu Verifikasi", "Menunggu Review", "Ditinjau"].includes(r.status)
+                  ["Menunggu Review", "Ditinjau"].includes(r.status)
                     ? [
                         {
                           label: "Hapus",

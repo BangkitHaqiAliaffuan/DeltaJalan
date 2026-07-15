@@ -27,7 +27,7 @@ const STATUS_CLASSES: Record<string, string> = {
   Disetujui: "bg-blue-50 text-[#2563EB] border border-blue-200",
   Ditolak: "bg-[#E11D48] text-white",
   "Menunggu Review": "bg-amber-50 text-[#F59E0B] border border-amber-200",
-  "Menunggu Verifikasi": "bg-purple-50 text-[#7C3AED] border border-purple-200",
+
 };
 
 function RouteComponent() {
@@ -380,7 +380,6 @@ function AdminReports() {
 }
 
 const ALL_STATUSES = [
-  "Menunggu Verifikasi",
   "Menunggu Review",
   "Hasil AI",
   "Disetujui",

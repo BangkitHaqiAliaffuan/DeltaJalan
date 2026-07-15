@@ -21,7 +21,6 @@ export const Route = createFileRoute("/supervisor/")({
 interface SupervisorStats {
   total: number;
   menunggu_review: number;
-  menunggu_verifikasi: number;
   hasil_ai: number;
   disetujui: number;
   ditolak: number;
@@ -327,15 +326,9 @@ function SupervisorDashboard() {
                 {[
                   {
                     label: "Perlu Review",
-                    value: (stats?.menunggu_review ?? 0) + (stats?.menunggu_verifikasi ?? 0),
+                    value: stats?.menunggu_review ?? 0,
                     icon: "rate_review",
                     color: "text-[#D97706]",
-                  },
-                  {
-                    label: "Menunggu Verifikasi",
-                    value: stats?.menunggu_verifikasi,
-                    icon: "pending_actions",
-                    color: "text-[#7C3AED]",
                   },
                   {
                     label: "Ditugaskan",
@@ -589,7 +582,7 @@ function SupervisorDashboard() {
                 {
                   key: "menunggu",
                   label: "Perlu Review",
-                  count: (stats?.menunggu_review ?? 0) + (stats?.menunggu_verifikasi ?? 0),
+                  count: stats?.menunggu_review ?? 0,
                 },
                 { key: "disetujui", label: "Disetujui", count: stats?.disetujui },
                 { key: "ditugaskan", label: "Ditugaskan", count: stats?.ditugaskan },

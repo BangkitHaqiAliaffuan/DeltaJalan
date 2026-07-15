@@ -211,7 +211,6 @@ class Report extends Model
      */
     public const STATUS_VALUES = [
         'Menunggu Review',
-        'Menunggu Verifikasi',
         'Disetujui',
         'Ditolak',
         'Hasil AI',

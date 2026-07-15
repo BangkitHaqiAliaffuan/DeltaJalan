@@ -814,6 +814,7 @@ class WargaReportController extends Controller
                 }
                 if ($existingReport && $idx > 0) {
                     $warnings[] = 'Foto ke-'.($idx + 1).' sudah digunakan pada laporan '.$existingReport->report_code.', dilewati.';
+
                     continue;
                 }
             }
@@ -988,7 +989,7 @@ class WargaReportController extends Controller
                     'longitude' => $validated['longitude'],
                     'image_original_path' => $primaryPath,
                     'image_hash' => $primary['imageHash'],
-                    'status' => 'Menunggu Verifikasi',
+                    'status' => 'Menunggu Review',
                     'source' => 'warga',
                     'description' => $validated['description'] ?? null,
                     'full_address' => $validated['full_address'] ?? null,
@@ -996,6 +997,7 @@ class WargaReportController extends Controller
                     'kerusakan_lebar' => $validated['kerusakan_lebar'] ?? null,
                     'catatan_petugas' => null,
                     'priority' => 'Sedang',
+                    'deadline_review' => Report::hitungDeadlineReview('Sedang'),
                     'overall_severity' => $topSeverityLabel,
                     'total_detections' => $hasPrimaryAi ? ($primaryAi['total'] ?? 0) : 0,
                     'ai_raw_output' => $hasPrimaryAi ? $primaryAi : null,

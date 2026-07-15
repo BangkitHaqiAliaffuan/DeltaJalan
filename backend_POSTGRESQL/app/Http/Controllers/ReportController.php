@@ -770,12 +770,7 @@ class ReportController extends Controller
             $status = str_replace('_', ' ', $request->input('status'));
             $lower = strtolower($status);
             if ($lower === 'menunggu review') {
-                $statuses = ['Menunggu Review', 'Ditinjau'];
-                // Supervisor "Perlu Review" tab includes warga reports
-                if ($user->role === 'supervisor') {
-                    $statuses[] = 'Menunggu Verifikasi';
-                }
-                $query->whereIn('status', $statuses);
+                $query->whereIn('status', ['Menunggu Review', 'Ditinjau']);
             } else {
                 $query->whereRaw('LOWER(status::text) = ?', [$lower]);
             }
@@ -847,6 +842,7 @@ class ReportController extends Controller
         $order = in_array($order, ['asc', 'desc']) ? $order : $defaultOrder;
 
         $reports = $query->orderBy($sortBy, $order)
+            ->orderBy('report_code', 'desc')
             ->skip(($page - 1) * $limit)
             ->take($limit)
             ->withCount('photos')
@@ -1229,7 +1225,6 @@ class ReportController extends Controller
             SUM(CASE WHEN overall_severity::text = 'Rusak Sedang' OR LOWER(ai_severity) = 'sedang' THEN 1 ELSE 0 END) as sedang,
             SUM(CASE WHEN overall_severity::text = 'Rusak Ringan' OR LOWER(ai_severity) = 'ringan' THEN 1 ELSE 0 END) as ringan,
             SUM(CASE WHEN status IN ('Menunggu Review', 'Ditinjau') THEN 1 ELSE 0 END) as menunggu_review,
-            SUM(CASE WHEN status = 'Menunggu Verifikasi' THEN 1 ELSE 0 END) as menunggu_verifikasi,
             SUM(CASE WHEN status = 'Disetujui' THEN 1 ELSE 0 END) as disetujui,
             SUM(CASE WHEN status = 'Sedang Diperbaiki' THEN 1 ELSE 0 END) as sedang_diperbaiki,
             SUM(CASE WHEN status = 'Selesai' THEN 1 ELSE 0 END) as selesai,
@@ -1879,7 +1874,6 @@ class ReportController extends Controller
             $agg = (clone $query)->selectRaw("
                 COUNT(*) as total,
                 SUM(CASE WHEN status IN ('Menunggu Review', 'Ditinjau') THEN 1 ELSE 0 END) as menunggu_review,
-                SUM(CASE WHEN status = 'Menunggu Verifikasi' THEN 1 ELSE 0 END) as menunggu_verifikasi,
                 SUM(CASE WHEN status = 'Disetujui' THEN 1 ELSE 0 END) as disetujui,
                 SUM(CASE WHEN status = 'Ditolak' THEN 1 ELSE 0 END) as ditolak,
                 SUM(CASE WHEN status = 'Hasil AI' THEN 1 ELSE 0 END) as hasil_ai,
@@ -1933,7 +1927,7 @@ class ReportController extends Controller
             return [
                 'total' => (int) $agg->total,
                 'menunggu_review' => (int) $agg->menunggu_review,
-                'menunggu_verifikasi' => (int) $agg->menunggu_verifikasi,
+
                 'disetujui' => (int) $agg->disetujui,
                 'ditolak' => (int) $agg->ditolak,
                 'hasil_ai' => (int) $agg->hasil_ai,
@@ -1965,10 +1959,7 @@ class ReportController extends Controller
             return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
         }
 
-        // Warga reports start at "Menunggu Verifikasi"; petugas reports at "Menunggu Review"
-        $allowedStatuses = in_array($report->source, ['warga', 'telegram'])
-            ? ['Menunggu Verifikasi', 'Menunggu Review', 'Ditinjau']
-            : ['Menunggu Review', 'Ditinjau'];
+        $allowedStatuses = ['Menunggu Review', 'Ditinjau'];
 
         if (! in_array($report->status, $allowedStatuses)) {
             return response()->json([
@@ -2250,7 +2241,7 @@ class ReportController extends Controller
             ], 422);
         }
 
-        if (! in_array($report->status, ['Menunggu Verifikasi', 'Menunggu Review', 'Ditinjau'])) {
+        if (! in_array($report->status, ['Menunggu Review', 'Ditinjau'])) {
             return response()->json([
                 'success' => false,
                 'message' => "Laporan dengan status \"{$report->status}\" tidak dapat diproses.",
@@ -2396,7 +2387,7 @@ class ReportController extends Controller
             return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
         }
 
-        if (! in_array($report->status, ['Menunggu Verifikasi', 'Menunggu Review', 'Ditinjau'])) {
+        if (! in_array($report->status, ['Menunggu Review', 'Ditinjau'])) {
             return response()->json([
                 'success' => false,
                 'message' => "Laporan dengan status \"{$report->status}\" tidak dapat ditolak.",
@@ -4156,7 +4147,7 @@ class ReportController extends Controller
         }
 
         $validated = $request->validate([
-            'status' => ['required', 'string', 'in:Menunggu Verifikasi,Menunggu Review,Disetujui,Ditolak,Hasil AI,Sedang Diperbaiki,Selesai'],
+            'status' => ['required', 'string', 'in:Menunggu Review,Disetujui,Ditolak,Hasil AI,Sedang Diperbaiki,Selesai'],
         ]);
 
         $old_status = $report->status;

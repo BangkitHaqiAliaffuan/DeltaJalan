@@ -16,7 +16,6 @@ export async function authFetch<T>(url: string, token: string): Promise<T> {
 export interface StatsResponse {
   total: number;
   menunggu_review: number;
-  menunggu_verifikasi: number;
   hasil_ai: number;
   disetujui: number;
   ditolak: number;

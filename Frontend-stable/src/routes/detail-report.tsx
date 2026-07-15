@@ -169,8 +169,7 @@ function DetailReportPage() {
     if (!reportId || userRole !== "supervisor") return;
     if (
       !report ||
-      (report.status !== "Menunggu Verifikasi" &&
-        report.status !== "Menunggu Review" &&
+      (report.status !== "Menunggu Review" &&
         report.status !== "Ditinjau")
     )
       return;
@@ -445,7 +444,7 @@ function DetailReportPage() {
     // Supervisor: Menunggu Verifikasi / Menunggu Review / Ditinjau → Setujui + Tolak
     if (
       isSupervisor &&
-      (status === "Menunggu Verifikasi" || status === "Menunggu Review" || status === "Ditinjau")
+      (status === "Menunggu Review" || status === "Ditinjau")
     ) {
       return (
         <FooterWrapper>
