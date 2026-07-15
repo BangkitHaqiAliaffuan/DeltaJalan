@@ -873,6 +873,25 @@ function DetailReportPage() {
             {/* ── After Photo Gallery ── */}
             <AfterPhotoGallery report={report} />
 
+            {/* ── Penilaian Warga ── */}
+            {(report.source === "warga" || report.source === "telegram") && report.rating && (
+              <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+                <p className="text-xs font-semibold text-green-700 mb-1">Penilaian Warga</p>
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Icon
+                      key={star}
+                      name={star <= (report.rating ?? 0) ? "star" : "star_border"}
+                      className={`!text-[18px] ${star <= (report.rating ?? 0) ? "text-[#F59E0B]" : "text-[#D0DAE8]"}`}
+                    />
+                  ))}
+                </div>
+                {report.rating_comment && (
+                  <p className="text-sm text-green-800 mt-1.5">"{report.rating_comment}"</p>
+                )}
+              </div>
+            )}
+
             {/* ── Badges ── */}
             <div className="flex flex-wrap items-center gap-2">
               {(() => {

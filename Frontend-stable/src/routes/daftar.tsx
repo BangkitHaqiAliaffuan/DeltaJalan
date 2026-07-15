@@ -115,7 +115,7 @@ function RegisterPage() {
   }
 
   return (
-    <div className="relative min-h-[100dvh] w-full overflow-y-auto thin-scrollbar">
+    <div className="relative h-[100dvh] w-full">
       <div className="fixed inset-0 overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center"
@@ -124,14 +124,14 @@ function RegisterPage() {
         <div className="absolute inset-0 bg-gradient-to-b from-[#1e40af]/80 to-[#0f2b6d]/90" />
       </div>
 
-      <div className="relative z-10 min-h-[100dvh] flex items-center justify-center p-4">
-        <div className="w-full max-w-[360px] animate-fade-in">
-          <div className="animate-slide-up">
+      <div className="relative z-10 h-[100dvh] flex items-center justify-center p-4">
+        <div className="h-full w-full max-w-[360px] animate-fade-in">
+          <div className="animate-slide-up flex flex-col min-h-0 max-h-full">
             <div
-              className="bg-white rounded-2xl overflow-hidden border-2 border-[#1e40af]"
+              className="bg-white rounded-2xl border-2 border-[#1e40af] flex-auto flex-col min-h-0"
               style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.3)" }}
             >
-              <div className="flex flex-col items-center pt-8 pb-6 px-8">
+              <div className="shrink-0 pt-8 pb-6 px-8 flex flex-col items-center border-b border-[#E2E8F0]">
                 <div className="w-16 h-16 rounded-xl bg-white shadow-md flex items-center justify-center mb-4">
                   <img src="/logo.png" alt="DeltaJalan" className="w-10 h-10" />
                 </div>
@@ -143,7 +143,7 @@ function RegisterPage() {
                 </p>
               </div>
 
-              <div className="px-8 pb-6">
+              <div className="flex-auto min-h-0 overflow-y-auto thin-scrollbar px-8 pb-6">
                 {error && (
                   <div className="mb-4 flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
                     <Icon name="error" className="text-[#E11D48] !text-[18px] shrink-0 mt-0.5" />
@@ -333,7 +333,7 @@ function RegisterPage() {
               </div>
             </div>
 
-            <p className="text-center mt-6 text-[11px] text-white/50 font-medium tracking-wider">
+            <p className="shrink-0 text-center mt-6 text-[11px] text-white/50 font-medium tracking-wider">
               Dinas PU Bina Marga & SDA — Kab. Sidoarjo
             </p>
           </div>

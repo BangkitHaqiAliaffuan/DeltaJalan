@@ -163,6 +163,11 @@ export interface Laporan {
   // Progress updates count (from server withCount)
   progress_updates_count?: number;
 
+  // Rating & feedback from warga
+  rating?: number | null;
+  rating_comment?: string | null;
+  rated_at?: string | null;
+
   // Progress updates detail (from enriched show())
   progress_updates?: ProgressUpdate[];
 }
