@@ -115,7 +115,7 @@ function RegisterPage() {
   }
 
   return (
-    <div className="relative h-[100dvh] w-full">
+    <div className="relative h-[100dvh] w-full overflow-hidden">
       <div className="fixed inset-0 overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center"
@@ -125,8 +125,8 @@ function RegisterPage() {
       </div>
 
       <div className="relative z-10 h-[100dvh] flex items-center justify-center p-4">
-        <div className="h-full w-full max-w-[360px] animate-fade-in">
-          <div className="animate-slide-up flex flex-col min-h-0 h-full">
+        <div className="w-full max-w-[360px] animate-fade-in">
+          <div className="animate-slide-up flex flex-col min-h-0" style={{ height: "calc(100dvh - 2rem)" }}>
             <div
               className="bg-white rounded-2xl border-2 border-[#1e40af] flex-auto flex-col min-h-0"
               style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.3)" }}
