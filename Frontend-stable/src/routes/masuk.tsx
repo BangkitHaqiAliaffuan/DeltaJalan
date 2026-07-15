@@ -74,7 +74,7 @@ function WargaLoginPage() {
   }
 
   return (
-    <div className="relative min-h-[100dvh] w-full overflow-hidden">
+    <div className="relative min-h-[100dvh] w-full overflow-y-auto thin-scrollbar">
       <div className="fixed inset-0 overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center"
@@ -124,7 +124,7 @@ function WargaLoginPage() {
                       className="font-label-md text-label-md font-semibold text-[#0F172A]"
                       htmlFor="email"
                     >
-                      Email
+                      Email atau No. Telepon
                     </label>
                     <div className="relative flex items-center">
                       <Icon
@@ -133,11 +133,11 @@ function WargaLoginPage() {
                       />
                       <input
                         id="email"
-                        type="email"
+                        type="text"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="nama@email.com"
-                        autoComplete="email"
+                        placeholder="nama@email.com atau 08xxxxxxxxxx"
+                        autoComplete="username"
                         className="w-full h-11 pl-10 pr-4 border border-[#c4c5d5] rounded-lg font-body-md text-body-md text-[#0F172A] placeholder:text-[#757684] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af] transition-all duration-200"
                         onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                       />

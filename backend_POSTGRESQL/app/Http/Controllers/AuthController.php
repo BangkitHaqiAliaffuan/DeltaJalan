@@ -37,7 +37,7 @@ class AuthController extends Controller
         // ── Validasi input ────────────────────────────────────────────────
         try {
             $request->validate([
-                'email' => ['required', 'email'],
+                'email' => ['required', 'string'],
                 'password' => ['required', 'string', 'min:6'],
             ]);
         } catch (ValidationException $e) {
@@ -48,8 +48,10 @@ class AuthController extends Controller
             ], 422);
         }
 
-        // ── Cari user berdasarkan email ───────────────────────────────────
-        $user = User::where('email', $request->email)->first();
+        // ── Cari user berdasarkan email atau nomor telepon ─────────────────
+        $user = User::where('email', $request->email)
+            ->orWhere('phone', $request->email)
+            ->first();
 
         // ── Verifikasi password ───────────────────────────────────────────
         // Gunakan Hash::check() untuk membandingkan password plain dengan hash bcrypt
@@ -74,6 +76,7 @@ class AuthController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
+                'phone' => $user->phone,
                 'role' => $user->role,
                 'role_label' => $user->role_label,
                 'wilayah' => $user->wilayah,
@@ -109,6 +112,15 @@ class AuthController extends Controller
         if (str_starts_with($phone, '+62')) $phone = '0'.substr($phone, 3);
         elseif (str_starts_with($phone, '62')) $phone = '0'.substr($phone, 2);
 
+        // ── Cek unique nomor telepon (setelah normalisasi) ─────────────────
+        if (User::where('phone', $phone)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal.',
+                'errors' => ['phone' => ['Nomor telepon sudah terdaftar.']],
+            ], 422);
+        }
+
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
@@ -126,6 +138,7 @@ class AuthController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
+                'phone' => $user->phone,
                 'role' => $user->role,
             ],
         ], 201);
@@ -151,6 +164,7 @@ class AuthController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
+                'phone' => $user->phone,
                 'role' => $user->role,
                 'role_label' => $user->role_label,
                 'wilayah' => $user->wilayah,

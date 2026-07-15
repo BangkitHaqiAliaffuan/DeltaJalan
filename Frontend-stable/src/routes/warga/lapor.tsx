@@ -615,7 +615,7 @@ function WargaLaporPage() {
   return (
     <PageLayout showBrand withBottomNav>
       <main className="pb-20">
-        {isBlocked ? (
+        {!success && isBlocked ? (
           <>
             <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] p-6 text-white">
               <h1 className="text-xl font-bold tracking-tight">Batas Upload Tercapai</h1>

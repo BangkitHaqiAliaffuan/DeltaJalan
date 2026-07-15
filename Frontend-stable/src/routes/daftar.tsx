@@ -115,7 +115,7 @@ function RegisterPage() {
   }
 
   return (
-    <div className="relative min-h-[100dvh] w-full overflow-hidden">
+    <div className="relative min-h-[100dvh] w-full overflow-y-auto thin-scrollbar">
       <div className="fixed inset-0 overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center"

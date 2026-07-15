@@ -41,6 +41,7 @@ import { Route as WargaPetaRouteImport } from './routes/warga/peta'
 import { Route as WargaLaporanRouteImport } from './routes/warga/laporan'
 import { Route as WargaLaporRouteImport } from './routes/warga/lapor'
 import { Route as SupervisorPatrolScheduleRouteImport } from './routes/supervisor/patrol-schedule'
+import { Route as LaporanReportCodeRouteImport } from './routes/laporan.$reportCode'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as AdminTeamsRouteImport } from './routes/admin/teams'
 import { Route as AdminReportsRouteImport } from './routes/admin/reports'
@@ -215,6 +216,11 @@ const SupervisorPatrolScheduleRoute =
     path: '/patrol-schedule',
     getParentRoute: () => SupervisorRoute,
   } as any)
+const LaporanReportCodeRoute = LaporanReportCodeRouteImport.update({
+  id: '/laporan/$reportCode',
+  path: '/laporan/$reportCode',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/admin/users',
   path: '/admin/users',
@@ -312,6 +318,7 @@ export interface FileRoutesByFullPath {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/teams': typeof AdminTeamsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/laporan/$reportCode': typeof LaporanReportCodeRoute
   '/supervisor/patrol-schedule': typeof SupervisorPatrolScheduleRouteWithChildren
   '/warga/lapor': typeof WargaLaporRoute
   '/warga/laporan': typeof WargaLaporanRouteWithChildren
@@ -356,6 +363,7 @@ export interface FileRoutesByTo {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/teams': typeof AdminTeamsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/laporan/$reportCode': typeof LaporanReportCodeRoute
   '/warga/lapor': typeof WargaLaporRoute
   '/warga/peta': typeof WargaPetaRoute
   '/admin': typeof AdminIndexRoute
@@ -401,6 +409,7 @@ export interface FileRoutesById {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/teams': typeof AdminTeamsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/laporan/$reportCode': typeof LaporanReportCodeRoute
   '/supervisor/patrol-schedule': typeof SupervisorPatrolScheduleRouteWithChildren
   '/warga/lapor': typeof WargaLaporRoute
   '/warga/laporan': typeof WargaLaporanRouteWithChildren
@@ -449,6 +458,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/teams'
     | '/admin/users'
+    | '/laporan/$reportCode'
     | '/supervisor/patrol-schedule'
     | '/warga/lapor'
     | '/warga/laporan'
@@ -493,6 +503,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/teams'
     | '/admin/users'
+    | '/laporan/$reportCode'
     | '/warga/lapor'
     | '/warga/peta'
     | '/admin'
@@ -537,6 +548,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/teams'
     | '/admin/users'
+    | '/laporan/$reportCode'
     | '/supervisor/patrol-schedule'
     | '/warga/lapor'
     | '/warga/laporan'
@@ -584,6 +596,7 @@ export interface RootRouteChildren {
   AdminReportsRoute: typeof AdminReportsRoute
   AdminTeamsRoute: typeof AdminTeamsRoute
   AdminUsersRoute: typeof AdminUsersRoute
+  LaporanReportCodeRoute: typeof LaporanReportCodeRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
@@ -813,6 +826,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SupervisorPatrolScheduleRouteImport
       parentRoute: typeof SupervisorRoute
     }
+    '/laporan/$reportCode': {
+      id: '/laporan/$reportCode'
+      path: '/laporan/$reportCode'
+      fullPath: '/laporan/$reportCode'
+      preLoaderRoute: typeof LaporanReportCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/users': {
       id: '/admin/users'
       path: '/admin/users'
@@ -994,8 +1014,19 @@ const rootRouteChildren: RootRouteChildren = {
   AdminReportsRoute: AdminReportsRoute,
   AdminTeamsRoute: AdminTeamsRoute,
   AdminUsersRoute: AdminUsersRoute,
+  LaporanReportCodeRoute: LaporanReportCodeRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
