@@ -126,7 +126,7 @@ function RegisterPage() {
 
       <div className="relative z-10 h-[100dvh] flex items-center justify-center p-4">
         <div className="h-full w-full max-w-[360px] animate-fade-in">
-          <div className="animate-slide-up flex flex-col min-h-0 max-h-full">
+          <div className="animate-slide-up flex flex-col min-h-0 h-full">
             <div
               className="bg-white rounded-2xl border-2 border-[#1e40af] flex-auto flex-col min-h-0"
               style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.3)" }}
@@ -143,7 +143,7 @@ function RegisterPage() {
                 </p>
               </div>
 
-              <div className="flex-auto min-h-0 overflow-y-auto thin-scrollbar px-8 pb-6">
+              <div className="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-8 pb-6 pt-4">
                 {error && (
                   <div className="mb-4 flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
                     <Icon name="error" className="text-[#E11D48] !text-[18px] shrink-0 mt-0.5" />
