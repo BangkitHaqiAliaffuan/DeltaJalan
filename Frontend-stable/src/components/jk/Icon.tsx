@@ -256,10 +256,10 @@ export function Icon({
           }}
           aria-hidden="true"
         />
-        <LucideIconComponent className={className} size={iconSize} style={style} fill={fill} />
+        <LucideIconComponent className={className} size={iconSize} style={style} {...(fill !== undefined ? { fill } : {})} />
       </span>
     );
   }
 
-  return <LucideIconComponent className={className} size={iconSize} style={style} fill={fill} />;
+  return <LucideIconComponent className={className} size={iconSize} style={style} {...(fill !== undefined ? { fill } : {})} />;
 }
