@@ -220,11 +220,13 @@ export function Icon({
   className = "",
   style,
   shadowed,
+  fill,
 }: {
   name: string;
   className?: string;
   style?: React.CSSProperties;
   shadowed?: boolean;
+  fill?: string;
 }) {
   const LucideIconComponent = ICON_MAP[name];
   if (!LucideIconComponent) {
@@ -254,10 +256,10 @@ export function Icon({
           }}
           aria-hidden="true"
         />
-        <LucideIconComponent className={className} size={iconSize} style={style} />
+        <LucideIconComponent className={className} size={iconSize} style={style} fill={fill} />
       </span>
     );
   }
 
-  return <LucideIconComponent className={className} size={iconSize} style={style} />;
+  return <LucideIconComponent className={className} size={iconSize} style={style} fill={fill} />;
 }

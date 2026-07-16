@@ -883,6 +883,7 @@ function DetailReportPage() {
                       key={star}
                       name={star <= (report.rating ?? 0) ? "star" : "star_border"}
                       className={`!text-[18px] ${star <= (report.rating ?? 0) ? "text-[#F59E0B]" : "text-[#D0DAE8]"}`}
+                      fill={star <= (report.rating ?? 0) ? "currentColor" : undefined}
                     />
                   ))}
                 </div>

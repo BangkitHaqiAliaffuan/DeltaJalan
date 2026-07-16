@@ -114,6 +114,16 @@ function WargaLaporanDetailPage() {
     setPhotoIdx(0);
   }, [report?.id]);
 
+  // Preload semua foto sekaligus untuk navigasi carousel instan
+  useEffect(() => {
+    const photos = report?.photos;
+    if (!photos) return;
+    photos.forEach((p) => {
+      const url = resolveImageUrl(p?.image_original_url);
+      if (url) new Image().src = url;
+    });
+  }, [report?.photos]);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft") prevPhoto();
@@ -460,6 +470,7 @@ function WargaLaporanDetailPage() {
                       key={star}
                       name={star <= (report.rating ?? selectedRating) ? "star" : "star_border"}
                       className={`!text-[22px] ${star <= (report.rating ?? selectedRating) ? "text-[#F59E0B]" : "text-[#D0DAE8]"}`}
+                      fill={star <= (report.rating ?? selectedRating) ? "currentColor" : undefined}
                     />
                   ))}
                 </div>
@@ -489,6 +500,7 @@ function WargaLaporanDetailPage() {
                       <Icon
                         name={star <= (hoverRating || selectedRating) ? "star" : "star_border"}
                         className={`!text-[26px] ${star <= (hoverRating || selectedRating) ? "text-[#F59E0B]" : "text-[#D0DAE8]"} transition-colors`}
+                        fill={star <= (hoverRating || selectedRating) ? "currentColor" : undefined}
                       />
                     </button>
                   ))}

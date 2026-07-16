@@ -311,6 +311,7 @@ function LaporanPublicPage() {
                             key={star}
                             name={star <= (data.report.rating ?? 0) ? "star" : "star_border"}
                             className={`!text-[18px] ${star <= (data.report.rating ?? 0) ? "text-[#F59E0B]" : "text-[#D0DAE8]"}`}
+                            fill={star <= (data.report.rating ?? 0) ? "currentColor" : undefined}
                           />
                         ))}
                       </div>
