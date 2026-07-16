@@ -615,6 +615,7 @@ class TelegramWebhookController extends Controller
     {
         $lat = $location['latitude'];
         $lng = $location['longitude'];
+        $accuracy = $location['horizontal_accuracy'] ?? null;
 
         // Validate Sidoarjo bounds
         if ($lat < -7.65 || $lat > -7.25 || $lng < 112.50 || $lng > 112.95) {
@@ -627,6 +628,21 @@ class TelegramWebhookController extends Controller
             return response()->json(['ok' => true]);
         }
 
+        // Accuracy check
+        $accuracyMsg = null;
+        if ($accuracy === null) {
+            $accuracyMsg = '⚠️ Akurasi lokasi tidak dapat ditentukan. Untuk hasil terbaik, pastikan <b>GPS aktif</b> dan Anda berada di luar ruangan.';
+        } elseif ($accuracy > 50) {
+            $accuracyMsg = "⚠️ Akurasi lokasi Anda <b>{$accuracy}m</b>. Untuk hasil terbaik, pastikan <b>GPS aktif</b> dan Anda berada di luar ruangan.";
+        }
+
+        Log::info('DeltaJalan: Lokasi dari Telegram.', [
+            'chat_id' => $chatId,
+            'latitude' => $lat,
+            'longitude' => $lng,
+            'horizontal_accuracy' => $accuracy,
+        ]);
+
         // Reverse geocode
         $geocode = $this->telegram->reverseGeocode($lat, $lng);
 
@@ -635,6 +651,7 @@ class TelegramWebhookController extends Controller
         $data['longitude'] = $lng;
         $data['road_name'] = $geocode['road_name'] ?? '';
         $data['district'] = $geocode['district'] ?? '';
+        $data['horizontal_accuracy'] = $accuracy;
 
         $session->update([
             'state' => 'awaiting_description',
@@ -645,14 +662,18 @@ class TelegramWebhookController extends Controller
             ? "Nama jalan: <b>{$data['road_name']}</b>"
             : 'Lokasi telah diterima.';
 
-        $this->telegram->sendMessage($chatId,
-            'Lokasi diterima!'."\n\n"
-            .$roadInfo."\n\n"
-            .'Sekarang ketik <b>deskripsi kerusakan</b>.'."\n\n"
+        $text = 'Lokasi diterima!'."\n\n"
+            .$roadInfo."\n\n";
+
+        if ($accuracyMsg) {
+            $text .= $accuracyMsg."\n\n";
+        }
+
+        $text .= 'Sekarang ketik <b>deskripsi kerusakan</b>.'."\n\n"
             .'Contoh: "Lubang besar di tengah jalan, hampir menabrak motor"'."\n\n"
-            .'Ketik /batal untuk membatalkan.',
-            ['remove_keyboard' => true]
-        );
+            .'Ketik /batal untuk membatalkan.';
+
+        $this->telegram->sendMessage($chatId, $text, ['remove_keyboard' => true]);
 
         return response()->json(['ok' => true]);
     }
