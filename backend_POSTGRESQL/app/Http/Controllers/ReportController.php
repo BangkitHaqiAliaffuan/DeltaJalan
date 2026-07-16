@@ -760,8 +760,13 @@ class ReportController extends Controller
             $query->whereNotIn('status', ['Diedit']);
         }
 
-        // Supervisor tidak melihat laporan yang sedang diedit petugas
+        // Supervisor hanya melihat laporan yang di-assign ke dirinya
+        // atau yang belum di-assign (safety net untuk edge cases)
         if ($user->role === 'supervisor') {
+            $query->where(function ($q) use ($user) {
+                $q->where('assigned_supervisor_id', $user->id)
+                  ->orWhereNull('assigned_supervisor_id');
+            });
             $query->whereNotIn('status', ['Diedit']);
         }
 
@@ -873,6 +878,7 @@ class ReportController extends Controller
                     'first_photo_url' => $report->first_photo_url,
                     'assigned_team_id' => $report->assigned_team_id,
                     'assigned_team_name' => $report->assignedTeam?->name,
+                    'assigned_supervisor_id' => $report->assigned_supervisor_id,
                     'perbaikan_dimulai_at' => $report->perbaikan_dimulai_at?->toIso8601String(),
                     'perbaikan_selesai_at' => $report->perbaikan_selesai_at?->toIso8601String(),
                     'pelaksana' => $report->pelaksana,
@@ -1872,6 +1878,10 @@ class ReportController extends Controller
                 $query->where('user_id', $user->id);
             }
 
+            if ($user->role === 'supervisor') {
+                $query->where('assigned_supervisor_id', $user->id);
+            }
+
             // ── TRUST SCORE [NONAKTIF] — trust_hijau, trust_kuning, trust_merah dihapus dari stats SQL
             // Single grouped query replacing 12 individual COUNTs
             $agg = (clone $query)->selectRaw("
@@ -1903,10 +1913,12 @@ class ReportController extends Controller
 
             if ($user->role === 'petugas') {
                 $monthlyQuery->where('reporter_name', $user->name);
-            }
-            if ($user->role === 'petugas') {
                 $monthlyQuery->when($user->team_id, fn ($q) => $q->where('assigned_team_id', $user->team_id))
                     ->unless($user->team_id, fn ($q) => $q->whereRaw('1 = 0'));
+            }
+
+            if ($user->role === 'supervisor') {
+                $monthlyQuery->where('assigned_supervisor_id', $user->id);
             }
 
             $monthlyTrend = $monthlyQuery
@@ -4187,6 +4199,30 @@ class ReportController extends Controller
                 'id' => $report->id,
                 'status' => $new_status,
                 'old_status' => $old_status,
+            ],
+        ]);
+    }
+
+    /**
+     * GET /api/supervisor/regions
+     * Mengembalikan daftar UPTD yang diawasi oleh supervisor yang sedang login.
+     */
+    public function mySupervisorRegions(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->role !== 'supervisor') {
+            return response()->json(['success' => false, 'message' => 'Hanya untuk supervisor.'], 403);
+        }
+
+        $uptds = $user->supervisedUptds()->get(['id', 'nama', 'kecamatan_wilayah']);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'uptds' => $uptds,
+                'label' => $uptds->pluck('nama')->implode(', '),
+                'districts' => $uptds->pluck('kecamatan_wilayah')->flatten()->unique()->values(),
             ],
         ]);
     }

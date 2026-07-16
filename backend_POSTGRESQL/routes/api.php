@@ -147,6 +147,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reports/stats-by-team', [ReportController::class, 'statsByTeam']);
 
     /**
+     * GET /api/supervisor/regions
+     * Daftar UPTD yang diawasi supervisor yang sedang login.
+     */
+    Route::get('/supervisor/regions', [ReportController::class, 'mySupervisorRegions']);
+
+    /**
      * GET /api/reports/{id}
      * Detail satu laporan.
      */

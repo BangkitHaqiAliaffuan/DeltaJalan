@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Uptd extends Model
@@ -24,6 +25,14 @@ class Uptd extends Model
     public function teams(): HasMany
     {
         return $this->hasMany(Team::class, 'uptd_id');
+    }
+
+    public function supervisors(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'supervisor_uptd', 'uptd_id', 'user_id')
+            ->where('role', 'supervisor')
+            ->withPivot('priority')
+            ->withTimestamps();
     }
 
     public static function resolveTeamIdByDistrict(string $district): ?string

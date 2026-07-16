@@ -79,6 +79,7 @@ class Report extends Model
         'pelaksana',
         // Team assignment
         'assigned_team_id',
+        'assigned_supervisor_id',
         'assigned_at',
         'ditugaskan_at',
         'assignor_name',
@@ -168,6 +169,11 @@ class Report extends Model
     public function assignedTeam()
     {
         return $this->belongsTo(Team::class, 'assigned_team_id');
+    }
+
+    public function assignedSupervisor()
+    {
+        return $this->belongsTo(User::class, 'assigned_supervisor_id');
     }
 
     /**

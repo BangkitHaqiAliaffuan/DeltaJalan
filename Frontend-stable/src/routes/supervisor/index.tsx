@@ -56,6 +56,20 @@ function SupervisorDashboard() {
   const { data: uptdStats = [], isFetching: uptdFetching } = useTeamStats(token);
   const { data: teamList = [] } = useTeams(token);
 
+  const { data: supervisorRegions } = useQuery({
+    queryKey: ["supervisor-regions"],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE_URL}/supervisor/regions`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return null;
+      const json = await res.json();
+      return json.data as { label: string; uptds: Array<{ nama: string }>; districts: string[] };
+    },
+    enabled: !!token && user?.role === "supervisor",
+    staleTime: 300_000,
+  });
+
   async function refetchAll() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["stats"] }),
@@ -297,7 +311,9 @@ function SupervisorDashboard() {
                 Selamat pagi, {user?.name ?? "Supervisor"}
               </h1>
               <p className="text-sm text-blue-200 mt-1">
-                Ringkasan data laporan kerusakan jalan Kab. Sidoarjo
+                {supervisorRegions?.label
+                  ? `Wilayah: ${supervisorRegions.label}`
+                  : "Ringkasan data laporan kerusakan jalan Kab. Sidoarjo"}
               </p>
             </div>
             <span className="px-2.5 py-1 bg-white/15 text-xs font-semibold text-blue-200 uppercase tracking-wide">

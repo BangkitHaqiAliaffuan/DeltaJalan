@@ -6,6 +6,7 @@ use App\Models\Report;
 use App\Models\StatusLog;
 use App\Models\User;
 use App\Notifications\ReportCreatedNotification;
+use App\Services\SupervisorRouterService;
 use Illuminate\Support\Facades\Log;
 
 class ReportObserver
@@ -21,11 +22,26 @@ class ReportObserver
             'notes' => 'Laporan dibuat',
         ]);
 
-        // Notifikasi ke semua supervisor
+        // Auto-assign supervisor berdasarkan district
         try {
-            $supervisors = User::where('role', 'supervisor')->get();
-            foreach ($supervisors as $supervisor) {
-                $supervisor->notify(new ReportCreatedNotification($report));
+            app(SupervisorRouterService::class)->assignReport($report);
+            $report->refresh();
+        } catch (\Throwable $e) {
+            Log::warning('Gagal auto-assign supervisor: '.$e->getMessage());
+        }
+
+        // Notifikasi — khusus supervisor yang di-assign (jika ada)
+        try {
+            if ($report->assigned_supervisor_id) {
+                $supervisor = User::find($report->assigned_supervisor_id);
+                if ($supervisor) {
+                    $supervisor->notify(new ReportCreatedNotification($report));
+                }
+            } else {
+                $supervisors = User::where('role', 'supervisor')->get();
+                foreach ($supervisors as $supervisor) {
+                    $supervisor->notify(new ReportCreatedNotification($report));
+                }
             }
         } catch (\Throwable $e) {
             Log::warning('Gagal mengirim notifikasi laporan baru: '.$e->getMessage());

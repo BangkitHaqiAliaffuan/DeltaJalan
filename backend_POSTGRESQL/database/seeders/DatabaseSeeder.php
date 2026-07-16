@@ -13,6 +13,7 @@ class DatabaseSeeder extends Seeder
             TeamSeeder::class,
             UptdSeeder::class,
             LinkTeamsToUptdSeeder::class,
+            SupervisorUptdSeeder::class,
             TeamRoadSeeder::class,
             ReportSeeder::class,
         ]);
