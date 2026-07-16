@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Icon } from "@/components/jk/Icon";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { registerUser } from "@/lib/auth";
 import { validateIndonesianPhone, validateNamaLengkap } from "@/lib/validators";
 
@@ -19,6 +19,22 @@ export const Route = createFileRoute("/daftar")({
 
 function RegisterPage() {
   const [name, setName] = useState("");
+  const [showScrollHint, setShowScrollHint] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const check = () => setShowScrollHint(el.scrollHeight > el.clientHeight + 4);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  function handleScrollHide() {
+    if (showScrollHint) setShowScrollHint(false);
+  }
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -128,8 +144,9 @@ function RegisterPage() {
         <div className="w-full max-w-[360px] animate-fade-in">
           <div className="animate-slide-up flex flex-col min-h-0" style={{ height: "calc(100dvh - 2rem)" }}>
             <div
-              className="bg-white rounded-2xl border-2 border-[#1e40af] flex-auto flex-col min-h-0"
+              className="bg-white rounded-2xl border-2 border-[#1e40af] flex flex-col flex-auto min-h-0"
               style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.3)" }}
+              style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.3)", position: "relative" }}
             >
               <div className="shrink-0 pt-8 pb-6 px-8 flex flex-col items-center border-b border-[#E2E8F0]">
                 <div className="w-16 h-16 rounded-xl bg-white shadow-md flex items-center justify-center mb-4">
@@ -143,7 +160,11 @@ function RegisterPage() {
                 </p>
               </div>
 
-              <div className="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-8 pb-6 pt-4">
+              <div
+                ref={scrollRef}
+                onScroll={handleScrollHide}
+                className="flex-1 min-h-0 overflow-y-auto relative thin-scrollbar px-8 pb-6 pt-4"
+              >
                 {error && (
                   <div className="mb-4 flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
                     <Icon name="error" className="text-[#E11D48] !text-[18px] shrink-0 mt-0.5" />
@@ -330,6 +351,14 @@ function RegisterPage() {
                     Sudah punya akun? Masuk
                   </Link>
                 </div>
+
+                {showScrollHint && (
+                  <div className="sticky bottom-0 left-0 right-0 flex justify-center pointer-events-none -mt-6">
+                    <div className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center pointer-events-auto animate-bounce">
+                      <Icon name="arrow_downward" className="!text-[20px] text-[#1e40af]" />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

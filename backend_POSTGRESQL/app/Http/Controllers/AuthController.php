@@ -48,9 +48,17 @@ class AuthController extends Controller
             ], 422);
         }
 
+        // ── Normalisasi nomor telepon (sama seperti di register) ──────────
+        $login = $request->email;
+        $phone = $login;
+        $phone = preg_replace('/[\s\-().]/', '', $phone);
+        if (str_starts_with($phone, '+62')) $phone = '0'.substr($phone, 3);
+        elseif (str_starts_with($phone, '62')) $phone = '0'.substr($phone, 2);
+        elseif (!str_starts_with($phone, '0')) $phone = null;
+
         // ── Cari user berdasarkan email atau nomor telepon ─────────────────
-        $user = User::where('email', $request->email)
-            ->orWhere('phone', $request->email)
+        $user = User::where('email', $login)
+            ->when($phone, fn($q) => $q->orWhere('phone', $phone))
             ->first();
 
         // ── Verifikasi password ───────────────────────────────────────────

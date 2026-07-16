@@ -80,19 +80,22 @@ class WargaReportController extends Controller
             return $dailyLimitResult;
         }
 
-        $fingerprintCheck = $this->checkFingerprintLimit($request);
-        if ($fingerprintCheck !== null) {
-            return $fingerprintCheck;
-        }
+        // Fingerprint & device limits only for guests
+        if (!$userId) {
+            $fingerprintCheck = $this->checkFingerprintLimit($request);
+            if ($fingerprintCheck !== null) {
+                return $fingerprintCheck;
+            }
 
-        $deviceCheck = $this->checkDeviceLimit($request);
-        if ($deviceCheck !== null) {
-            return $deviceCheck;
+            $deviceCheck = $this->checkDeviceLimit($request);
+            if ($deviceCheck !== null) {
+                return $deviceCheck;
+            }
         }
 
         $response = $this->processAndCreateReport($request, $validated, $userId);
 
-        if ($response->getStatusCode() === 201) {
+        if ($response->getStatusCode() === 201 && !$userId) {
             $this->incrementFingerprintCounter($request);
             $this->incrementDeviceCounter($request);
         }
@@ -566,29 +569,33 @@ class WargaReportController extends Controller
     public function checkRemaining(Request $request): JsonResponse
     {
         $limits = [];
+        $user = $request->user();
 
-        // 1. Fingerprint limit (always)
-        $fingerprint = $this->buildFingerprint($request);
-        $fpCounter = DailyUploadCounter::where('identifier_type', 'fingerprint')
-            ->where('identifier_hash', $fingerprint)
-            ->where('report_date', today())
-            ->first();
-        $fingerprintCount = $fpCounter?->count ?? 0;
-        $limits[] = self::FINGERPRINT_LIMIT - $fingerprintCount;
-
-        // 2. Device ID limit (if header provided)
-        $deviceId = $request->header('X-Device-ID');
-        if ($deviceId && preg_match('/^[a-f0-9\-]{36}$/', $deviceId)) {
-            $devCounter = DailyUploadCounter::where('identifier_type', 'device_id')
-                ->where('identifier_hash', $deviceId)
+        // Fingerprint & device limits only for guests
+        if (!$user) {
+            // 1. Fingerprint limit
+            $fingerprint = $this->buildFingerprint($request);
+            $fpCounter = DailyUploadCounter::where('identifier_type', 'fingerprint')
+                ->where('identifier_hash', $fingerprint)
                 ->where('report_date', today())
                 ->first();
-            $deviceCount = $devCounter?->count ?? 0;
-            $limits[] = self::DEVICE_LIMIT - $deviceCount;
+            $fingerprintCount = $fpCounter?->count ?? 0;
+            $limits[] = self::FINGERPRINT_LIMIT - $fingerprintCount;
+
+            // 2. Device ID limit (if header provided)
+            $deviceId = $request->header('X-Device-ID');
+            if ($deviceId && preg_match('/^[a-f0-9\-]{36}$/', $deviceId)) {
+                $devCounter = DailyUploadCounter::where('identifier_type', 'device_id')
+                    ->where('identifier_hash', $deviceId)
+                    ->where('report_date', today())
+                    ->first();
+                $deviceCount = $devCounter?->count ?? 0;
+                $limits[] = self::DEVICE_LIMIT - $deviceCount;
+            }
         }
 
         // 3. User daily limit (if authenticated)
-        if ($user = $request->user()) {
+        if ($user) {
             $todayCount = Report::where('user_id', $user->id)
                 ->whereDate('created_at', today())
                 ->count();
