@@ -10,6 +10,8 @@ class DuplicateCheckService
 {
     public function checkByHash(string $imageHash): ?Report
     {
+        if (!config('app.dedup_enabled')) return null;
+
         $report = Report::where('image_hash', $imageHash)->first();
         if ($report) {
             return $report;

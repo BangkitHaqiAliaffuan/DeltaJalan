@@ -796,7 +796,7 @@ class WargaReportController extends Controller
 
             // ── Image Hash (Anti-Duplikasi) ──
             $imageHash = $this->calculateImageHash($imageFile->getPathname());
-            if ($imageHash !== null) {
+            if (config('app.dedup_enabled') && $imageHash !== null) {
                 $existingReport = Report::where('image_hash', $imageHash)->first();
                 if (! $existingReport) {
                     $existingPhoto = ReportPhoto::where('image_hash', $imageHash)->first();

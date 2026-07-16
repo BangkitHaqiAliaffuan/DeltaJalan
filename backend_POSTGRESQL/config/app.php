@@ -118,6 +118,18 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Photo Deduplication
+    |--------------------------------------------------------------------------
+    |
+    | Ketika disabled, semua pengecekan foto duplikat (SHA-256 hash) dilewati.
+    | Berguna untuk debugging. Set DEDUP_ENABLED=false di .env untuk nonaktifkan.
+    |
+    */
+
+    'dedup_enabled' => env('DEDUP_ENABLED', true),
+
     'maintenance' => [
         'driver' => env('APP_MAINTENANCE_DRIVER', 'file'),
         'store' => env('APP_MAINTENANCE_STORE', 'database'),

@@ -255,7 +255,7 @@ class ReportController extends Controller
         $imageFile = $request->file('image');
         $imageHash = $this->calculateImageHash($imageFile->getPathname());
 
-        if ($imageHash !== null && Report::imageHashExists($imageHash)) {
+        if (config('app.dedup_enabled') && $imageHash !== null && Report::imageHashExists($imageHash)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Foto ini sudah pernah digunakan pada laporan lain.',
@@ -1629,7 +1629,7 @@ class ReportController extends Controller
             }
         }
         $existingHashes = [];
-        if (! empty($imageHashes)) {
+        if (config('app.dedup_enabled') && ! empty($imageHashes)) {
             $existingHashes = array_unique(array_merge(
                 Report::whereIn('image_hash', $imageHashes)->pluck('image_hash')->toArray(),
                 ReportPhoto::whereIn('image_hash', $imageHashes)->pluck('image_hash')->toArray()
