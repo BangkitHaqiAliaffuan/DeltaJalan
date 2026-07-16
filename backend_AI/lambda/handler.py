@@ -49,6 +49,32 @@ print("Both models loaded successfully.")
 # Input tensor name (sama untuk kedua model YOLOv8)
 INPUT_NAME = session_a.get_inputs()[0].name
 
+# ── MobileCLIP2-S0 ONNX Relevance Guard ──────────────────────────────────
+
+MOBILECLIP_VISION_PATH = "/opt/models/mobileclip/vision_model.onnx"
+MOBILECLIP_TEXT_EMBEDS_PATH = "/opt/models/mobileclip/text_embeds.npy"
+_CLIP_PROMPT_INDICES = [0, 1]
+_CLIP_RELEVANCE_THRESHOLD = 0.15
+
+_CLIP_ONNX_SESSION = None
+_CLIP_TEXT_EMBEDS = None
+_CLIP_AVAILABLE = False
+
+try:
+    _CLIP_ONNX_SESSION = ort.InferenceSession(
+        MOBILECLIP_VISION_PATH, providers=["CPUExecutionProvider"]
+    )
+    _CLIP_TEXT_EMBEDS = np.load(MOBILECLIP_TEXT_EMBEDS_PATH)
+    _CLIP_AVAILABLE = True
+    print(
+        f"MobileCLIP2-S0 ONNX loaded — "
+        f"{len(_CLIP_TEXT_EMBEDS)} text prompts, "
+        f"threshold={_CLIP_RELEVANCE_THRESHOLD}"
+    )
+except Exception as e:
+    print(f"MobileCLIP2-S0 ONNX not available: {e}")
+    print("  Relevance guard disabled — all images pass through.")
+
 # Class labels
 CLASS_LABELS = {
     0: "Lubang",
@@ -498,6 +524,49 @@ def _draw_detections(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════════
+#  MOBILECLIP ONNX — RELEVANCE GUARD
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _clip_preprocess(img: Image.Image) -> np.ndarray:
+    """Resize + center crop to 224x224 + scale [0,1] → NCHW float32."""
+    w, h = img.size
+    if w != h:
+        side = min(w, h)
+        left = (w - side) // 2
+        top = (h - side) // 2
+        img = img.crop((left, top, left + side, top + side))
+    img = img.resize((224, 224), Image.BICUBIC)
+    arr = np.array(img, dtype=np.float32) / 255.0
+    arr = np.transpose(arr, (2, 0, 1))
+    arr = np.expand_dims(arr, axis=0)
+    return arr
+
+
+def _check_image_relevance_onnx(img: Image.Image) -> tuple[bool, float]:
+    """Returns (is_relevant, relevance_score)."""
+    if not _CLIP_AVAILABLE or _CLIP_ONNX_SESSION is None:
+        return True, 1.0
+    try:
+        tensor = _clip_preprocess(img)
+        img_embeds = _CLIP_ONNX_SESSION.run(None, {"pixel_values": tensor})[0]
+        img_embeds = img_embeds / np.linalg.norm(img_embeds, axis=-1, keepdims=True)
+        logits = 100.0 * img_embeds @ _CLIP_TEXT_EMBEDS.T
+        logits = logits - np.max(logits, axis=-1, keepdims=True)
+        probs = np.exp(logits) / np.sum(np.exp(logits), axis=-1, keepdims=True)
+        road_score = float(sum(probs[0, idx] for idx in _CLIP_PROMPT_INDICES))
+        print(
+            f"  [MobileCLIP] img={img.size}, "
+            f"road_score={road_score:.4f}, "
+            f"threshold={_CLIP_RELEVANCE_THRESHOLD}, "
+            f"relevant={road_score >= _CLIP_RELEVANCE_THRESHOLD}"
+        )
+        return road_score >= _CLIP_RELEVANCE_THRESHOLD, road_score
+    except Exception as e:
+        print(f"  [MobileCLIP] ONNX ERROR: {e}")
+        return True, 1.0
+
+
 #  ENDPOINT HANDLERS — analyze-quality, analyze-relevance, health
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -538,12 +607,24 @@ def _handle_analyze_quality(event: dict) -> dict:
     })
 
 
-def _handle_analyze_relevance() -> dict:
-    """Always pass relevance check — MobileCLIP too heavy for Lambda."""
+def _handle_analyze_relevance(event: dict) -> dict:
+    """Analyze image relevance via MobileCLIP2-S0 ONNX."""
+    image_bytes = _extract_file_from_event(event)
+    if image_bytes is None:
+        return _error_response(400, "Field 'file' tidak ditemukan")
+    try:
+        img = Image.open(BytesIO(image_bytes)).convert("RGB")
+        img = ImageOps.exif_transpose(img)
+    except Exception:
+        return _error_response(400, "File bukan gambar yang valid")
+
+    is_relevant, score = _check_image_relevance_onnx(img)
+    label = "Terindikasi Kerusakan Jalan" if is_relevant else "Tidak Terindikasi Kerusakan Jalan"
+    print(f"  [MobileCLIP] /analyze-relevance -> relevant={is_relevant}, score={score:.4f}")
     return _success_response({
-        "relevant": True,
-        "score": 1.0,
-        "label": "Terindikasi Kerusakan Jalan",
+        "relevant": is_relevant,
+        "score": round(score, 4),
+        "label": label,
     })
 
 
@@ -551,9 +632,14 @@ def _handle_health_check() -> dict:
     """Quick health/status endpoint."""
     return _success_response({
         "status": "ok",
-        "version": "1.3.1",
+        "version": "1.3.2",
         "mode": "ensemble",
         "classes": list(CLASS_LABELS.values()),
+        "relevance_guard": {
+            "available": _CLIP_AVAILABLE,
+            "model": "MobileCLIP2-S0" if _CLIP_AVAILABLE else None,
+            "threshold": _CLIP_RELEVANCE_THRESHOLD if _CLIP_AVAILABLE else None,
+        },
     })
 
 
@@ -583,7 +669,7 @@ def lambda_handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]
         if raw_path == "/analyze-quality" and http_method == "POST":
             return _handle_analyze_quality(event)
         if raw_path == "/analyze-relevance" and http_method == "POST":
-            return _handle_analyze_relevance()
+            return _handle_analyze_relevance(event)
         if raw_path == "/" and http_method == "GET":
             return _handle_health_check()
         if raw_path not in ("/", "/analyze") or http_method != "POST":
@@ -616,6 +702,11 @@ def lambda_handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]
                 "headers": {"Content-Type": "application/json"},
                 "body": json.dumps({"status": "error", "message": "File bukan gambar yang valid"}),
             }
+
+        # Note: Relevance gate TIDAK dijalankan di /analyze — hanya via /analyze-relevance.
+        # Laravel callers (ReportController, AIController, dll) hanya handle HTTP 2xx.
+        # HTTP 422 akan dianggap generic FastAPI error, bukan not-relevant.
+        # Laravel MobileClipService handle relevance blocking di level aplikasi.
 
         img_np = np.array(img)
         h_resized, w_resized = img_np.shape[:2]

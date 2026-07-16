@@ -33,9 +33,25 @@ echo "  Region : $REGION"
 echo "  Image  : $IMAGE_URI"
 echo ""
 
+# ── 0. Convert MobileCLIP to ONNX (jika belum ada) ───────────────────────
+echo "───────────────────────────────────────────────────────────────────"
+echo "  [0/6] Cek MobileCLIP ONNX..."
+echo "───────────────────────────────────────────────────────────────────"
+if [ ! -f "$LAMBDA_DIR/models/mobileclip/vision_model.onnx" ]; then
+    echo "  ⚠️  vision_model.onnx tidak ditemukan — menjalankan konversi..."
+    echo "  (membutuhkan torch + open_clip + timm — skip jika gagal)"
+    cd "$LAMBDA_DIR"
+    python convert_mobileclip_onnx.py || {
+        echo "  ⚠️  Konversi gagal — relevance guard akan fallback ke pass-through"
+    }
+else
+    echo "  ✅ vision_model.onnx sudah ada"
+fi
+echo ""
+
 # ── 1. Build Docker image ─────────────────────────────────────────────────
 echo "───────────────────────────────────────────────────────────────────"
-echo "  [1/5] Build image..."
+echo "  [1/6] Build image..."
 echo "───────────────────────────────────────────────────────────────────"
 cd "$LAMBDA_DIR"
 DOCKER_BUILDKIT=0 docker build --platform linux/amd64 -t jalankita-ai .
@@ -44,7 +60,7 @@ echo ""
 
 # ── 2. Login ECR ──────────────────────────────────────────────────────────
 echo "───────────────────────────────────────────────────────────────────"
-echo "  [2/5] Login ECR..."
+echo "  [2/6] Login ECR..."
 echo "───────────────────────────────────────────────────────────────────"
 aws ecr get-login-password --region "$REGION" \
   | docker login --username AWS --password-stdin "$AWS_ACCOUNT.dkr.ecr.$REGION.amazonaws.com"
@@ -53,7 +69,7 @@ echo ""
 
 # ── 3. Tag & Push ─────────────────────────────────────────────────────────
 echo "───────────────────────────────────────────────────────────────────"
-echo "  [3/5] Push image to ECR..."
+echo "  [3/6] Push image to ECR..."
 echo "───────────────────────────────────────────────────────────────────"
 docker tag jalankita-ai:latest "$IMAGE_URI"
 docker push "$IMAGE_URI"
@@ -62,7 +78,7 @@ echo ""
 
 # ── 4. Update Lambda function code ────────────────────────────────────────
 echo "───────────────────────────────────────────────────────────────────"
-echo "  [4/5] Update Lambda function code..."
+echo "  [4/6] Update Lambda function code..."
 echo "───────────────────────────────────────────────────────────────────"
 aws lambda update-function-code \
   --function-name "$LAMBDA_NAME" \
@@ -90,7 +106,7 @@ URL=$(aws lambda get-function-url-config \
 URL="${URL%/}"  # Hapus trailing slash biar path ganda tidak terjadi
 
 echo "───────────────────────────────────────────────────────────────────"
-echo "  [5/5] Test — URL: $URL"
+echo "  [5/6] Test — URL: $URL"
 echo "───────────────────────────────────────────────────────────────────"
 
 if [ ! -f "$TEST_IMG" ]; then

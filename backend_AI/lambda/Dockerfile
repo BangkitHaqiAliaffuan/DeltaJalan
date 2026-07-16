@@ -3,6 +3,9 @@ FROM public.ecr.aws/lambda/python:3.12
 
 # Copy model ONNX ke /opt/ (bukan /tmp/, biar tahan antar invoke)
 # Model di /opt/ sudah tersedia tanpa download ulang di setiap cold start
+# Copy semua model ONNX + MobileCLIP ke /opt/models/
+# YOLO: best.onnx, best_stable.onnx
+# MobileCLIP: vision_model.onnx, text_embeds.npy
 COPY models/ /opt/models/
 
 # Copy handler dan requirements

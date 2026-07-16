@@ -341,6 +341,12 @@ function SupervisorDashboard() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                 {[
                   {
+                    label: "Total Laporan",
+                    value: stats?.total ?? 0,
+                    icon: "description",
+                    color: "text-[#0F172A]",
+                  },
+                  {
                     label: "Perlu Review",
                     value: stats?.menunggu_review ?? 0,
                     icon: "rate_review",
