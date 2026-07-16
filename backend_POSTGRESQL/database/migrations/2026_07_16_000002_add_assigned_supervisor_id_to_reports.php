@@ -9,14 +9,11 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('reports', function (Blueprint $table) {
-            $table->uuid('assigned_supervisor_id')
+            $table->foreignId('assigned_supervisor_id')
                 ->nullable()
                 ->after('assigned_team_id')
-                ->index();
-
-            $table->foreign('assigned_supervisor_id')
-                ->references('id')
-                ->on('users')
+                ->index()
+                ->constrained('users')
                 ->nullOnDelete();
         });
     }
