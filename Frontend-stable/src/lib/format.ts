@@ -121,19 +121,20 @@ export function displayStatus(status: string): string {
   return status;
 }
 
-export function getSeverityLabel(severity?: string | null): { chip: string; label: string } {
+export function getSeverityLabel(severity?: string | null): { chip: string; label: string; icon: string } {
   const s = (severity ?? "").toLowerCase();
   if (!s)
     return {
       chip: "bg-slate-100 text-slate-500 border border-slate-200",
       label: "Belum Dianalisis",
+      icon: "help_outline",
     };
-  if (s.includes("berat")) return { chip: "bg-[#E11D48] text-white", label: "Rusak Berat" };
+  if (s.includes("berat")) return { chip: "bg-[#E11D48] text-white", label: "Rusak Berat", icon: "error" };
   if (s.includes("sedang"))
-    return { chip: "bg-orange-50 text-[#F97316] border border-orange-200", label: "Rusak Sedang" };
+    return { chip: "bg-orange-50 text-[#F97316] border border-orange-200", label: "Rusak Sedang", icon: "warning_amber" };
   if (s.includes("ringan"))
-    return { chip: "bg-amber-50 text-[#F59E0B] border border-amber-200", label: "Rusak Ringan" };
-  return { chip: "bg-slate-50 text-[#64748B] border border-slate-200", label: severity ?? "Baik" };
+    return { chip: "bg-amber-50 text-[#F59E0B] border border-amber-200", label: "Rusak Ringan", icon: "info" };
+  return { chip: "bg-slate-50 text-[#64748B] border border-slate-200", label: severity ?? "Baik", icon: "check_circle" };
 }
 
 export function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -147,17 +148,17 @@ export function haversineDistance(lat1: number, lng1: number, lat2: number, lng2
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-export function getStatusBadge(status: string): { label: string; color: string } {
-  const map: Record<string, { label: string; color: string }> = {
-    "Menunggu Review": { label: "Menunggu Review", color: "bg-yellow-100 text-yellow-800" },
-    Ditinjau: { label: "Ditinjau", color: "bg-blue-100 text-blue-800" },
-    "Hasil AI": { label: "Hasil AI", color: "bg-purple-100 text-purple-800" },
-    Disetujui: { label: "Disetujui", color: "bg-green-100 text-green-800" },
-    Ditolak: { label: "Ditolak", color: "bg-red-100 text-red-800" },
-    "Sedang Diperbaiki": { label: "Sedang Diperbaiki", color: "bg-orange-100 text-orange-800" },
-    Selesai: { label: "Selesai", color: "bg-green-100 text-green-800" },
+export function getStatusBadge(status: string): { label: string; color: string; icon: string } {
+  const map: Record<string, { label: string; color: string; icon: string }> = {
+    "Menunggu Review": { label: "Menunggu Review", color: "bg-yellow-100 text-yellow-800", icon: "hourglass_empty" },
+    Ditinjau: { label: "Ditinjau", color: "bg-blue-100 text-blue-800", icon: "visibility" },
+    "Hasil AI": { label: "Hasil AI", color: "bg-purple-100 text-purple-800", icon: "auto_awesome" },
+    Disetujui: { label: "Disetujui", color: "bg-green-100 text-green-800", icon: "check_circle" },
+    Ditolak: { label: "Ditolak", color: "bg-red-100 text-red-800", icon: "cancel" },
+    "Sedang Diperbaiki": { label: "Sedang Diperbaiki", color: "bg-orange-100 text-orange-800", icon: "construction" },
+    Selesai: { label: "Selesai", color: "bg-green-100 text-green-800", icon: "verified" },
   };
-  return map[status] ?? { label: status || "Unknown", color: "bg-gray-100 text-gray-800" };
+  return map[status] ?? { label: status || "Unknown", color: "bg-gray-100 text-gray-800", icon: "info" };
 }
 
 export function formatDistance(meters: number): string {

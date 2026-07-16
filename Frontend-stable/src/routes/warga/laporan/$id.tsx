@@ -187,21 +187,9 @@ function WargaLaporanDetailPage() {
   return (
     <main className="pb-4">
       <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] p-6 text-white">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Detail Laporan</h1>
-            <p className="font-mono text-sm text-blue-200 mt-1">{report.report_code}</p>
-          </div>
-          <div className="flex gap-1.5">
-            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusInfo.color}`}>
-              {statusInfo.label}
-            </span>
-            {report.overall_severity && (
-              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getSeverityLabel(report.overall_severity).chip}`}>
-                {getSeverityLabel(report.overall_severity).label}
-              </span>
-            )}
-          </div>
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">Detail Laporan</h1>
+          <p className="font-mono text-sm text-blue-200 mt-1">{report.report_code}</p>
         </div>
       </section>
 
@@ -269,6 +257,13 @@ function WargaLaporanDetailPage() {
         )}
 
         <div className="bg-white border border-[#D0DAE8] rounded-lg p-4 mb-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-[#476788] font-medium">Status</p>
+            <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${statusInfo.color}`}>
+              <Icon name={statusInfo.icon} className="!text-sm" />
+              {statusInfo.label}
+            </span>
+          </div>
           <div>
             <p className="text-xs text-[#476788] font-medium">Nama Jalan</p>
             <p className="font-label-md text-label-md font-semibold text-[#0F172A]">
@@ -279,6 +274,18 @@ function WargaLaporanDetailPage() {
             <p className="text-xs text-[#476788] font-medium">Kecamatan</p>
             <p className="font-body-md text-body-md text-[#0F172A]">{report.district}</p>
           </div>
+          {report.overall_severity && (() => {
+            const sevInfo = getSeverityLabel(report.overall_severity);
+            return (
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-[#476788] font-medium">Tingkat Kerusakan</p>
+                <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${sevInfo.chip}`}>
+                  <Icon name={sevInfo.icon} className="!text-sm" />
+                  {sevInfo.label}
+                </span>
+              </div>
+            );
+          })()}
           {report.description && (
             <div>
               <p className="text-xs text-[#476788] font-medium">Deskripsi</p>
