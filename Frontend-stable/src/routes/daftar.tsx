@@ -145,7 +145,6 @@ function RegisterPage() {
           <div className="animate-slide-up flex flex-col min-h-0" style={{ height: "calc(100dvh - 2rem)" }}>
             <div
               className="bg-white rounded-2xl border-2 border-[#1e40af] flex flex-col flex-auto min-h-0"
-              style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.3)" }}
               style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.3)", position: "relative" }}
             >
               <div className="shrink-0 pt-8 pb-6 px-8 flex flex-col items-center border-b border-[#E2E8F0]">
