@@ -268,12 +268,8 @@ function LandingPage() {
 
   useEffect(() => {
     const ctx = gsap.context(() => {
-      // Hero badge
-      gsap.from(".hero-badge", { y: -20, opacity: 0, duration: 0.6, delay: 0.2 });
       // Hero buttons
       gsap.from(".hero-buttons", { y: 24, opacity: 0, duration: 0.7, ease: "power3.out", delay: 0.7 });
-      // Scroll indicator
-      gsap.from(".hero-scroll", { opacity: 0, duration: 0.5, delay: 1.3 });
     }, heroRef);
     return () => ctx.revert();
   }, []);
@@ -413,6 +409,7 @@ function LandingPage() {
             muted
             loop
             playsInline
+            poster="/background.jpg"
             className="absolute inset-0 w-full h-full object-cover"
           >
             <source src="/background%20video.mp4" type="video/mp4" />
@@ -435,15 +432,6 @@ function LandingPage() {
 
         {/* Content */}
         <div className="relative z-10 text-center px-6 max-w-4xl mx-auto">
-          {/* Badge */}
-          <div className="hero-badge inline-flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-5 py-2 mb-10">
-            <span className="w-2 h-2 rounded-full bg-[#60a5fa] animate-pulse" />
-            <Icon name="verified" className="!text-[13px] text-white/70" />
-            <span className="font-label-sm text-label-sm text-white/80 tracking-wide">
-              Portal Resmi Kabupaten Sidoarjo
-            </span>
-          </div>
-
           {/* Headline */}
           <div className="mb-6 space-y-0">
             <SplitText
@@ -505,27 +493,12 @@ function LandingPage() {
             </Link>
           </div>
 
-          {/* Trust badges */}
-          <div className="mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-white/45">
-            <span className="flex items-center gap-1.5 font-label-sm text-label-sm">
-              <Icon name="shield" className="!text-[14px]" />
-              Data Aman & Terjamin
-            </span>
-            <span className="flex items-center gap-1.5 font-label-sm text-label-sm">
-              <Icon name="bolt" className="!text-[14px]" />
-              Respon 24/7
-            </span>
+          {/* Trust signal */}
+          <div className="mt-12 flex items-center justify-center text-white/45">
             <span className="flex items-center gap-1.5 font-label-sm text-label-sm">
               <Icon name="location_city" className="!text-[14px]" />
               18 Kecamatan Sidoarjo
             </span>
-          </div>
-        </div>
-
-        {/* Scroll indicator */}
-        <div className="hero-scroll absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-white/40">
-          <div className="w-5 h-8 border border-white/20 rounded-full flex justify-center pt-1.5">
-            <div className="w-1 h-2 bg-white/50 rounded-full animate-bounce" />
           </div>
         </div>
       </section>
