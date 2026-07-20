@@ -11,6 +11,7 @@ use App\Services\MobileClipService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -570,6 +571,10 @@ class WargaReportController extends Controller
     {
         $limits = [];
         $user = $request->user();
+
+        if (!$user && $request->bearerToken()) {
+            $user = Auth::guard('sanctum')->user();
+        }
 
         // Fingerprint & device limits only for guests
         if (!$user) {

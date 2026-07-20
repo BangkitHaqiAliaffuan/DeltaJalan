@@ -58,14 +58,30 @@ function WargaLoginPage() {
         return;
       }
 
-      if (data.user.role !== "warga") {
+      const isNative =
+        typeof window !== "undefined" &&
+        (window as any).Capacitor?.isNativePlatform?.() === true;
+
+      if (!isNative && data.user.role !== "warga") {
         setError("Akun ini adalah akun petugas. Silakan gunakan halaman khusus petugas.");
         return;
       }
 
       saveAuth(data.user, data.token);
 
-      navigate({ to: "/warga" });
+      if (isNative) {
+        const path =
+          data.user.role === "admin"
+            ? "/admin/dashboard"
+            : data.user.role === "supervisor"
+              ? "/supervisor"
+              : data.user.role === "petugas"
+                ? "/home"
+                : "/warga";
+        navigate({ to: path });
+      } else {
+        navigate({ to: "/warga" });
+      }
     } catch {
       setError("Tidak dapat terhubung ke server. Pastikan server berjalan.");
     } finally {

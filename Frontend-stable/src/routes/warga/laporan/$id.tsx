@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useState, useEffect, useCallback } from "react";
+import { Share as CapacitorShare } from "@capacitor/share";
 import { Icon } from "@/components/jk/Icon";
 import { getToken } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/aiStore";
@@ -41,23 +42,35 @@ function WargaLaporanDetailPage() {
 
   async function handleShare() {
     const url = `${SHARE_BASE_URL}/laporan/${report?.report_code}`;
+    const title = `Laporan ${report?.report_code} — DeltaJalan`;
+    const text = `Laporan kerusakan jalan: ${report?.road_name} (${report?.district})`;
+
+    // Tier 1: Native Capacitor (Android/iOS)
+    if (window.Capacitor?.isNativePlatform()) {
+      try {
+        await CapacitorShare.share({ title, text, url, dialogTitle: "Bagikan via" });
+        return;
+      } catch {
+        return; // user cancelled
+      }
+    }
+
+    // Tier 2: Web Share API (browser modern via HTTPS)
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: `Laporan ${report?.report_code} — DeltaJalan`,
-          text: `Laporan kerusakan jalan: ${report?.road_name} (${report?.district})`,
-          url,
-        });
+        await navigator.share({ title, text, url });
+        return;
       } catch {
-        // user cancelled
+        return; // user cancelled
       }
-    } else {
-      try {
-        await navigator.clipboard.writeText(url);
-        alert("Link laporan disalin!");
-      } catch {
-        // clipboard not available
-      }
+    }
+
+    // Tier 3: Clipboard fallback
+    try {
+      await navigator.clipboard.writeText(url);
+      alert("Link laporan disalin!");
+    } catch {
+      // clipboard not available
     }
   }
 
@@ -329,24 +342,14 @@ function WargaLaporanDetailPage() {
           </div>
         )}
 
-        <div className="mb-4 flex gap-2">
-          <Link
-            to="/lacak"
-            search={{ report_code: report.report_code }}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-[#1e40af] text-[#1e40af] rounded-lg font-label-sm text-label-sm font-semibold hover:bg-blue-50 transition-colors"
-          >
-            <Icon name="search" className="!text-[18px]" />
-            Lacak
-          </Link>
-          <button
-            type="button"
-            onClick={handleShare}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-[#1e40af] text-white rounded-lg font-label-sm text-label-sm font-semibold hover:bg-[#2e68d8] transition-colors active:scale-[0.98]"
-          >
-            <Icon name="share" className="!text-[18px]" />
-            Bagikan
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleShare}
+          className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#1e40af] text-white rounded-lg font-label-sm text-label-sm font-semibold hover:bg-[#2e68d8] transition-colors active:scale-[0.98]"
+        >
+          <Icon name="share" className="!text-[18px]" />
+          Bagikan
+        </button>
 
         <div className="bg-white border border-[#D0DAE8] rounded-lg p-4">
           <h3 className="font-label-md text-label-md font-semibold text-[#0F172A] mb-4 flex items-center gap-2">

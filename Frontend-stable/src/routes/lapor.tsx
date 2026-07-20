@@ -797,7 +797,7 @@ function PublicLaporPage() {
           <p className="text-sm text-blue-200 mt-1">Isi data kerusakan yang Anda temukan</p>
           <div className="mt-3 flex items-center gap-1.5 bg-white/15 rounded-full px-3 py-1.5 w-fit text-xs font-medium text-blue-100">
             <Icon name="assignment" className="!text-[14px]" />
-            Sisa: 1 laporan hari ini —{" "}
+            Sisa: 1 laporan hari ini per perangkat —{" "}
             <Link to="/daftar" className="underline">
               Daftar
             </Link>
