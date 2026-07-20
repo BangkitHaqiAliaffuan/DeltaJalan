@@ -84,8 +84,9 @@ bash scripts/update-lambda.sh --skip-test   # build + push + update only
 # ssh -i "<key>" ubuntu@47.131.39.245 "cd /var/www/deltajalan && git pull origin main && cd backend_POSTGRESQL && php artisan config:cache && php artisan route:cache && php artisan view:cache"
 
 # All stacked (Linux native)
-bash scripts/start-android.sh                       # Laravel + ngrok + .env update
-bash scripts/start-android.sh --rebuild              # + rebuild Capacitor APK
+bash scripts/start-android.sh                       # build + deploy ke device (API production)
+bash scripts/start-android.sh --build-only           # build APK saja
+bash scripts/start-android.sh --rebuild              # (sama seperti tanpa flag)
 bash scripts/start-dev-with-ngrok.sh --ngrok         # desktop dev + tunnel
 
 # Ubuntu (Docker) — pakai jika PHP 8.3 tidak tersedia native

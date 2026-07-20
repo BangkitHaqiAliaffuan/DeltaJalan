@@ -40,6 +40,9 @@ declare const grecaptcha: {
 };
 
 export async function getRecaptchaToken(action = "submit_report"): Promise<string | null> {
+  if (typeof window !== "undefined" && (window as any).Capacitor?.isNativePlatform?.() === true) {
+    return null;
+  }
   const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
   if (!siteKey) return null;
 

@@ -1,6 +1,7 @@
 import { AppLayout } from "./AppLayout";
 import { TopBar } from "./TopBar";
 import { BottomNav } from "./BottomNav";
+import Fab from "./Fab";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { PullToRefresh } from "./PullToRefresh";
 
@@ -40,9 +41,12 @@ export function PageLayout({
         <TopBar {...{ title, back, right, showBrand }} />
         {content}
         {withBottomNav && (
-          <div className="shrink-0 sticky bottom-0 z-10">
-            <BottomNav />
-          </div>
+          <>
+            <div className="shrink-0 sticky bottom-0 z-10">
+              <BottomNav />
+            </div>
+            <Fab />
+          </>
         )}
       </div>
     </AppLayout>

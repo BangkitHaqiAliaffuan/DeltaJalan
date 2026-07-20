@@ -543,7 +543,7 @@ function WargaLaporPage() {
     setLoading(true);
 
     const captchaToken = await getRecaptchaToken();
-    if (!captchaToken && import.meta.env.VITE_RECAPTCHA_SITE_KEY) {
+    if (!captchaToken && import.meta.env.VITE_RECAPTCHA_SITE_KEY && !isNative) {
       setError("Verifikasi keamanan gagal. Silakan reload halaman.");
       setLoading(false);
       return;

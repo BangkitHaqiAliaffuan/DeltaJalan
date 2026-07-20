@@ -203,13 +203,6 @@ function WargaLoginPage() {
                   >
                     Belum punya akun? Daftar di sini
                   </Link>
-                  <Link
-                    to="/lacak"
-                    className="font-label-sm text-label-sm text-[#475569] hover:text-[#1e40af] transition-colors flex items-center gap-1"
-                  >
-                    <Icon name="search" className="!text-[16px]" />
-                    Lacak laporan tanpa login
-                  </Link>
                 </div>
               </div>
             </div>
