@@ -2,6 +2,24 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { API_BASE_URL } from "@/lib/aiStore";
 import type { StatusLaporan } from "@/types/laporan";
 
+function haversineDistance(
+  lat1: number,
+  lng1: number,
+  lat2: number | null,
+  lng2: number | null,
+): number | null {
+  if (lat2 === null || lng2 === null) return null;
+  const R = 6371000;
+  const φ1 = (lat1 * Math.PI) / 180;
+  const φ2 = (lat2 * Math.PI) / 180;
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+  const Δλ = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(Δφ / 2) ** 2 +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(Math.min(a, 1)), Math.sqrt(1 - Math.min(a, 1)));
+}
+
 export interface ActiveReport {
   id: string;
   report_code: string;
@@ -18,6 +36,7 @@ export type AddEvidenceState = "idle" | "loading" | "success" | "error";
 export interface UseActiveReportCheckReturn {
   checking: boolean;
   activeReport: ActiveReport | null;
+  nearestDistance: number | null;
   addEvidenceState: AddEvidenceState;
   addEvidenceMessage: string;
   evidenceLimitReached: boolean;
@@ -51,6 +70,7 @@ export function useDuplicateCheck(
   const [addEvidenceState, setAddEvidenceState] = useState<AddEvidenceState>("idle");
   const [addEvidenceMessage, setAddEvidenceMessage] = useState("");
   const [evidenceLimitReached, setEvidenceLimitReached] = useState(false);
+  const [nearestDistance, setNearestDistance] = useState<number | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -71,7 +91,10 @@ export function useDuplicateCheck(
       setChecking(true);
 
       try {
-        const url = new URL(`${window.location.origin}${API_BASE_URL}/v1/reports/check-duplicate`);
+        const base = API_BASE_URL.startsWith("http")
+          ? API_BASE_URL
+          : `${window.location.origin}${API_BASE_URL}`;
+        const url = new URL(`${base}/v1/reports/check-duplicate`);
         if (params.lat !== undefined && params.lng !== undefined) {
           url.searchParams.set("latitude", params.lat.toString());
           url.searchParams.set("longitude", params.lng.toString());
@@ -89,6 +112,20 @@ export function useDuplicateCheck(
         }
         const data = await res.json();
         setActiveReport(data.report ?? null);
+        if (data.report && params.lat !== undefined && params.lng !== undefined) {
+          const dist = haversineDistance(
+            params.lat, params.lng,
+            data.report.latitude, data.report.longitude,
+          );
+          if (dist !== null) {
+            console.log(
+              `[DuplicateCheck] Laporan terdekat: ${data.report.report_code} — ${dist.toFixed(1)} meter`,
+            );
+            setNearestDistance(dist);
+          }
+        } else {
+          setNearestDistance(null);
+        }
         setChecking(false);
       } catch {
         clearTimeout(timeoutId);
@@ -222,11 +259,13 @@ export function useDuplicateCheck(
     setAddEvidenceState("idle");
     setAddEvidenceMessage("");
     setEvidenceLimitReached(false);
+    setNearestDistance(null);
   }, []);
 
   return {
     checking,
     activeReport,
+    nearestDistance,
     addEvidenceState,
     addEvidenceMessage,
     evidenceLimitReached,

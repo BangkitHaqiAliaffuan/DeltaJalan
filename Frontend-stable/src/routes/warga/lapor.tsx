@@ -898,6 +898,7 @@ function WargaLaporPage() {
                   <DuplicateChecker
                     checking={duplicateCheck.checking}
                     activeReport={duplicateCheck.activeReport}
+                    nearestDistance={duplicateCheck.nearestDistance}
                     addEvidenceState={duplicateCheck.addEvidenceState}
                     addEvidenceMessage={duplicateCheck.addEvidenceMessage}
                     evidenceLimitReached={duplicateCheck.evidenceLimitReached}

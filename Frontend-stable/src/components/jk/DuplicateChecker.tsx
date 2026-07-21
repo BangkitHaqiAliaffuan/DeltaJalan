@@ -4,6 +4,7 @@ import type { ActiveReport, AddEvidenceState } from "@/hooks/useDuplicateCheck";
 interface DuplicateCheckerProps {
   checking: boolean;
   activeReport: ActiveReport | null;
+  nearestDistance?: number | null;
   addEvidenceState: AddEvidenceState;
   addEvidenceMessage: string;
   evidenceLimitReached: boolean;
@@ -33,6 +34,7 @@ function formatDate(isoString: string): string {
 export function DuplicateChecker({
   checking,
   activeReport,
+  nearestDistance,
   addEvidenceState,
   addEvidenceMessage,
   evidenceLimitReached,
@@ -82,6 +84,11 @@ export function DuplicateChecker({
             Dilaporkan pada {formatDate(activeReport.created_at)} &middot; Status:{" "}
             {activeReport.status}
           </p>
+          {nearestDistance !== null && nearestDistance !== undefined && (
+            <p className="text-[11px] text-[#92400E] mt-0.5 opacity-75">
+              Jarak: ~{nearestDistance.toFixed(1)} meter dari lokasi Anda
+            </p>
+          )}
 
           {isEvidenceAllowed && onSendEvidence && (
             <div className="mt-2">
