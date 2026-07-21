@@ -429,11 +429,12 @@ class WargaReportController extends Controller
         $completedReports = Report::where('status', 'Selesai')->count();
         $inProgress = Report::whereNotIn('status', ['Selesai', 'Ditolak'])->count();
 
-        $recentReports = Report::where('status', 'Selesai')
+        $recentReports = Report::with('firstPhoto')
+            ->where('status', 'Selesai')
             ->whereNotNull('road_name')
             ->orderBy('updated_at', 'desc')
             ->take(5)
-            ->get(['report_code', 'road_name', 'district', 'status', 'description', 'updated_at']);
+            ->get(['id', 'report_code', 'road_name', 'district', 'status', 'description', 'updated_at', 'image_original_path']);
 
         $kecamatan = $this->getKecamatanList();
 
@@ -452,7 +453,42 @@ class WargaReportController extends Controller
                     'status' => $r->status,
                     'description' => $r->description,
                     'updated_at' => $r->updated_at?->toIso8601String(),
+                    'photo_url' => $r->first_photo_url,
                 ]),
+            ],
+        ]);
+    }
+
+    /**
+     * GET /api/public/reports/map-overview — No auth required.
+     * Returns aggregated district stats and recent marker coordinates for the landing page map preview.
+     * Only exposes lat, lng, severity, status, district — no sensitive data.
+     */
+    public function publicMapOverview(): JsonResponse
+    {
+        $districtStats = Report::select(
+            'district',
+            DB::raw('COUNT(*) as total'),
+            DB::raw("COUNT(*) FILTER (WHERE overall_severity = 'Rusak Ringan') as rusak_ringan"),
+            DB::raw("COUNT(*) FILTER (WHERE overall_severity = 'Rusak Sedang') as rusak_sedang"),
+            DB::raw("COUNT(*) FILTER (WHERE overall_severity = 'Rusak Berat') as rusak_berat"),
+        )
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->groupBy('district')
+            ->get();
+
+        $recentMarkers = Report::whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->latest()
+            ->take(20)
+            ->get(['latitude', 'longitude', 'overall_severity', 'status', 'district']);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'district_stats' => $districtStats,
+                'recent_markers' => $recentMarkers,
             ],
         ]);
     }

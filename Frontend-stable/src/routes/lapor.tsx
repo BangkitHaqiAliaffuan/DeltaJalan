@@ -156,14 +156,18 @@ function PublicLaporPage() {
   const isAndroidWeb = /Android/i.test(navigator.userAgent) && !isNative;
   const isBlocked =
     serverRemaining !== null ? serverRemaining <= 0 : getTodayUploadCount() >= UPLOAD_DAILY_LIMIT;
+  const isEvidenceMode = duplicateCheck.activeReport?.status === "Menunggu Review";
+
   const canSubmit =
-    reporterName.trim().length > 0 &&
-    phone.trim().length > 0 &&
-    roadName.trim().length > 0 &&
-    district.length > 0 &&
-    latitude.length > 0 &&
-    longitude.length > 0 &&
+    (isEvidenceMode ? true : reporterName.trim().length > 0) &&
+    (isEvidenceMode ? true : phone.trim().length > 0) &&
+    (isEvidenceMode ? true : roadName.trim().length > 0) &&
+    (isEvidenceMode ? true : district.length > 0) &&
+    (isEvidenceMode ? true : latitude.length > 0) &&
+    (isEvidenceMode ? true : longitude.length > 0) &&
     photos.length >= 1;
+
+  const isEvidenceSending = duplicateCheck.addEvidenceState === "loading";
 
   function closeFraudModal() {
     setFraudModal((s) => ({ ...s, isOpen: false }));
@@ -581,6 +585,11 @@ function PublicLaporPage() {
     }
 
     setProcessing(false);
+  }
+
+  async function handleSendEvidence() {
+    if (!photos[0] || !duplicateCheck.activeReport) return;
+    await duplicateCheck.submitEvidence(duplicateCheck.activeReport.id, photos[0], reporterName);
   }
 
   async function handleSubmit() {
@@ -1077,6 +1086,21 @@ function PublicLaporPage() {
               )}
             </div>
 
+            <DuplicateChecker
+              checking={duplicateCheck.checking}
+              activeReport={duplicateCheck.activeReport}
+              nearestDistance={duplicateCheck.nearestDistance}
+              addEvidenceState={duplicateCheck.addEvidenceState}
+              addEvidenceMessage={duplicateCheck.addEvidenceMessage}
+              evidenceLimitReached={duplicateCheck.evidenceLimitReached}
+              hasFile={photos.length > 0}
+              reporterName={reporterName}
+              onSendEvidence={(reportId) =>
+                photos[0] && duplicateCheck.submitEvidence(reportId, photos[0], reporterName)
+              }
+              onOverride={duplicateCheck.reset}
+            />
+
             <div className="flex flex-col gap-1.5">
               <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
                 Nama Lengkap <span className="text-[#E11D48]">*</span>
@@ -1163,18 +1187,6 @@ function PublicLaporPage() {
                 </p>
               )}
             </div>
-
-            <DuplicateChecker
-              checking={duplicateCheck.checking}
-              activeReport={duplicateCheck.activeReport}
-              nearestDistance={duplicateCheck.nearestDistance}
-              addEvidenceState={duplicateCheck.addEvidenceState}
-              addEvidenceMessage={duplicateCheck.addEvidenceMessage}
-              evidenceLimitReached={duplicateCheck.evidenceLimitReached}
-              hasFile={photos.length > 0}
-              reporterName={reporterName}
-              onOverride={duplicateCheck.reset}
-            />
 
             <div className="flex flex-col gap-1.5">
               <label className="font-label-md text-label-md font-semibold text-[#0F172A]">
@@ -1307,11 +1319,18 @@ function PublicLaporPage() {
 
             <button
               type="button"
-              onClick={handleSubmit}
-              disabled={loading || locating || !canSubmit}
+              onClick={isEvidenceMode ? handleSendEvidence : handleSubmit}
+              disabled={
+                isEvidenceMode ? !photos[0] || isEvidenceSending : loading || locating || !canSubmit
+              }
               className="w-full h-12 bg-gradient-to-r from-[#1e40af] to-[#2e68d8] text-white rounded-xl font-label-md text-label-md font-semibold flex items-center justify-center gap-2 mt-2 hover:shadow-lg hover:shadow-[#1e40af]/25 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? (
+              {isEvidenceMode && isEvidenceSending ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Mengirim bukti...
+                </>
+              ) : loading ? (
                 <>
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Mengirim...
@@ -1319,7 +1338,7 @@ function PublicLaporPage() {
               ) : (
                 <>
                   <Icon name="send" className="!text-[20px]" />
-                  Kirim Laporan
+                  {isEvidenceMode ? "Tambahkan Bukti Foto" : "Kirim Laporan"}
                 </>
               )}
             </button>

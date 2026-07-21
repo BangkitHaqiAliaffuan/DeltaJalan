@@ -70,6 +70,13 @@ export function DuplicateChecker({
   const isSuccess = addEvidenceState === "success";
   const isError = addEvidenceState === "error";
 
+  const isNearby =
+    nearestDistance !== null && nearestDistance !== undefined && nearestDistance <= 5;
+
+  const isRejected = activeReport.status === "Ditolak";
+  const isClosed = isFinalStatus && !isRejected;
+  const shouldBlockOverride = isNearby && !isRejected;
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-start gap-2.5 bg-[#FEF3C7] border border-[#FCD34D] rounded-xl px-4 py-3">
@@ -110,16 +117,24 @@ export function DuplicateChecker({
                         className="text-[#065F46] !text-[16px] shrink-0 mt-0.5"
                         filled
                       />
-                      <p className="text-[12px] text-[#065F46] leading-snug">{addEvidenceMessage}</p>
+                      <p className="text-[12px] text-[#065F46] leading-snug">
+                        {addEvidenceMessage}
+                      </p>
                     </div>
                   )}
 
                   {isError && (
                     <div className="flex items-start gap-2 bg-[#FEE2E2] border border-[#FCA5A5] rounded-lg px-3 py-2 mb-2">
                       <Icon name="error" className="text-[#991B1B] !text-[16px] shrink-0 mt-0.5" />
-                      <p className="text-[12px] text-[#991B1B] leading-snug">{addEvidenceMessage}</p>
+                      <p className="text-[12px] text-[#991B1B] leading-snug">
+                        {addEvidenceMessage}
+                      </p>
                     </div>
                   )}
+
+                  <p className="text-[11px] text-[#92400E] font-semibold mb-2">
+                    Foto akan dilampirkan sebagai bukti tambahan laporan yang sudah ada.
+                  </p>
 
                   {!isSuccess && (
                     <button
@@ -147,17 +162,27 @@ export function DuplicateChecker({
             </div>
           )}
 
-          {isFinalStatus && (
-            <p className="text-[11px] text-[#92400E] mt-2 opacity-75">
-              Laporan ini sudah diproses (status: {activeReport.status}). Tidak dapat menambahkan
-              bukti foto.
+          {isNearby && isClosed && (
+            <p className="text-[11px] text-[#991B1B] mt-2 font-medium">
+              Lokasi ini sudah memiliki laporan dengan status &ldquo;{activeReport.status}&rdquo;.
+              Tidak dapat membuat laporan baru di lokasi yang sudah ditindaklanjuti.
             </p>
           )}
 
-          {onOverride && (
+          {isFinalStatus && !(isNearby && isClosed) && (
+            <p className="text-[11px] text-[#92400E] mt-2 opacity-75">
+              {isNearby && isRejected
+                ? "Laporan sebelumnya ditolak. Anda dapat mengirim ulang dengan bukti yang lebih baik."
+                : `Laporan ini sudah diproses (status: ${activeReport.status}). Tidak dapat menambahkan bukti foto.`}
+            </p>
+          )}
+
+          {onOverride && !shouldBlockOverride && (
             <div className="mt-2 pt-2 border-t border-[#FCD34D]">
               <p className="text-[11px] text-[#92400E] mb-2">
-                Jika laporan ini berbeda, Anda dapat tetap melanjutkan upload sebagai laporan baru.
+                {isNearby && isRejected
+                  ? "Laporan sebelumnya ditolak. Anda dapat mengirim ulang dengan bukti yang lebih baik."
+                  : "Jika laporan ini berbeda, Anda dapat tetap melanjutkan upload sebagai laporan baru."}
               </p>
               <button
                 type="button"

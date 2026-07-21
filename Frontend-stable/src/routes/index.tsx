@@ -12,6 +12,7 @@ const SpotlightCard = lazy(() => import("@/components/reactbits/SpotlightCard"))
 const BlurText = lazy(() => import("@/components/reactbits/BlurText"));
 const GradientText = lazy(() => import("@/components/reactbits/GradientText"));
 const Marquee = lazy(() => import("@/components/reactbits/Marquee"));
+const LandingMapPreview = lazy(() => import("@/components/jk/LandingMapPreview"));
 
 export const Route = createFileRoute("/")({
   component: LandingPage,
@@ -292,6 +293,17 @@ function LandingPage() {
   });
 
   const stats = statsRes?.data;
+
+  const { data: mapOverviewRes } = useQuery({
+    queryKey: ["public-map-overview"],
+    queryFn: () =>
+      apiFetch("/api/public/reports/map-overview").then<{
+        success: boolean;
+        data: { district_stats: unknown[]; recent_markers: unknown[] };
+      }>((r) => r.json()),
+    staleTime: 60_000,
+  });
+  const mapOverviewData = mapOverviewRes?.data;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60);
@@ -1096,7 +1108,62 @@ function LandingPage() {
         </section>
       </AnimatedContent>
 
-      {/* â”€â”€ FOOTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── PETA PERSEBARAN ── */}
+      <section className="py-16 md:py-20 px-6 bg-[#f8f9ff]">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-10">
+            <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-5">
+              <Icon name="map" className="!text-[14px]" />
+              Peta Persebaran
+            </span>
+            <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A] mt-2">
+              Persebaran Kerusakan Jalan di Sidoarjo
+            </h2>
+            <p className="mt-3 font-body-md text-body-md text-[#64748b] max-w-lg mx-auto">
+              Visualisasi sebaran laporan kerusakan jalan di seluruh 18 kecamatan Kabupaten Sidoarjo.
+            </p>
+          </div>
+
+          <div className="max-w-4xl mx-auto">
+            <Suspense
+              fallback={
+                <div className="w-full rounded-xl bg-slate-100 flex items-center justify-center" style={{ height: "350px" }}>
+                  <span className="w-6 h-6 border-2 border-[#1e40af]/30 border-t-[#1e40af] rounded-full animate-spin" />
+                </div>
+              }
+            >
+              <LandingMapPreview data={mapOverviewData} />
+            </Suspense>
+          </div>
+
+          <div className="text-center mt-8">
+            {loggedIn ? (
+              <Link
+                to="/map"
+                className="inline-flex items-center gap-2 bg-[#1e40af] text-white font-label-md text-label-md font-semibold px-7 py-3.5 rounded-2xl hover:bg-[#1730a0] shadow-lg shadow-[#1e40af]/25 hover:shadow-xl hover:shadow-[#1e40af]/30 transition-all active:scale-[0.97]"
+              >
+                <Icon name="open_in_new" className="!text-[18px]" />
+                Lihat Secara Detail
+              </Link>
+            ) : (
+              <div>
+                <p className="text-sm text-[#64748b] mb-3">
+                  Login untuk melihat data persebaran kerusakan secara detail dan interaktif.
+                </p>
+                <Link
+                  to="/masuk"
+                  className="inline-flex items-center gap-2 bg-[#1e40af] text-white font-label-md text-label-md font-semibold px-7 py-3.5 rounded-2xl hover:bg-[#1730a0] shadow-lg shadow-[#1e40af]/25 hover:shadow-xl hover:shadow-[#1e40af]/30 transition-all active:scale-[0.97]"
+                >
+                  <Icon name="login" className="!text-[18px]" />
+                  Login
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* ── FOOTER ──────────────────────────────────────────────────────── */}
       <footer className="bg-[#0a1628] text-white/55 px-6 py-14 md:py-20">
         <div className="max-w-5xl mx-auto">
           <div className="grid md:grid-cols-4 gap-10">

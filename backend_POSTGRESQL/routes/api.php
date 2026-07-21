@@ -69,6 +69,7 @@ Route::post('/public/reports', [WargaReportController::class, 'storePublic'])
 Route::get('/public/reports', [WargaReportController::class, 'indexByPhone'])
     ->middleware('throttle:10,1');
 Route::get('/public/stats', [WargaReportController::class, 'publicStats']);
+Route::get('/public/reports/map-overview', [WargaReportController::class, 'publicMapOverview']);
 
 /**
  * GET /api/v1/reports/remaining
