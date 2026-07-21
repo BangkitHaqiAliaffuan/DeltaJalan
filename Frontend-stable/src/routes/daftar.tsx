@@ -141,6 +141,13 @@ function RegisterPage() {
       </div>
 
       <div className="relative z-10 h-[100dvh] flex items-center justify-center p-4">
+        <Link
+          to="/"
+          className="absolute top-4 left-4 z-20 w-10 h-10 flex items-center justify-center rounded-full bg-white/90 shadow-md hover:bg-white active:scale-95 transition-all duration-200"
+          aria-label="Kembali ke beranda"
+        >
+          <Icon name="arrow_back" className="!text-[22px] text-[#1e40af]" />
+        </Link>
         <div className="w-full max-w-[360px] animate-fade-in">
           <div className="animate-slide-up flex flex-col min-h-0" style={{ height: "calc(100dvh - 2rem)" }}>
             <div

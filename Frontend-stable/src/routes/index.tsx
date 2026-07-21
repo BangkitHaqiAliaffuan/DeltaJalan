@@ -3,6 +3,7 @@ import { Icon } from "@/components/jk/Icon";
 import { useRef, useEffect, useState, lazy, Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
+import { resolveImageUrl } from "@/lib/imageUrl";
 import { getCurrentUser, isLoggedIn } from "@/lib/auth";
 import { motion, useMotionValue, useSpring } from "motion/react";
 import Counter from "@/components/ui/Counter";
@@ -40,6 +41,7 @@ interface StatsData {
     status: string;
     description: string;
     updated_at: string;
+    photo_url?: string;
   }[];
 }
 
@@ -283,6 +285,7 @@ function LandingPage() {
   const tentangParallaxRef = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
   const [testiIndex, setTestiIndex] = useState(0);
+  const [imgLoaded, setImgLoaded] = useState<Record<string, boolean>>({});
   const [activeFaqIdx] = useState<number | null>(null);
 
   const { data: statsRes } = useQuery({
@@ -759,7 +762,7 @@ function LandingPage() {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12 md:mb-14">
             <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-5">
-              <Icon name="apps" className="!text-[14px]" />
+              <Icon name="grid_view" className="!text-[14px]" />
               Platform
             </span>
             <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A] mt-2">
@@ -970,6 +973,50 @@ function LandingPage() {
                       {activeTesti.report_code}
                     </span>
                   </div>
+
+                  {activeTesti.photo_url ? (
+                    <div className="relative w-full aspect-[16/9] rounded-xl overflow-hidden mb-5 bg-gray-100">
+                      {!imgLoaded[activeTesti.report_code] && (
+                        <div className="absolute inset-0 bg-gray-200 animate-pulse" />
+                      )}
+                      <img
+                        src={resolveImageUrl(activeTesti.photo_url) ?? ""}
+                        alt={activeTesti.road_name}
+                        className={`w-full h-full object-cover transition-opacity duration-300 ${
+                          imgLoaded[activeTesti.report_code] ? "opacity-100" : "opacity-0"
+                        }`}
+                        onLoad={() =>
+                          setImgLoaded((prev) => ({
+                            ...prev,
+                            [activeTesti.report_code]: true,
+                          }))
+                        }
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                          const parent = e.currentTarget.parentElement;
+                          if (parent) {
+                            const placeholder = parent.querySelector("[data-placeholder]");
+                            if (placeholder) {
+                              (placeholder as HTMLElement).style.display = "flex";
+                            }
+                          }
+                        }}
+                      />
+                      <div
+                        data-placeholder
+                        className="absolute inset-0 flex-col items-center justify-center text-[#94a3b8] hidden"
+                      >
+                        <Icon name="broken_image" className="!text-[32px] mb-1" />
+                        <span className="font-label-sm text-label-sm">Gagal memuat foto</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="relative w-full aspect-[16/9] rounded-xl overflow-hidden mb-5 bg-gray-100 flex flex-col items-center justify-center text-[#94a3b8]">
+                      <Icon name="photo_camera" className="!text-[32px] mb-1" />
+                      <span className="font-label-sm text-label-sm">Tidak ada foto</span>
+                    </div>
+                  )}
+
                   <h3 className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-2 leading-snug">
                     {activeTesti.road_name}
                   </h3>
@@ -1169,11 +1216,13 @@ function LandingPage() {
           <div className="grid md:grid-cols-4 gap-10">
             <div className="md:col-span-2">
               <div className="flex items-center gap-2.5 mb-5">
-                <img
-                  src="/logo.png"
-                  alt="DeltaJalan"
-                  className="w-8 h-8 brightness-0 invert opacity-90"
-                />
+                <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center p-1">
+                  <img
+                    src="/logo.png"
+                    alt="Dinas PU Bina Marga"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
                 <span className="font-headline-md text-headline-md font-bold text-white">
                   DeltaJalan
                 </span>
