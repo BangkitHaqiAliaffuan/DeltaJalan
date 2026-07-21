@@ -472,6 +472,12 @@ class WargaReportController extends Controller
             DB::raw("COUNT(*) FILTER (WHERE overall_severity = 'Rusak Ringan') as rusak_ringan"),
             DB::raw("COUNT(*) FILTER (WHERE overall_severity = 'Rusak Sedang') as rusak_sedang"),
             DB::raw("COUNT(*) FILTER (WHERE overall_severity = 'Rusak Berat') as rusak_berat"),
+            DB::raw("AVG(CASE
+                WHEN overall_severity::text = 'Rusak Berat' OR LOWER(ai_severity) = 'berat' THEN 3
+                WHEN overall_severity::text = 'Rusak Sedang' OR LOWER(ai_severity) = 'sedang' THEN 2
+                WHEN overall_severity::text = 'Rusak Ringan' OR LOWER(ai_severity) = 'ringan' THEN 1
+                ELSE 0
+            END) as avg_severity_score"),
         )
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')

@@ -7,6 +7,7 @@ interface DistrictStat {
   rusak_ringan: number;
   rusak_sedang: number;
   rusak_berat: number;
+  avg_severity_score: number;
 }
 
 interface RecentMarker {
@@ -27,26 +28,34 @@ interface LandingMapPreviewProps {
   height?: string;
 }
 
-const SEVERITY_COLORS: Record<string, string> = {
+const MARKER_SEVERITY_COLORS: Record<string, string> = {
   "Rusak Berat": "#E11D48",
   "Rusak Sedang": "#F97316",
   "Rusak Ringan": "#F59E0B",
   Baik: "#10B981",
 };
 
-function getSeverityColor(severity: string | null): string {
-  return SEVERITY_COLORS[severity ?? ""] ?? "#94a3b8";
+const POLYGON_SEVERITY_COLORS: Record<string, string> = {
+  berat: "#E11D48",
+  sedang: "#F97316",
+  ringan: "#F59E0B",
+  baik: "#2E7D32",
+};
+
+function getMarkerColor(severity: string | null): string {
+  return MARKER_SEVERITY_COLORS[severity ?? ""] ?? "#94a3b8";
 }
 
-function getDensityColor(count: number, maxCount: number): string {
-  if (maxCount === 0) return "#D1FAE5";
-  const ratio = count / maxCount;
-  if (ratio === 0) return "#D1FAE5";
-  if (ratio < 0.1) return "#BBF7D0";
-  if (ratio < 0.25) return "#FEF08A";
-  if (ratio < 0.5) return "#FDE047";
-  if (ratio < 0.75) return "#F97316";
-  return "#EF4444";
+function severityScoreToKey(score: number): string {
+  if (score >= 2.5) return "berat";
+  if (score >= 1.5) return "sedang";
+  if (score >= 0.5) return "ringan";
+  return "baik";
+}
+
+function getPolygonColor(score: number): string {
+  const key = severityScoreToKey(score);
+  return POLYGON_SEVERITY_COLORS[key] ?? "#94a3b8";
 }
 
 export default function LandingMapPreview({
@@ -92,12 +101,10 @@ export default function LandingMapPreview({
       mapInstanceRef.current = map;
       setLoading(false);
 
-      const statsMap = new Map<string, number>();
-      let maxCount = 0;
+      const statsByDistrict = new Map<string, DistrictStat>();
       if (data?.district_stats) {
         for (const s of data.district_stats) {
-          statsMap.set(s.district, s.total);
-          if (s.total > maxCount) maxCount = s.total;
+          statsByDistrict.set(s.district, s);
         }
       }
 
@@ -108,13 +115,14 @@ export default function LandingMapPreview({
           const geoLayer = L.geoJSON(geoJson, {
             style: (feature) => {
               const kecName = feature?.properties?.kecamatan ?? feature?.properties?.name ?? "";
-              const count = statsMap.get(kecName) ?? 0;
+              const ds = statsByDistrict.get(kecName);
+              const score = ds ? ds.avg_severity_score : 0;
               return {
-                fillColor: getDensityColor(count, maxCount),
-                fillOpacity: 0.5,
-                color: "#6366f1",
-                weight: 1.5,
-                opacity: 0.6,
+                fillColor: getPolygonColor(score),
+                fillOpacity: 0.3,
+                color: getPolygonColor(score),
+                weight: 2,
+                opacity: 0.8,
               };
             },
           });
@@ -124,7 +132,7 @@ export default function LandingMapPreview({
 
       if (data?.recent_markers) {
         for (const m of data.recent_markers) {
-          const color = getSeverityColor(m.overall_severity);
+          const color = getMarkerColor(m.overall_severity);
           L.circleMarker([m.latitude, m.longitude], {
             radius: 6,
             fillColor: color,
