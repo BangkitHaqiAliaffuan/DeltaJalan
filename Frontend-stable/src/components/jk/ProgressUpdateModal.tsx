@@ -39,7 +39,20 @@ export function ProgressUpdateModal({
       return;
     }
 
-    const dateValidation = await validatePhotoDate(foto);
+    let fileToUpload: File;
+    try {
+      const buf = await foto.arrayBuffer();
+      fileToUpload = new File([buf], foto.name, { type: foto.type });
+    } catch {
+      setError("Gagal membaca file foto.");
+      return;
+    }
+
+    let dateValidation = await validatePhotoDate(fileToUpload);
+    if (dateValidation.status === "no_exif_date") {
+      await new Promise((r) => setTimeout(r, 500));
+      dateValidation = await validatePhotoDate(fileToUpload);
+    }
     if (dateValidation.status !== "valid") {
       setError(dateValidation.message);
       return;
@@ -49,7 +62,7 @@ export function ProgressUpdateModal({
     setError("");
     try {
       const fd = new FormData();
-      fd.append("foto", foto);
+      fd.append("foto", fileToUpload);
       if (catatan.trim()) fd.append("catatan", catatan.trim());
 
       const res = await fetch(`${API_BASE_URL}/reports/${reportId}/progress`, {

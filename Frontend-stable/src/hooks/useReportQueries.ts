@@ -143,6 +143,36 @@ export function useTeamStats(token: string) {
   });
 }
 
+export interface PciDistrict {
+  district: string;
+  total: number;
+  avg_pci: number;
+  min_pci: number;
+  max_pci: number;
+  kritis: number;
+}
+
+export interface PciKabupaten {
+  total_laporan: number;
+  avg_pci: number;
+  kritis: number;
+}
+
+export interface PciOverview {
+  districts: PciDistrict[];
+  kabupaten: PciKabupaten;
+}
+
+export function usePciOverview(token: string) {
+  return useQuery({
+    queryKey: ["pci-overview"],
+    queryFn: () => authFetch<PciOverview>(`${API_BASE_URL}/pci/overview`, token),
+    enabled: !!token,
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  });
+}
+
 export function useCurrentUser(token: string) {
   return useQuery({
     queryKey: ["current-user"],

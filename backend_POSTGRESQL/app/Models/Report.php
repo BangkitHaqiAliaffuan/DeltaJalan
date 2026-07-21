@@ -106,6 +106,9 @@ class Report extends Model
         // AI analysis tracking
         'ai_analyzed_at',
         'ai_analysis_count',
+        // PCI (Pavement Condition Index)
+        'pci_score',
+        'pci_calculated_at',
         // Rating kepuasan warga
         'rating',
         'rating_comment',
@@ -139,6 +142,9 @@ class Report extends Model
 
         'ai_analyzed_at' => 'datetime',
         'ai_analysis_count' => 'integer',
+
+        'pci_score' => 'decimal:2',
+        'pci_calculated_at' => 'datetime',
 
         'rating' => 'integer',
         'rated_at' => 'datetime',

@@ -6,6 +6,7 @@ import { getToken } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/aiStore";
 import { formatDateRelative, getStatusBadge, getSeverityLabel } from "@/lib/format";
 import { sanitizeUrls, resolveImageUrl } from "@/lib/imageUrl";
+import { PciCard } from "@/components/jk/PciCard";
 
 const SHARE_BASE_URL = "https://delta-jalan.vercel.app";
 
@@ -318,6 +319,10 @@ function WargaLaporanDetailPage() {
             </p>
           </div>
         </div>
+
+        {report.pci_score != null && (
+          <PciCard score={report.pci_score} />
+        )}
 
         {report.assigned_team_name && (
           <div className="bg-white border border-[#D0DAE8] rounded-lg p-4 mb-4">

@@ -44,7 +44,13 @@ export function EstimasiModal({ open, report, loading, onConfirm, onClose }: Est
             <button
               type="button"
               disabled={loading}
-              onClick={() => setShowMulaiConfirm(true)}
+              onClick={() => {
+                if (estimasiMode === "multi-day" && (!estimasiHari || estimasiHari < 1)) {
+                  alert("Masukkan estimasi hari yang valid (minimal 1).");
+                  return;
+                }
+                setShowMulaiConfirm(true);
+              }}
               className="w-full h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-95 transition-all disabled:opacity-50"
             >
               {loading ? (
@@ -119,15 +125,15 @@ export function EstimasiModal({ open, report, loading, onConfirm, onClose }: Est
                   inputMode="numeric"
                   min={1}
                   max={90}
-                  value={estimasiHari}
+                  value={estimasiHari || ""}
                   onChange={(e) => {
                     const raw = e.target.value;
                     if (raw === "") {
-                      setEstimasiHari(1);
+                      setEstimasiHari(0);
                       return;
                     }
                     const num = parseInt(raw, 10);
-                    if (!isNaN(num)) setEstimasiHari(Math.max(1, Math.min(90, num)));
+                    if (!isNaN(num) && num >= 0) setEstimasiHari(Math.min(num, 90));
                   }}
                   className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A] appearance-none [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden"
                 />

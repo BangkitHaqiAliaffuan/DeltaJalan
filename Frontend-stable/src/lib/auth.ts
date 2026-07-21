@@ -1,4 +1,4 @@
-export type UserRole = "petugas" | "supervisor" | "admin" | "warga";
+export type UserRole = "petugas" | "supervisor" | "admin" | "warga" | "petugas_eksekusi";
 
 export interface User {
   id: number;

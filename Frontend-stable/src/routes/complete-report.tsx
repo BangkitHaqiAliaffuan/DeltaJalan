@@ -69,16 +69,11 @@ function CompleteReportPage() {
     if (!files || files.length === 0) return;
     const safeFiles: File[] = [];
     const newPreviews: string[] = [];
-    const bufs: ArrayBuffer[] = [];
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
-      const buf = await f.arrayBuffer();
-      const safeFile = new File([buf], f.name, { type: f.type });
-      safeFiles.push(safeFile);
-      bufs.push(buf);
-      newPreviews.push(URL.createObjectURL(safeFile));
+      safeFiles.push(f);
+      newPreviews.push(URL.createObjectURL(f));
     }
-    void bufs;
     setAfterFiles((prev) => [...prev, ...safeFiles]);
     setAfterPreviews((prev) => [...prev, ...newPreviews]);
     if (fileRef.current) fileRef.current.value = "";
@@ -100,11 +95,15 @@ function CompleteReportPage() {
       }
       if (catatan) formData.append("catatan", catatan);
 
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
       const res = await fetch(`${API_BASE_URL}/reports/${report.id}/complete`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
       const json = await res.json();
       if (res.ok) {
         setSuccessMsg(json.message ?? "Laporan berhasil diselesaikan!");

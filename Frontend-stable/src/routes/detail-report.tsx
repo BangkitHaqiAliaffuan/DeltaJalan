@@ -321,6 +321,10 @@ function DetailReportPage() {
 
   async function handleMulaiEksekusi() {
     if (!report) return;
+    if (estimasiMode === "multi-day" && (!estimasiHari || estimasiHari < 1)) {
+      alert("Masukkan estimasi hari yang valid (minimal 1).");
+      return;
+    }
     setShowEstimasi(false);
     setShowMulaiConfirm(true);
   }
@@ -989,8 +993,12 @@ function DetailReportPage() {
                   <ReportMap
                     points={mapPoints}
                     onPointClick={(pt) => {
-                      if (userRole === "supervisor") {
-                        const url = `https://www.google.com/maps?q=${pt.lat},${pt.lng}`;
+                      const isNative =
+                        typeof window !== "undefined" &&
+                        (window as any).Capacitor?.isNativePlatform?.() === true;
+                      const url = `https://www.google.com/maps?q=${pt.lat},${pt.lng}`;
+
+                      if (userRole === "supervisor" || isNative) {
                         window.open(url, "_blank", "noopener,noreferrer");
                       } else {
                         navigate({
@@ -1269,15 +1277,15 @@ function DetailReportPage() {
                       inputMode="numeric"
                       min={1}
                       max={90}
-                      value={estimasiHari}
+                      value={estimasiHari || ""}
                       onChange={(e) => {
                         const raw = e.target.value;
                         if (raw === "") {
-                          setEstimasiHari(1);
+                          setEstimasiHari(0);
                           return;
                         }
                         const num = parseInt(raw, 10);
-                        if (!isNaN(num)) setEstimasiHari(Math.max(1, Math.min(90, num)));
+                        if (!isNaN(num) && num >= 0) setEstimasiHari(Math.min(num, 90));
                       }}
                       className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A] appearance-none [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:hidden [&::-webkit-outer-spin-button]:hidden"
                     />

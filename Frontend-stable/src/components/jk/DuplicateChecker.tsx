@@ -8,7 +8,7 @@ interface DuplicateCheckerProps {
   addEvidenceMessage: string;
   hasFile: boolean;
   reporterName: string;
-  onSendEvidence: (reportId: string) => void;
+  onSendEvidence?: (reportId: string) => void;
   onOverride?: () => void;
 }
 
@@ -81,7 +81,7 @@ export function DuplicateChecker({
             {activeReport.status}
           </p>
 
-          {isEvidenceAllowed && (
+          {isEvidenceAllowed && onSendEvidence && (
             <div className="mt-2">
               <p className="text-[11px] text-[#92400E] mb-2">
                 Laporan ini masih dalam review. Anda dapat melampirkan foto bukti tambahan.

@@ -9,7 +9,7 @@ import { API_BASE_URL } from "@/lib/aiStore";
 import { getCurrentUser, getToken } from "@/lib/auth";
 import { ReportCard } from "@/components/jk/ReportCard";
 import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
-import { useStats, useTeams, useTeamStats } from "@/hooks/useReportQueries";
+import { useStats, useTeams, useTeamStats, usePciOverview } from "@/hooks/useReportQueries";
 import type { Laporan } from "@/types/laporan";
 import type { ActionButton } from "@/components/jk/report-card/types";
 
@@ -55,6 +55,7 @@ function SupervisorDashboard() {
   const { data: stats, isFetching: statsFetching } = useStats(token);
   const { data: uptdStats = [], isFetching: uptdFetching } = useTeamStats(token);
   const { data: teamList = [] } = useTeams(token);
+  const { data: pciOverview } = usePciOverview(token);
 
   const { data: supervisorRegions } = useQuery({
     queryKey: ["supervisor-regions"],
@@ -76,6 +77,7 @@ function SupervisorDashboard() {
       queryClient.invalidateQueries({ queryKey: ["reports"] }),
       queryClient.invalidateQueries({ queryKey: ["team-stats"] }),
       queryClient.invalidateQueries({ queryKey: ["teams"] }),
+      queryClient.invalidateQueries({ queryKey: ["pci-overview"] }),
     ]);
   }
 
@@ -101,12 +103,13 @@ function SupervisorDashboard() {
   const [filterSource, setFilterSource] = useState("");
   const [filterSeverity, setFilterSeverity] = useState("");
   const [filterSla, setFilterSla] = useState("");
+  const [filterPci, setFilterPci] = useState("");
 
   const [page, setPage] = useState(1);
 
   useEffect(() => {
     setPage(1);
-  }, [activeTab, searchQuery, filterStatus, filterUptd, filterSource, filterSeverity, filterSla]);
+  }, [activeTab, searchQuery, filterStatus, filterUptd, filterSource, filterSeverity, filterSla, filterPci]);
 
   const [exportMonth, setExportMonth] = useState(1);
   const [exportYear, setExportYear] = useState(2026);
@@ -136,6 +139,7 @@ function SupervisorDashboard() {
     if (filterSource) p.set("source", filterSource);
     if (filterSeverity) p.set("severity", filterSeverity);
     if (filterSla) p.set("status_deadline", filterSla);
+    if (filterPci) p.set("pci", filterPci);
     return p.toString();
   }, [
     activeTab,
@@ -146,6 +150,7 @@ function SupervisorDashboard() {
     filterSource,
     filterSeverity,
     filterSla,
+    filterPci,
   ]);
 
   const { data: paginatedResponse, isFetching } = useQuery({
@@ -384,6 +389,53 @@ function SupervisorDashboard() {
 
             {/* ── TRUST SCORE [NONAKTIF] — trust stat pills dihapus */}
 
+            {pciOverview && (
+              <div className="mb-6">
+                <div className="flex items-center gap-1 mb-2">
+                  <Icon name="assessment" className="!text-lg text-[#1e40af]" />
+                  <span className="text-xs text-[#476788] font-semibold">Indeks Kondisi Jalan (PCI)</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-gradient-to-br from-[#F0FDF4] to-white border border-[#BBF7D0] rounded-xl p-3 flex flex-col items-center justify-center gap-1">
+                    <span className="text-lg font-bold text-green-700">{pciOverview.kabupaten.avg_pci ?? "—"}</span>
+                    <span className="text-[10px] text-green-600 font-medium text-center">Rata-rata Kabupaten</span>
+                  </div>
+                  <div className="bg-gradient-to-br from-[#FEF2F2] to-white border border-[#FECACA] rounded-xl p-3 flex flex-col items-center justify-center gap-1">
+                    <span className="text-lg font-bold text-red-700">{pciOverview.kabupaten.kritis}</span>
+                    <span className="text-[10px] text-red-600 font-medium text-center">Kritis (PCI ≤ 40)</span>
+                  </div>
+                  <div className="bg-gradient-to-br from-[#EEF2FF] to-white border border-[#C7D2FE] rounded-xl p-3 flex flex-col items-center justify-center gap-1">
+                    <span className="text-lg font-bold text-blue-700">{pciOverview.kabupaten.total_laporan}</span>
+                    <span className="text-[10px] text-blue-600 font-medium text-center">Total dengan PCI</span>
+                  </div>
+                </div>
+                {pciOverview.districts.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="text-xs text-[#476788] font-medium cursor-pointer hover:text-[#1e40af]">
+                      Lihat per Kecamatan
+                    </summary>
+                    <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                      {pciOverview.districts.map((d) => {
+                        const pciColor = d.avg_pci >= 86 ? "text-green-600" : d.avg_pci >= 71 ? "text-green-500" : d.avg_pci >= 56 ? "text-yellow-600" : d.avg_pci >= 41 ? "text-orange-600" : "text-red-600";
+                        return (
+                          <div key={d.district} className="flex items-center justify-between bg-white border border-[#D0DAE8] rounded-lg px-3 py-1.5">
+                            <span className="text-xs font-medium text-[#0F172A]">{d.district}</span>
+                            <div className="flex items-center gap-3">
+                              <span className={`text-xs font-bold ${pciColor}`}>{d.avg_pci}</span>
+                              <span className="text-[10px] text-[#476788]">{d.total} laporan</span>
+                              {d.kritis > 0 && (
+                                <span className="text-[10px] text-red-600 font-medium">{d.kritis} kritis</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
+
             <div className="flex items-center gap-2 mb-4">
               <span className="font-label-sm text-label-sm text-[#476788] font-semibold whitespace-nowrap">
                 Export PDF
@@ -594,6 +646,16 @@ function SupervisorDashboard() {
                 <option value="">Semua Deadline</option>
                 <option value="tepat_waktu">Tepat Waktu</option>
                 <option value="terlambat">Terlewat Deadline</option>
+              </select>
+              <select
+                value={filterPci}
+                onChange={(e) => setFilterPci(e.target.value)}
+                className="text-xs px-2 py-1.5 border border-[#D0DAE8] rounded-lg bg-white outline-none text-[#0F1623]"
+              >
+                <option value="">Semua PCI</option>
+                <option value="kritis">Kritis (≤40)</option>
+                <option value="sedang">Sedang (41-70)</option>
+                <option value="baik">Baik (71-100)</option>
               </select>
             </div>
           </section>

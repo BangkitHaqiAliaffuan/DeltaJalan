@@ -7,7 +7,8 @@ use App\Models\Report;
 use App\Models\ReportPhoto;
 use App\Models\StatusLog;
 use App\Models\User;
-use App\Services\MobileClipService;
+use App\Services\PciService;
+use Illuminate\Http\Client\Pool;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -82,7 +83,7 @@ class WargaReportController extends Controller
         }
 
         // Fingerprint & device limits only for guests
-        if (!$userId) {
+        if (! $userId) {
             $fingerprintCheck = $this->checkFingerprintLimit($request);
             if ($fingerprintCheck !== null) {
                 return $fingerprintCheck;
@@ -96,7 +97,7 @@ class WargaReportController extends Controller
 
         $response = $this->processAndCreateReport($request, $validated, $userId);
 
-        if ($response->getStatusCode() === 201 && !$userId) {
+        if ($response->getStatusCode() === 201 && ! $userId) {
             $this->incrementFingerprintCounter($request);
             $this->incrementDeviceCounter($request);
         }
@@ -572,12 +573,12 @@ class WargaReportController extends Controller
         $limits = [];
         $user = $request->user();
 
-        if (!$user && $request->bearerToken()) {
+        if (! $user && $request->bearerToken()) {
             $user = Auth::guard('sanctum')->user();
         }
 
         // Fingerprint & device limits only for guests
-        if (!$user) {
+        if (! $user) {
             // 1. Fingerprint limit
             $fingerprint = $this->buildFingerprint($request);
             $fpCounter = DailyUploadCounter::where('identifier_type', 'fingerprint')
@@ -776,9 +777,17 @@ class WargaReportController extends Controller
 
         $severityLevels = ['Baik' => 0, 'Rusak Ringan' => 1, 'Rusak Sedang' => 2, 'Rusak Berat' => 3];
 
+        $fastApiUrl = rtrim(config('services.fastapi.url', env('FASTAPI_URL', 'http://127.0.0.1:8000')), '/');
+
+        // ── Phase 1: Fast per-photo validation (EXIF, dedup, GPS) ──
+        $pendingImages = [];
         foreach ($files as $idx => $imageFile) {
-            // ── EXIF Date Validation (blocking for ALL photos) ──
-            $exifCheck = $this->validatePhotoDateExif($imageFile->getPathname());
+            $fullExif = null;
+            if (function_exists('exif_read_data')) {
+                $fullExif = @exif_read_data($imageFile->getPathname(), null, false);
+            }
+
+            $exifCheck = $this->validatePhotoDateExif($imageFile->getPathname(), $fullExif);
 
             if ($exifCheck['status'] !== 'valid') {
                 $errorCode = match ($exifCheck['status']) {
@@ -799,7 +808,6 @@ class WargaReportController extends Controller
                 continue;
             }
 
-            // ── Image Hash (Anti-Duplikasi) ──
             $imageHash = $this->calculateImageHash($imageFile->getPathname());
             if (config('app.dedup_enabled') && $imageHash !== null) {
                 $existingReport = Report::where('image_hash', $imageHash)->first();
@@ -831,10 +839,8 @@ class WargaReportController extends Controller
                 }
             }
 
-            // ── EXIF GPS ──
-            $exifGps = $this->extractExifGps($imageFile->getPathname());
+            $exifGps = $this->extractExifGps($imageFile->getPathname(), $fullExif);
 
-            // ── GPS Distance Check (only first photo) ──
             $systemNotes = null;
             if ($idx === 0) {
                 if ($exifGps) {
@@ -850,14 +856,90 @@ class WargaReportController extends Controller
                 }
             }
 
-            // ── MobileCLIP (skip + warning for all photos) ──
-            $mobileclipResult = app(MobileClipService::class)->checkBlocking(
-                $imageFile->getPathname(),
-                $imageFile->getClientOriginalName()
-            );
+            $qualityScores = null;
+            if (! empty($qualityInputs[$idx])) {
+                $decoded = json_decode($qualityInputs[$idx], true);
+                if (is_array($decoded)) {
+                    $qualityScores = $decoded;
+                }
+            }
+
+            $pendingImages[] = [
+                'idx' => $idx,
+                'file' => $imageFile,
+                'hash' => $imageHash,
+                'exifCheck' => $exifCheck,
+                'exifGps' => $exifGps,
+                'systemNotes' => $systemNotes,
+                'qualityScores' => $qualityScores,
+            ];
+        }
+
+        if (empty($pendingImages)) {
+            $errMsg = 'Tidak ada foto valid yang bisa diproses.';
+            if (! empty($warnings)) {
+                $errMsg .= ' '.implode(' ', $warnings);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $errMsg,
+                'error_code' => 'NO_VALID_PHOTOS',
+            ], 422);
+        }
+
+        // ── Phase 2: Parallel AI calls (MobileCLIP + YOLO untuk semua foto) ──
+        $poolEntries = [];
+        $aiResults = [];
+
+        foreach ($pendingImages as $pi) {
+            $i = $pi['idx'];
+            $fpath = $pi['file']->getPathname();
+            $fname = $pi['file']->getClientOriginalName();
+
+            $poolEntries["mobileclip_{$i}"] = Http::timeout(10)
+                ->connectTimeout(5)
+                ->attach('file', fopen($fpath, 'r'), $fname)
+                ->post("{$fastApiUrl}/analyze-relevance");
+
+            $hash = $pi['hash'];
+            if ($hash) {
+                $cached = Cache::get('yolo_result_'.$hash);
+                if ($cached) {
+                    $aiResults["yolo_{$i}"] = $cached;
+                } else {
+                    $poolEntries["yolo_{$i}"] = Http::timeout(10)
+                        ->connectTimeout(5)
+                        ->attach('file', fopen($fpath, 'r'), $fname)
+                        ->post("{$fastApiUrl}/analyze?include_image=true");
+                }
+            }
+        }
+
+        $responses = ! empty($poolEntries) ? Http::pool(fn (Pool $p) => $poolEntries) : [];
+
+        // ── Phase 3: Process AI results + build $processedPhotos ──
+        foreach ($pendingImages as $pi) {
+            $i = $pi['idx'];
+
+            // Process MobileCLIP result
+            $mobileclipResult = null;
+            $mcKey = "mobileclip_{$i}";
+            if (isset($responses[$mcKey])) {
+                $resp = $responses[$mcKey];
+                if ($resp->successful()) {
+                    $data = $resp->json();
+                    $score = (float) ($data['score'] ?? 0);
+                    $mobileclipResult = [
+                        'blocked' => $score < 0.15,
+                        'score' => $data['score'] ?? null,
+                        'label' => $data['label'] ?? null,
+                    ];
+                }
+            }
 
             if ($mobileclipResult !== null && $mobileclipResult['blocked']) {
-                $warnings[] = 'Foto ke-'.($idx + 1).' tidak relevan dengan kerusakan jalan, dilewati.';
+                $warnings[] = 'Foto ke-'.($i + 1).' tidak relevan dengan kerusakan jalan, dilewati.';
 
                 continue;
             }
@@ -865,31 +947,18 @@ class WargaReportController extends Controller
             $mobileclipScore = $mobileclipResult !== null ? $mobileclipResult['score'] : null;
             $mobileclipLabel = $mobileclipResult !== null ? $mobileclipResult['label'] : null;
 
-            // ── Auto YOLO Analysis ──
-            $aiResult = null;
-            if ($imageHash) {
-                $cached = Cache::get('yolo_result_'.$imageHash);
-                if ($cached) {
-                    $aiResult = $cached;
-                } else {
-                    try {
-                        $fastApiUrl = rtrim(config('services.fastapi.url', env('FASTAPI_URL', 'http://127.0.0.1:8000')), '/');
-                        $response = Http::timeout(10)
-                            ->connectTimeout(5)
-                            ->attach('file', fopen($imageFile->getPathname(), 'r'), $imageFile->getClientOriginalName())
-                            ->post($fastApiUrl.'/analyze?include_image=true');
-                        if ($response->successful()) {
-                            $data = $response->json();
-                            if (isset($data['overall_severity'])) {
-                                $aiResult = $data;
-                                Cache::put('yolo_result_'.$imageHash, $data, now()->addHours(24));
-                            }
+            // Process YOLO result
+            $aiResult = $aiResults["yolo_{$i}"] ?? null;
+            $yoloKey = "yolo_{$i}";
+            if (! $aiResult && isset($responses[$yoloKey])) {
+                $resp = $responses[$yoloKey];
+                if ($resp->successful()) {
+                    $data = $resp->json();
+                    if (isset($data['overall_severity'])) {
+                        $aiResult = $data;
+                        if ($pi['hash']) {
+                            Cache::put('yolo_result_'.$pi['hash'], $data, now()->addHours(24));
                         }
-                    } catch (\Exception $e) {
-                        Log::warning('Auto YOLO failed', [
-                            'error' => $e->getMessage(),
-                            'image_hash' => $imageHash,
-                        ]);
                     }
                 }
             }
@@ -900,27 +969,18 @@ class WargaReportController extends Controller
                 $aiResultPath = $this->saveBase64Image($aiResult['image_result'], 'reports/results');
             }
 
-            // ── Quality Scores (per-photo) ──
-            $qualityScores = null;
-            if (! empty($qualityInputs[$idx])) {
-                $decoded = json_decode($qualityInputs[$idx], true);
-                if (is_array($decoded)) {
-                    $qualityScores = $decoded;
-                }
-            }
-
             $processedPhotos[] = [
-                'file' => $imageFile,
-                'imageHash' => $imageHash,
-                'exifCheck' => $exifCheck,
-                'exifGps' => $exifGps,
-                'systemNotes' => $systemNotes,
+                'file' => $pi['file'],
+                'imageHash' => $pi['hash'],
+                'exifCheck' => $pi['exifCheck'],
+                'exifGps' => $pi['exifGps'],
+                'systemNotes' => $pi['systemNotes'],
                 'mobileclipScore' => $mobileclipScore,
                 'mobileclipLabel' => $mobileclipLabel,
                 'aiResult' => $aiResult,
                 'hasAiResult' => $hasAiResult,
                 'aiResultPath' => $aiResultPath,
-                'qualityScores' => $qualityScores,
+                'qualityScores' => $pi['qualityScores'],
             ];
         }
 
@@ -1070,6 +1130,13 @@ class WargaReportController extends Controller
                 'total_photos' => count($processedPhotos),
             ]);
 
+            $pci = app(PciService::class)->calculateFromReport($report);
+            if ($pci !== null) {
+                $report->pci_score = $pci;
+                $report->pci_calculated_at = now();
+                $report->saveQuietly();
+            }
+
             $primary = $processedPhotos[0];
 
             return response()->json([
@@ -1102,7 +1169,7 @@ class WargaReportController extends Controller
 
     // ── Helper Methods ──────────────────────────────────────────────────
 
-    private function validatePhotoDateExif(string $filePath): array
+    private function validatePhotoDateExif(string $filePath, ?array $allExif = null): array
     {
         if (! function_exists('exif_read_data')) {
             return [
@@ -1113,7 +1180,11 @@ class WargaReportController extends Controller
         }
 
         try {
-            $exifData = @exif_read_data($filePath, 'EXIF', false);
+            if ($allExif !== null) {
+                $exifData = $allExif;
+            } else {
+                $exifData = @exif_read_data($filePath, 'EXIF', false);
+            }
 
             if (! $exifData) {
                 return [
@@ -1126,6 +1197,10 @@ class WargaReportController extends Controller
             $rawDate = $exifData['DateTimeOriginal']
                 ?? $exifData['DateTimeDigitized']
                 ?? $exifData['DateTime']
+                // Full EXIF read nests date under ['EXIF'] subkey
+                ?? ($exifData['EXIF']['DateTimeOriginal'] ?? null)
+                ?? ($exifData['EXIF']['DateTimeDigitized'] ?? null)
+                ?? ($exifData['IFD0']['DateTime'] ?? null)
                 ?? null;
 
             if (! $rawDate) {
@@ -1185,14 +1260,14 @@ class WargaReportController extends Controller
         }
     }
 
-    private function extractExifGps(string $filePath): ?array
+    private function extractExifGps(string $filePath, ?array $exifData = null): ?array
     {
         if (! function_exists('exif_read_data')) {
             return null;
         }
 
         try {
-            $exif = @exif_read_data($filePath, null, false);
+            $exif = $exifData ?? @exif_read_data($filePath, null, false);
             if (! $exif) {
                 return null;
             }

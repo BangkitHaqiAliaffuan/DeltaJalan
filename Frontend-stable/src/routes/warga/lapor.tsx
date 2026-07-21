@@ -7,7 +7,6 @@ import { API_BASE_URL } from "@/lib/aiStore";
 import exifr from "exifr";
 import {
   reverseGeocode,
-  readExifGpsFromServer,
   isNativePlatform,
   nativeTakePhoto,
   convertFileSrc,
@@ -16,11 +15,13 @@ import { PhotoExifGps } from "@jalankita/capacitor-exif-gps";
 import { compressImage } from "@/lib/compressImage";
 import { validatePhotoDate } from "@/lib/validatePhotoDate";
 import type { PhotoDateValidationStatus } from "@/lib/validatePhotoDate";
+import { readExifOnce } from "@/lib/exifCache";
 import { analyzeImageQuality } from "@/lib/imageQualityCheck";
-import type { ImageQualityCheck } from "@/lib/imageQualityCheck";
 import { computeFileHash } from "@/lib/hash";
 import { FraudWarningModal } from "@/components/jk/FraudWarningModal";
 import { getRecaptchaToken } from "@/lib/recaptcha";
+import { useDuplicateCheck } from "@/hooks/useDuplicateCheck";
+import { DuplicateChecker } from "@/components/jk/DuplicateChecker";
 
 export const Route = createFileRoute("/warga/lapor")({
   component: WargaLaporPage,
@@ -97,6 +98,15 @@ function WargaLaporPage() {
   }>({ isOpen: false, status: "no_exif_date", title: "", message: "" });
   const [serverRemaining, setServerRemaining] = useState<number | null>(null);
   const [initialized, setInitialized] = useState(false);
+
+  const duplicateCheck = useDuplicateCheck(
+    latitude ? parseFloat(latitude) : null,
+    longitude ? parseFloat(longitude) : null,
+    district,
+    roadName,
+    locationSource !== null && !locating,
+    photoHashes[0] ?? null,
+  );
 
   const fetchRemaining = useCallback(async () => {
     try {
@@ -175,15 +185,7 @@ function WargaLaporPage() {
       return;
     }
 
-    // Priority 2: EXIF GPS server-side (EXIF corrupted/tidak terbaca client)
-    setLocatingMessage("Mengambil GPS dari server...");
-    const serverGps = await readExifGpsFromServer(file);
-    if (serverGps?.latitude && serverGps?.longitude) {
-      await applyCoordinates(serverGps.latitude, serverGps.longitude, "exif");
-      return;
-    }
-
-    // Priority 3: Browser geolocation (fallback)
+    // Priority 2: Browser geolocation (fallback, skip server upload)
     if (navigator.geolocation) {
       setLocatingMessage("Mendeteksi lokasi perangkat...");
       navigator.geolocation.getCurrentPosition(
@@ -334,13 +336,15 @@ function WargaLaporPage() {
       return;
     }
 
-    const dateVal = await validatePhotoDate(result.file, 7);
-    if (dateVal.status !== "valid") {
+    const exif = await readExifOnce(result.file);
+    if (!exif.dateValid) {
       setFraudModal({
         isOpen: true,
-        status: dateVal.status,
-        title: dateVal.title,
-        message: dateVal.message,
+        status: "too_old",
+        title: "Foto Tidak Valid",
+        message: exif.photoDate
+          ? "Tanggal foto lebih dari 7 hari yang lalu atau di masa depan."
+          : "Foto tidak memiliki metadata tanggal.",
       });
       setProcessing(false);
       return;
@@ -367,16 +371,7 @@ function WargaLaporPage() {
       isWarningOnly: undefined,
     });
 
-    try {
-      const tags = await exifr.parse(compressed, ["Make", "Model"]);
-      if (tags) {
-        const make = (tags.Make as string) ?? "";
-        const model = (tags.Model as string) ?? "";
-        if (make || model) setCameraModel([make, model].filter(Boolean).join(" "));
-      }
-    } catch {
-      /* empty */
-    }
+    if (exif.make || exif.model) setCameraModel([exif.make, exif.model].filter(Boolean).join(" "));
 
     // Camera replaces all photos
     const hash = await computeFileHash(compressed);
@@ -387,6 +382,8 @@ function WargaLaporPage() {
 
     if (result.lat != null && result.lng != null) {
       await applyCoordinates(result.lat, result.lng, "exif");
+    } else if (exif.gps) {
+      await applyCoordinates(exif.gps.latitude, exif.gps.longitude, "exif");
     } else {
       await processPhotoForGps(compressed);
     }
@@ -406,102 +403,93 @@ function WargaLaporPage() {
       return;
     }
 
+    const warnings: string[] = [];
+
+    const results = await Promise.all(
+      pickResult.photos.map(async (pick) => {
+        const capUrl = convertFileSrc(pick.uri);
+        let blob: Blob;
+        try {
+          const resp = await fetch(capUrl);
+          blob = await resp.blob();
+        } catch {
+          return { error: `"${pick.name}": Gagal membaca foto` } as const;
+        }
+        const file = new File([blob], pick.name || "gallery.jpg", {
+          type: blob.type || "image/jpeg",
+        });
+
+        const exif = await readExifOnce(file);
+        if (!exif.dateValid) {
+          return { error: `"${pick.name}": ${exif.photoDate ? "Tanggal foto lebih dari 7 hari" : "Tidak ada tanggal EXIF"}`, exif } as const;
+        }
+
+        const compressed = await compressImage(file);
+        const qualityCheck = await analyzeImageQuality(compressed);
+        if (qualityCheck.status !== "good" && !qualityCheck.isWarningOnly) {
+          return { error: `"${pick.name}": ${qualityCheck.message}`, exif } as const;
+        }
+
+        const cleanQuality = JSON.stringify({
+          ...qualityCheck,
+          title: undefined,
+          message: undefined,
+          isWarningOnly: undefined,
+        });
+
+        const hash = await computeFileHash(compressed);
+        return {
+          file: compressed,
+          preview: URL.createObjectURL(compressed),
+          quality: cleanQuality,
+          hash,
+          exif,
+          pick,
+        } as const;
+      }),
+    );
+
+    let firstExif: Awaited<ReturnType<typeof readExifOnce>> | null = null;
     const newPhotos: File[] = [];
     const newPreviews: string[] = [];
     const newQualityScores: (string | null)[] = [];
     const newHashes: string[] = [];
-    const warnings: string[] = [];
-    let isFirstInBatch = true;
+    const seenHashes = new Set(photoHashes);
 
-    for (const pick of pickResult.photos) {
-      const capUrl = convertFileSrc(pick.uri);
-      let blob: Blob;
-      try {
-        const resp = await fetch(capUrl);
-        blob = await resp.blob();
-      } catch {
-        warnings.push(`"${pick.name}": Gagal membaca foto`);
-        isFirstInBatch = false;
+    for (const r of results) {
+      if ("error" in r) {
+        if (newPhotos.length === 0 && r.exif) firstExif ??= r.exif;
+        warnings.push(r.error);
         continue;
       }
-      const file = new File([blob], pick.name || "gallery.jpg", {
-        type: blob.type || "image/jpeg",
-      });
-
-      const dateVal = await validatePhotoDate(file, 7);
-      if (dateVal.status !== "valid") {
-        if (newPhotos.length === 0) {
-          setFraudModal({
-            isOpen: true,
-            status: dateVal.status,
-            title: dateVal.title,
-            message: dateVal.message,
-          });
-          setProcessing(false);
-          return;
-        }
-        warnings.push(`"${pick.name}": ${dateVal.message}`);
-        isFirstInBatch = false;
+      if (seenHashes.has(r.hash)) {
+        warnings.push(`"${r.pick.name}": Foto duplikat, dilewati`);
         continue;
       }
-
-      const compressed = await compressImage(file);
-
-      const qualityCheck = await analyzeImageQuality(compressed);
-      if (qualityCheck.status !== "good" && !qualityCheck.isWarningOnly) {
-        if (newPhotos.length === 0) {
-          setFraudModal({
-            isOpen: true,
-            status: qualityCheck.status,
-            title: qualityCheck.title,
-            message: qualityCheck.message,
-          });
-          setProcessing(false);
-          return;
-        }
-        warnings.push(`"${pick.name}": ${qualityCheck.message}`);
-        isFirstInBatch = false;
-        continue;
-      }
-
-      const cleanQuality = JSON.stringify({
-        ...qualityCheck,
-        title: undefined,
-        message: undefined,
-        isWarningOnly: undefined,
-      });
-
-      if (isFirstInBatch) {
-        try {
-          const tags = await exifr.parse(compressed, ["Make", "Model"]);
-          if (tags) {
-            const make = (tags.Make as string) ?? "";
-            const model = (tags.Model as string) ?? "";
-            if (make || model) setCameraModel([make, model].filter(Boolean).join(" "));
-          }
-        } catch {
-          /* empty */
-        }
-      }
-
-      const hash = await computeFileHash(compressed);
-      if (photoHashes.includes(hash) || newHashes.includes(hash)) {
-        warnings.push(`"${pick.name}": Foto duplikat, dilewati`);
-        isFirstInBatch = false;
-        continue;
-      }
-
-      newPhotos.push(compressed);
-      newPreviews.push(URL.createObjectURL(compressed));
-      newQualityScores.push(cleanQuality);
-      newHashes.push(hash);
-      isFirstInBatch = false;
+      seenHashes.add(r.hash);
+      firstExif ??= r.exif;
+      newPhotos.push(r.file);
+      newPreviews.push(r.preview);
+      newQualityScores.push(r.quality);
+      newHashes.push(r.hash);
     }
 
     if (newPhotos.length === 0) {
+      if (results.length > 0 && "error" in results[0]) {
+        setFraudModal({
+          isOpen: true,
+          status: "too_old",
+          title: "Foto Tidak Valid",
+          message: warnings[0] ?? "Foto tidak memenuhi syarat.",
+        });
+      }
       setUploadWarnings(warnings);
       setProcessing(false);
       return;
+    }
+
+    if (firstExif?.make || firstExif?.model) {
+      setCameraModel([firstExif.make, firstExif.model].filter(Boolean).join(" "));
     }
 
     setPhotos((prev) => [...prev, ...newPhotos].slice(0, 3));
@@ -511,12 +499,13 @@ function WargaLaporPage() {
     if (warnings.length > 0) setUploadWarnings(warnings);
 
     // GPS from first photo
-    const allPhotos = photos.concat(newPhotos).slice(0, 3);
-    const first = allPhotos[0];
+    const first = photos.concat(newPhotos).slice(0, 3)[0];
     const firstPick = pickResult.photos[0];
     if (firstPick.lat != null && firstPick.lng != null) {
       await applyCoordinates(firstPick.lat, firstPick.lng, "exif");
-    } else {
+    } else if (firstExif?.gps) {
+      await applyCoordinates(firstExif.gps.latitude, firstExif.gps.longitude, "exif");
+    } else if (first) {
       await processPhotoForGps(first);
     }
 
@@ -905,6 +894,21 @@ function WargaLaporPage() {
                       diedit
                     </p>
                   )}
+
+                  <DuplicateChecker
+                    checking={duplicateCheck.checking}
+                    activeReport={duplicateCheck.activeReport}
+                    addEvidenceState={duplicateCheck.addEvidenceState}
+                    addEvidenceMessage={duplicateCheck.addEvidenceMessage}
+                    hasFile={photos.length > 0}
+                    reporterName={reporterName}
+                    onSendEvidence={(reportId) =>
+                      photos[0] &&
+                      duplicateCheck.submitEvidence(reportId, photos[0], reporterName)
+                    }
+                    onOverride={duplicateCheck.reset}
+                  />
+
                   <input
                     value={roadName}
                     onChange={(e) => setRoadName(e.target.value)}

@@ -160,6 +160,10 @@ export interface Laporan {
   source?: string;
   description?: string | null;
 
+  // PCI (Pavement Condition Index)
+  pci_score?: number | null;
+  pci_calculated_at?: string | null;
+
   // Progress updates count (from server withCount)
   progress_updates_count?: number;
 

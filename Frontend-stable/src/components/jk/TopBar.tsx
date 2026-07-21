@@ -100,7 +100,7 @@ export function TopBar({
                     <p className="text-[11px] text-primary font-medium mt-0.5">{user.team_name}</p>
                   )}
                   <p className="text-[11px] text-on-surface-variant capitalize">
-                    {user.role === "supervisor" ? "Supervisor" : "Petugas Lapangan"}
+                    {user.role_label}
                   </p>
                 </div>
                 <button

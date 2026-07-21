@@ -15,6 +15,7 @@ export const Route = createFileRoute("/admin/users")({
 });
 
 const ROLE_LABEL: Record<string, string> = {
+  warga: "Warga",
   petugas: "Petugas",
   supervisor: "Supervisor",
   petugas_eksekusi: "Petugas Eksekusi",

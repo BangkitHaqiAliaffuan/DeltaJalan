@@ -171,11 +171,7 @@ export function Sidebar() {
                 className="text-white/60 text-[11px] truncate leading-tight capitalize"
                 style={{ fontFamily: "'Inter', sans-serif" }}
               >
-                {displayUser.role === "supervisor"
-                  ? "Supervisor"
-                  : displayUser.role === "warga"
-                    ? "Warga"
-                    : "Petugas Lapangan"}
+                {displayUser.role_label}
               </span>
             )}
           </div>

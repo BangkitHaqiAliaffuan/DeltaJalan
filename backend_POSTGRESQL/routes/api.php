@@ -4,6 +4,7 @@ use App\Http\Controllers\AIController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PatrolScheduleController;
+use App\Http\Controllers\PciController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReportExportController;
@@ -385,6 +386,11 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware('role:warga');
     Route::post('/warga/reports/{id}/rating', [WargaReportController::class, 'rate'])
         ->middleware('role:warga');
+
+    // ── PCI Routes ──────────────────────────────────────────────────────────
+    Route::get('/pci/overview', [PciController::class, 'overview']);
+    Route::get('/pci/trend', [PciController::class, 'trend']);
+    Route::get('/pci/kritis', [PciController::class, 'kritis']);
 });
 
 // ── EXIF Test (public, untuk halaman test-exif.html) ──────────────────────────

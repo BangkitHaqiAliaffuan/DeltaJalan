@@ -20,6 +20,7 @@ use App\Notifications\ReportRejectedNotification;
 use App\Notifications\ReportReopenedNotification;
 // ── TRUST SCORE [NONAKTIF] — use App\Services\TrustScoreService;
 use App\Notifications\TeamAssignedNotification;
+use App\Services\PciService;
 use App\Notifications\TriageUpdatedNotification;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
@@ -700,6 +701,14 @@ class ReportController extends Controller
             'daily_count' => $dailyCount,
         ]);
 
+        // ── Hitung PCI ──
+        $pci = app(PciService::class)->calculateFromReport($report);
+        if ($pci !== null) {
+            $report->pci_score = $pci;
+            $report->pci_calculated_at = now();
+            $report->saveQuietly();
+        }
+
         // ── LANGKAH 8: Kembalikan Response ke Frontend ────────────────────
         // Muat ulang model untuk mendapatkan data terbaru dari database
         $report->refresh();
@@ -832,6 +841,18 @@ class ReportController extends Controller
             }
         }
 
+        // Filter by PCI range
+        if ($request->filled('pci')) {
+            $pciFilter = $request->input('pci');
+            if ($pciFilter === 'kritis') {
+                $query->where('pci_score', '<=', 40);
+            } elseif ($pciFilter === 'sedang') {
+                $query->whereBetween('pci_score', [41, 70]);
+            } elseif ($pciFilter === 'baik') {
+                $query->where('pci_score', '>=', 71);
+            }
+        }
+
         $limit = min((int) $request->input('limit', 50), 100);
         $page = max(1, (int) $request->input('page', 1));
 
@@ -897,6 +918,7 @@ class ReportController extends Controller
                     'ditugaskan_at' => $report->ditugaskan_at?->toIso8601String(),
                     'assignor_name' => $report->assignor_name,
                     'status_deadline' => $report->terlambat_review || $report->terlambat_resolusi ? 'terlambat' : 'tepat_waktu',
+                    'pci_score' => $report->pci_score ? (float) $report->pci_score : null,
                     'is_duplicate' => $report->relationLoaded('duplicateOf') && $report->duplicateOf !== null,
                     'duplicate_score' => $report->relationLoaded('duplicateOf') && $report->duplicateOf ? (float) $report->duplicateOf->score : null,
                     'created_at' => $report->created_at?->toIso8601String(),
@@ -956,6 +978,7 @@ class ReportController extends Controller
             // ── TRUST SCORE [NONAKTIF] — trust_score, trust_label, trust_breakdown dihapus dari response detail
             'system_notes' => $report->system_notes,
             'ai_raw_output' => $report->ai_raw_output,
+            'pci_score' => $report->pci_score ? (float) $report->pci_score : null,
             'image_original_url' => $report->image_original_url,
             'image_result_url' => $report->image_result_url,
             'after_photo_url' => $report->after_photo_url,
@@ -1115,6 +1138,7 @@ class ReportController extends Controller
             'id', 'user_id', 'latitude', 'longitude', 'status',
             'overall_severity', 'ai_severity', 'road_name', 'district',
             'image_original_path', 'kerusakan_panjang', 'kerusakan_lebar',
+            'pci_score',
             // ── TRUST SCORE [NONAKTIF] — 'trust_score' dihapus dari SELECT
             'created_at', 'assigned_team_id',
         ])->with(['firstPhoto', 'assignedTeam'])->whereNotNull('latitude')->whereNotNull('longitude');
@@ -2151,6 +2175,14 @@ class ReportController extends Controller
             'severity' => $aiData['overall_severity'],
         ]);
 
+        // ── Hitung PCI ──
+        $pci = app(PciService::class)->calculateFromReport($report);
+        if ($pci !== null) {
+            $report->pci_score = $pci;
+            $report->pci_calculated_at = now();
+            $report->saveQuietly();
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Analisis AI selesai.',
@@ -2365,6 +2397,14 @@ class ReportController extends Controller
             'assigned_team_id' => $team->id,
             'severity' => $aiData['overall_severity'],
         ]);
+
+        // ── Hitung PCI ──
+        $pci = app(PciService::class)->calculateFromReport($report);
+        if ($pci !== null) {
+            $report->pci_score = $pci;
+            $report->pci_calculated_at = now();
+            $report->saveQuietly();
+        }
 
         // Notifikasi ke pelapor
         $reporter = User::find($report->user_id);
