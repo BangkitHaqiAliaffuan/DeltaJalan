@@ -69,9 +69,11 @@ export function TopBar({
           </Link>
         ) : null}
         {showBrand ? (
-          <h1 className="font-headline-sm-mobile text-headline-sm-mobile font-extrabold text-primary">
-            DeltaJalan
-          </h1>
+          <Link to="/" className="no-underline">
+            <h1 className="font-headline-sm-mobile text-headline-sm-mobile font-extrabold text-primary">
+              DeltaJalan
+            </h1>
+          </Link>
         ) : title ? (
           <h1 className="font-headline-sm-mobile text-headline-sm-mobile font-bold text-on-surface">
             {title}
