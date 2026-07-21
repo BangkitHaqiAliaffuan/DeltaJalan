@@ -2,34 +2,29 @@
 #
 # start-dev-with-ngrok.sh — DeltaJalan desktop development launcher
 #
-# Starts only the services needed for desktop development (FastAPI + Vite frontend).
-# DETECTS if Laravel/ngrok are already running (e.g. from start-android.sh) and
-# skips them — no port conflicts, no duplicate .env writes.
+# INDEPENDEN — tidak perlu Laravel atau FastAPI lokal.
+# Semua API langsung ke production (api.deltajalan.web.id).
+# AI detection via Lambda Function URL (bukan FastAPI lokal).
+# Cukup jalankan Vite frontend + opsional ngrok tunnel.
 #
 # Usage:
 #   bash scripts/start-dev-with-ngrok.sh            # local dev (localhost:5173)
 #   bash scripts/start-dev-with-ngrok.sh --ngrok    # + ngrok tunnel ke Vite
-#
-# Prerequisites: Laravel backend must be running (start-android.sh or manual).
 #
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-BACKEND_AI_DIR="$PROJECT_ROOT/backend_AI"
 FRONTEND_DIR="$PROJECT_ROOT/Frontend-stable"
 VITE_CONFIG="$FRONTEND_DIR/vite.config.ts"
 
-LARAVEL_PORT=8080
-FASTAPI_PORT=8000
 VITE_PORT=5173
 
 USE_NGROK=false
 [[ "$1" == "--ngrok" || "$1" == "-n" ]] && USE_NGROK=true
 
 # Track what WE started (so cleanup only kills ours)
-STARTED_FASTAPI=false
 STARTED_VITE=false
 STARTED_NGROK=false
 VITE_CONFIG_BACKUP=""
@@ -45,10 +40,7 @@ poll_port() {
   if command -v nc &>/dev/null; then
     nc -z "$host" "$port" 2>/dev/null && return 0
   fi
-  if command -v curl &>/dev/null; then
-    curl -s -o /dev/null --connect-timeout 2 --max-time 3 "http://$host:$port" 2>/dev/null && return 0
-  fi
-  php -r "exit(@fsockopen('$host',$port)?0:1);" 2>/dev/null && return 0
+  curl -s -o /dev/null --connect-timeout 2 --max-time 3 "http://$host:$port" 2>/dev/null && return 0
   return 1
 }
 
@@ -113,17 +105,11 @@ cleanup() {
     write_step "OK" "Vite dihentikan"
   fi
 
-  if [ "$STARTED_FASTAPI" = true ]; then
-    kill "$FASTAPI_PID" 2>/dev/null || true
-    wait "$FASTAPI_PID" 2>/dev/null || true
-    write_step "OK" "FastAPI dihentikan"
-  fi
-
   if [ "$USE_NGROK" = true ]; then
     restore_vite_config
   fi
 
-  write_step "OK" "Selesai — service lain (Laravel, ngrok 8080) tetap berjalan"
+  write_step "OK" "Selesai"
 }
 trap cleanup EXIT INT TERM
 
@@ -137,9 +123,7 @@ echo ""
 write_step "---" "Memeriksa prerequisites..."
 OK=true
 
-command -v php &>/dev/null   || { write_step "X" "php tidak ditemukan"; OK=false; }
 command -v bun &>/dev/null   || { write_step "X" "bun tidak ditemukan"; OK=false; }
-command -v python &>/dev/null || { write_step "X" "python tidak ditemukan"; OK=false; }
 
 if [ "$USE_NGROK" = true ]; then
   command -v ngrok &>/dev/null || { write_step "X" "ngrok tidak ditemukan"; OK=false; }
@@ -149,40 +133,6 @@ if [ "$OK" != true ]; then
   echo ""; read -r -p "Press Enter to exit..."; exit 1
 fi
 write_step "OK" "Semua prerequisite OK"
-echo ""
-
-# ── Detect existing services ───────────────────────────────────────────────
-
-# Laravel (from start-android.sh or manual)
-write_step "..." "Memeriksa Laravel di port $LARAVEL_PORT"
-if poll_port $LARAVEL_PORT; then
-  write_step "OK" "Laravel sudah berjalan di port $LARAVEL_PORT (skip)"
-else
-  write_step "W" "Laravel tidak terdeteksi di port $LARAVEL_PORT"
-  write_step ".." "Jalankan 'bash scripts/start-android.sh' di terminal terpisah"
-  echo ""
-  write_step "X" "Laravel wajib berjalan. Hentikan script ini."
-  echo ""; read -r -p "Press Enter to exit..."; exit 1
-fi
-
-# FastAPI
-if poll_port $FASTAPI_PORT; then
-  write_step "OK" "FastAPI sudah berjalan di port $FASTAPI_PORT (skip)"
-else
-  write_step "---" "Menjalankan FastAPI AI Server..."
-  cd "$BACKEND_AI_DIR"
-  python -m uvicorn server:app --host 0.0.0.0 --port $FASTAPI_PORT &
-  FASTAPI_PID=$!
-  STARTED_FASTAPI=true
-  printf "   Menunggu" >&2
-  if wait_for_port $FASTAPI_PORT; then
-    echo "" >&2
-    write_step "OK" "FastAPI berjalan di http://localhost:$FASTAPI_PORT"
-  else
-    write_step "X" "FastAPI gagal start"
-    exit 1
-  fi
-fi
 echo ""
 
 # ── Vite Frontend ──────────────────────────────────────────────────────────
@@ -235,20 +185,16 @@ fi
 # ── Summary ─────────────────────────────────────────────────────────────────
 echo "✅ Semua service berjalan!"
 echo ""
-echo "📍 Local:     http://localhost:$VITE_PORT"
-echo "   API proxy: → http://localhost:$LARAVEL_PORT (via Vite)"
-echo "   FastAPI:    http://localhost:$FASTAPI_PORT"
+echo "📍 Local:    http://localhost:$VITE_PORT"
+echo "   API:      https://api.deltajalan.web.id/api (production)"
+echo "   AI:       Lambda Function URL (via production API)"
 if [ -n "$NGROK_URL" ]; then
-  echo "   Public:     $NGROK_URL"
+  echo "   Public:    $NGROK_URL (tunnel ke Vite)"
 fi
 echo ""
-echo "   Service dari start-android.sh (tidak disentuh):"
-echo "   - Laravel di $LARAVEL_PORT"
-echo "   - Ngrok tunnel ke $LARAVEL_PORT"
-echo "   - .env NGROK_URL & VITE_API_BASE_URL"
+echo "   Tidak perlu Laravel / FastAPI lokal — semua API ke production."
 echo ""
-echo "⚠️  Tekan Ctrl+C untuk menghentikan FastAPI + Vite + ngrok (5173)"
-echo "   Laravel dan ngrok (8080) tetap berjalan"
+echo "⚠️  Tekan Ctrl+C untuk menghentikan Vite + ngrok"
 echo ""
 
 # Keep running

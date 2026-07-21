@@ -742,6 +742,77 @@ function LandingPage() {
         </div>
       </section>
 
+      {/* ── 3 CARA MELAPOR ── */}
+      <section className="py-16 md:py-20 px-6 bg-white">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-12 md:mb-14">
+            <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-5">
+              <Icon name="apps" className="!text-[14px]" />
+              Platform
+            </span>
+            <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A] mt-2">
+              3 Cara Melapor
+            </h2>
+            <p className="mt-3 font-body-md text-body-md text-[#64748b] max-w-lg mx-auto">
+              Pilih platform yang paling nyaman untuk Anda melaporkan kerusakan jalan.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-5 md:gap-6">
+            {/* Telegram */}
+            <div className="bg-white border border-[#e0e7ff] rounded-2xl p-6 md:p-7 text-center hover:shadow-lg hover:shadow-[#1e40af]/5 transition-all duration-300">
+              <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Icon name="send" className="!text-[26px] text-[#1e40af]" />
+              </div>
+              <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-1">
+                Telegram Bot
+              </h3>
+              <p className="text-xs text-[#64748B] mb-3 font-mono">@DeltaJalanBot</p>
+              <p className="font-body-sm text-body-sm text-[#475569]">
+                Cukup kirim foto dan lokasi ke bot Telegram. Cepat, praktis, tanpa perlu install
+                aplikasi tambahan.
+              </p>
+            </div>
+
+            {/* Website */}
+            <div className="bg-white border border-[#e0e7ff] rounded-2xl p-6 md:p-7 text-center hover:shadow-lg hover:shadow-[#1e40af]/5 transition-all duration-300">
+              <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Icon name="language" className="!text-[26px] text-[#4338ca]" />
+              </div>
+              <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-1">
+                Website
+              </h3>
+              <p className="font-body-sm text-body-sm text-[#475569]">
+                Lapor melalui website di{" "}
+                <span className="font-semibold text-[#1e40af]">deltajalan.web.id/lapor</span>. Bisa
+                login untuk riwayat lengkap, atau tanpa login langsung kirim laporan.
+              </p>
+            </div>
+
+            {/* Aplikasi Android */}
+            <div className="bg-white border border-[#e0e7ff] rounded-2xl p-6 md:p-7 text-center hover:shadow-lg hover:shadow-[#1e40af]/5 transition-all duration-300">
+              <div className="w-12 h-12 bg-teal-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Icon name="android" className="!text-[26px] text-[#0d9488]" />
+              </div>
+              <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-1">
+                Aplikasi Android
+              </h3>
+              <p className="font-body-sm text-body-sm text-[#475569] mb-4">
+                Download aplikasi DeltaJalan untuk pengalaman terbaik. GPS otomatis, notifikasi
+                real-time, dan fitur lengkap.
+              </p>
+              <Link
+                to="/tentang"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1e40af] hover:underline"
+              >
+                Download Aplikasi
+                <Icon name="open_in_new" className="!text-[14px]" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* â”€â”€ AI KLASIFIKASI â€” 2-column â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <section className="py-20 md:py-28 px-6 bg-[#f8f9ff]">
         <div className="max-w-5xl mx-auto">

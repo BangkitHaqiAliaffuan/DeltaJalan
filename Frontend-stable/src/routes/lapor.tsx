@@ -153,6 +153,7 @@ function PublicLaporPage() {
   const cameraProps = getMobileCameraProps();
   const isCameraMode = "capture" in cameraProps;
   const isNative = isNativePlatform();
+  const isAndroidWeb = /Android/i.test(navigator.userAgent) && !isNative;
   const isBlocked =
     serverRemaining !== null ? serverRemaining <= 0 : getTodayUploadCount() >= UPLOAD_DAILY_LIMIT;
   const canSubmit =
@@ -902,6 +903,83 @@ function PublicLaporPage() {
                         </button>
                       </div>
                     </>
+                  )}
+                </>
+              ) : isAndroidWeb ? (
+                <>
+                  {processing ? (
+                    <div className="border-2 border-dashed border-[#c4c5d5] rounded-lg p-6 text-center">
+                      <div className="flex flex-col items-center gap-2 py-4">
+                        <span className="w-8 h-8 border-2 border-[#1e40af]/30 border-t-[#1e40af] rounded-full animate-spin" />
+                        <p className="text-xs text-[#476788]">Memproses foto...</p>
+                      </div>
+                    </div>
+                  ) : photos.length > 0 ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        {photoPreviews.map((preview, idx) => (
+                          <div
+                            key={idx}
+                            className="relative border border-[#c4c5d5] rounded-lg overflow-hidden"
+                          >
+                            {idx === 0 && (
+                              <span className="absolute top-1 left-1 bg-[#1e40af] text-white text-[10px] px-1.5 py-0.5 rounded font-semibold z-10">
+                                Utama
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => removePhoto(idx)}
+                              className="absolute top-1 right-1 bg-black/50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs z-10 hover:bg-black/70 transition-colors"
+                            >
+                              ✕
+                            </button>
+                            <img
+                              src={preview}
+                              alt={`Foto ${idx + 1}`}
+                              className="w-full h-28 object-cover"
+                            />
+                            <p className="text-[10px] text-[#476788] truncate px-1 py-0.5 bg-gray-50">
+                              {photos[idx]?.name}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="mt-2 w-full h-10 border border-[#c4c5d5] rounded-lg text-xs text-[#475569] font-semibold hover:bg-gray-50 transition-colors cursor-pointer"
+                      >
+                        Ambil Lagi
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full border-2 border-dashed border-[#c4c5d5] rounded-lg p-6 text-center hover:border-[#1e40af] hover:bg-blue-50/50 transition-colors cursor-pointer"
+                    >
+                      <div className="flex flex-col items-center gap-2 py-4">
+                        <Icon name="camera_alt" className="!text-4xl text-[#757684]" />
+                        <p className="text-sm text-[#757684]">Ambil Foto dengan Kamera</p>
+                        <p className="text-xs text-[#757684]">Kamera akan terbuka otomatis</p>
+                      </div>
+                    </button>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handlePhotosChange}
+                    className="hidden"
+                  />
+
+                  {cameraModel && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-[#476788] mt-1">
+                      <Icon name="photo_camera" className="!text-[14px]" />
+                      <span>Kamera: {cameraModel}</span>
+                    </div>
                   )}
                 </>
               ) : (

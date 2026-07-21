@@ -83,6 +83,7 @@ export function useDuplicateCheck(
       roadName?: string;
       fileHash?: string;
     }) => {
+      console.log("[DuplicateCheck] callCheck dipanggil dengan params:", JSON.stringify(params));
       if (abortControllerRef.current) abortControllerRef.current.abort();
       const controller = new AbortController();
       abortControllerRef.current = controller;
@@ -95,6 +96,7 @@ export function useDuplicateCheck(
           ? API_BASE_URL
           : `${window.location.origin}${API_BASE_URL}`;
         const url = new URL(`${base}/v1/reports/check-duplicate`);
+        console.log("[DuplicateCheck] URL:", url.toString());
         if (params.lat !== undefined && params.lng !== undefined) {
           url.searchParams.set("latitude", params.lat.toString());
           url.searchParams.set("longitude", params.lng.toString());
@@ -103,14 +105,17 @@ export function useDuplicateCheck(
         if (params.roadName) url.searchParams.set("road_name", params.roadName.trim());
         if (params.fileHash) url.searchParams.set("file_hash", params.fileHash);
 
+        console.log("[DuplicateCheck] Fetching:", url.toString());
         const res = await fetch(url.toString(), { signal: controller.signal });
         clearTimeout(timeoutId);
+        console.log("[DuplicateCheck] Response status:", res.status);
         if (!res.ok) {
           setActiveReport(null);
           setChecking(false);
           return;
         }
         const data = await res.json();
+        console.log("[DuplicateCheck] Response data:", JSON.stringify(data));
         setActiveReport(data.report ?? null);
 
         if (params.lat !== undefined && params.lng !== undefined && data.nearest_distance_meters != null) {
@@ -134,7 +139,8 @@ export function useDuplicateCheck(
           setNearestDistance(null);
         }
         setChecking(false);
-      } catch {
+      } catch (e) {
+        console.log("[DuplicateCheck] ERROR:", e);
         clearTimeout(timeoutId);
         setActiveReport(null);
         setChecking(false);
@@ -144,6 +150,7 @@ export function useDuplicateCheck(
   );
 
   useEffect(() => {
+    console.log("[DuplicateCheck] useEffect GPS:", { isGpsActive, lat, lng });
     if (isGpsActive && lat !== null && lng !== null) {
       callCheck({
         lat,
@@ -156,6 +163,7 @@ export function useDuplicateCheck(
   }, [isGpsActive, lat, lng]);
 
   useEffect(() => {
+    console.log("[DuplicateCheck] useEffect fileHash:", { fileHash });
     if (fileHash) {
       callCheck({
         lat: lat ?? undefined,
@@ -168,6 +176,7 @@ export function useDuplicateCheck(
   }, [fileHash]);
 
   useEffect(() => {
+    console.log("[DuplicateCheck] useEffect district:", { district });
     if (!district) return;
     callCheck({
       lat: lat ?? undefined,
