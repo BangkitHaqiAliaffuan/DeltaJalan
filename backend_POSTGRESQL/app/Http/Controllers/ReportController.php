@@ -20,6 +20,7 @@ use App\Notifications\ReportRejectedNotification;
 use App\Notifications\ReportReopenedNotification;
 // ── TRUST SCORE [NONAKTIF] — use App\Services\TrustScoreService;
 use App\Notifications\TeamAssignedNotification;
+use App\Services\DuplicateCheckService;
 use App\Services\PciService;
 use App\Notifications\TriageUpdatedNotification;
 use Illuminate\Http\Client\ConnectionException;
