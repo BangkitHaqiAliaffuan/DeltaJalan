@@ -79,6 +79,35 @@ class DuplicateCheckService
         return $query->orderBy('created_at', 'desc')->first();
     }
 
+    public function findNearest(float $lat, float $lng): ?array
+    {
+        if ($lat < -11 || $lat > 6 || $lng < 95 || $lng > 141) {
+            return null;
+        }
+
+        $row = DB::selectOne("
+            SELECT id, ROUND(
+                (6371000 * acos(
+                    LEAST(1.0, cos(radians(:lat1)) * cos(radians(latitude::float))
+                    * cos(radians(longitude::float) - radians(:lng1))
+                    + sin(radians(:lat2)) * sin(radians(latitude::float)))
+                ))::numeric, 1
+            ) AS distance_meters
+            FROM reports
+            WHERE status != 'Selesai'
+              AND latitude IS NOT NULL
+              AND longitude IS NOT NULL
+            ORDER BY distance_meters ASC
+            LIMIT 1
+        ", ['lat1' => $lat, 'lng1' => $lng, 'lat2' => $lat]);
+
+        if ($row) {
+            return ['id' => $row->id, 'distance_meters' => (float) $row->distance_meters];
+        }
+
+        return null;
+    }
+
     public function hasImageDuplicate(string $imageHash): bool
     {
         return Report::where('image_hash', $imageHash)->exists()

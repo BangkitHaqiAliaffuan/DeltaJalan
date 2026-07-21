@@ -112,14 +112,21 @@ export function useDuplicateCheck(
         }
         const data = await res.json();
         setActiveReport(data.report ?? null);
-        if (data.report && params.lat !== undefined && params.lng !== undefined) {
+
+        if (params.lat !== undefined && params.lng !== undefined && data.nearest_distance_meters != null) {
+          const reportCode = data.report?.report_code ?? "-";
+          console.log(
+            `[DuplicateCheck] ${reportCode} — ${data.nearest_distance_meters} meter (dari server)`,
+          );
+          setNearestDistance(Number(data.nearest_distance_meters));
+        } else if (data.report && params.lat !== undefined && params.lng !== undefined) {
           const dist = haversineDistance(
             params.lat, params.lng,
             data.report.latitude, data.report.longitude,
           );
           if (dist !== null) {
             console.log(
-              `[DuplicateCheck] Laporan terdekat: ${data.report.report_code} — ${dist.toFixed(1)} meter`,
+              `[DuplicateCheck] Laporan terdekat: ${data.report.report_code} — ${dist.toFixed(1)} meter (frontend)`,
             );
             setNearestDistance(dist);
           }

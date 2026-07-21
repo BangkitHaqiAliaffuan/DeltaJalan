@@ -189,9 +189,18 @@ class ReportController extends Controller
                 }
             }
 
+            $nearestDistance = null;
+            if ($lat !== null && $lng !== null && is_numeric($lat) && is_numeric($lng)) {
+                $nearest = $duplicateCheck->findNearest((float) $lat, (float) $lng);
+                if ($nearest) {
+                    $nearestDistance = $nearest['distance_meters'];
+                }
+            }
+
             return response()->json([
                 'has_active_report' => $foundReport !== null,
                 'report' => $foundReport,
+                'nearest_distance_meters' => $nearestDistance,
             ], 200);
 
         } catch (\Exception $e) {
@@ -200,6 +209,7 @@ class ReportController extends Controller
             return response()->json([
                 'has_active_report' => false,
                 'report' => null,
+                'nearest_distance_meters' => null,
             ], 200);
         }
     }
