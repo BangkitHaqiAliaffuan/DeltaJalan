@@ -253,6 +253,16 @@ class ReportController extends Controller
             ], 422);
         }
 
+        $maxEvidence = (int) config('app.max_evidence_per_report', 10);
+        $currentEvidenceCount = ReportPhoto::where('report_id', $report->id)->count();
+        if ($currentEvidenceCount >= $maxEvidence) {
+            return response()->json([
+                'success' => false,
+                'message' => "Laporan ini sudah memiliki {$currentEvidenceCount} foto bukti (maksimal {$maxEvidence}).",
+                'error_code' => 'MAX_EVIDENCE_REACHED',
+            ], 422);
+        }
+
         $imageFile = $request->file('image');
         $imageHash = $this->calculateImageHash($imageFile->getPathname());
 

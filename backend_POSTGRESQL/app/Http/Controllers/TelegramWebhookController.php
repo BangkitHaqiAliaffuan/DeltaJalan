@@ -943,6 +943,17 @@ class TelegramWebhookController extends Controller
             return $this->handleConfirm($session, $chatId);
         }
 
+        $maxEvidence = (int) config('app.max_evidence_per_report', 10);
+        $currentEvidenceCount = ReportPhoto::where('report_id', $report->id)->count();
+        if ($currentEvidenceCount >= $maxEvidence) {
+            $this->telegram->sendMessage($chatId,
+                "Laporan {$report->report_code} sudah memiliki {$currentEvidenceCount} foto bukti (maksimal {$maxEvidence}). Tidak dapat menambahkan dukungan lagi."
+            );
+            $session->update(['state' => 'idle', 'data' => null]);
+
+            return response()->json(['ok' => true]);
+        }
+
         // Copy photo as evidence to existing report
         $photoPath = $data['photo_path'];
         $fullPath = storage_path("app/public/{$photoPath}");

@@ -19,41 +19,37 @@ function WargaDashboard() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, diproses: 0, selesai: 0, ditolak: 0 });
 
-  const loadReports = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/warga/reports?per_page=5`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const json = await res.json();
-      if (json.success) {
-        const items = (json.data ?? []) as Laporan[];
-        setReports(items);
-        setStats({
-          total: json.meta?.total ?? items.length,
-          diproses: items.filter((r) =>
-            [
-              "Menunggu Review",
-              "Ditinjau",
-              "Disetujui",
-              "Sedang Diperbaiki",
-            ].includes(r.status),
-          ).length,
-          selesai: items.filter((r) => r.status === "Selesai").length,
-          ditolak: items.filter((r) => r.status === "Ditolak").length,
+  const loadReports = useCallback(
+    async (showLoader?: boolean) => {
+      if (showLoader) setLoading(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/warga/reports?per_page=5`, {
+          headers: { Authorization: `Bearer ${token}` },
         });
+        const json = await res.json();
+        if (json.success) {
+          const items = (json.data ?? []) as Laporan[];
+          setReports(items);
+          setStats({
+            total: json.meta?.total ?? items.length,
+            diproses: items.filter((r) =>
+              ["Menunggu Review", "Ditinjau", "Disetujui", "Sedang Diperbaiki"].includes(r.status),
+            ).length,
+            selesai: items.filter((r) => r.status === "Selesai").length,
+            ditolak: items.filter((r) => r.status === "Ditolak").length,
+          });
+        }
+      } catch {
+        // silent
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
+    },
+    [token],
+  );
 
   useEffect(() => {
-    loadReports();
-    const interval = setInterval(loadReports, 30_000);
-    return () => clearInterval(interval);
+    loadReports(true);
   }, [loadReports]);
 
   return (

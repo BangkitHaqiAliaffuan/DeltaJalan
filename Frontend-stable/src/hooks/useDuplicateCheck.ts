@@ -20,6 +20,7 @@ export interface UseActiveReportCheckReturn {
   activeReport: ActiveReport | null;
   addEvidenceState: AddEvidenceState;
   addEvidenceMessage: string;
+  evidenceLimitReached: boolean;
   submitEvidence: (
     reportId: string,
     file: File,
@@ -49,6 +50,7 @@ export function useDuplicateCheck(
 
   const [addEvidenceState, setAddEvidenceState] = useState<AddEvidenceState>("idle");
   const [addEvidenceMessage, setAddEvidenceMessage] = useState("");
+  const [evidenceLimitReached, setEvidenceLimitReached] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -189,7 +191,12 @@ export function useDuplicateCheck(
               ? "Foto ini sudah pernah dikirim sebelumnya."
               : data.error_code === "INVALID_STATUS"
                 ? data.message
-                : (data.message ?? "Gagal mengirim bukti foto.");
+                : data.error_code === "MAX_EVIDENCE_REACHED"
+                  ? data.message
+                  : (data.message ?? "Gagal mengirim bukti foto.");
+          if (data.error_code === "MAX_EVIDENCE_REACHED") {
+            setEvidenceLimitReached(true);
+          }
           setAddEvidenceState("error");
           setAddEvidenceMessage(msg);
           return;
@@ -214,6 +221,7 @@ export function useDuplicateCheck(
     setActiveReport(null);
     setAddEvidenceState("idle");
     setAddEvidenceMessage("");
+    setEvidenceLimitReached(false);
   }, []);
 
   return {
@@ -221,6 +229,7 @@ export function useDuplicateCheck(
     activeReport,
     addEvidenceState,
     addEvidenceMessage,
+    evidenceLimitReached,
     submitEvidence,
     reset,
   };

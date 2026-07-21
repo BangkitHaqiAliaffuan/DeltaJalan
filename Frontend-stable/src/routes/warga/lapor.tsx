@@ -900,6 +900,7 @@ function WargaLaporPage() {
                     activeReport={duplicateCheck.activeReport}
                     addEvidenceState={duplicateCheck.addEvidenceState}
                     addEvidenceMessage={duplicateCheck.addEvidenceMessage}
+                    evidenceLimitReached={duplicateCheck.evidenceLimitReached}
                     hasFile={photos.length > 0}
                     reporterName={reporterName}
                     onSendEvidence={(reportId) =>

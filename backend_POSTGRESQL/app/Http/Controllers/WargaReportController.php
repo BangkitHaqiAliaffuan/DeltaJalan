@@ -251,13 +251,37 @@ class WargaReportController extends Controller
     {
         $perPage = min((int) $request->query('per_page', 10), 50);
         $status = $request->query('status');
+        $search = $request->query('q');
+        $severity = $request->query('severity');
 
         $query = Report::where('user_id', auth()->id())
             ->whereIn('source', ['warga', 'telegram'])
             ->orderBy('created_at', 'desc');
 
         if ($status) {
-            $query->where('status', $status);
+            if ($status === 'Diproses') {
+                $query->whereIn('status', ['Menunggu Review', 'Ditinjau', 'Disetujui', 'Sedang Diperbaiki']);
+            } elseif ($status === 'Selesai') {
+                $query->where('status', 'Selesai');
+            } else {
+                $query->where('status', $status);
+            }
+        }
+
+        if ($severity) {
+            $query->where(function ($q) use ($severity) {
+                $q->where('overall_severity', $severity)
+                  ->orWhere('ai_severity', $severity);
+            });
+        }
+
+        if ($search) {
+            $q = '%'.strtolower($search).'%';
+            $query->where(function ($sub) use ($q) {
+                $sub->whereRaw('LOWER(report_code) LIKE ?', [$q])
+                    ->orWhereRaw('LOWER(road_name) LIKE ?', [$q])
+                    ->orWhereRaw('LOWER(district) LIKE ?', [$q]);
+            });
         }
 
         $reports = $query->paginate($perPage);

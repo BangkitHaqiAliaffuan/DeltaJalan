@@ -6,6 +6,7 @@ interface DuplicateCheckerProps {
   activeReport: ActiveReport | null;
   addEvidenceState: AddEvidenceState;
   addEvidenceMessage: string;
+  evidenceLimitReached: boolean;
   hasFile: boolean;
   reporterName: string;
   onSendEvidence?: (reportId: string) => void;
@@ -34,6 +35,7 @@ export function DuplicateChecker({
   activeReport,
   addEvidenceState,
   addEvidenceMessage,
+  evidenceLimitReached,
   hasFile,
   reporterName,
   onSendEvidence,
@@ -83,48 +85,57 @@ export function DuplicateChecker({
 
           {isEvidenceAllowed && onSendEvidence && (
             <div className="mt-2">
-              <p className="text-[11px] text-[#92400E] mb-2">
-                Laporan ini masih dalam review. Anda dapat melampirkan foto bukti tambahan.
-              </p>
-
-              {isSuccess && (
-                <div className="flex items-start gap-2 bg-[#D1FAE5] border border-[#6EE7B7] rounded-lg px-3 py-2 mb-2">
-                  <Icon
-                    name="check_circle"
-                    className="text-[#065F46] !text-[16px] shrink-0 mt-0.5"
-                    filled
-                  />
-                  <p className="text-[12px] text-[#065F46] leading-snug">{addEvidenceMessage}</p>
-                </div>
-              )}
-
-              {isError && (
-                <div className="flex items-start gap-2 bg-[#FEE2E2] border border-[#FCA5A5] rounded-lg px-3 py-2 mb-2">
+              {evidenceLimitReached ? (
+                <div className="flex items-start gap-2 bg-[#FEE2E2] border border-[#FCA5A5] rounded-lg px-3 py-2">
                   <Icon name="error" className="text-[#991B1B] !text-[16px] shrink-0 mt-0.5" />
                   <p className="text-[12px] text-[#991B1B] leading-snug">{addEvidenceMessage}</p>
                 </div>
-              )}
+              ) : (
+                <>
+                  <p className="text-[11px] text-[#92400E] mb-2">
+                    Laporan ini masih dalam review. Anda dapat melampirkan foto bukti tambahan.
+                  </p>
 
-              {!isSuccess && (
-                <button
-                  type="button"
-                  onClick={() => onSendEvidence(activeReport.id)}
-                  disabled={isSending || !hasFile}
-                  className="flex items-center justify-center gap-2 bg-[#FEF3C7] hover:bg-[#FDE68A] border border-[#FCD34D] text-[#92400E] rounded-xl px-4 py-2 text-[13px] font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 w-full"
-                  title={!hasFile ? "Pilih foto terlebih dahulu" : undefined}
-                >
-                  {isSending ? (
-                    <>
-                      <span className="w-4 h-4 border-2 border-[#92400E]/30 border-t-[#92400E] rounded-full animate-spin" />
-                      Mengirim bukti...
-                    </>
-                  ) : (
-                    <>
-                      <Icon name="add_a_photo" className="!text-[16px]" />
-                      Lampirkan Foto Bukti
-                    </>
+                  {isSuccess && (
+                    <div className="flex items-start gap-2 bg-[#D1FAE5] border border-[#6EE7B7] rounded-lg px-3 py-2 mb-2">
+                      <Icon
+                        name="check_circle"
+                        className="text-[#065F46] !text-[16px] shrink-0 mt-0.5"
+                        filled
+                      />
+                      <p className="text-[12px] text-[#065F46] leading-snug">{addEvidenceMessage}</p>
+                    </div>
                   )}
-                </button>
+
+                  {isError && (
+                    <div className="flex items-start gap-2 bg-[#FEE2E2] border border-[#FCA5A5] rounded-lg px-3 py-2 mb-2">
+                      <Icon name="error" className="text-[#991B1B] !text-[16px] shrink-0 mt-0.5" />
+                      <p className="text-[12px] text-[#991B1B] leading-snug">{addEvidenceMessage}</p>
+                    </div>
+                  )}
+
+                  {!isSuccess && (
+                    <button
+                      type="button"
+                      onClick={() => onSendEvidence(activeReport.id)}
+                      disabled={isSending || !hasFile}
+                      className="flex items-center justify-center gap-2 bg-[#FEF3C7] hover:bg-[#FDE68A] border border-[#FCD34D] text-[#92400E] rounded-xl px-4 py-2 text-[13px] font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 w-full"
+                      title={!hasFile ? "Pilih foto terlebih dahulu" : undefined}
+                    >
+                      {isSending ? (
+                        <>
+                          <span className="w-4 h-4 border-2 border-[#92400E]/30 border-t-[#92400E] rounded-full animate-spin" />
+                          Mengirim bukti...
+                        </>
+                      ) : (
+                        <>
+                          <Icon name="add_a_photo" className="!text-[16px]" />
+                          Lampirkan Foto Bukti
+                        </>
+                      )}
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}

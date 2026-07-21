@@ -130,6 +130,18 @@ return [
 
     'dedup_enabled' => env('DEDUP_ENABLED', true),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Max Evidence Per Report
+    |--------------------------------------------------------------------------
+    |
+    | Maksimal jumlah foto bukti yang dapat dilampirkan ke satu laporan
+    | melalui fitur "Dukung Laporan" (add evidence).
+    |
+    */
+
+    'max_evidence_per_report' => env('MAX_EVIDENCE_PER_REPORT', 10),
+
     'maintenance' => [
         'driver' => env('APP_MAINTENANCE_DRIVER', 'file'),
         'store' => env('APP_MAINTENANCE_STORE', 'database'),

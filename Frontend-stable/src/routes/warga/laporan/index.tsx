@@ -25,12 +25,9 @@ const FILTERS = [
 function matchFilter(report: Laporan, filter: string): boolean {
   if (filter === "all") return true;
   if (filter === "Diproses")
-    return [
-      "Menunggu Review",
-      "Ditinjau",
-      "Disetujui",
-      "Sedang Diperbaiki",
-    ].includes(report.status);
+    return ["Menunggu Review", "Ditinjau", "Disetujui", "Sedang Diperbaiki"].includes(
+      report.status,
+    );
   if (filter === "Selesai") return report.status === "Selesai";
   return (report.overall_severity ?? report.ai_severity ?? "") === filter;
 }
@@ -54,27 +51,29 @@ function WargaLaporanIndexPage() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const loadLaporan = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/warga/reports?per_page=20`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const json = await res.json();
-      if (json.success) {
-        setLaporan((json.data ?? []) as Laporan[]);
+  const loadLaporan = useCallback(
+    async (showLoader?: boolean) => {
+      if (showLoader) setIsLoading(true);
+      try {
+        const params = new URLSearchParams({ per_page: "20" });
+        const res = await fetch(`${API_BASE_URL}/warga/reports?${params}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await res.json();
+        if (json.success) {
+          setLaporan((json.data ?? []) as Laporan[]);
+        }
+      } catch {
+        // silent
+      } finally {
+        setIsLoading(false);
       }
-    } catch {
-      // silent
-    } finally {
-      setIsLoading(false);
-    }
-  }, [token]);
+    },
+    [token],
+  );
 
   useEffect(() => {
-    loadLaporan();
-    const interval = setInterval(loadLaporan, 30_000);
-    return () => clearInterval(interval);
+    loadLaporan(true);
   }, [loadLaporan]);
 
   const handleDeleteClick = useCallback((id: string) => {
@@ -91,7 +90,7 @@ function WargaLaporanIndexPage() {
       });
       if (res.ok) {
         setDeleteTarget(null);
-        loadLaporan();
+        loadLaporan(true);
       } else {
         const json = await res.json().catch(() => ({}));
         alert(json.message ?? "Gagal menghapus laporan.");
