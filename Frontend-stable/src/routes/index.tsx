@@ -1247,10 +1247,13 @@ function LandingPage() {
                   <Icon name="location_on" className="!text-[14px] text-[#6366f1]" />
                   Jl. Gubernur Suryo, Sidoarjo
                 </span>
-                <span className="font-body-sm text-body-sm flex items-center gap-2">
+                <a
+                  href="mailto:pu@binamarga.sidoarjokab.go.id"
+                  className="font-body-sm text-body-sm flex items-center gap-2 hover:text-white transition-colors"
+                >
                   <Icon name="alternate_email" className="!text-[14px] text-[#6366f1]" />
                   pu@binamarga.sidoarjokab.go.id
-                </span>
+                </a>
               </div>
             </div>
 
@@ -1278,22 +1281,17 @@ function LandingPage() {
 
             <div>
               <h4 className="font-label-md text-label-md font-semibold text-white mb-5 tracking-wide">
-                Kontak & Bantuan
+                Kontak
               </h4>
               <ul className="space-y-3">
                 <li>
-                  <Link
-                    to="/lacak"
-                    className="font-body-sm text-body-sm hover:text-white transition-colors"
+                  <a
+                    href="tel:031-8961100"
+                    className="font-body-sm text-body-sm flex items-center gap-1.5 hover:text-white transition-colors"
                   >
-                    Pusat Bantuan
-                  </Link>
-                </li>
-                <li>
-                  <span className="font-body-sm text-body-sm flex items-center gap-1.5">
                     <Icon name="phone" className="!text-[13px] text-[#6366f1]" />
                     031-8961100
-                  </span>
+                  </a>
                 </li>
                 <li>
                   <span className="font-body-sm text-body-sm cursor-default">
