@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { resolveImageUrl } from "@/lib/imageUrl";
 import { getCurrentUser, isLoggedIn } from "@/lib/auth";
-import { motion, useMotionValue, useSpring } from "motion/react";
+import { motion, useMotionValue, useSpring, AnimatePresence } from "motion/react";
 import Counter from "@/components/ui/Counter";
 
 const AnimatedContent = lazy(() => import("@/components/reactbits/AnimatedContent"));
@@ -477,19 +477,12 @@ function LandingPage() {
           >
             Lacak Laporan
           </Link>
-          {loggedIn ? (
+          {loggedIn && (
             <Link
               to={dashboardUrl(user!.role)}
               className={`font-label-md text-label-md transition-colors ${scrolled ? "text-[#475569] hover:text-[#1e40af]" : "text-white/80 hover:text-white"}`}
             >
               Dashboard
-            </Link>
-          ) : (
-            <Link
-              to="/login-petugas"
-              className={`font-label-md text-label-md transition-colors ${scrolled ? "text-[#475569] hover:text-[#1e40af]" : "text-white/80 hover:text-white"}`}
-            >
-              Petugas
             </Link>
           )}
           {loggedIn ? (
@@ -590,10 +583,11 @@ function LandingPage() {
               </Link>
               <Link
                 to="/lacak"
-                className="inline-flex items-center gap-2 border-2 border-white/20 text-white/60 font-label-sm text-label-sm font-medium px-5 py-3 rounded-2xl hover:bg-white/10 hover:border-white/40 hover:text-white/90 active:scale-[0.97] transition-all"
+                className="group relative inline-flex items-center gap-2.5 border-2 border-white/30 text-white/80 font-label-md text-label-md font-bold px-8 py-4 rounded-2xl hover:bg-white/10 hover:border-white/60 hover:text-white hover:shadow-2xl hover:shadow-white/10 active:scale-[0.97] transition-all overflow-hidden"
               >
-                <Icon name="search" className="!text-[16px]" />
-                Lacak Laporan
+                <span className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <Icon name="search" className="relative !text-[20px]" />
+                <span className="relative">Lacak Laporan</span>
               </Link>
             </div>
 
@@ -1011,108 +1005,124 @@ function LandingPage() {
             </div>
 
             <div
-              className="max-w-2xl mx-auto"
+              className="max-w-2xl mx-auto cursor-pointer"
               onMouseEnter={() => setIsPaused(true)}
               onMouseLeave={() => setIsPaused(false)}
             >
-              {activeTesti ? (
-                <SpotlightCard
-                  className="bg-white rounded-2xl p-8 border border-[#e0e7ff] shadow-xl shadow-[#1e40af]/6"
-                  spotlightColor="rgba(99, 102, 241, 0.1)"
-                >
-                  <div className="flex items-start justify-between mb-5">
-                    <div className="flex items-center gap-2 bg-[#d1fae5] text-[#065f46] rounded-full px-3 py-1">
-                      <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
-                      <span className="font-label-sm text-label-sm font-semibold">
-                        {activeTesti.status}
-                      </span>
-                    </div>
-                    <span className="font-label-sm text-label-sm text-[#94a3b8] font-mono">
-                      {activeTesti.report_code}
-                    </span>
-                  </div>
-
-                  {activeTesti.photo_url && activeTesti.after_photo_url ? (
-                    <div className="mb-5 rounded-xl overflow-hidden">
-                      <Suspense
-                        fallback={
-                          <div className="w-full aspect-[16/9] bg-gray-200 animate-pulse rounded-xl" />
-                        }
-                      >
-                        <BeforeAfterSlider
-                          beforeSrc={resolveImageUrl(activeTesti.photo_url) ?? ""}
-                          afterSrc={resolveImageUrl(activeTesti.after_photo_url) ?? ""}
-                          controlledPos={sliderPos}
-                          beforeLabel="Kerusakan"
-                          afterLabel="Perbaikan"
-                        />
-                      </Suspense>
-                    </div>
-                  ) : activeTesti.photo_url ? (
-                    <div className="relative w-full aspect-[16/9] rounded-xl overflow-hidden mb-5 bg-gray-100">
-                      {!imgLoaded[activeTesti.report_code] && (
-                        <div className="absolute inset-0 bg-gray-200 animate-pulse" />
-                      )}
-                      <img
-                        src={resolveImageUrl(activeTesti.photo_url) ?? ""}
-                        alt={activeTesti.road_name}
-                        className={`w-full h-full object-cover transition-opacity duration-300 ${
-                          imgLoaded[activeTesti.report_code] ? "opacity-100" : "opacity-0"
-                        }`}
-                        onLoad={() =>
-                          setImgLoaded((prev) => ({
-                            ...prev,
-                            [activeTesti.report_code]: true,
-                          }))
-                        }
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
-                          const parent = e.currentTarget.parentElement;
-                          if (parent) {
-                            const placeholder = parent.querySelector("[data-placeholder]");
-                            if (placeholder) {
-                              (placeholder as HTMLElement).style.display = "flex";
-                            }
-                          }
-                        }}
-                      />
-                      <div
-                        data-placeholder
-                        className="absolute inset-0 flex-col items-center justify-center text-[#94a3b8] hidden"
-                      >
-                        <Icon name="broken_image" className="!text-[32px] mb-1" />
-                        <span className="font-label-sm text-label-sm">Gagal memuat foto</span>
+              <AnimatePresence mode="wait" initial={false}>
+                {activeTesti ? (
+                  <motion.div
+                    key={testiIndex}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -12 }}
+                    transition={{ duration: 0.25, ease: "easeInOut" }}
+                  >
+                    <SpotlightCard
+                      className="bg-white rounded-2xl p-8 border border-[#e0e7ff] shadow-xl shadow-[#1e40af]/6 hover:shadow-2xl hover:shadow-[#1e40af]/15 hover:border-[#6366f1]/40 hover:-translate-y-0.5 transition-all duration-200"
+                      spotlightColor="rgba(99, 102, 241, 0.1)"
+                    >
+                      <div className="flex items-start justify-between mb-5">
+                        <div className={`flex items-center gap-2 rounded-full px-3 py-1 ${isPaused ? "bg-[#fef3c7] text-[#92400e]" : "bg-[#d1fae5] text-[#065f46]"}`}>
+                          <span className={`w-2 h-2 rounded-full ${isPaused ? "bg-[#f59e0b] animate-none" : "bg-[#10b981] animate-pulse"}`} />
+                          <span className="font-label-sm text-label-sm font-semibold">
+                            {isPaused ? "Dijeda" : activeTesti.status}
+                          </span>
+                        </div>
+                        <span className="font-label-sm text-label-sm text-[#94a3b8] font-mono">
+                          {activeTesti.report_code}
+                        </span>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="relative w-full aspect-[16/9] rounded-xl overflow-hidden mb-5 bg-gray-100 flex flex-col items-center justify-center text-[#94a3b8]">
-                      <Icon name="photo_camera" className="!text-[32px] mb-1" />
-                      <span className="font-label-sm text-label-sm">Tidak ada foto</span>
-                    </div>
-                  )}
 
-                  <h3 className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-2 leading-snug">
-                    {activeTesti.road_name}
-                  </h3>
-                  <p className="font-body-sm text-body-sm text-[#64748b] mb-5 line-clamp-2 leading-relaxed">
-                    {activeTesti.description || "Tidak ada deskripsi."}
-                  </p>
-                  <div className="flex items-center gap-1.5 text-[#6366f1] font-label-sm text-label-sm">
-                    <Icon name="location_on" className="!text-[14px]" />
-                    {activeTesti.district}
-                  </div>
-                </SpotlightCard>
-              ) : (
-                <div className="bg-white rounded-2xl p-10 border border-[#e0e7ff] shadow-sm text-center">
-                  <Icon
-                    name="sentiment_satisfied"
-                    className="!text-[44px] text-[#6366f1] mx-auto mb-3"
-                  />
-                  <p className="font-body-md text-body-md text-[#64748b]">
-                    Belum ada laporan yang selesai ditangani.
-                  </p>
-                </div>
-              )}
+                      {activeTesti.photo_url && activeTesti.after_photo_url ? (
+                        <div className="mb-5 rounded-xl overflow-hidden">
+                          <Suspense
+                            fallback={
+                              <div className="w-full aspect-[16/9] bg-gray-200 animate-pulse rounded-xl" />
+                            }
+                          >
+                            <BeforeAfterSlider
+                              beforeSrc={resolveImageUrl(activeTesti.photo_url) ?? ""}
+                              afterSrc={resolveImageUrl(activeTesti.after_photo_url) ?? ""}
+                              controlledPos={sliderPos}
+                              beforeLabel="Kerusakan"
+                              afterLabel="Perbaikan"
+                            />
+                          </Suspense>
+                        </div>
+                      ) : activeTesti.photo_url ? (
+                        <div className="relative w-full aspect-[16/9] rounded-xl overflow-hidden mb-5 bg-gray-100">
+                          {!imgLoaded[activeTesti.report_code] && (
+                            <div className="absolute inset-0 bg-gray-200 animate-pulse" />
+                          )}
+                          <img
+                            src={resolveImageUrl(activeTesti.photo_url) ?? ""}
+                            alt={activeTesti.road_name}
+                            className={`w-full h-full object-cover transition-opacity duration-300 ${
+                              imgLoaded[activeTesti.report_code] ? "opacity-100" : "opacity-0"
+                            }`}
+                            onLoad={() =>
+                              setImgLoaded((prev) => ({
+                                ...prev,
+                                [activeTesti.report_code]: true,
+                              }))
+                            }
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                              const parent = e.currentTarget.parentElement;
+                              if (parent) {
+                                const placeholder = parent.querySelector("[data-placeholder]");
+                                if (placeholder) {
+                                  (placeholder as HTMLElement).style.display = "flex";
+                                }
+                              }
+                            }}
+                          />
+                          <div
+                            data-placeholder
+                            className="absolute inset-0 flex-col items-center justify-center text-[#94a3b8] hidden"
+                          >
+                            <Icon name="broken_image" className="!text-[32px] mb-1" />
+                            <span className="font-label-sm text-label-sm">Gagal memuat foto</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="relative w-full aspect-[16/9] rounded-xl overflow-hidden mb-5 bg-gray-100 flex flex-col items-center justify-center text-[#94a3b8]">
+                          <Icon name="photo_camera" className="!text-[32px] mb-1" />
+                          <span className="font-label-sm text-label-sm">Tidak ada foto</span>
+                        </div>
+                      )}
+
+                      <h3 className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-2 leading-snug">
+                        {activeTesti.road_name}
+                      </h3>
+                      <p className="font-body-sm text-body-sm text-[#64748b] mb-5 line-clamp-2 leading-relaxed">
+                        {activeTesti.description || "Tidak ada deskripsi."}
+                      </p>
+                      <div className="flex items-center gap-1.5 text-[#6366f1] font-label-sm text-label-sm">
+                        <Icon name="location_on" className="!text-[14px]" />
+                        {activeTesti.district}
+                      </div>
+                    </SpotlightCard>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="empty"
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.25, ease: "easeInOut" }}
+                  >
+                    <div className="bg-white rounded-2xl p-10 border border-[#e0e7ff] shadow-sm text-center">
+                      <Icon
+                        name="sentiment_satisfied"
+                        className="!text-[44px] text-[#6366f1] mx-auto mb-3"
+                      />
+                      <p className="font-body-md text-body-md text-[#64748b]">
+                        Belum ada laporan yang selesai ditangani.
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Dots indicator */}
               {testimonials.length > 1 && (
@@ -1220,10 +1230,11 @@ function LandingPage() {
                   </Link>
                   <Link
                     to="/lacak"
-                    className="inline-flex items-center gap-2 border-2 border-white/20 text-white/60 font-label-sm text-label-sm font-medium px-5 py-3 rounded-2xl hover:bg-white/10 hover:border-white/40 hover:text-white/90 active:scale-[0.97] transition-all"
+                    className="group relative inline-flex items-center gap-2.5 border-2 border-white/30 text-white/80 font-label-md text-label-md font-bold px-8 py-4 rounded-2xl hover:bg-white/10 hover:border-white/60 hover:text-white hover:shadow-2xl hover:shadow-white/10 active:scale-[0.97] transition-all overflow-hidden"
                   >
-                    <Icon name="search" className="!text-[16px]" />
-                    Lacak Laporan
+                    <span className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    <Icon name="search" className="relative !text-[20px]" />
+                    <span className="relative">Lacak Laporan</span>
                   </Link>
                 </div>
               </div>
