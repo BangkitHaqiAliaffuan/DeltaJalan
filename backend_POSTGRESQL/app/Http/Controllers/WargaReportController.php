@@ -430,11 +430,12 @@ class WargaReportController extends Controller
         $inProgress = Report::whereNotIn('status', ['Selesai', 'Ditolak'])->count();
 
         $recentReports = Report::with('firstPhoto')
+            ->with('afterPhotos')
             ->where('status', 'Selesai')
             ->whereNotNull('road_name')
             ->orderBy('updated_at', 'desc')
             ->take(5)
-            ->get(['id', 'report_code', 'road_name', 'district', 'status', 'description', 'updated_at', 'image_original_path']);
+            ->get(['id', 'report_code', 'road_name', 'district', 'status', 'description', 'updated_at', 'image_original_path', 'after_photo_path']);
 
         $kecamatan = $this->getKecamatanList();
 
@@ -454,6 +455,7 @@ class WargaReportController extends Controller
                     'description' => $r->description,
                     'updated_at' => $r->updated_at?->toIso8601String(),
                     'photo_url' => $r->first_photo_url,
+                    'after_photo_url' => $r->after_photo_url ?? ($r->afterPhotos->first()?->url ?? null),
                 ]),
             ],
         ]);

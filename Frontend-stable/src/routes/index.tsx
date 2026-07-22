@@ -14,6 +14,7 @@ const BlurText = lazy(() => import("@/components/reactbits/BlurText"));
 const GradientText = lazy(() => import("@/components/reactbits/GradientText"));
 const Marquee = lazy(() => import("@/components/reactbits/Marquee"));
 const LandingMapPreview = lazy(() => import("@/components/jk/LandingMapPreview"));
+const BeforeAfterSlider = lazy(() => import("@/components/jk/BeforeAfterSlider"));
 
 export const Route = createFileRoute("/")({
   component: LandingPage,
@@ -42,6 +43,7 @@ interface StatsData {
     description: string;
     updated_at: string;
     photo_url?: string;
+    after_photo_url?: string | null;
   }[];
 }
 
@@ -985,7 +987,20 @@ function LandingPage() {
                     </span>
                   </div>
 
-                  {activeTesti.photo_url ? (
+                  {activeTesti.photo_url && activeTesti.after_photo_url ? (
+                    <div className="mb-5 rounded-xl overflow-hidden">
+                      <Suspense
+                        fallback={
+                          <div className="w-full aspect-[16/9] bg-gray-200 animate-pulse rounded-xl" />
+                        }
+                      >
+                        <BeforeAfterSlider
+                          beforeSrc={resolveImageUrl(activeTesti.photo_url) ?? ""}
+                          afterSrc={resolveImageUrl(activeTesti.after_photo_url) ?? ""}
+                        />
+                      </Suspense>
+                    </div>
+                  ) : activeTesti.photo_url ? (
                     <div className="relative w-full aspect-[16/9] rounded-xl overflow-hidden mb-5 bg-gray-100">
                       {!imgLoaded[activeTesti.report_code] && (
                         <div className="absolute inset-0 bg-gray-200 animate-pulse" />
