@@ -14,7 +14,9 @@ const BlurText = lazy(() => import("@/components/reactbits/BlurText"));
 const GradientText = lazy(() => import("@/components/reactbits/GradientText"));
 const Marquee = lazy(() => import("@/components/reactbits/Marquee"));
 const LandingMapPreview = lazy(() => import("@/components/jk/LandingMapPreview"));
-const BeforeAfterSlider = lazy(() => import("@/components/jk/BeforeAfterSlider"));
+const BeforeAfterSlider = lazy(() =>
+  import("@/components/jk/BeforeAfterSlider").then((m) => ({ default: m.BeforeAfterSlider }))
+);
 
 export const Route = createFileRoute("/")({
   component: LandingPage,
@@ -288,6 +290,8 @@ function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
   const [testiIndex, setTestiIndex] = useState(0);
   const [imgLoaded, setImgLoaded] = useState<Record<string, boolean>>({});
+  const [sliderPos, setSliderPos] = useState(100);
+  const [isPaused, setIsPaused] = useState(false);
   const [activeFaqIdx] = useState<number | null>(null);
 
   const { data: statsRes } = useQuery({
@@ -364,16 +368,53 @@ function LandingPage() {
     return () => ctx?.revert();
   }, []);
 
-  // Auto-cycle testimonials
-  useEffect(() => {
-    const len = stats?.recent_reports?.length ?? 0;
-    if (len <= 1) return;
-    const t = setInterval(() => setTestiIndex((p) => (p + 1) % len), 4000);
-    return () => clearInterval(t);
-  }, [stats?.recent_reports?.length]);
-
   const testimonials = stats?.recent_reports ?? [];
   const activeTesti = testimonials[testiIndex] ?? null;
+
+  // Auto-cycle testimonials — before → wipe → after → next
+  useEffect(() => {
+    const len = testimonials.length;
+    if (len <= 1 || isPaused) return;
+
+    let cancelled = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const current = testimonials[testiIndex];
+    if (!current) return;
+
+    const hasBoth = !!(current.photo_url && current.after_photo_url);
+
+    function schedule(fn: () => void, delay: number) {
+      const t = setTimeout(() => {
+        if (!cancelled) fn();
+      }, delay);
+      timers.push(t);
+    }
+
+    if (hasBoth) {
+      setSliderPos(100);
+      schedule(() => {
+        if (cancelled) return;
+        setSliderPos(0);
+        schedule(() => {
+          if (cancelled) return;
+          setSliderPos(100);
+          setTestiIndex((p) => (p + 1) % len);
+        }, 5500);
+      }, 4000);
+    } else {
+      schedule(() => {
+        if (cancelled) return;
+        setSliderPos(100);
+        setTestiIndex((p) => (p + 1) % len);
+      }, 7000);
+    }
+
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+    };
+  }, [testiIndex, testimonials, isPaused]);
+
   const user = getCurrentUser();
   const loggedIn = isLoggedIn();
 
@@ -969,7 +1010,11 @@ function LandingPage() {
               </p>
             </div>
 
-            <div className="max-w-2xl mx-auto">
+            <div
+              className="max-w-2xl mx-auto"
+              onMouseEnter={() => setIsPaused(true)}
+              onMouseLeave={() => setIsPaused(false)}
+            >
               {activeTesti ? (
                 <SpotlightCard
                   className="bg-white rounded-2xl p-8 border border-[#e0e7ff] shadow-xl shadow-[#1e40af]/6"
@@ -997,6 +1042,9 @@ function LandingPage() {
                         <BeforeAfterSlider
                           beforeSrc={resolveImageUrl(activeTesti.photo_url) ?? ""}
                           afterSrc={resolveImageUrl(activeTesti.after_photo_url) ?? ""}
+                          controlledPos={sliderPos}
+                          beforeLabel="Kerusakan"
+                          afterLabel="Perbaikan"
                         />
                       </Suspense>
                     </div>
@@ -1073,7 +1121,10 @@ function LandingPage() {
                     <button
                       key={i}
                       type="button"
-                      onClick={() => setTestiIndex(i)}
+                      onClick={() => {
+                        setSliderPos(100);
+                        setTestiIndex(i);
+                      }}
                       className={`rounded-full transition-all ${
                         i === testiIndex
                           ? "w-6 h-2 bg-[#1e40af]"
