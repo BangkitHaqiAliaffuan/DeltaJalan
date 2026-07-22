@@ -87,6 +87,12 @@ Route::get('/v1/reports/remaining', [WargaReportController::class, 'checkRemaini
 Route::get('/v1/public/reports/{reportCode}', [WargaReportController::class, 'publicShow'])
     ->middleware('throttle:30,1');
 
+/**
+ * GET /api/public/download-apk
+ * Download aplikasi Android DeltaJalan (APK).
+ */
+Route::get('/public/download-apk', [\App\Http\Controllers\ApkDownloadController::class, 'download']);
+
 // ── Routes yang memerlukan autentikasi Sanctum ────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
     /**

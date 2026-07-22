@@ -816,13 +816,24 @@ function LandingPage() {
                 Download aplikasi DeltaJalan untuk pengalaman terbaik. GPS otomatis, notifikasi
                 real-time, dan fitur lengkap.
               </p>
-              <Link
-                to="/tentang"
-                className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1e40af] hover:underline"
-              >
-                Download Aplikasi
-                <Icon name="open_in_new" className="!text-[14px]" />
-              </Link>
+              <div className="flex flex-col items-center gap-3">
+                <img
+                  src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=https%3A%2F%2Fapi.deltajalan.web.id%2Fapi%2Fpublic%2Fdownload-apk"
+                  alt="QR Code download DeltaJalan"
+                  className="w-[120px] h-[120px] rounded-lg border border-[#e0e7ff]"
+                  loading="lazy"
+                />
+                <span className="font-label-sm text-label-sm text-[#94a3b8]">Scan QR dengan HP</span>
+                <a
+                  href="https://api.deltajalan.web.id/api/public/download-apk"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1e40af] hover:text-[#2e68d8] transition-colors"
+                >
+                  <Icon name="file_download" className="!text-[16px]" />
+                  Download APK (22 MB)
+                </a>
+              </div>
             </div>
           </div>
         </div>
