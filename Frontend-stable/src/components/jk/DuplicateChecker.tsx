@@ -43,6 +43,7 @@ export function DuplicateChecker({
   onSendEvidence,
   onOverride,
 }: DuplicateCheckerProps) {
+  if (import.meta.env.VITE_DEDUP_ENABLED === "false") return null;
   if (checking) {
     return (
       <div className="flex items-center gap-2.5 bg-[#EFF6FF] border border-[#93C5FD] rounded-xl px-4 py-3">

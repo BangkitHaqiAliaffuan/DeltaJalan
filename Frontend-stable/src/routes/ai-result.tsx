@@ -525,7 +525,7 @@ function AiResultPage() {
     const compressedFile = await compressImage(safeFile);
 
     // Guard 4: Duplication check (non-blocking, pakai safeFile)
-    try {
+    if (import.meta.env.VITE_DEDUP_ENABLED !== "false") try {
       const hash = await computeFileHash(compressedFile);
       const token = getToken() ?? "";
       const url = new URL(

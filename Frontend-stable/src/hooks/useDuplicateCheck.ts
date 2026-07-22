@@ -56,6 +56,8 @@ export interface UseActiveReportCheckReturn {
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
+const DEDUP_ENABLED = import.meta.env.VITE_DEDUP_ENABLED !== "false";
+
 export function useDuplicateCheck(
   lat: number | null,
   lng: number | null,
@@ -83,6 +85,10 @@ export function useDuplicateCheck(
       roadName?: string;
       fileHash?: string;
     }) => {
+      if (!DEDUP_ENABLED) {
+        setChecking(false);
+        return;
+      }
       console.log("[DuplicateCheck] callCheck dipanggil dengan params:", JSON.stringify(params));
       if (abortControllerRef.current) abortControllerRef.current.abort();
       const controller = new AbortController();
@@ -217,6 +223,11 @@ export function useDuplicateCheck(
         kerusakanLebar?: string;
       },
     ) => {
+      if (!DEDUP_ENABLED) {
+        setAddEvidenceState("error");
+        setAddEvidenceMessage("Fitur bukti laporan dinonaktifkan.");
+        return;
+      }
       setAddEvidenceState("loading");
       setAddEvidenceMessage("");
 
