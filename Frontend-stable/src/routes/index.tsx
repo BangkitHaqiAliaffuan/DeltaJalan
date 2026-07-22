@@ -412,7 +412,7 @@ function LandingPage() {
       {/* â”€â”€ NAVBAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <nav
         ref={navRef}
-        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 md:px-12 transition-all duration-400 ${
+        className={`fixed top-0 left-0 right-0 z-[1000] flex items-center justify-between px-6 py-4 md:px-12 transition-all duration-400 ${
           scrolled
             ? "bg-white/90 backdrop-blur-xl shadow-sm shadow-[#1e40af]/8 border-b border-[#e0e7ff]"
             : "bg-transparent"
