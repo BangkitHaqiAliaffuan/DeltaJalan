@@ -806,8 +806,8 @@ function LandingPage() {
 
             {/* Aplikasi Android */}
             <div className="bg-white border border-[#e0e7ff] rounded-2xl p-6 md:p-7 text-center hover:shadow-lg hover:shadow-[#1e40af]/5 transition-all duration-300">
-              <div className="w-12 h-12 bg-teal-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Icon name="android" className="!text-[26px] text-[#0d9488]" />
+              <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Icon name="android" className="!text-[26px] text-[#1e40af]" />
               </div>
               <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-1">
                 Aplikasi Android
