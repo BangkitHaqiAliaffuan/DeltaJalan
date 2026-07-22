@@ -52,7 +52,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 Route::get('/v1/reports/check-duplicate', [ReportController::class, 'checkDuplicate']);
 
 // ── Auth routes (public) ──────────────────────────────────────────────────
-Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
 Route::get('/auth/me', [AuthController::class, 'me'])->middleware('auth:sanctum');

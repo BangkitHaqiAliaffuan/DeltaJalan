@@ -45,7 +45,7 @@ return Application::configure(basePath: dirname(__DIR__))
         | uncomment baris di bawah agar IP dan URL terdeteksi dengan benar.
         |
         */
-        $middleware->trustProxies(at: '*');
+        $middleware->trustProxies(at: '127.0.0.1');
 
         $middleware->alias([
             'role' => CheckRole::class,

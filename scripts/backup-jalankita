@@ -3,7 +3,7 @@ set -e
 BACKUP_DIR=/var/www/deltajalan/backups
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
-PGPASSWORD='HaqiGoesToRomania1!' pg_dump -U deltajalan -h localhost deltajalan_backend > $BACKUP_DIR/db_$TIMESTAMP.sql
+pg_dump -U deltajalan -h localhost deltajalan_backend > $BACKUP_DIR/db_$TIMESTAMP.sql
 gzip $BACKUP_DIR/db_$TIMESTAMP.sql
 
 tar -czf $BACKUP_DIR/storage_$TIMESTAMP.tar.gz -C /var/www/deltajalan storage/app/public 2>/dev/null || true
