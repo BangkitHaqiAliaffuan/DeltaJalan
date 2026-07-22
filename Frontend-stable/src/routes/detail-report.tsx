@@ -102,6 +102,12 @@ function DetailReportPage() {
   const [showMulaiConfirm, setShowMulaiConfirm] = useState(false);
   const [now, setNow] = useState(Date.now());
 
+  // Admin state
+  const isAdmin = userRole === "admin";
+  const [showAdminStatusModal, setShowAdminStatusModal] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [adminStatusLoading, setAdminStatusLoading] = useState(false);
+
   useEffect(() => {
     if (!report || ["Selesai", "Ditolak"].includes(report.status)) return;
     const timer = setInterval(() => setNow(Date.now()), 30000);
@@ -616,6 +622,33 @@ function DetailReportPage() {
             >
               <Icon name="check_circle" className="!text-[20px]" />
               Selesaikan
+            </button>
+          </div>
+          {showBack()}
+        </FooterWrapper>
+      );
+    }
+
+    // Admin: action controls
+    if (isAdmin) {
+      return (
+        <FooterWrapper>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setShowAdminStatusModal(true)}
+              className="flex-1 py-2.5 md:py-3 min-h-[40px] bg-white border border-[#1A4F8A] text-[#1A4F8A] rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#F8FAFC] active:scale-[0.98] transition-all"
+            >
+              <Icon name="swap_horiz" className="!text-[20px]" />
+              Ubah Status
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmDeleteId(report!.id)}
+              className="flex-1 py-2.5 md:py-3 min-h-[40px] bg-[#FFF5F5] border border-[#FECACA] text-[#DC2626] rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#FEF2F2] active:scale-[0.98] transition-all"
+            >
+              <Icon name="delete" className="!text-[20px]" />
+              Hapus
             </button>
           </div>
           {showBack()}
@@ -1395,6 +1428,55 @@ function DetailReportPage() {
           </div>
         </Portal>
       )}
+
+      {/* ── Admin Status Modal ── */}
+      {showAdminStatusModal && report && (
+        <AdminStatusModal
+          id={report.id}
+          code={report.report_code}
+          current={report.status}
+          token={token}
+          loading={adminStatusLoading}
+          onLoading={setAdminStatusLoading}
+          onClose={() => {
+            setShowAdminStatusModal(false);
+            if (!adminStatusLoading) refreshReport();
+          }}
+          onDone={() => {
+            setShowAdminStatusModal(false);
+            refreshReport();
+          }}
+        />
+      )}
+
+      {/* ── Admin Delete Confirm ── */}
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        title="Hapus Laporan"
+        message={`Yakin ingin menghapus laporan ini? Tindakan ini tidak dapat dibatalkan.`}
+        confirmText="Ya, Hapus"
+        confirmLoading={adminStatusLoading}
+        onConfirm={() => {
+          if (!confirmDeleteId) return;
+          setAdminStatusLoading(true);
+          fetch(`${API_BASE_URL}/admin/reports/${confirmDeleteId}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          })
+            .then((r) => r.json())
+            .then(() => {
+              setConfirmDeleteId(null);
+              setAdminStatusLoading(false);
+              navigate({ to: "/admin/reports" });
+            })
+            .catch(() => {
+              setAdminStatusLoading(false);
+              setConfirmDeleteId(null);
+            });
+        }}
+        onCancel={() => setConfirmDeleteId(null)}
+        icon="delete"
+      />
     </>
   );
 }
@@ -1406,6 +1488,115 @@ function FooterWrapper({ children }: { children: React.ReactNode }) {
     <footer className="fixed bottom-0 left-0 right-0 md:left-64 z-30 bg-white border-t border-[#E2E8F0] shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
       <div className="px-4 md:px-6 py-3 md:py-4 flex flex-col gap-2 md:gap-3">{children}</div>
     </footer>
+  );
+}
+
+const ADMIN_STATUSES = [
+  "Menunggu Review",
+  "Hasil AI",
+  "Disetujui",
+  "Ditolak",
+  "Sedang Diperbaiki",
+  "Selesai",
+];
+
+function AdminStatusModal({
+  id,
+  code,
+  current,
+  token,
+  loading,
+  onLoading,
+  onClose,
+  onDone,
+}: {
+  id: string;
+  code: string;
+  current: string;
+  token: string;
+  loading: boolean;
+  onLoading: (v: boolean) => void;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [selected, setSelected] = useState("");
+  const [error, setError] = useState("");
+
+  async function handleSave() {
+    if (!selected || selected === current) return;
+    onLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/reports/${id}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: selected }),
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        setError(j.message ?? "Gagal mengubah status.");
+        onLoading(false);
+        return;
+      }
+      onDone();
+    } catch {
+      setError("Terjadi kesalahan jaringan.");
+      onLoading(false);
+    }
+  }
+
+  return (
+    <ModalBase
+      onClose={onClose}
+      icon="swap_horiz"
+      badge="UBAH STATUS"
+      title="Ubah Status Laporan"
+      footer={
+        <div className="flex items-center gap-3 w-full">
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="flex-1 h-11 border border-[#E2E8F0] rounded-lg text-[13px] font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40 transition-colors"
+          >
+            Batal
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!selected || loading}
+            className="flex-1 h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold hover:bg-[#0F3A6A] disabled:opacity-40 transition-all flex items-center justify-center gap-1"
+          >
+            {loading ? (
+              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              "Simpan"
+            )}
+          </button>
+        </div>
+      }
+    >
+      <p className="text-[13px] text-[#64748B] mb-1">
+        {code} — Status saat ini: <span className="font-semibold text-[#0F172A]">{current}</span>
+      </p>
+      <div className="flex flex-col gap-2">
+        {ADMIN_STATUSES.filter((s) => s !== current).map((s) => (
+          <label
+            key={s}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${selected === s ? "border-[#1A4F8A] bg-[#F0F4FF]" : "border-[#E2E8F0] hover:bg-[#F8FAFC]"}`}
+          >
+            <input
+              type="radio"
+              name="status"
+              value={s}
+              checked={selected === s}
+              onChange={(e) => setSelected(e.target.value)}
+              className="accent-[#1A4F8A]"
+            />
+            <span className="text-[13px] font-medium text-[#0F172A]">{s}</span>
+          </label>
+        ))}
+      </div>
+      {error && <p className="text-[12px] text-[#E11D48]">{error}</p>}
+    </ModalBase>
   );
 }
 

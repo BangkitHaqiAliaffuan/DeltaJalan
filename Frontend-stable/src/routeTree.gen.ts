@@ -45,6 +45,7 @@ import { Route as LaporanReportCodeRouteImport } from './routes/laporan.$reportC
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as AdminTeamsRouteImport } from './routes/admin/teams'
 import { Route as AdminReportsRouteImport } from './routes/admin/reports'
+import { Route as AdminPciRouteImport } from './routes/admin/pci'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as AdminExportRouteImport } from './routes/admin/export'
 import { Route as AdminDashboardRouteImport } from './routes/admin/dashboard'
@@ -236,6 +237,11 @@ const AdminReportsRoute = AdminReportsRouteImport.update({
   path: '/admin/reports',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminPciRoute = AdminPciRouteImport.update({
+  id: '/admin/pci',
+  path: '/admin/pci',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminLoginRoute = AdminLoginRouteImport.update({
   id: '/admin/login',
   path: '/admin/login',
@@ -315,6 +321,7 @@ export interface FileRoutesByFullPath {
   '/admin/dashboard': typeof AdminDashboardRoute
   '/admin/export': typeof AdminExportRoute
   '/admin/login': typeof AdminLoginRoute
+  '/admin/pci': typeof AdminPciRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/teams': typeof AdminTeamsRoute
   '/admin/users': typeof AdminUsersRoute
@@ -360,6 +367,7 @@ export interface FileRoutesByTo {
   '/admin/dashboard': typeof AdminDashboardRoute
   '/admin/export': typeof AdminExportRoute
   '/admin/login': typeof AdminLoginRoute
+  '/admin/pci': typeof AdminPciRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/teams': typeof AdminTeamsRoute
   '/admin/users': typeof AdminUsersRoute
@@ -406,6 +414,7 @@ export interface FileRoutesById {
   '/admin/dashboard': typeof AdminDashboardRoute
   '/admin/export': typeof AdminExportRoute
   '/admin/login': typeof AdminLoginRoute
+  '/admin/pci': typeof AdminPciRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/teams': typeof AdminTeamsRoute
   '/admin/users': typeof AdminUsersRoute
@@ -455,6 +464,7 @@ export interface FileRouteTypes {
     | '/admin/dashboard'
     | '/admin/export'
     | '/admin/login'
+    | '/admin/pci'
     | '/admin/reports'
     | '/admin/teams'
     | '/admin/users'
@@ -500,6 +510,7 @@ export interface FileRouteTypes {
     | '/admin/dashboard'
     | '/admin/export'
     | '/admin/login'
+    | '/admin/pci'
     | '/admin/reports'
     | '/admin/teams'
     | '/admin/users'
@@ -545,6 +556,7 @@ export interface FileRouteTypes {
     | '/admin/dashboard'
     | '/admin/export'
     | '/admin/login'
+    | '/admin/pci'
     | '/admin/reports'
     | '/admin/teams'
     | '/admin/users'
@@ -593,6 +605,7 @@ export interface RootRouteChildren {
   AdminDashboardRoute: typeof AdminDashboardRoute
   AdminExportRoute: typeof AdminExportRoute
   AdminLoginRoute: typeof AdminLoginRoute
+  AdminPciRoute: typeof AdminPciRoute
   AdminReportsRoute: typeof AdminReportsRoute
   AdminTeamsRoute: typeof AdminTeamsRoute
   AdminUsersRoute: typeof AdminUsersRoute
@@ -854,6 +867,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/pci': {
+      id: '/admin/pci'
+      path: '/admin/pci'
+      fullPath: '/admin/pci'
+      preLoaderRoute: typeof AdminPciRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/login': {
       id: '/admin/login'
       path: '/admin/login'
@@ -1011,6 +1031,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminDashboardRoute: AdminDashboardRoute,
   AdminExportRoute: AdminExportRoute,
   AdminLoginRoute: AdminLoginRoute,
+  AdminPciRoute: AdminPciRoute,
   AdminReportsRoute: AdminReportsRoute,
   AdminTeamsRoute: AdminTeamsRoute,
   AdminUsersRoute: AdminUsersRoute,

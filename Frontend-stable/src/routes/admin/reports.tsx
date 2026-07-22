@@ -54,6 +54,10 @@ function AdminReports() {
     current: string;
   } | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkModal, setBulkModal] = useState<"approve" | "tolak" | null>(null);
+  const [bulkAlasan, setBulkAlasan] = useState("");
+  const [bulkLoading, setBulkLoading] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -131,6 +135,57 @@ function AdminReports() {
 
   const teams: { id: number; name: string }[] = teamsQuery.data?.data ?? [];
 
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === reports.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(reports.map((r) => r.id)));
+    }
+  }
+
+  async function handleBulkApprove() {
+    setBulkLoading(true);
+    try {
+      const res = await fetch("/api/reports/bulk-approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      await res.json();
+    } catch {}
+    setBulkLoading(false);
+    setBulkModal(null);
+    setSelectedIds(new Set());
+    qc.invalidateQueries({ queryKey: ["admin-reports"] });
+  }
+
+  async function handleBulkTolak() {
+    if (!bulkAlasan.trim()) return;
+    setBulkLoading(true);
+    try {
+      const res = await fetch("/api/reports/bulk-tolak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ids: Array.from(selectedIds), alasan: bulkAlasan }),
+      });
+      await res.json();
+    } catch {}
+    setBulkLoading(false);
+    setBulkModal(null);
+    setBulkAlasan("");
+    setSelectedIds(new Set());
+    qc.invalidateQueries({ queryKey: ["admin-reports"] });
+  }
+
   function handleFilterChange() {
     if (page !== 1) setPage(1);
   }
@@ -193,6 +248,37 @@ function AdminReports() {
             ))}
           </select>
         </div>
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-[#EEF2FF] border-b border-[#C7D2FE]">
+            <span className="text-[12px] font-semibold text-[#1A4F8A]">
+              {selectedIds.size} laporan dipilih
+            </span>
+            <div className="flex-1" />
+            <button
+              onClick={() => setBulkModal("approve")}
+              disabled={bulkLoading}
+              className="px-3 py-1.5 text-[12px] font-semibold bg-[#1A4F8A] text-white rounded-lg hover:bg-[#0F3A6A] disabled:opacity-40 transition-colors flex items-center gap-1"
+            >
+              <Icon name="check" className="!text-[14px]" />
+              Setujui
+            </button>
+            <button
+              onClick={() => setBulkModal("tolak")}
+              disabled={bulkLoading}
+              className="px-3 py-1.5 text-[12px] font-semibold bg-[#FFF5F5] border border-[#FECACA] text-[#DC2626] rounded-lg hover:bg-[#FEF2F2] disabled:opacity-40 transition-colors flex items-center gap-1"
+            >
+              <Icon name="close" className="!text-[14px]" />
+              Tolak
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              disabled={bulkLoading}
+              className="px-3 py-1.5 text-[12px] font-semibold text-[#64748B] hover:bg-[#E2E8F0] rounded-lg transition-colors"
+            >
+              Batal
+            </button>
+          </div>
+        )}
         <div className="overflow-x-auto">
           {reportsQuery.isPending ? (
             <div className="p-8 text-center text-[#64748B]">Memuat data...</div>
@@ -203,6 +289,14 @@ function AdminReports() {
               <table className="w-full text-[13px]">
                 <thead>
                   <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
+                    <th className="w-10 py-3 px-2 text-center">
+                      <input
+                        type="checkbox"
+                        checked={reports.length > 0 && selectedIds.size === reports.length}
+                        onChange={toggleSelectAll}
+                        className="accent-[#1A4F8A] w-4 h-4"
+                      />
+                    </th>
                     <th className="text-left py-3 px-4 font-semibold text-[#475569]">Kode</th>
                     <th className="text-left py-3 px-4 font-semibold text-[#475569]">Ruas Jalan</th>
                     <th className="text-left py-3 px-4 font-semibold text-[#475569]">Kecamatan</th>
@@ -224,8 +318,16 @@ function AdminReports() {
                     reports.map((r) => (
                       <tr
                         key={r.id}
-                        className="border-b border-[#E2E8F0] last:border-0 hover:bg-[#F8FAFC]"
+                        className={`border-b border-[#E2E8F0] last:border-0 hover:bg-[#F8FAFC] ${selectedIds.has(r.id) ? "bg-blue-50/50" : ""}`}
                       >
+                        <td className="w-10 py-3 px-2 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(r.id)}
+                            onChange={() => toggleSelect(r.id)}
+                            className="accent-[#1A4F8A] w-4 h-4"
+                          />
+                        </td>
                         <td className="py-3 px-4 font-mono text-[12px] font-semibold text-[#0F172A]">
                           {r.report_code}
                         </td>
@@ -374,6 +476,63 @@ function AdminReports() {
             qc.invalidateQueries({ queryKey: ["admin-reports"] });
           }}
         />
+      )}
+
+      {/* ── Bulk Approve Confirm ── */}
+      <ConfirmDialog
+        open={bulkModal === "approve"}
+        title="Setujui Laporan"
+        message={`Setujui ${selectedIds.size} laporan yang dipilih?`}
+        confirmText="Ya, Setujui"
+        confirmLoading={bulkLoading}
+        onConfirm={handleBulkApprove}
+        onCancel={() => setBulkModal(null)}
+        icon="check"
+        confirmClassName="flex-1 px-4 py-2.5 text-[13px] font-bold text-white bg-[#1A4F8A] rounded-xl hover:bg-[#0F3A6A] disabled:opacity-40 transition-all flex items-center justify-center gap-1.5"
+      />
+
+      {/* ── Bulk Tolak Modal ── */}
+      {bulkModal === "tolak" && (
+        <ModalBase
+          onClose={() => { if (!bulkLoading) setBulkModal(null); }}
+          icon="close"
+          badge="TOLAK LAPORAN"
+          title="Tolak Laporan"
+          footer={
+            <div className="flex items-center gap-3 w-full">
+              <button
+                onClick={() => setBulkModal(null)}
+                disabled={bulkLoading}
+                className="flex-1 h-11 border border-[#E2E8F0] rounded-lg text-[13px] font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40 transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleBulkTolak}
+                disabled={!bulkAlasan.trim() || bulkLoading}
+                className="flex-1 h-11 bg-[#E11D48] text-white rounded-lg text-[14px] font-semibold hover:bg-[#BE123C] disabled:opacity-40 transition-all flex items-center justify-center gap-1"
+              >
+                {bulkLoading ? (
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  "Tolak"
+                )}
+              </button>
+            </div>
+          }
+        >
+          <p className="text-[13px] text-[#64748B] mb-3">
+            Tolak {selectedIds.size} laporan yang dipilih. Sertakan alasan penolakan.
+          </p>
+          <textarea
+            value={bulkAlasan}
+            onChange={(e) => setBulkAlasan(e.target.value)}
+            placeholder="Alasan penolakan..."
+            rows={3}
+            disabled={bulkLoading}
+            className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-[13px] resize-none focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A] disabled:opacity-40"
+          />
+        </ModalBase>
       )}
     </div>
   );

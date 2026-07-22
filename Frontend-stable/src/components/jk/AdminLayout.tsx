@@ -1,5 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { Icon } from "@/components/jk/Icon";
+import { NotificationBell } from "@/components/jk/NotificationBell";
 import { getCurrentUser, clearAuth } from "@/lib/auth";
 import { useEffect, useState, type ReactNode } from "react";
 
@@ -11,6 +12,12 @@ const ADMIN_MENU = [
       { icon: "people", label: "User", to: "/admin/users" },
       { icon: "groups", label: "Tim Satgas", to: "/admin/teams" },
       { icon: "description", label: "Laporan", to: "/admin/reports" },
+    ],
+  },
+  {
+    section: "Pemantauan",
+    items: [
+      { icon: "road", label: "PCI", to: "/admin/pci" },
     ],
   },
   {
@@ -136,9 +143,7 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
             <Icon name="menu" className="!text-[22px]" />
           </button>
           <div className="flex-1" />
-          <button className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-[#F1F5F9] transition-colors text-[#475569] relative">
-            <Icon name="notifications" className="!text-[22px]" />
-          </button>
+          <NotificationBell />
           <div className="w-8 h-8 rounded-full bg-[#1e40af] flex items-center justify-center text-white text-[12px] font-bold shrink-0">
             {user?.initials ?? "A"}
           </div>

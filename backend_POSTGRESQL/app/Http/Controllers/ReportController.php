@@ -2878,8 +2878,12 @@ class ReportController extends Controller
      */
     public function bulkApprove(Request $request): JsonResponse
     {
-        $ids = $request->validate(['ids' => 'required|array', 'ids.*' => 'string|uuid']);
         $user = auth()->user();
+        if (!in_array($user->role, ['admin', 'supervisor'])) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+        }
+
+        $ids = $request->validate(['ids' => 'required|array', 'ids.*' => 'string|uuid']);
 
         $reports = Report::whereIn('id', $ids['ids'])
             ->whereIn('status', ['Menunggu Review', 'Ditinjau'])
@@ -2919,12 +2923,16 @@ class ReportController extends Controller
      */
     public function bulkTolak(Request $request): JsonResponse
     {
+        $user = auth()->user();
+        if (!in_array($user->role, ['admin', 'supervisor'])) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+        }
+
         $validated = $request->validate([
             'ids' => 'required|array',
             'ids.*' => 'string|uuid',
             'alasan' => 'required|string|max:500',
         ]);
-        $user = auth()->user();
 
         $reports = Report::whereIn('id', $validated['ids'])
             ->whereIn('status', ['Menunggu Review', 'Ditinjau'])

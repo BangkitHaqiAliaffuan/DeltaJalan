@@ -139,8 +139,8 @@ function AdminDashboard() {
           <div className="h-7 w-60 bg-white/20 rounded animate-pulse mb-2" />
           <div className="h-5 w-48 bg-white/20 rounded animate-pulse" />
         </section>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 mb-6">
-          {[1, 2, 3, 4].map((i) => (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4 mb-6">
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
             <div
               key={i}
               className="bg-gradient-to-br from-[#EEF2FF] to-white border border-[#C7D2FE] rounded-xl p-4 aspect-square flex flex-col items-center justify-center"
@@ -197,26 +197,17 @@ function AdminDashboard() {
         </div>
       </section>
 
-      <div className="grid margin-top grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
         {[
-          {
-            label: "Total Laporan",
-            value: stats?.total ?? 0,
-            icon: "description",
-            color: "text-[#1e40af]",
-          },
-          {
-            label: "Selesai",
-            value: selesaiBulanIni,
-            icon: "check_circle",
-            color: "text-[#059669]",
-          },
-          {
-            label: "Menunggu Review",
-            value: stats?.menunggu_review ?? 0,
-            icon: "rate_review",
-            color: "text-[#D97706]",
-          },
+          { label: "Total Laporan", value: stats?.total ?? 0, icon: "description", color: "text-[#1e40af]" },
+          { label: "Selesai", value: selesaiBulanIni, icon: "check_circle", color: "text-[#059669]" },
+          { label: "Menunggu Review", value: stats?.menunggu_review ?? 0, icon: "rate_review", color: "text-[#D97706]" },
+          { label: "Disetujui", value: stats?.disetujui ?? 0, icon: "thumb_up", color: "text-[#2563EB]" },
+          { label: "Sedang Diperbaiki", value: stats?.sedang_diperbaiki ?? 0, icon: "build", color: "text-[#F97316]" },
+          { label: "Ditolak", value: stats?.ditolak ?? 0, icon: "block", color: "text-[#E11D48]" },
+          { label: "Rusak Berat", value: stats?.rusak_berat ?? 0, icon: "report", color: "text-[#E11D48]" },
+          { label: "Rusak Sedang", value: stats?.rusak_sedang ?? 0, icon: "warning_amber", color: "text-[#F97316]" },
+          { label: "Rusak Ringan", value: stats?.rusak_ringan ?? 0, icon: "info", color: "text-[#F59E0B]" },
         ].map((card) => (
           <div
             key={card.label}
