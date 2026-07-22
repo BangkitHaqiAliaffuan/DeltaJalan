@@ -8,6 +8,7 @@ interface BeforeAfterSliderProps {
   afterLabel?: string;
   panjang?: number | null;
   lebar?: number | null;
+  controlledPos?: number;
 }
 
 export function BeforeAfterSlider({
@@ -17,6 +18,7 @@ export function BeforeAfterSlider({
   afterLabel = "Sesudah",
   panjang,
   lebar,
+  controlledPos,
 }: BeforeAfterSliderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const beforeBlob = useBlobImage(beforeSrc || undefined);
@@ -25,6 +27,23 @@ export function BeforeAfterSlider({
   const [aspect, setAspect] = useState<number | null>(null);
   const [imgLoaded, setImgLoaded] = useState(0);
   const draggingRef = useRef(false);
+
+  const isControlled = controlledPos !== undefined;
+  const prevCtlRef = useRef(controlledPos);
+  const [showTransition, setShowTransition] = useState(false);
+
+  useEffect(() => {
+    if (!isControlled) return;
+    const prev = prevCtlRef.current;
+    prevCtlRef.current = controlledPos;
+    if (prev !== undefined && controlledPos !== undefined) {
+      setShowTransition(prev > controlledPos);
+    } else {
+      setShowTransition(false);
+    }
+  }, [controlledPos, isControlled]);
+
+  const displayPos = isControlled ? controlledPos : sliderPos;
 
   const getPositionFromEvent = useCallback((e: MouseEvent | TouchEvent) => {
     if (!containerRef.current) return;
@@ -93,7 +112,13 @@ export function BeforeAfterSlider({
       />
 
       {/* Before image (clipped from right via clip-path) */}
-      <div className="absolute inset-0" style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}>
+      <div
+        className="absolute inset-0"
+        style={{
+          clipPath: `inset(0 ${100 - displayPos}% 0 0)`,
+          transition: showTransition ? "clip-path 1.5s ease-in-out" : undefined,
+        }}
+      >
         <img
           src={beforeBlob}
           alt={beforeLabel}
@@ -118,10 +143,9 @@ export function BeforeAfterSlider({
 
       {/* Divider line + handle */}
       <div
-        className="absolute top-0 bottom-0 w-0.5 bg-white z-20 cursor-col-resize"
-        style={{ left: `${sliderPos}%`, transform: "translateX(-50%)" }}
-        onMouseDown={onDragStart}
-        onTouchStart={onDragStart}
+        className={`absolute top-0 bottom-0 w-0.5 bg-white z-20 ${isControlled ? "" : "cursor-col-resize"}`}
+        style={{ left: `${displayPos}%`, transform: "translateX(-50%)" }}
+        {...(isControlled ? {} : { onMouseDown: onDragStart, onTouchStart: onDragStart })}
       >
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -145,16 +169,22 @@ export function BeforeAfterSlider({
 
       {/* Labels */}
       <div
-        className="absolute top-3 left-3 z-20 pointer-events-none transition-opacity"
-        style={{ opacity: bothLoaded ? 1 : 0 }}
+        className="absolute top-3 left-3 z-20 pointer-events-none transition-opacity duration-300"
+        style={{
+          opacity:
+            bothLoaded && (!isControlled || controlledPos! > 10) ? 1 : 0,
+        }}
       >
         <span className="px-2 py-1 text-[10px] font-bold text-white bg-black/50 rounded-md">
           {beforeLabel}
         </span>
       </div>
       <div
-        className="absolute top-3 right-3 z-20 pointer-events-none transition-opacity"
-        style={{ opacity: bothLoaded ? 1 : 0 }}
+        className="absolute top-3 right-3 z-20 pointer-events-none transition-opacity duration-300"
+        style={{
+          opacity:
+            bothLoaded && (!isControlled || controlledPos! < 90) ? 1 : 0,
+        }}
       >
         <span className="px-2 py-1 text-[10px] font-bold text-white bg-black/50 rounded-md">
           {afterLabel}

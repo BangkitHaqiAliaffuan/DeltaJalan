@@ -13,6 +13,7 @@ interface PageLayoutProps {
   withBottomNav?: boolean;
   fullPage?: boolean;
   onRefresh?: () => Promise<void>;
+  hideFab?: boolean;
   children: React.ReactNode;
 }
 
@@ -24,6 +25,7 @@ export function PageLayout({
   withBottomNav,
   fullPage,
   onRefresh,
+  hideFab,
   children,
 }: PageLayoutProps) {
   const content = fullPage ? (
@@ -45,7 +47,7 @@ export function PageLayout({
             <div className="shrink-0 sticky bottom-0 z-10">
               <BottomNav />
             </div>
-            <Fab />
+            {!hideFab && <Fab />}
           </>
         )}
       </div>

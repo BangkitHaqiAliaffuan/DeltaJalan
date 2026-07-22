@@ -53,7 +53,7 @@ function WargaDashboard() {
   }, [loadReports]);
 
   return (
-    <PageLayout showBrand withBottomNav onRefresh={loadReports}>
+    <PageLayout showBrand withBottomNav onRefresh={loadReports} hideFab>
       <main className="pb-4">
         <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] p-6 text-white">
           <div className="flex items-start justify-between">

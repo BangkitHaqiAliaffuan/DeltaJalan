@@ -606,7 +606,7 @@ function WargaLaporPage() {
 
   if (!initialized) {
     return (
-      <PageLayout showBrand withBottomNav>
+      <PageLayout showBrand withBottomNav hideFab>
         <main className="flex-1 flex items-center justify-center">
           <span className="w-8 h-8 border-2 border-[#1e40af]/30 border-t-[#1e40af] rounded-full animate-spin" />
         </main>
@@ -615,7 +615,7 @@ function WargaLaporPage() {
   }
 
   return (
-    <PageLayout showBrand withBottomNav>
+    <PageLayout showBrand withBottomNav hideFab>
       <main className="pb-20">
         {!success && isBlocked ? (
           <>
