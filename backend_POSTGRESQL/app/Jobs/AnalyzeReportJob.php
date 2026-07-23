@@ -96,7 +96,7 @@ class AnalyzeReportJob implements ShouldQueue
                 'overall_severity' => $data['overall_severity'],
                 'ai_confidence' => $data['confidence'] ?? $data['max_confidence'] ?? null,
                 'total_detections' => $data['total_detections'] ?? 0,
-                'ai_raw_output' => $data['detections'] ?? $data,
+                'ai_raw_output' => $data,
                 'image_result_path' => $resultPath,
                 'system_notes' => $report->system_notes
                     ? $report->system_notes.' | [AI] Analisis otomatis selesai.'

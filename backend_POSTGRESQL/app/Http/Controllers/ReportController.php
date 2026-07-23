@@ -2212,7 +2212,7 @@ class ReportController extends Controller
             'overall_severity' => $aiData['overall_severity'],
             'ai_confidence' => $aiData['confidence'] ?? $aiData['max_confidence'] ?? null,
             'total_detections' => $aiData['total'] ?? 0,
-            'ai_raw_output' => $aiData['detections'] ?? $aiData,
+            'ai_raw_output' => $aiData,
             'image_result_path' => $resultPath ?? $report->image_result_path,
         ]);
 
@@ -2221,7 +2221,7 @@ class ReportController extends Controller
             'ai_severity' => $aiData['overall_severity'],
             'ai_confidence' => $aiData['confidence'] ?? $aiData['max_confidence'] ?? null,
             'total_detections' => $aiData['total'] ?? 0,
-            'ai_raw_output' => $aiData['detections'] ?? $aiData,
+            'ai_raw_output' => $aiData,
             'image_result_path' => $resultPath ?? $photo->image_result_path,
         ]);
 
@@ -2422,7 +2422,7 @@ class ReportController extends Controller
             'ditugaskan_at' => $now,
             'overall_severity' => $aiData['overall_severity'],
             'total_detections' => $aiData['total'] ?? 0,
-            'ai_raw_output' => $aiData['detections'] ?? $aiData,
+            'ai_raw_output' => $aiData,
             'image_result_path' => $resultPath ?? $report->image_result_path,
             'ai_jenis_kerusakan' => $aiData['detection_type'] ?? $aiData['overall_severity'],
             'ai_severity' => $aiData['overall_severity'],
@@ -2440,7 +2440,7 @@ class ReportController extends Controller
             'ai_severity' => $aiData['overall_severity'],
             'ai_confidence' => $aiData['confidence'] ?? $aiData['max_confidence'] ?? null,
             'total_detections' => $aiData['total'] ?? 0,
-            'ai_raw_output' => $aiData['detections'] ?? $aiData,
+            'ai_raw_output' => $aiData,
             'image_result_path' => $resultPath ?? $photo->image_result_path,
             'ai_analyzed_at' => $now,
         ]);
