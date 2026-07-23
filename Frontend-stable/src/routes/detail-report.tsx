@@ -20,6 +20,7 @@ import { TimelineCard } from "@/components/jk/TimelineCard";
 import { ProgressTimeline } from "@/components/jk/ProgressTimeline";
 import { ProgressUpdateModal } from "@/components/jk/ProgressUpdateModal";
 import { DetectionList } from "@/components/jk/DetectionList";
+import { PciCard } from "@/components/jk/PciCard";
 import { Portal } from "@/components/jk/Portal";
 import { ModalBase } from "@/components/jk/ModalBase";
 import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
@@ -961,6 +962,9 @@ function DetailReportPage() {
               )}
               <DeadlineCard report={report} isClient={isClient} now={now} compact />
             </div>
+
+            {/* ── PCI ── */}
+            {report.pci_score != null && <PciCard score={report.pci_score} />}
 
             {/* ── Info Jalan ── */}
             <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">

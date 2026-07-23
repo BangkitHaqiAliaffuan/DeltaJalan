@@ -1877,6 +1877,14 @@ class ReportController extends Controller
 
         $mainReport = $result['main_report'];
 
+        // ── Hitung PCI ──
+        $pci = app(PciService::class)->calculateFromReport($mainReport);
+        if ($pci !== null) {
+            $mainReport->pci_score = $pci;
+            $mainReport->pci_calculated_at = now();
+            $mainReport->saveQuietly();
+        }
+
         $reporterName = $mainReport->reporter_name;
         $dailyCount = Report::where('reporter_name', $reporterName)
             ->whereDate('created_at', today())

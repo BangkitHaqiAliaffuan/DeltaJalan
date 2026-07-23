@@ -8,6 +8,7 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
 import { apiFetch } from "@/lib/api";
+import { pciColor } from "@/lib/pci";
 
 export const Route = createFileRoute("/admin/reports")({
   component: RouteComponent,
@@ -45,6 +46,7 @@ function AdminReports() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [uptdFilter, setUptdFilter] = useState("");
+  const [pciFilter, setPciFilter] = useState("");
   const [page, setPage] = useState(1);
   const [actionMenuReportId, setActionMenuReportId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -86,11 +88,12 @@ function AdminReports() {
   if (search) params.set("q", search);
   if (statusFilter) params.set("status", statusFilter);
   if (uptdFilter) params.set("uptd_id", uptdFilter);
+  if (pciFilter) params.set("pci", pciFilter);
   params.set("page", String(page));
   params.set("limit", "20");
 
   const reportsQuery = useQuery({
-    queryKey: ["admin-reports", search, statusFilter, uptdFilter, page],
+    queryKey: ["admin-reports", search, statusFilter, uptdFilter, pciFilter, page],
     queryFn: () =>
       apiFetch(`/api/reports?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -117,6 +120,7 @@ function AdminReports() {
           road_name: string;
           district: string;
           overall_severity: string;
+          pci_score: number | null;
           status: string;
           assigned_team_name: string | null;
           created_at: string;
@@ -232,6 +236,19 @@ function AdminReports() {
             <option value="Ditolak">Ditolak</option>
           </select>
           <select
+            value={pciFilter}
+            onChange={(e) => {
+              setPciFilter(e.target.value);
+              handleFilterChange();
+            }}
+            className="h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px]"
+          >
+            <option value="">Semua PCI</option>
+            <option value="kritis">Kritis (&le;40)</option>
+            <option value="sedang">Sedang (41-70)</option>
+            <option value="baik">Baik (71-100)</option>
+          </select>
+          <select
             value={uptdFilter}
             onChange={(e) => {
               setUptdFilter(e.target.value);
@@ -301,6 +318,7 @@ function AdminReports() {
                     <th className="text-left py-3 px-4 font-semibold text-[#475569]">Ruas Jalan</th>
                     <th className="text-left py-3 px-4 font-semibold text-[#475569]">Kecamatan</th>
                     <th className="text-left py-3 px-4 font-semibold text-[#475569]">Severity</th>
+                    <th className="text-left py-3 px-4 font-semibold text-[#475569]">PCI</th>
                     <th className="text-left py-3 px-4 font-semibold text-[#475569]">Status</th>
                     <th className="text-left py-3 px-4 font-semibold text-[#475569]">Tim Satgas</th>
                     <th className="text-left py-3 px-4 font-semibold text-[#475569]">Tanggal</th>
@@ -310,7 +328,7 @@ function AdminReports() {
                 <tbody>
                   {reports.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-[#64748B]">
+                      <td colSpan={10} className="py-8 text-center text-[#64748B]">
                         Tidak ada laporan.
                       </td>
                     </tr>
@@ -339,6 +357,15 @@ function AdminReports() {
                           >
                             {r.overall_severity}
                           </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          {r.pci_score != null ? (
+                            <span className="text-[12px] font-semibold" style={{ color: pciColor(r.pci_score) }}>
+                              {r.pci_score.toFixed(0)}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-[#94A3B8]">—</span>
+                          )}
                         </td>
                         <td className="py-3 px-4">
                           <span

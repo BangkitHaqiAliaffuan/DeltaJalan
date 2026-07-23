@@ -34,3 +34,6 @@ Schedule::command('patrol:reminder-morning')->dailyAt('09:00');
 
 // Patrol reminder jam 16:00 — ingatkan menyelesaikan laporan patrol hari ini
 Schedule::command('patrol:reminder-evening')->dailyAt('16:00');
+
+// Rekalkulasi PCI setiap jam — update laporan yang AI-nya selesai diproses via queue
+Schedule::command('pci:recalculate')->hourly();

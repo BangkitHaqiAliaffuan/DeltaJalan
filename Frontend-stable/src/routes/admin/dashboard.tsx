@@ -5,7 +5,8 @@ import { requireAdmin } from "@/lib/adminGuard";
 import { getCurrentUser, getToken } from "@/lib/auth";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { authFetch } from "@/hooks/useReportQueries";
+import { authFetch, type PciOverview } from "@/hooks/useReportQueries";
+import { pciColor, pciConditionLabel } from "@/lib/pci";
 import "./admin.css";
 
 export const Route = createFileRoute("/admin/dashboard")({
@@ -149,8 +150,16 @@ function AdminDashboard() {
     refetchInterval: 120_000,
   });
 
+  const pciOverviewQuery = useQuery({
+    queryKey: ["admin-pci-overview"],
+    queryFn: () =>
+      authFetch<PciOverview>("/api/pci/overview", token),
+    refetchInterval: 120_000,
+  });
+
   const stats = statsQuery.data;
   const uptdList = uptdQuery.data;
+  const pciOverview = pciOverviewQuery.data;
   const isLoading = statsQuery.isPending || uptdQuery.isPending;
   const hasError = statsQuery.isError || uptdQuery.isError;
 
@@ -427,6 +436,84 @@ function AdminDashboard() {
         className="bg-white border border-[#E2E8F0] rounded-xl"
         style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
       >
+        <div className="bg-white border border-[#E2E8F0] rounded-xl mb-4">
+          <div className="px-4 py-4 border-b border-[#E2E8F0]">
+            <h2 className="font-headline-sm text-headline-sm font-bold text-[#0F172A]">
+              Indeks Kondisi Jalan (PCI)
+            </h2>
+          </div>
+          <div className="p-4">
+            {pciOverviewQuery.isPending ? (
+              <div className="flex gap-3">
+                {[1,2,3].map((i) => (
+                  <div key={i} className="flex-1 h-20 bg-[#F1F5F9] rounded-lg animate-pulse" />
+                ))}
+              </div>
+            ) : pciOverview ? (
+              <>
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="bg-[#F0FDF4] rounded-lg p-3.5">
+                    <span className="text-[11px] text-[#059669] font-medium">Rata-rata PCI</span>
+                    <div className="flex items-baseline gap-2 mt-1">
+                      <span className="text-[28px] font-bold" style={{ color: pciColor(pciOverview.kabupaten.avg_pci) }}>
+                        {pciOverview.kabupaten.avg_pci.toFixed(1)}
+                      </span>
+                      <span className="text-[12px] font-medium" style={{ color: pciColor(pciOverview.kabupaten.avg_pci) }}>
+                        {pciConditionLabel(pciOverview.kabupaten.avg_pci)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="bg-[#FEF2F2] rounded-lg p-3.5">
+                    <span className="text-[11px] text-[#DC2626] font-medium">Kritis (PCI ≤ 40)</span>
+                    <div className="text-[28px] font-bold text-[#DC2626] mt-1">
+                      {pciOverview.kabupaten.kritis}
+                    </div>
+                  </div>
+                  <div className="bg-[#EFF6FF] rounded-lg p-3.5">
+                    <span className="text-[11px] text-[#2563EB] font-medium">Total dengan PCI</span>
+                    <div className="text-[28px] font-bold text-[#2563EB] mt-1">
+                      {pciOverview.kabupaten.total_laporan}
+                    </div>
+                  </div>
+                </div>
+                {pciOverview.districts.length > 0 && (
+                  <details className="group">
+                    <summary className="text-[12px] text-[#64748B] cursor-pointer hover:text-[#0F172A] font-medium">
+                      Lihat per Kecamatan
+                    </summary>
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
+                            <th className="text-left px-3 py-2 text-[11px] font-semibold text-[#64748B] uppercase">Kecamatan</th>
+                            <th className="text-right px-3 py-2 text-[11px] font-semibold text-[#64748B] uppercase">Rata-rata PCI</th>
+                            <th className="text-right px-3 py-2 text-[11px] font-semibold text-[#64748B] uppercase">Total</th>
+                            <th className="text-right px-3 py-2 text-[11px] font-semibold text-[#64748B] uppercase">Kritis</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pciOverview.districts.map((d) => (
+                            <tr key={d.district} className="border-b border-[#E2E8F0] last:border-b-0 hover:bg-[#F8FAFC]">
+                              <td className="px-3 py-2.5 text-[12px] text-[#0F172A] font-medium">{d.district}</td>
+                              <td className="px-3 py-2.5 text-right text-[12px] font-semibold" style={{ color: pciColor(d.avg_pci) }}>
+                                {d.avg_pci.toFixed(1)} — {pciConditionLabel(d.avg_pci)}
+                              </td>
+                              <td className="px-3 py-2.5 text-right text-[12px] text-[#475569]">{d.total}</td>
+                              <td className="px-3 py-2.5 text-right text-[12px] font-semibold text-[#DC2626]">{d.kritis}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                )}
+              </>
+            ) : (
+              <div className="text-center text-[#64748B] text-[13px] py-4">Gagal memuat data PCI</div>
+            )}
+          </div>
+        </div>
+
         <div className="px-4 py-4 border-b border-[#E2E8F0]">
           <h2 className="font-headline-sm text-headline-sm font-bold text-[#0F172A]">
             Kinerja Tim Satgas

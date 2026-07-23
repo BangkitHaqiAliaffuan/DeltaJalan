@@ -51,9 +51,9 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex">
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#1e40af] transform transition-transform md:translate-x-0 md:sticky md:top-0 md:h-screen md:z-auto ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#1e40af] flex flex-col transform transition-transform md:translate-x-0 md:sticky md:top-0 md:h-screen md:z-auto ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
-        <div className="flex items-center justify-between px-5 h-[68px] border-b border-white/15">
+        <div className="flex items-center justify-between px-5 h-[68px] border-b border-white/15 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0 border border-white/30">
               <span className="text-white text-[15px] font-bold">DJ</span>
@@ -74,7 +74,7 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
             <Icon name="close" className="!text-[22px]" />
           </button>
         </div>
-        <nav className="px-3 py-4 overflow-y-auto" style={{ height: "calc(100% - 68px - 72px)" }}>
+        <nav className="flex-1 overflow-y-auto px-3 py-4 no-scrollbar">
           {ADMIN_MENU.map((group) => (
             <div key={group.section} className="mb-1">
               <span className="block px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-white/40">
@@ -103,7 +103,7 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
             </div>
           ))}
         </nav>
-        <div className="absolute bottom-0 left-0 right-0 px-4 py-4 border-t border-white/15">
+        <div className="shrink-0 px-4 py-4 border-t border-white/15">
           <div className="flex items-center gap-3 mb-3 px-3">
             <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center border border-white/30 shrink-0">
               <span className="text-white text-[13px] font-bold">{user?.initials ?? "A"}</span>

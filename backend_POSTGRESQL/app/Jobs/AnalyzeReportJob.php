@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Report;
 use App\Models\ReportPhoto;
+use App\Services\PciService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Http\Client\ConnectionException;
@@ -101,6 +102,14 @@ class AnalyzeReportJob implements ShouldQueue
                     ? $report->system_notes.' | [AI] Analisis otomatis selesai.'
                     : '[AI] Analisis otomatis selesai.',
             ]);
+
+            // ── Hitung PCI ──
+            $pci = app(PciService::class)->calculateFromReport($report);
+            if ($pci !== null) {
+                $report->pci_score = $pci;
+                $report->pci_calculated_at = now();
+                $report->saveQuietly();
+            }
 
             Log::info('AnalyzeReportJob: AI analysis completed', [
                 'report_id' => $report->id,
