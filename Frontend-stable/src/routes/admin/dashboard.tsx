@@ -456,7 +456,7 @@ function AdminDashboard() {
                     <span className="text-[11px] text-[#059669] font-medium">Rata-rata PCI</span>
                     <div className="flex items-baseline gap-2 mt-1">
                       <span className="text-[28px] font-bold" style={{ color: pciColor(pciOverview.kabupaten.avg_pci) }}>
-                        {pciOverview.kabupaten.avg_pci.toFixed(1)}
+                        {Number(pciOverview.kabupaten.avg_pci).toFixed(1)}
                       </span>
                       <span className="text-[12px] font-medium" style={{ color: pciColor(pciOverview.kabupaten.avg_pci) }}>
                         {pciConditionLabel(pciOverview.kabupaten.avg_pci)}
@@ -496,7 +496,7 @@ function AdminDashboard() {
                             <tr key={d.district} className="border-b border-[#E2E8F0] last:border-b-0 hover:bg-[#F8FAFC]">
                               <td className="px-3 py-2.5 text-[12px] text-[#0F172A] font-medium">{d.district}</td>
                               <td className="px-3 py-2.5 text-right text-[12px] font-semibold" style={{ color: pciColor(d.avg_pci) }}>
-                                {d.avg_pci.toFixed(1)} — {pciConditionLabel(d.avg_pci)}
+                                {Number(d.avg_pci).toFixed(1)} — {pciConditionLabel(d.avg_pci)}
                               </td>
                               <td className="px-3 py-2.5 text-right text-[12px] text-[#475569]">{d.total}</td>
                               <td className="px-3 py-2.5 text-right text-[12px] font-semibold text-[#DC2626]">{d.kritis}</td>

@@ -15,7 +15,7 @@ export function PciCard({ score, compact }: PciCardProps) {
     return (
       <div className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full ${bgClass}`}>
         <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
-        PCI {score.toFixed(1)} — {label}
+        PCI {Number(score).toFixed(1)} — {label}
       </div>
     );
   }
@@ -28,7 +28,7 @@ export function PciCard({ score, compact }: PciCardProps) {
         <div>
           <p className="text-xs text-[#476788] font-medium">Indeks Kondisi Jalan (PCI)</p>
           <p className="text-[28px] font-bold leading-tight mt-0.5" style={{ color }}>
-            {score.toFixed(1)}
+            {Number(score).toFixed(1)}
           </p>
         </div>
         <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${bgClass}`}>

@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { PciCard } from "@/components/jk/PciCard";
 import { pciColor, pciConditionLabel, pciDotColor } from "@/lib/pci";
+import { apiFetch } from "@/lib/api";
 import "./admin.css";
 
 export const Route = createFileRoute("/admin/pci")({
@@ -61,7 +62,7 @@ function AdminPciDashboard() {
   const overviewQuery = useQuery({
     queryKey: ["admin-pci-overview"],
     queryFn: () =>
-      fetch("/api/pci/overview", {
+      apiFetch("/api/pci/overview", {
         headers: { Authorization: `Bearer ${token}` },
       }).then((r) => r.json()),
     refetchInterval: 120_000,
@@ -70,7 +71,7 @@ function AdminPciDashboard() {
   const kritisQuery = useQuery({
     queryKey: ["admin-pci-kritis"],
     queryFn: () =>
-      fetch("/api/pci/kritis?limit=50", {
+      apiFetch("/api/pci/kritis?limit=50", {
         headers: { Authorization: `Bearer ${token}` },
       }).then((r) => r.json()),
     refetchInterval: 120_000,
@@ -165,14 +166,14 @@ function AdminPciDashboard() {
                     <td className="py-3 px-4 text-[#0F172A] font-medium">{d.district}</td>
                     <td className="py-3 px-4 text-right">
                       <span className="text-[13px] font-semibold" style={{ color: pciColor(d.avg_pci) }}>
-                        {d.avg_pci.toFixed(1)}
+                        {Number(d.avg_pci).toFixed(1)}
                       </span>
                       <span className="ml-1.5 text-[11px] text-[#64748B]">
                         ({pciConditionLabel(d.avg_pci)})
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-right text-[#64748B]">{d.min_pci.toFixed(1)}</td>
-                    <td className="py-3 px-4 text-right text-[#64748B]">{d.max_pci.toFixed(1)}</td>
+                    <td className="py-3 px-4 text-right text-[#64748B]">{Number(d.min_pci).toFixed(1)}</td>
+                    <td className="py-3 px-4 text-right text-[#64748B]">{Number(d.max_pci).toFixed(1)}</td>
                     <td className="py-3 px-4 text-right text-[#0F172A]">{d.total}</td>
                     <td className="py-3 px-4 text-right">
                       <span className={`text-[12px] font-semibold px-2 py-0.5 rounded ${d.kritis > 0 ? "bg-red-50 text-red-700" : "text-[#64748B]"}`}>
@@ -223,7 +224,7 @@ function AdminPciDashboard() {
                     <td className="py-3 px-4 text-[#64748B]">{r.district}</td>
                     <td className="py-3 px-4 text-right">
                       <span className="text-[13px] font-bold" style={{ color: pciColor(r.pci_score) }}>
-                        {r.pci_score.toFixed(1)}
+                        {Number(r.pci_score).toFixed(1)}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right">{r.status}</td>

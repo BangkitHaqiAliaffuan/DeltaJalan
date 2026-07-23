@@ -43,6 +43,19 @@ class PciController extends Controller
                 ')
                 ->first();
 
+            $districts->transform(fn ($d) => (object) [
+                'district' => $d->district,
+                'total' => $d->total,
+                'avg_pci' => (float) $d->avg_pci,
+                'min_pci' => (float) $d->min_pci,
+                'max_pci' => (float) $d->max_pci,
+                'kritis' => $d->kritis,
+            ]);
+
+            if ($kabupaten) {
+                $kabupaten->avg_pci = (float) $kabupaten->avg_pci;
+            }
+
             return [
                 'districts' => $districts,
                 'kabupaten' => $kabupaten,
