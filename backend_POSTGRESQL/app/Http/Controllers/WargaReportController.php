@@ -977,6 +977,8 @@ class WargaReportController extends Controller
                         'score' => $data['score'] ?? null,
                         'label' => $data['label'] ?? null,
                     ];
+                } else {
+                    Log::warning('Warga MobileCLIP non-200', ['status' => $mcResponse->status(), 'foto' => $i]);
                 }
             } catch (\Exception $e) {
                 Log::warning('Warga MobileCLIP gagal', ['error' => $e->getMessage(), 'foto' => $i]);
@@ -1015,6 +1017,8 @@ class WargaReportController extends Controller
                                 Cache::put('yolo_result_'.$hash, $data, now()->addHours(24));
                             }
                         }
+                    } else {
+                        Log::warning('Warga YOLO non-200', ['status' => $yoloResponse->status(), 'foto' => $i]);
                     }
                 } catch (\Exception $e) {
                     Log::warning('Warga YOLO gagal', ['error' => $e->getMessage(), 'foto' => $i]);
@@ -1148,6 +1152,11 @@ class WargaReportController extends Controller
 
                 // ── Save each photo as ReportPhoto ──
                 foreach ($processedPhotos as $ppIdx => $pp) {
+                    // Skip index 0 — already saved as primary photo above
+                    if ($ppIdx === 0) {
+                        continue;
+                    }
+
                     $tFile = $pp['file'];
                     $tExt = $tFile->getClientOriginalExtension() ?: $tFile->guessExtension() ?: 'jpg';
                     $tFilename = Str::uuid()->toString().'-'.time().'-'.$ppIdx.'.'.$tExt;
