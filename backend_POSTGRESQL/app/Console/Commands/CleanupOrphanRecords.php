@@ -69,16 +69,19 @@ class CleanupOrphanRecords extends Command
 
         if ($total === 0) {
             $this->info('✅ Tidak ada orphan records.');
+
             return Command::SUCCESS;
         }
 
         if ($dryRun) {
             $this->warn("⚠️  {$total} orphan records ditemukan. Jalankan tanpa --dry-run untuk menghapus.");
+
             return Command::SUCCESS;
         }
 
         if (! $this->confirm("Yakin ingin menghapus {$total} orphan records?")) {
             $this->info('Dibatalkan.');
+
             return Command::SUCCESS;
         }
 
@@ -103,6 +106,7 @@ class CleanupOrphanRecords extends Command
         }
 
         $this->info("✅ {$deleted} orphan records berhasil dihapus.");
+
         return Command::SUCCESS;
     }
 }

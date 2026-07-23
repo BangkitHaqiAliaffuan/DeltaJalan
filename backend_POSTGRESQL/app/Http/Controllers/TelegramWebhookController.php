@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Report;
+use App\Models\ReportPhoto;
 use App\Models\TelegramSession;
 use App\Models\User;
-use App\Models\ReportPhoto;
 use App\Services\DuplicateCheckService;
 use App\Services\ImageQualityService;
 use App\Services\MobileClipService;
@@ -414,7 +414,7 @@ class TelegramWebhookController extends Controller
             ."• Pilih <b>\"Dokumen\"</b> atau <b>\"File\"</b>\n"
             ."• Pilih foto yang sudah diambil\n"
             ."• Tunggu hingga terkirim\n\n"
-            ."⚠️ <b>Penting:</b> Jangan kirim dari galeri langsung atau kamera "
+            .'⚠️ <b>Penting:</b> Jangan kirim dari galeri langsung atau kamera '
             ."Telegram — data lokasi & tanggal akan hilang!\n\n"
             ."━━━━━━━━━━━━━━━━━━━━━━━━\n"
             ."<b>3. BAGIKAN LOKASI</b>\n"
@@ -432,7 +432,7 @@ class TelegramWebhookController extends Controller
             ."Perintah lain:\n"
             ."/status — Cek status laporan\n"
             ."/bantuan — Tampilkan panduan ini\n"
-            ."/batal — Batalkan laporan",
+            .'/batal — Batalkan laporan',
             [
                 'inline_keyboard' => [
                     [
@@ -493,7 +493,7 @@ class TelegramWebhookController extends Controller
             $this->telegram->sendMessage($chatId,
                 'Foto tidak memiliki metadata EXIF. '
                 ."Gunakan foto asli dari kamera perangkat Anda.\n\n"
-                ."Silakan kirim ulang foto. State laporan tetap tersimpan — cukup kirim file baru."
+                .'Silakan kirim ulang foto. State laporan tetap tersimpan — cukup kirim file baru.'
             );
 
             return response()->json(['ok' => true]);
@@ -505,7 +505,7 @@ class TelegramWebhookController extends Controller
             $this->telegram->sendMessage($chatId,
                 'Foto tidak memiliki metadata tanggal. '
                 ."Gunakan foto asli dari kamera perangkat Anda.\n\n"
-                ."Silakan kirim ulang foto. State laporan tetap tersimpan — cukup kirim file baru."
+                .'Silakan kirim ulang foto. State laporan tetap tersimpan — cukup kirim file baru.'
             );
 
             return response()->json(['ok' => true]);

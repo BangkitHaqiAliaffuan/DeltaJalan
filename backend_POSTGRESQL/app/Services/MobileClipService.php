@@ -24,47 +24,48 @@ class MobileClipService
 
             if ($response->successful()) {
                 $data = $response->json();
+
                 return [
                     'success' => true,
-                    'score'   => $data['score'] ?? null,
-                    'label'   => $data['label'] ?? null,
+                    'score' => $data['score'] ?? null,
+                    'label' => $data['label'] ?? null,
                 ];
             }
 
             Log::warning('[MobileClipService] FastAPI responded with non-success', [
                 'endpoint' => $endpoint,
-                'status'   => $response->status(),
+                'status' => $response->status(),
             ]);
 
             return [
                 'success' => false,
-                'score'   => null,
-                'label'   => null,
-                'error'   => "FastAPI responded with HTTP {$response->status()}",
+                'score' => null,
+                'label' => null,
+                'error' => "FastAPI responded with HTTP {$response->status()}",
             ];
         } catch (ConnectionException $e) {
             Log::warning('[MobileClipService] FastAPI /analyze-relevance tidak dapat dijangkau (connection timeout/refused)', [
                 'endpoint' => $endpoint,
-                'error'    => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
 
             return [
                 'success' => false,
-                'score'   => null,
-                'label'   => null,
-                'error'   => 'Connection failed: '.$e->getMessage(),
+                'score' => null,
+                'label' => null,
+                'error' => 'Connection failed: '.$e->getMessage(),
             ];
         } catch (\Exception $e) {
             Log::warning('[MobileClipService] FastAPI /analyze-relevance unexpected error', [
                 'endpoint' => $endpoint,
-                'error'    => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
 
             return [
                 'success' => false,
-                'score'   => null,
-                'label'   => null,
-                'error'   => $e->getMessage(),
+                'score' => null,
+                'label' => null,
+                'error' => $e->getMessage(),
             ];
         }
     }
@@ -80,8 +81,8 @@ class MobileClipService
 
         return [
             'blocked' => $score < self::RELEVANCE_THRESHOLD,
-            'score'   => $result['score'],
-            'label'   => $result['label'],
+            'score' => $result['score'],
+            'label' => $result['label'],
         ];
     }
 }

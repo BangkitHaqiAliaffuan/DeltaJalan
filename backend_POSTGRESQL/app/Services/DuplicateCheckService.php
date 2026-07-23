@@ -10,7 +10,9 @@ class DuplicateCheckService
 {
     public function checkByHash(string $imageHash): ?Report
     {
-        if (!config('app.dedup_enabled')) return null;
+        if (! config('app.dedup_enabled')) {
+            return null;
+        }
 
         $report = Report::where('image_hash', $imageHash)->first();
         if ($report) {
@@ -27,7 +29,9 @@ class DuplicateCheckService
 
     public function checkSpatial(float $lat, float $lng, float $radiusMeters = 6, ?string $excludeReportId = null): ?Report
     {
-        if (!config('app.dedup_enabled')) return null;
+        if (! config('app.dedup_enabled')) {
+            return null;
+        }
         if ($lat < -11 || $lat > 6 || $lng < 95 || $lng > 141) {
             return null;
         }
@@ -70,7 +74,9 @@ class DuplicateCheckService
 
     public function checkTextual(string $district, ?string $roadName): ?Report
     {
-        if (!config('app.dedup_enabled')) return null;
+        if (! config('app.dedup_enabled')) {
+            return null;
+        }
         $query = Report::where('status', '!=', 'Selesai')
             ->where('district', $district);
 
@@ -83,7 +89,9 @@ class DuplicateCheckService
 
     public function findNearest(float $lat, float $lng): ?array
     {
-        if (!config('app.dedup_enabled')) return null;
+        if (! config('app.dedup_enabled')) {
+            return null;
+        }
         if ($lat < -11 || $lat > 6 || $lng < 95 || $lng > 141) {
             return null;
         }
@@ -113,7 +121,10 @@ class DuplicateCheckService
 
     public function hasImageDuplicate(string $imageHash): bool
     {
-        if (!config('app.dedup_enabled')) return false;
+        if (! config('app.dedup_enabled')) {
+            return false;
+        }
+
         return Report::where('image_hash', $imageHash)->exists()
             || ReportPhoto::where('image_hash', $imageHash)->exists();
     }

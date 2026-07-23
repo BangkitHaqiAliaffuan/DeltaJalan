@@ -271,7 +271,7 @@ class WargaReportController extends Controller
         if ($severity) {
             $query->where(function ($q) use ($severity) {
                 $q->where('overall_severity', $severity)
-                  ->orWhere('ai_severity', $severity);
+                    ->orWhere('ai_severity', $severity);
             });
         }
 

@@ -20,9 +20,9 @@ use App\Notifications\ReportRejectedNotification;
 use App\Notifications\ReportReopenedNotification;
 // ── TRUST SCORE [NONAKTIF] — use App\Services\TrustScoreService;
 use App\Notifications\TeamAssignedNotification;
+use App\Notifications\TriageUpdatedNotification;
 use App\Services\DuplicateCheckService;
 use App\Services\PciService;
-use App\Notifications\TriageUpdatedNotification;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -795,7 +795,7 @@ class ReportController extends Controller
         if ($user->role === 'supervisor') {
             $query->where(function ($q) use ($user) {
                 $q->where('assigned_supervisor_id', $user->id)
-                  ->orWhereNull('assigned_supervisor_id');
+                    ->orWhereNull('assigned_supervisor_id');
             });
             $query->whereNotIn('status', ['Diedit']);
         }
@@ -1948,6 +1948,10 @@ class ReportController extends Controller
             $monthlyQuery = Report::selectRaw("
                 TO_CHAR(created_at, 'YYYY-MM') as bulan,
                 COUNT(*) as total,
+                SUM(CASE WHEN status IN ('Menunggu Review', 'Ditinjau') THEN 1 ELSE 0 END) as menunggu_review,
+                SUM(CASE WHEN status = 'Disetujui' THEN 1 ELSE 0 END) as disetujui,
+                SUM(CASE WHEN status = 'Ditolak' THEN 1 ELSE 0 END) as ditolak,
+                SUM(CASE WHEN status = 'Sedang Diperbaiki' THEN 1 ELSE 0 END) as sedang_diperbaiki,
                 SUM(CASE WHEN status = 'Selesai' THEN 1 ELSE 0 END) as selesai,
                 SUM(CASE
                     WHEN overall_severity::text = 'Rusak Berat' OR LOWER(ai_severity) = 'berat' THEN 1
@@ -1979,6 +1983,10 @@ class ReportController extends Controller
                 $trend[] = [
                     'bulan' => $bulan,
                     'total' => (int) ($row->total ?? 0),
+                    'menunggu_review' => (int) ($row->menunggu_review ?? 0),
+                    'disetujui' => (int) ($row->disetujui ?? 0),
+                    'ditolak' => (int) ($row->ditolak ?? 0),
+                    'sedang_diperbaiki' => (int) ($row->sedang_diperbaiki ?? 0),
                     'selesai' => (int) ($row->selesai ?? 0),
                     'rusak_berat' => (int) ($row->rusak_berat ?? 0),
                 ];
@@ -2879,7 +2887,7 @@ class ReportController extends Controller
     public function bulkApprove(Request $request): JsonResponse
     {
         $user = auth()->user();
-        if (!in_array($user->role, ['admin', 'supervisor'])) {
+        if (! in_array($user->role, ['admin', 'supervisor'])) {
             return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
         }
 
@@ -2924,7 +2932,7 @@ class ReportController extends Controller
     public function bulkTolak(Request $request): JsonResponse
     {
         $user = auth()->user();
-        if (!in_array($user->role, ['admin', 'supervisor'])) {
+        if (! in_array($user->role, ['admin', 'supervisor'])) {
             return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
         }
 

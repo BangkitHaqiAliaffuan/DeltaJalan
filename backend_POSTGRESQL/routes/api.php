@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AIController;
+use App\Http\Controllers\ApkDownloadController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PatrolScheduleController;
@@ -91,7 +92,7 @@ Route::get('/v1/public/reports/{reportCode}', [WargaReportController::class, 'pu
  * GET /api/public/download-apk
  * Download aplikasi Android DeltaJalan (APK).
  */
-Route::get('/public/download-apk', [\App\Http\Controllers\ApkDownloadController::class, 'download']);
+Route::get('/public/download-apk', [ApkDownloadController::class, 'download']);
 
 // ── Routes yang memerlukan autentikasi Sanctum ────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
@@ -382,6 +383,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/users', [UserController::class, 'store']);
     Route::get('/users/{id}', [UserController::class, 'show']);
     Route::put('/users/{id}', [UserController::class, 'update']);
+    Route::post('/users/{id}/ban', [UserController::class, 'ban']);
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
 
     // ── Warga Reports ─────────────────────────────────────────────────────

@@ -32,6 +32,7 @@ class RecalculatePci extends Command
         $total = $query->count();
         if ($total === 0) {
             $this->info('Tidak ada laporan yang perlu dihitung ulang.');
+
             return 0;
         }
 

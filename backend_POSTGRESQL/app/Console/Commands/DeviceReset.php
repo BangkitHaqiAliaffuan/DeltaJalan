@@ -34,6 +34,7 @@ class DeviceReset extends Command
 
         if ($count === 0) {
             $this->info('Tidak ada data yang cocok untuk di-reset.');
+
             return self::SUCCESS;
         }
 
@@ -43,6 +44,7 @@ class DeviceReset extends Command
 
         if (! $force && ! $this->confirm('Lanjutkan?')) {
             $this->info('Dibatalkan.');
+
             return self::SUCCESS;
         }
 

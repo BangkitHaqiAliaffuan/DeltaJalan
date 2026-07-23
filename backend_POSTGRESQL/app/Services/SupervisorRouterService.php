@@ -50,6 +50,7 @@ class SupervisorRouterService
 
         if (! $supervisor) {
             Log::info("Auto-salur: tidak ada supervisor untuk kecamatan '{$report->district}'");
+
             return;
         }
 

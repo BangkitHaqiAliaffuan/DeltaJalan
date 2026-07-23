@@ -67,6 +67,7 @@ class UserController extends Controller
                 'team_id' => $u->team_id,
                 'team_name' => $u->team?->name,
                 'initials' => $u->initials,
+                'banned_at' => $u->banned_at?->toIso8601String(),
                 'created_at' => $u->created_at?->toIso8601String(),
             ]);
 
@@ -164,6 +165,7 @@ class UserController extends Controller
                 'wilayah' => $target->wilayah,
                 'nip' => $target->nip,
                 'initials' => $target->initials,
+                'banned_at' => $target->banned_at?->toIso8601String(),
                 'created_at' => $target->created_at?->toIso8601String(),
                 'updated_at' => $target->updated_at?->toIso8601String(),
             ],
@@ -227,6 +229,47 @@ class UserController extends Controller
                 'nip' => $target->nip,
                 'initials' => $target->initials,
             ],
+        ]);
+    }
+
+    /**
+     * POST /api/users/{id}/ban
+     * Ban atau unban pengguna. Body: { ban: true } → ban, { ban: false } → unban.
+     */
+    public function ban(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! in_array($user->role, ['supervisor', 'admin'], true)) {
+            return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
+        }
+
+        if ($user->id === (int) $id) {
+            return response()->json(['success' => false, 'message' => 'Anda tidak dapat menonaktifkan akun Anda sendiri.'], 422);
+        }
+
+        $target = User::find($id);
+
+        if (! $target) {
+            return response()->json(['success' => false, 'message' => 'Pengguna tidak ditemukan.'], 404);
+        }
+
+        $request->validate(['ban' => 'required|boolean']);
+
+        if ($request->boolean('ban')) {
+            $target->banned_at = now();
+            $target->tokens()->delete();
+            $message = 'Akun berhasil dinonaktifkan.';
+        } else {
+            $target->banned_at = null;
+            $message = 'Akun berhasil diaktifkan kembali.';
+        }
+
+        $target->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => $message,
         ]);
     }
 

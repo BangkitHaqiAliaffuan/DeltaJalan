@@ -7,9 +7,13 @@ use App\Models\Report;
 class PciService
 {
     private const SEVERITY_WEIGHT = 50;
+
     private const COVERAGE_WEIGHT = 30;
+
     private const COUNT_PENALTY_MAX = 10;
+
     private const DIVERSITY_PENALTY_MAX = 10;
+
     private const COVERAGE_MAX = 30;
 
     private const CONDITION_MAP = [
@@ -73,6 +77,7 @@ class PciService
         $score = $raw['severity_score'] ?? null;
         if ($score !== null && is_numeric($score)) {
             $score = min((float) $score, 4.0);
+
             return ($score / 4.0) * self::SEVERITY_WEIGHT;
         }
 
@@ -84,6 +89,7 @@ class PciService
                 'Rusak Sedang' => 2.0,
                 'Rusak Berat' => 3.5,
             ];
+
             return ($map[$severity] / 4.0) * self::SEVERITY_WEIGHT;
         }
 
@@ -100,6 +106,7 @@ class PciService
             if ($coverage && preg_match('/cov=(\d+\.?\d*)%/', $coverage, $m)) {
                 return min((float) $m[1], self::COVERAGE_MAX);
             }
+
             return 0;
         }
 
@@ -142,12 +149,14 @@ class PciService
                 return $label;
             }
         }
+
         return 'Kritis';
     }
 
     public function conditionColor(float $pci): string
     {
         $label = $this->conditionLabel($pci);
+
         return self::CONDITION_COLORS[$label] ?? '#6b7280';
     }
 }

@@ -29,6 +29,7 @@ class AssignSupervisorsToReports extends Command
 
         if ($total === 0) {
             $this->info('Tidak ada laporan yang perlu di-assign.');
+
             return Command::SUCCESS;
         }
 
@@ -44,6 +45,7 @@ class AssignSupervisorsToReports extends Command
                 if (empty($report->district)) {
                     $skipped++;
                     $bar->advance();
+
                     continue;
                 }
 

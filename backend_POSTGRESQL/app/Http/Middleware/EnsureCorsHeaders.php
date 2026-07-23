@@ -57,11 +57,11 @@ class EnsureCorsHeaders
         // ── Preflight (OPTIONS) — respond immediately ──────────────────
         if ($request->isMethod('OPTIONS')) {
             return response('', 204, [
-                'Access-Control-Allow-Origin'      => $origin,
-                'Access-Control-Allow-Methods'     => 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-                'Access-Control-Allow-Headers'     => 'Content-Type, Authorization, X-Requested-With, X-Device-ID, Accept, Origin, ngrok-skip-browser-warning',
+                'Access-Control-Allow-Origin' => $origin,
+                'Access-Control-Allow-Methods' => 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers' => 'Content-Type, Authorization, X-Requested-With, X-Device-ID, Accept, Origin, ngrok-skip-browser-warning',
                 'Access-Control-Allow-Credentials' => 'true',
-                'Access-Control-Max-Age'           => '86400',
+                'Access-Control-Max-Age' => '86400',
             ]);
         }
 

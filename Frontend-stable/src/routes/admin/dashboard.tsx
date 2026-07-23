@@ -54,6 +54,34 @@ const BULAN_PANJANG = [
   "Desember",
 ];
 
+function MiniSparkline({ data, color, className = "" }: { data: number[]; color: string; className?: string }) {
+  const clean = data.filter((v) => typeof v === "number" && !isNaN(v));
+  if (clean.length < 2) return null;
+  const max = Math.max(...clean, 1);
+  const min = Math.min(...clean);
+  const range = max - min || 1;
+  const w = 80; const h = 24;
+  const points = clean.map((v, i) => {
+    const x = (i / (clean.length - 1)) * w;
+    const y = h - ((v - min) / range) * h;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const gradientId = `spark-${color.replace(/[^a-zA-Z0-9]/g, "")}`;
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className={`shrink-0 ${className}`}>
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.15" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.01" />
+        </linearGradient>
+      </defs>
+      <path d={`M${points} L${w},${h} L0,${h} Z`} fill={`url(#${gradientId})`} />
+      <polyline fill="none" stroke={color} strokeWidth="1.5" points={points} />
+      <circle cx={w} cy={h - ((clean[clean.length - 1] - min) / range) * h} r="2" fill={color} />
+    </svg>
+  );
+}
+
 function getGreeting(client: boolean): string {
   if (!client) return "Selamat Pagi";
   const h = new Date().getHours();
@@ -78,6 +106,7 @@ function parseBulan(bulanStr: string): { month: number; label: string } {
 
 function AdminDashboard() {
   const [isClient, setIsClient] = useState(false);
+  const [showAllStats, setShowAllStats] = useState(false);
   useEffect(() => {
     setIsClient(true);
   }, []);
@@ -92,12 +121,14 @@ function AdminDashboard() {
         menunggu_review: number;
         disetujui: number;
         ditolak: number;
+        hasil_ai: number;
+        ditugaskan: number;
         sedang_diperbaiki: number;
         selesai: number;
         rusak_berat: number;
         rusak_sedang: number;
         rusak_ringan: number;
-        monthly_trend: { bulan: string; total: number; selesai: number; rusak_berat: number }[];
+        monthly_trend: { bulan: string; total: number; menunggu_review: number; disetujui: number; ditolak: number; sedang_diperbaiki: number; selesai: number; rusak_berat: number }[];
       }>("/api/reports/stats", token),
     refetchInterval: 60_000,
   });
@@ -126,28 +157,37 @@ function AdminDashboard() {
   const monthlyTrend = stats?.monthly_trend ?? [];
   const maxTotal = monthlyTrend.length > 0 ? Math.max(...monthlyTrend.map((m) => m.total)) : 1;
 
-  const now = new Date();
-  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const nowDt = new Date();
+  const currentMonthStr = `${nowDt.getFullYear()}-${String(nowDt.getMonth() + 1).padStart(2, "0")}`;
   const bulanIni = monthlyTrend.find((m) => m.bulan === currentMonthStr);
   const selesaiBulanIni = bulanIni?.selesai ?? stats?.selesai ?? 0;
   const totalBulanIni = bulanIni?.total ?? 0;
 
+  // ── Helpers for primary card sparklines & deltas ──
+  function monthDelta(key: "total" | "menunggu_review" | "disetujui" | "ditolak" | "sedang_diperbaiki" | "selesai" | "rusak_berat"): { pct: string; up: boolean } | null {
+    const cur = monthlyTrend[monthlyTrend.length - 1];
+    const prev = monthlyTrend[monthlyTrend.length - 2];
+    if (!cur || !prev) return null;
+    const cv = cur[key] as number;
+    const pv = prev[key] as number;
+    if (pv === 0) return null;
+    const diff = ((cv - pv) / pv) * 100;
+    return { pct: `${Math.abs(diff).toFixed(1)}%`, up: diff >= 0 };
+  }
+
   if (isLoading) {
     return (
-      <div>
+    <div>
         <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] px-4 md:px-6 py-6 -m-4 md:-m-6 mb-6">
           <div className="h-7 w-60 bg-white/20 rounded animate-pulse mb-2" />
           <div className="h-5 w-48 bg-white/20 rounded animate-pulse" />
         </section>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4 mb-6">
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
-            <div
-              key={i}
-              className="bg-gradient-to-br from-[#EEF2FF] to-white border border-[#C7D2FE] rounded-xl p-4 aspect-square flex flex-col items-center justify-center"
-            >
-              <div className="w-6 h-6 bg-[#C7D2FE] rounded animate-pulse mb-2" />
-              <div className="h-7 w-16 bg-[#C7D2FE] rounded animate-pulse mb-1" />
-              <div className="h-4 w-20 bg-[#C7D2FE] rounded animate-pulse" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 mb-6">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="bg-white border border-[#E2E8F0] rounded-xl p-3.5">
+              <div className="h-3 w-20 bg-[#E2E8F0] rounded animate-pulse mb-2" />
+              <div className="h-7 w-14 bg-[#E2E8F0] rounded animate-pulse mb-2" />
+              <div className="h-5 w-full bg-[#E2E8F0] rounded animate-pulse" />
             </div>
           ))}
         </div>
@@ -197,39 +237,114 @@ function AdminDashboard() {
         </div>
       </section>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+      {/* ── Primary KPI Row (4 cards, always visible) ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 margin-top">
         {[
-          { label: "Total Laporan", value: stats?.total ?? 0, icon: "description", color: "text-[#1e40af]" },
-          { label: "Selesai", value: selesaiBulanIni, icon: "check_circle", color: "text-[#059669]" },
-          { label: "Menunggu Review", value: stats?.menunggu_review ?? 0, icon: "rate_review", color: "text-[#D97706]" },
-          { label: "Disetujui", value: stats?.disetujui ?? 0, icon: "thumb_up", color: "text-[#2563EB]" },
-          { label: "Sedang Diperbaiki", value: stats?.sedang_diperbaiki ?? 0, icon: "build", color: "text-[#F97316]" },
-          { label: "Ditolak", value: stats?.ditolak ?? 0, icon: "block", color: "text-[#E11D48]" },
-          { label: "Rusak Berat", value: stats?.rusak_berat ?? 0, icon: "report", color: "text-[#E11D48]" },
-          { label: "Rusak Sedang", value: stats?.rusak_sedang ?? 0, icon: "warning_amber", color: "text-[#F97316]" },
-          { label: "Rusak Ringan", value: stats?.rusak_ringan ?? 0, icon: "info", color: "text-[#F59E0B]" },
+          {
+            label: "Total Laporan",
+            value: stats?.total ?? 0,
+            icon: "description",
+            color: "#1e40af",
+            sparkline: monthlyTrend.map((m) => m.total),
+            delta: monthDelta("total"),
+          },
+          {
+            label: "Selesai Bulan Ini",
+            value: selesaiBulanIni,
+            icon: "check_circle",
+            color: "#059669",
+            sparkline: monthlyTrend.map((m) => m.selesai),
+            delta: monthDelta("selesai"),
+          },
+          {
+            label: "Menunggu Review",
+            value: stats?.menunggu_review ?? 0,
+            icon: "rate_review",
+            color: "#D97706",
+            sparkline: monthlyTrend.map((m) => m.menunggu_review),
+            delta: monthDelta("menunggu_review"),
+          },
+          {
+            label: "Rusak Berat",
+            value: stats?.rusak_berat ?? 0,
+            icon: "report",
+            color: "#E11D48",
+            sparkline: monthlyTrend.map((m) => m.rusak_berat),
+            delta: monthDelta("rusak_berat"),
+          },
         ].map((card) => (
           <div
             key={card.label}
-            className="bg-gradient-to-br from-[#EEF2FF] to-white border border-[#C7D2FE] rounded-xl p-4 flex flex-col items-center justify-center gap-1.5 aspect-square group transition-all duration-200 ease-out hover:scale-[1.03] hover:shadow-md hover:border-[#A5B4FC]"
+            className="bg-white border border-[#E2E8F0] rounded-xl p-3.5 flex flex-col gap-1.5 transition-all duration-200 hover:border-[#CBD5E1] hover:shadow-sm"
           >
-            <div className="flex items-center justify-center gap-1.5">
-              <Icon
-                name={card.icon}
-                className={`${card.color} !text-2xl group-hover:scale-110 group-hover:-translate-y-0.5 transition-transform duration-200`}
-              />
-              <span className={`text-2xl font-bold ${card.color}`}>
-                {card.value != null ? card.value.toLocaleString() : "—"}
-              </span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Icon name={card.icon} className={`!text-[16px] shrink-0`} style={{ color: card.color }} />
+                <span className="text-[11px] font-medium text-[#64748B] truncate">{card.label}</span>
+              </div>
+              {card.delta && (
+                <span
+                  className={`text-[11px] font-semibold flex items-center gap-0.5 shrink-0 ${card.delta.up ? "text-[#059669]" : "text-[#E11D48]"}`}
+                >
+                  <Icon name={card.delta.up ? "trending_up" : "trending_down"} className="!text-[12px]" />
+                  {card.delta.pct}
+                </span>
+              )}
             </div>
-            <p className={`text-sm font-medium ${card.color} opacity-80`}>{card.label}</p>
+            <span className="text-[22px] font-bold tracking-tight leading-none" style={{ color: card.color }}>
+              {card.value.toLocaleString()}
+            </span>
+            {card.sparkline && (
+              <div className="flex justify-end -mb-1 -mr-1">
+                <MiniSparkline data={card.sparkline} color={card.color} />
+              </div>
+            )}
           </div>
         ))}
       </div>
 
+      {/* ── Secondary Stats Toggle ── */}
+      <button
+        onClick={() => setShowAllStats((v) => !v)}
+        className="w-full flex items-center justify-center gap-1.5 py-2 text-[12px] font-medium text-[#64748B] hover:text-[#1A4F8A] transition-colors mb-1"
+      >
+        <Icon name={showAllStats ? "expand_less" : "expand_more"} className="!text-[16px]" />
+        {showAllStats ? "Sembunyikan" : "Lihat Semua Statistik"}
+      </button>
+
+      {/* ── Secondary Stats (expandable) ── */}
+      {showAllStats && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-6 animate-in fade-in slide-in-from-top-1 duration-200">
+          {[
+            { label: "Disetujui", value: stats?.disetujui ?? 0, icon: "thumb_up", color: "#2563EB" },
+            { label: "Sedang Diperbaiki", value: stats?.sedang_diperbaiki ?? 0, icon: "build", color: "#F97316" },
+            { label: "Ditugaskan", value: stats?.ditugaskan ?? 0, icon: "assignment", color: "#8B5CF6" },
+            { label: "Hasil AI", value: stats?.hasil_ai ?? 0, icon: "auto_awesome", color: "#06B6D4" },
+            { label: "Rusak Sedang", value: stats?.rusak_sedang ?? 0, icon: "warning_amber", color: "#F97316" },
+            { label: "Rusak Ringan", value: stats?.rusak_ringan ?? 0, icon: "info", color: "#F59E0B" },
+            { label: "Ditolak", value: stats?.ditolak ?? 0, icon: "block", color: "#E11D48" },
+          ].map((card) => (
+            <div
+              key={card.label}
+              className="bg-white border border-[#E2E8F0] rounded-lg px-3 py-2.5 flex items-center gap-2.5 transition-colors hover:border-[#CBD5E1]"
+            >
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${card.color}12` }}>
+                <Icon name={card.icon} className="!text-[15px]" style={{ color: card.color }} />
+              </div>
+              <div className="min-w-0">
+                <span className="text-[15px] font-bold leading-none block" style={{ color: card.color }}>
+                  {card.value.toLocaleString()}
+                </span>
+                <span className="text-[10px] text-[#64748B] leading-tight block">{card.label}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         <div
-          className="lg:col-span-2 bg-white border border-[#E2E8F0] rounded-xl p-4"
+          className="lg:col-span-2 bg-white border border-[#E2E8F0] rounded-xl p-4 overflow-hidden"
           style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
         >
           <h2 className="font-headline-sm text-headline-sm font-bold text-[#0F172A] mb-4">

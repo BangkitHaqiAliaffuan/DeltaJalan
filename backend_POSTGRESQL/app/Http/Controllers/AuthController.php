@@ -52,13 +52,17 @@ class AuthController extends Controller
         $login = $request->email;
         $phone = $login;
         $phone = preg_replace('/[\s\-().]/', '', $phone);
-        if (str_starts_with($phone, '+62')) $phone = '0'.substr($phone, 3);
-        elseif (str_starts_with($phone, '62')) $phone = '0'.substr($phone, 2);
-        elseif (!str_starts_with($phone, '0')) $phone = null;
+        if (str_starts_with($phone, '+62')) {
+            $phone = '0'.substr($phone, 3);
+        } elseif (str_starts_with($phone, '62')) {
+            $phone = '0'.substr($phone, 2);
+        } elseif (! str_starts_with($phone, '0')) {
+            $phone = null;
+        }
 
         // ── Cari user berdasarkan email atau nomor telepon ─────────────────
         $user = User::where('email', $login)
-            ->when($phone, fn($q) => $q->orWhere('phone', $phone))
+            ->when($phone, fn ($q) => $q->orWhere('phone', $phone))
             ->first();
 
         // ── Verifikasi password ───────────────────────────────────────────
@@ -68,6 +72,14 @@ class AuthController extends Controller
                 'success' => false,
                 'message' => 'Email atau kata sandi salah.',
             ], 401);
+        }
+
+        // ── Cek apakah akun di-ban ────────────────────────────────────────
+        if ($user->banned_at) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun telah dinonaktifkan. Hubungi administrator.',
+            ], 403);
         }
 
         // ── Buat token Sanctum ────────────────────────────────────────────
@@ -117,8 +129,11 @@ class AuthController extends Controller
         }
 
         $phone = $validated['phone'];
-        if (str_starts_with($phone, '+62')) $phone = '0'.substr($phone, 3);
-        elseif (str_starts_with($phone, '62')) $phone = '0'.substr($phone, 2);
+        if (str_starts_with($phone, '+62')) {
+            $phone = '0'.substr($phone, 3);
+        } elseif (str_starts_with($phone, '62')) {
+            $phone = '0'.substr($phone, 2);
+        }
 
         // ── Cek unique nomor telepon (setelah normalisasi) ─────────────────
         if (User::where('phone', $phone)->exists()) {
