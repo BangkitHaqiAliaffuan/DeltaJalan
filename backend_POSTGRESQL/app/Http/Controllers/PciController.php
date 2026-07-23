@@ -49,11 +49,12 @@ class PciController extends Controller
                 'avg_pci' => (float) $d->avg_pci,
                 'min_pci' => (float) $d->min_pci,
                 'max_pci' => (float) $d->max_pci,
-                'kritis' => $d->kritis,
+                'kritis' => (int) $d->kritis,
             ]);
 
             if ($kabupaten) {
                 $kabupaten->avg_pci = (float) $kabupaten->avg_pci;
+                $kabupaten->kritis = (int) $kabupaten->kritis;
             }
 
             return [

@@ -115,7 +115,7 @@ function AdminPciDashboard() {
               <div>
                 <p className="text-[12px] text-[#64748B]">Laporan Kritis (PCI &le; 40)</p>
                 <p className="text-[22px] font-bold text-[#E11D48]">
-                  {kab.kritis.toLocaleString()}
+                  {(kab.kritis ?? 0).toLocaleString()}
                 </p>
               </div>
             </div>
