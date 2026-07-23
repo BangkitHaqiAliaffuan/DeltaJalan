@@ -161,7 +161,7 @@ GitHub Actions CI         deploy-ai.yml → push main → build + push to ECR �
 
 - **No PyTorch / ultralytics** on Lambda — uses raw `onnxruntime` for cold start < 150 MB image
 - **WBF ensemble** — merges output from both ONNX models via Weighted Box Fusion
-- **No MobileCLIP relevance guard** — too heavy for Lambda, hardcoded `relevant: true`
+- **MobileCLIP relevance guard aktif** — MobileCLIP2-S0 ONNX (44 MB) di-deploy via S3, di-download saat Docker build. Threshold relevance: 0.15. Score dihitung real via CLIP image-text similarity (ONNX runtime). Lihat `backend_AI/lambda/handler.py:546-567`.
 - **Cold start**: ~3-6 detik (memuat 2 model ONNX)
 - **Warm invoke**: ~1-3 detik
 - **Payload limit**: 6 MB (Lambda Function URL default)
