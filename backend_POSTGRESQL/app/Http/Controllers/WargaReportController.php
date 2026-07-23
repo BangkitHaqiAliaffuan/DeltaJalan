@@ -9,7 +9,6 @@ use App\Models\StatusLog;
 use App\Models\User;
 use App\Services\GeographicService;
 use App\Services\PciService;
-use Illuminate\Http\Client\Pool;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -957,47 +956,21 @@ class WargaReportController extends Controller
             ], 422);
         }
 
-        // ── Phase 2: Parallel AI calls (MobileCLIP + YOLO untuk semua foto) ──
-        $poolEntries = [];
-        $aiResults = [];
-
+        // ── Phase 2: AI analysis per foto (synchronous, sequential) ──
         foreach ($pendingImages as $pi) {
             $i = $pi['idx'];
             $fpath = $pi['file']->getPathname();
             $fname = $pi['file']->getClientOriginalName();
 
-            $poolEntries["mobileclip_{$i}"] = Http::timeout(10)
-                ->connectTimeout(5)
-                ->attach('file', fopen($fpath, 'r'), $fname)
-                ->post("{$fastApiUrl}/analyze-relevance");
-
-            $hash = $pi['hash'];
-            if ($hash) {
-                $cached = Cache::get('yolo_result_'.$hash);
-                if ($cached) {
-                    $aiResults["yolo_{$i}"] = $cached;
-                } else {
-                    $poolEntries["yolo_{$i}"] = Http::timeout(10)
-                        ->connectTimeout(5)
-                        ->attach('file', fopen($fpath, 'r'), $fname)
-                        ->post("{$fastApiUrl}/analyze?include_image=true");
-                }
-            }
-        }
-
-        $responses = ! empty($poolEntries) ? Http::pool(fn (Pool $p) => $poolEntries) : [];
-
-        // ── Phase 3: Process AI results + build $processedPhotos ──
-        foreach ($pendingImages as $pi) {
-            $i = $pi['idx'];
-
-            // Process MobileCLIP result
+            // MobileCLIP relevance check
             $mobileclipResult = null;
-            $mcKey = "mobileclip_{$i}";
-            if (isset($responses[$mcKey])) {
-                $resp = $responses[$mcKey];
-                if ($resp->successful()) {
-                    $data = $resp->json();
+            try {
+                $mcResponse = Http::timeout(10)
+                    ->connectTimeout(5)
+                    ->attach('file', fopen($fpath, 'r'), $fname)
+                    ->post("{$fastApiUrl}/analyze-relevance");
+                if ($mcResponse->successful()) {
+                    $data = $mcResponse->json();
                     $score = (float) ($data['score'] ?? 0);
                     $mobileclipResult = [
                         'blocked' => $score < 0.15,
@@ -1005,6 +978,8 @@ class WargaReportController extends Controller
                         'label' => $data['label'] ?? null,
                     ];
                 }
+            } catch (\Exception $e) {
+                Log::warning('Warga MobileCLIP gagal', ['error' => $e->getMessage(), 'foto' => $i]);
             }
 
             if ($mobileclipResult !== null && $mobileclipResult['blocked']) {
@@ -1016,21 +991,36 @@ class WargaReportController extends Controller
             $mobileclipScore = $mobileclipResult !== null ? $mobileclipResult['score'] : null;
             $mobileclipLabel = $mobileclipResult !== null ? $mobileclipResult['label'] : null;
 
-            // Process YOLO result
-            $aiResult = $aiResults["yolo_{$i}"] ?? null;
-            $yoloKey = "yolo_{$i}";
-            if (! $aiResult && isset($responses[$yoloKey])) {
-                $resp = $responses[$yoloKey];
-                if ($resp->successful()) {
-                    $data = $resp->json();
-                    if (isset($data['overall_severity'])) {
-                        $aiResult = $data;
-                        if ($pi['hash']) {
-                            Cache::put('yolo_result_'.$pi['hash'], $data, now()->addHours(24));
-                        }
-                    }
+            // YOLO detection
+            $aiResult = null;
+            $hash = $pi['hash'];
+            if ($hash) {
+                $cached = Cache::get('yolo_result_'.$hash);
+                if ($cached) {
+                    $aiResult = $cached;
                 }
             }
+
+            if (! $aiResult) {
+                try {
+                    $yoloResponse = Http::timeout(30)
+                        ->connectTimeout(5)
+                        ->attach('file', fopen($fpath, 'r'), $fname)
+                        ->post("{$fastApiUrl}/analyze?include_image=true");
+                    if ($yoloResponse->successful()) {
+                        $data = $yoloResponse->json();
+                        if (isset($data['overall_severity'])) {
+                            $aiResult = $data;
+                            if ($hash) {
+                                Cache::put('yolo_result_'.$hash, $data, now()->addHours(24));
+                            }
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('Warga YOLO gagal', ['error' => $e->getMessage(), 'foto' => $i]);
+                }
+            }
+
             $hasAiResult = is_array($aiResult);
 
             $aiResultPath = null;
