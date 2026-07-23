@@ -151,6 +151,16 @@ function PublicLaporPage() {
     fetchRemaining();
   }, [fetchRemaining]);
 
+  useEffect(() => {
+    if (!success || confirmed) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [success, confirmed]);
+
   const cameraProps = getMobileCameraProps();
   const isCameraMode = "capture" in cameraProps;
   const isNative = isNativePlatform();
