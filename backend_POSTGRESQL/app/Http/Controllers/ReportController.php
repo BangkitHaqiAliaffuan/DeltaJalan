@@ -22,6 +22,7 @@ use App\Notifications\ReportReopenedNotification;
 use App\Notifications\TeamAssignedNotification;
 use App\Notifications\TriageUpdatedNotification;
 use App\Services\DuplicateCheckService;
+use App\Services\GeographicService;
 use App\Services\PciService;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
@@ -629,6 +630,15 @@ class ReportController extends Controller
 
         $duplicateOfId = $request->input('duplicate_of_id');
         $surveyTaskId = $request->input('survey_task_id');
+
+        // ── Validasi kecamatan vs koordinat ─────────────────────────────
+        $detectedKecamatan = GeographicService::detectKecamatan(
+            (float) $validated['latitude'],
+            (float) $validated['longitude']
+        );
+        if ($detectedKecamatan && $detectedKecamatan !== $validated['district']) {
+            $validated['district'] = $detectedKecamatan;
+        }
 
         // ── LANGKAH 5: Simpan ke database (DI DALAM transaction) ─────────
         // Hanya operasi DB — tidak ada HTTP/I/O lambat.
@@ -1688,6 +1698,15 @@ class ReportController extends Controller
         }
 
         $duplicateOfId = $request->input('duplicate_of_id');
+
+        // ── Validasi kecamatan vs koordinat ─────────────────────────────
+        $detectedKecamatan = GeographicService::detectKecamatan(
+            (float) $validated['latitude'],
+            (float) $validated['longitude']
+        );
+        if ($detectedKecamatan && $detectedKecamatan !== $validated['district']) {
+            $validated['district'] = $detectedKecamatan;
+        }
 
         try {
             $result = DB::transaction(function () use ($validated, $analyses, $request, $batchNotes, $imageHashes, $existingHashes, $duplicateOfId, $batchFullAddress) {

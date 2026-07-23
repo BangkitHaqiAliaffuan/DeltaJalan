@@ -7,6 +7,7 @@ use App\Models\Report;
 use App\Models\ReportPhoto;
 use App\Models\StatusLog;
 use App\Models\User;
+use App\Services\GeographicService;
 use App\Services\PciService;
 use Illuminate\Http\Client\Pool;
 use Illuminate\Http\JsonResponse;
@@ -1117,6 +1118,15 @@ class WargaReportController extends Controller
                         $totalAiAnalysis++;
                         $latestAiAnalyzedAt = now();
                     }
+                }
+
+                // ── Validasi kecamatan vs koordinat ──────────────────────
+                $detectedKecamatan = GeographicService::detectKecamatan(
+                    (float) $validated['latitude'],
+                    (float) $validated['longitude']
+                );
+                if ($detectedKecamatan && $detectedKecamatan !== $validated['district']) {
+                    $validated['district'] = $detectedKecamatan;
                 }
 
                 $report = Report::create([
