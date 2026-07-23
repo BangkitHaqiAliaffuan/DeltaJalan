@@ -726,7 +726,7 @@ class WargaReportController extends Controller
         if ($count >= self::FINGERPRINT_LIMIT) {
             return response()->json([
                 'success' => false,
-                'message' => 'Batas upload harian (1 laporan) telah tercapai. Daftar atau login akun untuk mendapatkan kuota 5 laporan per hari.',
+                'message' => 'Batas upload harian (1 laporan) telah tercapai. Batas ini berdasarkan perangkat, jadi mengganti akun tidak membantu. Daftar atau login akun untuk mendapatkan kuota 5 laporan per hari.',
                 'error_code' => 'FINGERPRINT_LIMIT_EXCEEDED',
             ], 429);
         }
@@ -774,7 +774,7 @@ class WargaReportController extends Controller
         if ($count >= self::DEVICE_LIMIT) {
             return response()->json([
                 'success' => false,
-                'message' => 'Batas upload harian (1 laporan) telah tercapai. Daftar atau login akun untuk mendapatkan kuota 5 laporan per hari.',
+                'message' => 'Batas upload harian (1 laporan) telah tercapai. Batas ini berdasarkan perangkat, jadi mengganti akun tidak membantu. Daftar atau login akun untuk mendapatkan kuota 5 laporan per hari.',
                 'error_code' => 'DEVICE_LIMIT_EXCEEDED',
             ], 429);
         }

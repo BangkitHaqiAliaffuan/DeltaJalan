@@ -767,8 +767,11 @@ function PublicLaporPage() {
               <p className="font-label-lg text-label-lg font-semibold text-[#0F172A] mb-2">
                 Anda telah mencapai batas upload harian
               </p>
-              <p className="font-body-md text-body-md text-[#475569] mb-2">
+              <p className="font-body-md text-body-md text-[#475569] mb-1">
                 Maksimal 1 laporan per hari untuk pengguna umum.
+              </p>
+              <p className="font-body-md text-body-md text-[#475569] mb-1">
+                Batas ini berlaku per perangkat. Mengganti akun tidak membantu.
               </p>
               <p className="font-body-md text-body-md text-[#475569] mb-6">
                 Daftar atau login untuk mendapatkan kuota 5 laporan per hari.
