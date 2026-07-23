@@ -2358,40 +2358,7 @@ class ReportController extends Controller
         $finalPriority = $priority ?? $report->priority;
         $now = now();
 
-        // Step 1: AI Analysis — panggil FastAPI sinkron
-        $photo = $report->photos()->orderBy('id')->first();
-        if (! $photo || ! $photo->image_original_path) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Tidak ada foto untuk dianalisis.',
-            ], 422);
-        }
-
-        $fullPath = Storage::disk('public')->path($photo->image_original_path);
-        if (! file_exists($fullPath)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'File foto tidak ditemukan di storage.',
-            ], 422);
-        }
-
-        $result = $this->callFastApiAnalyze($fullPath, $photo->image_original_name ?? 'photo.jpg');
-        if (! $result['success']) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Analisis AI gagal: '.($result['error'] ?? 'Unknown error'),
-            ], 502);
-        }
-
-        $aiData = $result['data'];
-
-        // Simpan gambar hasil deteksi (bounding box)
-        $resultPath = null;
-        if (! empty($aiData['image_result'])) {
-            $resultPath = $this->saveBase64Image($aiData['image_result'], 'reports/results');
-        }
-
-        // Step 2: Resolve tim — auto by district atau manual dari request
+        // Step 1: Resolve tim — auto by district atau manual dari request
         $assignedTeamId = $request->input('assigned_team_id');
         if (! $assignedTeamId) {
             $assignedTeamId = Uptd::resolveTeamIdByDistrict($report->district);
@@ -2413,45 +2380,23 @@ class ReportController extends Controller
             ], 422);
         }
 
-        // Step 3: Update report — status → Ditugaskan, simpan AI result + team
+        // Step 2: Update report — status → Ditugaskan, tanpa re-analisis AI
         $report->update([
             'status' => 'Ditugaskan',
             'priority' => $finalPriority,
             'assigned_team_id' => $team->id,
             'assigned_at' => $now,
             'ditugaskan_at' => $now,
-            'overall_severity' => $aiData['overall_severity'],
-            'total_detections' => $aiData['total'] ?? 0,
-            'ai_raw_output' => $aiData,
-            'image_result_path' => $resultPath ?? $report->image_result_path,
-            'ai_jenis_kerusakan' => $aiData['detection_type'] ?? $aiData['overall_severity'],
-            'ai_severity' => $aiData['overall_severity'],
-            'ai_confidence' => $aiData['confidence'] ?? $aiData['max_confidence'] ?? null,
-            'ai_analyzed_at' => $now,
             'system_notes' => $report->system_notes
                 ? $report->system_notes.' | [APPROVED] Disetujui oleh '.auth()->user()->name
                 : '[APPROVED] Disetujui oleh '.auth()->user()->name,
         ]);
-        $report->increment('ai_analysis_count');
 
-        // Update photo dengan data AI
-        $photo->update([
-            'ai_jenis_kerusakan' => $aiData['detection_type'] ?? $aiData['overall_severity'],
-            'ai_severity' => $aiData['overall_severity'],
-            'ai_confidence' => $aiData['confidence'] ?? $aiData['max_confidence'] ?? null,
-            'total_detections' => $aiData['total'] ?? 0,
-            'ai_raw_output' => $aiData,
-            'image_result_path' => $resultPath ?? $photo->image_result_path,
-            'ai_analyzed_at' => $now,
-        ]);
-        $photo->increment('ai_analysis_count');
-
-        Log::info('DeltaJalan: Laporan warga/telegram disetujui & ditugaskan (approve-and-assign).', [
+        Log::info('DeltaJalan: Laporan warga/telegram disetujui & ditugaskan.', [
             'report_id' => $report->id,
             'report_code' => $report->report_code,
             'approved_by' => auth()->user()->name,
             'assigned_team_id' => $team->id,
-            'severity' => $aiData['overall_severity'],
         ]);
 
         // ── Hitung PCI ──
@@ -2478,11 +2423,10 @@ class ReportController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Laporan berhasil disetujui, dianalisis, dan ditugaskan ke tim satgas.',
+            'message' => 'Laporan berhasil disetujui dan ditugaskan ke tim satgas.',
             'data' => [
                 'status' => $report->status,
                 'assigned_team_id' => $team->id,
-                'overall_severity' => $aiData['overall_severity'],
             ],
         ]);
     }
