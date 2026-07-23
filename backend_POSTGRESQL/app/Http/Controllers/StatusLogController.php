@@ -16,7 +16,7 @@ class StatusLogController extends Controller
     {
         $user = $request->user();
 
-        if (! in_array($user->role, ['supervisor', 'petugas'], true)) {
+        if (! in_array($user->role, ['supervisor', 'petugas', 'admin'], true)) {
             return response()->json(['success' => false, 'message' => 'Akses ditolak.'], 403);
         }
 
