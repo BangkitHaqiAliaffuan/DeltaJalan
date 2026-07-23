@@ -285,11 +285,19 @@ class WargaReportController extends Controller
         }
 
         $reports = $query->paginate($perPage);
-        $reports->getCollection()->each(fn ($r) => $r->append('first_photo_url'));
+
+        $data = $reports->getCollection()->map(function ($r) {
+            $r->append('first_photo_url');
+            $arr = $r->toArray();
+            if (array_key_exists('pci_score', $arr)) {
+                $arr['pci_score'] = $arr['pci_score'] !== null ? (float) $arr['pci_score'] : null;
+            }
+            return $arr;
+        });
 
         return response()->json([
             'success' => true,
-            'data' => $reports->items(),
+            'data' => $data,
             'meta' => [
                 'current_page' => $reports->currentPage(),
                 'last_page' => $reports->lastPage(),

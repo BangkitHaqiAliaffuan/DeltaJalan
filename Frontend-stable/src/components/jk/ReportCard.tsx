@@ -289,7 +289,7 @@ export function ReportCard({ report, actions, options, cardLink }: ReportCardPro
           <div className="flex items-center gap-1.5 mt-2.5">
             <Icon name="road" className="!text-[14px] text-[#64748B] shrink-0" />
             <span className="text-[11px] font-semibold" style={{ color: pciColor(report.pci_score) }}>
-              PCI {report.pci_score.toFixed(0)} — {pciConditionLabel(report.pci_score)}
+              PCI {Number(report.pci_score).toFixed(0)} — {pciConditionLabel(report.pci_score)}
             </span>
           </div>
         )}
