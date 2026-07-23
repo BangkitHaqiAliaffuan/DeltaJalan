@@ -118,6 +118,7 @@ function PublicLaporPage() {
   const [phoneError, setPhoneError] = useState("");
   const [success, setSuccess] = useState<{ reportCode: string } | null>(null);
   const [serverRemaining, setServerRemaining] = useState<number | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
   const duplicateCheck = useDuplicateCheck(
@@ -671,6 +672,7 @@ function PublicLaporPage() {
 
       if (res.ok && json.success) {
         fetchRemaining();
+        setConfirmed(false);
         setSuccess({ reportCode: json.data?.report?.report_code ?? "" });
       } else {
         if (json.error_code === "IMAGE_NOT_RELEVANT") {
@@ -726,26 +728,39 @@ function PublicLaporPage() {
                 {success.reportCode}
               </p>
             </div>
-            <p className="text-sm text-[#476788] mb-6">
+            <p className="text-sm text-[#476788] mb-4">
               Simpan kode ini untuk melacak status laporan Anda.
             </p>
-            <div className="flex flex-col gap-3">
-              <Link
-                to="/lacak"
-                search={{ report_code: success.reportCode }}
-                className="w-full h-11 bg-gradient-to-r from-[#1e40af] to-[#2e68d8] text-white rounded-lg font-label-md text-label-md font-semibold flex items-center justify-center gap-2 hover:shadow-lg transition-all"
-              >
-                <Icon name="search" className="!text-[20px]" />
-                Lacak Laporan
-              </Link>
-              <a
-                href="/lapor"
-                className="w-full h-11 border border-[#1e40af] text-[#1e40af] rounded-lg font-label-md text-label-md font-semibold flex items-center justify-center gap-2 hover:bg-blue-50 transition-all"
-              >
-                <Icon name="add" className="!text-[20px]" />
-                Laporkan Lainnya
-              </a>
-            </div>
+            <label className="flex items-center justify-center gap-2.5 mb-6 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={confirmed}
+                onChange={(e) => setConfirmed(e.target.checked)}
+                className="w-4 h-4 rounded border-[#94A3B8] text-[#1e40af] focus:ring-[#1e40af]/20"
+              />
+              <span className="text-[13px] text-[#475569]">
+                Saya sudah menyimpan kode laporan ini
+              </span>
+            </label>
+            {confirmed && (
+              <div className="flex flex-col gap-3 animate-fade-in">
+                <Link
+                  to="/lacak"
+                  search={{ report_code: success.reportCode }}
+                  className="w-full h-11 bg-gradient-to-r from-[#1e40af] to-[#2e68d8] text-white rounded-lg font-label-md text-label-md font-semibold flex items-center justify-center gap-2 hover:shadow-lg transition-all"
+                >
+                  <Icon name="search" className="!text-[20px]" />
+                  Lacak Laporan
+                </Link>
+                <a
+                  href="/lapor"
+                  className="w-full h-11 border border-[#1e40af] text-[#1e40af] rounded-lg font-label-md text-label-md font-semibold flex items-center justify-center gap-2 hover:bg-blue-50 transition-all"
+                >
+                  <Icon name="add" className="!text-[20px]" />
+                  Laporkan Lainnya
+                </a>
+              </div>
+            )}
           </div>
         </main>
       </PublicLayout>
