@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { isLoggedIn, getCurrentUser } from "@/lib/auth";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { PublicLayout } from "@/components/jk/PublicLayout";
 import { Icon } from "@/components/jk/Icon";
@@ -26,6 +27,15 @@ import { DuplicateChecker } from "@/components/jk/DuplicateChecker";
 
 export const Route = createFileRoute("/lapor")({
   component: PublicLaporPage,
+  beforeLoad: () => {
+    if (isLoggedIn()) {
+      const user = getCurrentUser();
+      if (user?.role === "warga") {
+        throw redirect({ to: "/warga/lapor" });
+      }
+      throw redirect({ to: "/" });
+    }
+  },
   head: () => ({ meta: [{ title: "Lapor Kerusakan — DeltaJalan" }] }),
 });
 

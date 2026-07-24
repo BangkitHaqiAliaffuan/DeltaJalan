@@ -1109,7 +1109,7 @@ function DetailReportPage() {
           </div>
         </main>
 
-        {renderFooter()}
+        <Portal>{renderFooter()}</Portal>
 
         {/* ── Tolak Modal ── */}
         {showTolak && (
