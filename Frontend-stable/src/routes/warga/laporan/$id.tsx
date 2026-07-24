@@ -4,7 +4,7 @@ import { Share as CapacitorShare } from "@capacitor/share";
 import { Icon } from "@/components/jk/Icon";
 import { getToken } from "@/lib/auth";
 import { API_BASE_URL } from "@/lib/aiStore";
-import { formatDateRelative, getStatusBadge, getSeverityLabel } from "@/lib/format";
+import { formatDateRelative, getStatusBadge, getSeverityLabel, displayStatus, statusDotStyle, severityBadgeStyle } from "@/lib/format";
 import { sanitizeUrls, resolveImageUrl } from "@/lib/imageUrl";
 import { PciCard } from "@/components/jk/PciCard";
 
@@ -273,9 +273,9 @@ function WargaLaporanDetailPage() {
         <div className="bg-white border border-[#D0DAE8] rounded-lg p-4 mb-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs text-[#476788] font-medium">Status</p>
-            <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${statusInfo.color}`}>
-              <Icon name={statusInfo.icon} className="!text-sm" />
-              {statusInfo.label}
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-white border border-[#E2E8F0] text-[#475569]">
+              <span className={`w-2 h-2 rounded-full ${statusDotStyle(report.status ?? "")}`} />
+              {displayStatus(report.status ?? "-")}
             </span>
           </div>
           <div>
@@ -289,13 +289,14 @@ function WargaLaporanDetailPage() {
             <p className="font-body-md text-body-md text-[#0F172A]">{report.district}</p>
           </div>
           {report.overall_severity && (() => {
-            const sevInfo = getSeverityLabel(report.overall_severity);
+            const sevLabel = getSeverityLabel(report.overall_severity).label;
+            const isBerat = report.overall_severity === "Rusak Berat";
             return (
               <div className="flex items-center justify-between">
                 <p className="text-xs text-[#476788] font-medium">Tingkat Kerusakan</p>
-                <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${sevInfo.chip}`}>
-                  <Icon name={sevInfo.icon} className="!text-sm" />
-                  {sevInfo.label}
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${severityBadgeStyle(report.overall_severity)}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${isBerat ? "bg-white animate-pulse" : "bg-white"}`} />
+                  {sevLabel}
                 </span>
               </div>
             );
