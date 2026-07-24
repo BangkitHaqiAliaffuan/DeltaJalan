@@ -127,7 +127,7 @@ function SupervisorDashboard() {
     else if (activeTab === "sedang_diperbaiki") p.set("status", "sedang_diperbaiki");
     else if (activeTab === "ditolak") p.set("status", "ditolak");
     p.set("page", String(page));
-    p.set("limit", "20");
+    p.set("limit", "10");
 
     if (activeTab === "menunggu") p.set("sort_by", "deadline_review");
     else if (activeTab === "disetujui" || activeTab === "sedang_diperbaiki")
