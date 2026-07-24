@@ -221,109 +221,117 @@ function WargaLaporPage() {
     setFraudModal((s) => ({ ...s, isOpen: false }));
     setUploadWarnings([]);
 
-    const newPhotos: File[] = [];
-    const newPreviews: string[] = [];
-    const newQualityScores: (string | null)[] = [];
-    const newHashes: string[] = [];
-    const warnings: string[] = [];
+    try {
+      const newPhotos: File[] = [];
+      const newPreviews: string[] = [];
+      const newQualityScores: (string | null)[] = [];
+      const newHashes: string[] = [];
+      const warnings: string[] = [];
 
-    if (incoming.length > remaining) {
-      warnings.push(
-        `Hanya ${remaining} foto yang bisa ditambahkan (maks 3 foto per laporan), ${incoming.length - remaining} foto diabaikan.`,
-      );
-    }
-    let isFirstInBatch = true;
-
-    for (const rawFile of toProcess) {
-      const compressed = await compressImage(rawFile);
-
-      const dateVal = await validatePhotoDate(compressed, 7);
-      if (dateVal.status !== "valid") {
-        if (photos.length === 0 && newPhotos.length === 0) {
-          setFraudModal({
-            isOpen: true,
-            status: dateVal.status,
-            title: dateVal.title,
-            message: dateVal.message,
-          });
-          setProcessing(false);
-          return;
-        }
-        warnings.push(`"${rawFile.name}": ${dateVal.message}`);
-        isFirstInBatch = false;
-        continue;
+      if (incoming.length > remaining) {
+        warnings.push(
+          `Hanya ${remaining} foto yang bisa ditambahkan (maks 3 foto per laporan), ${incoming.length - remaining} foto diabaikan.`,
+        );
       }
+      let isFirstInBatch = true;
 
-      const qualityCheck = await analyzeImageQuality(compressed);
-      if (qualityCheck.status !== "good" && !qualityCheck.isWarningOnly) {
-        if (photos.length === 0 && newPhotos.length === 0) {
-          setFraudModal({
-            isOpen: true,
-            status: qualityCheck.status,
-            title: qualityCheck.title,
-            message: qualityCheck.message,
-          });
-          setProcessing(false);
-          return;
-        }
-        warnings.push(`"${rawFile.name}": ${qualityCheck.message}`);
-        isFirstInBatch = false;
-        continue;
-      }
+      for (const rawFile of toProcess) {
+        const compressed = await compressImage(rawFile);
 
-      const cleanQuality = JSON.stringify({
-        ...qualityCheck,
-        title: undefined,
-        message: undefined,
-        isWarningOnly: undefined,
-      });
-
-      if (photos.length === 0 && isFirstInBatch) {
-        try {
-          const tags = await exifr.parse(compressed, ["Make", "Model"]);
-          if (tags) {
-            const make = (tags.Make as string) ?? "";
-            const model = (tags.Model as string) ?? "";
-            if (make || model) setCameraModel([make, model].filter(Boolean).join(" "));
+        const dateVal = await validatePhotoDate(compressed, 7);
+        if (dateVal.status !== "valid") {
+          if (photos.length === 0 && newPhotos.length === 0) {
+            setFraudModal({
+              isOpen: true,
+              status: dateVal.status,
+              title: dateVal.title,
+              message: dateVal.message,
+            });
+            setProcessing(false);
+            return;
           }
-        } catch {
-          /* empty */
+          warnings.push(`"${rawFile.name}": ${dateVal.message}`);
+          isFirstInBatch = false;
+          continue;
         }
-      }
 
-      const hash = await computeFileHash(compressed);
-      if (photoHashes.includes(hash) || newHashes.includes(hash)) {
-        warnings.push(`"${rawFile.name}": Foto duplikat, dilewati`);
+        const qualityCheck = await analyzeImageQuality(compressed);
+        if (qualityCheck.status !== "good" && !qualityCheck.isWarningOnly) {
+          if (photos.length === 0 && newPhotos.length === 0) {
+            setFraudModal({
+              isOpen: true,
+              status: qualityCheck.status,
+              title: qualityCheck.title,
+              message: qualityCheck.message,
+            });
+            setProcessing(false);
+            return;
+          }
+          warnings.push(`"${rawFile.name}": ${qualityCheck.message}`);
+          isFirstInBatch = false;
+          continue;
+        }
+
+        const cleanQuality = JSON.stringify({
+          ...qualityCheck,
+          title: undefined,
+          message: undefined,
+          isWarningOnly: undefined,
+        });
+
+        if (photos.length === 0 && isFirstInBatch) {
+          try {
+            const tags = await exifr.parse(compressed, ["Make", "Model"]);
+            if (tags) {
+              const make = (tags.Make as string) ?? "";
+              const model = (tags.Model as string) ?? "";
+              if (make || model) setCameraModel([make, model].filter(Boolean).join(" "));
+            }
+          } catch {
+            /* empty */
+          }
+        }
+
+        const hash = await computeFileHash(compressed);
+        if (photoHashes.includes(hash) || newHashes.includes(hash)) {
+          warnings.push(`"${rawFile.name}": Foto duplikat, dilewati`);
+          isFirstInBatch = false;
+          continue;
+        }
+
+        newPhotos.push(compressed);
+        newPreviews.push(URL.createObjectURL(compressed));
+        newQualityScores.push(cleanQuality);
+        newHashes.push(hash);
         isFirstInBatch = false;
-        continue;
       }
 
-      newPhotos.push(compressed);
-      newPreviews.push(URL.createObjectURL(compressed));
-      newQualityScores.push(cleanQuality);
-      newHashes.push(hash);
-      isFirstInBatch = false;
-    }
+      if (newPhotos.length === 0) {
+        setUploadWarnings(warnings);
+        setProcessing(false);
+        return;
+      }
 
-    if (newPhotos.length === 0) {
-      setUploadWarnings(warnings);
+      setPhotos((prev) => [...prev, ...newPhotos].slice(0, 3));
+      setPhotoPreviews((prev) => [...prev, ...newPreviews].slice(0, 3));
+      setQualityScoresArray((prev) => [...prev, ...newQualityScores].slice(0, 3));
+      setPhotoHashes((prev) => [...prev, ...newHashes].slice(0, 3));
+
+      if (warnings.length > 0) setUploadWarnings(warnings);
+
+      // GPS from first photo if this is the first batch
+      if (photos.length === 0 && newPhotos.length > 0) {
+        await processPhotoForGps(newPhotos[0]);
+      }
+
       setProcessing(false);
-      return;
+    } catch (err) {
+      console.error("handlePhotosChange error:", err);
+      setError("Gagal memproses foto. Silakan coba lagi.");
+      setProcessing(false);
     }
 
-    setPhotos((prev) => [...prev, ...newPhotos].slice(0, 3));
-    setPhotoPreviews((prev) => [...prev, ...newPreviews].slice(0, 3));
-    setQualityScoresArray((prev) => [...prev, ...newQualityScores].slice(0, 3));
-    setPhotoHashes((prev) => [...prev, ...newHashes].slice(0, 3));
-
-    if (warnings.length > 0) setUploadWarnings(warnings);
-
-    // GPS from first photo if this is the first batch
-    if (photos.length === 0 && newPhotos.length > 0) {
-      await processPhotoForGps(newPhotos[0]);
-    }
-
-    setProcessing(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   // ── Capacitor Native Photo Handlers ──
@@ -335,65 +343,71 @@ function WargaLaporPage() {
     setFraudModal((s) => ({ ...s, isOpen: false }));
     setUploadWarnings([]);
 
-    const result = await nativeTakePhoto();
-    if (!result) {
-      setProcessing(false);
-      return;
-    }
+    try {
+      const result = await nativeTakePhoto();
+      if (!result) {
+        setProcessing(false);
+        return;
+      }
 
-    const exif = await readExifOnce(result.file);
-    if (!exif.dateValid) {
-      setFraudModal({
-        isOpen: true,
-        status: "too_old",
-        title: "Foto Tidak Valid",
-        message: exif.photoDate
-          ? "Tanggal foto lebih dari 7 hari yang lalu atau di masa depan."
-          : "Foto tidak memiliki metadata tanggal.",
+      const exif = await readExifOnce(result.file);
+      if (!exif.dateValid) {
+        setFraudModal({
+          isOpen: true,
+          status: "too_old",
+          title: "Foto Tidak Valid",
+          message: exif.photoDate
+            ? "Tanggal foto lebih dari 7 hari yang lalu atau di masa depan."
+            : "Foto tidak memiliki metadata tanggal.",
+        });
+        setProcessing(false);
+        return;
+      }
+
+      const compressed = await compressImage(result.file);
+
+      const qualityCheck = await analyzeImageQuality(compressed);
+      if (qualityCheck.status !== "good" && !qualityCheck.isWarningOnly) {
+        setFraudModal({
+          isOpen: true,
+          status: qualityCheck.status,
+          title: qualityCheck.title,
+          message: qualityCheck.message,
+        });
+        setProcessing(false);
+        return;
+      }
+
+      const cleanQuality = JSON.stringify({
+        ...qualityCheck,
+        title: undefined,
+        message: undefined,
+        isWarningOnly: undefined,
       });
+
+      if (exif.make || exif.model) setCameraModel([exif.make, exif.model].filter(Boolean).join(" "));
+
+      // Camera replaces all photos
+      const hash = await computeFileHash(compressed);
+      setPhotos([compressed]);
+      setPhotoPreviews([URL.createObjectURL(compressed)]);
+      setQualityScoresArray([cleanQuality]);
+      setPhotoHashes([hash]);
+
+      if (result.lat != null && result.lng != null) {
+        await applyCoordinates(result.lat, result.lng, "exif");
+      } else if (exif.gps) {
+        await applyCoordinates(exif.gps.latitude, exif.gps.longitude, "exif");
+      } else {
+        await processPhotoForGps(compressed);
+      }
+
       setProcessing(false);
-      return;
-    }
-
-    const compressed = await compressImage(result.file);
-
-    const qualityCheck = await analyzeImageQuality(compressed);
-    if (qualityCheck.status !== "good" && !qualityCheck.isWarningOnly) {
-      setFraudModal({
-        isOpen: true,
-        status: qualityCheck.status,
-        title: qualityCheck.title,
-        message: qualityCheck.message,
-      });
+    } catch (err) {
+      console.error("handleNativeCamera error:", err);
+      setError("Gagal memproses foto. Silakan coba lagi.");
       setProcessing(false);
-      return;
     }
-
-    const cleanQuality = JSON.stringify({
-      ...qualityCheck,
-      title: undefined,
-      message: undefined,
-      isWarningOnly: undefined,
-    });
-
-    if (exif.make || exif.model) setCameraModel([exif.make, exif.model].filter(Boolean).join(" "));
-
-    // Camera replaces all photos
-    const hash = await computeFileHash(compressed);
-    setPhotos([compressed]);
-    setPhotoPreviews([URL.createObjectURL(compressed)]);
-    setQualityScoresArray([cleanQuality]);
-    setPhotoHashes([hash]);
-
-    if (result.lat != null && result.lng != null) {
-      await applyCoordinates(result.lat, result.lng, "exif");
-    } else if (exif.gps) {
-      await applyCoordinates(exif.gps.latitude, exif.gps.longitude, "exif");
-    } else {
-      await processPhotoForGps(compressed);
-    }
-
-    setProcessing(false);
   }
 
   async function handleNativeGallery() {
@@ -402,122 +416,128 @@ function WargaLaporPage() {
     setFraudModal((s) => ({ ...s, isOpen: false }));
     setUploadWarnings([]);
 
-    const pickResult = await PhotoExifGps.pickPhotos({ limit: 3 });
-    if (!pickResult.photos?.length) {
-      setProcessing(false);
-      return;
-    }
+    try {
+      const pickResult = await PhotoExifGps.pickPhotos({ limit: 3 });
+      if (!pickResult.photos?.length) {
+        setProcessing(false);
+        return;
+      }
 
-    const warnings: string[] = [];
+      const warnings: string[] = [];
 
-    const results = await Promise.all(
-      pickResult.photos.map(async (pick) => {
-        const capUrl = convertFileSrc(pick.uri);
-        let blob: Blob;
-        try {
-          const resp = await fetch(capUrl);
-          blob = await resp.blob();
-        } catch {
-          return { error: `"${pick.name}": Gagal membaca foto` } as const;
-        }
-        const file = new File([blob], pick.name || "gallery.jpg", {
-          type: blob.type || "image/jpeg",
-        });
+      const results = await Promise.all(
+        pickResult.photos.map(async (pick) => {
+          const capUrl = convertFileSrc(pick.uri);
+          let blob: Blob;
+          try {
+            const resp = await fetch(capUrl);
+            blob = await resp.blob();
+          } catch {
+            return { error: `"${pick.name}": Gagal membaca foto` } as const;
+          }
+          const file = new File([blob], pick.name || "gallery.jpg", {
+            type: blob.type || "image/jpeg",
+          });
 
-        const exif = await readExifOnce(file);
-        if (!exif.dateValid) {
+          const exif = await readExifOnce(file);
+          if (!exif.dateValid) {
+            return {
+              error: `"${pick.name}": ${exif.photoDate ? "Tanggal foto lebih dari 7 hari" : "Tidak ada tanggal EXIF"}`,
+              exif,
+            } as const;
+          }
+
+          const compressed = await compressImage(file);
+          const qualityCheck = await analyzeImageQuality(compressed);
+          if (qualityCheck.status !== "good" && !qualityCheck.isWarningOnly) {
+            return { error: `"${pick.name}": ${qualityCheck.message}`, exif } as const;
+          }
+
+          const cleanQuality = JSON.stringify({
+            ...qualityCheck,
+            title: undefined,
+            message: undefined,
+            isWarningOnly: undefined,
+          });
+
+          const hash = await computeFileHash(compressed);
           return {
-            error: `"${pick.name}": ${exif.photoDate ? "Tanggal foto lebih dari 7 hari" : "Tidak ada tanggal EXIF"}`,
+            file: compressed,
+            preview: URL.createObjectURL(compressed),
+            quality: cleanQuality,
+            hash,
             exif,
+            pick,
           } as const;
+        }),
+      );
+
+      let firstExif: Awaited<ReturnType<typeof readExifOnce>> | null = null;
+      const newPhotos: File[] = [];
+      const newPreviews: string[] = [];
+      const newQualityScores: (string | null)[] = [];
+      const newHashes: string[] = [];
+      const seenHashes = new Set(photoHashes);
+
+      for (const r of results) {
+        if ("error" in r) {
+          if (newPhotos.length === 0 && r.exif) firstExif ??= r.exif;
+          warnings.push(r.error);
+          continue;
         }
-
-        const compressed = await compressImage(file);
-        const qualityCheck = await analyzeImageQuality(compressed);
-        if (qualityCheck.status !== "good" && !qualityCheck.isWarningOnly) {
-          return { error: `"${pick.name}": ${qualityCheck.message}`, exif } as const;
+        if (seenHashes.has(r.hash)) {
+          warnings.push(`"${r.pick.name}": Foto duplikat, dilewati`);
+          continue;
         }
-
-        const cleanQuality = JSON.stringify({
-          ...qualityCheck,
-          title: undefined,
-          message: undefined,
-          isWarningOnly: undefined,
-        });
-
-        const hash = await computeFileHash(compressed);
-        return {
-          file: compressed,
-          preview: URL.createObjectURL(compressed),
-          quality: cleanQuality,
-          hash,
-          exif,
-          pick,
-        } as const;
-      }),
-    );
-
-    let firstExif: Awaited<ReturnType<typeof readExifOnce>> | null = null;
-    const newPhotos: File[] = [];
-    const newPreviews: string[] = [];
-    const newQualityScores: (string | null)[] = [];
-    const newHashes: string[] = [];
-    const seenHashes = new Set(photoHashes);
-
-    for (const r of results) {
-      if ("error" in r) {
-        if (newPhotos.length === 0 && r.exif) firstExif ??= r.exif;
-        warnings.push(r.error);
-        continue;
+        seenHashes.add(r.hash);
+        firstExif ??= r.exif;
+        newPhotos.push(r.file);
+        newPreviews.push(r.preview);
+        newQualityScores.push(r.quality);
+        newHashes.push(r.hash);
       }
-      if (seenHashes.has(r.hash)) {
-        warnings.push(`"${r.pick.name}": Foto duplikat, dilewati`);
-        continue;
-      }
-      seenHashes.add(r.hash);
-      firstExif ??= r.exif;
-      newPhotos.push(r.file);
-      newPreviews.push(r.preview);
-      newQualityScores.push(r.quality);
-      newHashes.push(r.hash);
-    }
 
-    if (newPhotos.length === 0) {
-      if (results.length > 0 && "error" in results[0]) {
-        setFraudModal({
-          isOpen: true,
-          status: "too_old",
-          title: "Foto Tidak Valid",
-          message: warnings[0] ?? "Foto tidak memenuhi syarat.",
-        });
+      if (newPhotos.length === 0) {
+        if (results.length > 0 && "error" in results[0]) {
+          setFraudModal({
+            isOpen: true,
+            status: "too_old",
+            title: "Foto Tidak Valid",
+            message: warnings[0] ?? "Foto tidak memenuhi syarat.",
+          });
+        }
+        setUploadWarnings(warnings);
+        setProcessing(false);
+        return;
       }
-      setUploadWarnings(warnings);
+
+      if (firstExif?.make || firstExif?.model) {
+        setCameraModel([firstExif.make, firstExif.model].filter(Boolean).join(" "));
+      }
+
+      setPhotos((prev) => [...prev, ...newPhotos].slice(0, 3));
+      setPhotoPreviews((prev) => [...prev, ...newPreviews].slice(0, 3));
+      setQualityScoresArray((prev) => [...prev, ...newQualityScores].slice(0, 3));
+      setPhotoHashes((prev) => [...prev, ...newHashes].slice(0, 3));
+      if (warnings.length > 0) setUploadWarnings(warnings);
+
+      // GPS from first photo
+      const first = photos.concat(newPhotos).slice(0, 3)[0];
+      const firstPick = pickResult.photos[0];
+      if (firstPick.lat != null && firstPick.lng != null) {
+        await applyCoordinates(firstPick.lat, firstPick.lng, "exif");
+      } else if (firstExif?.gps) {
+        await applyCoordinates(firstExif.gps.latitude, firstExif.gps.longitude, "exif");
+      } else if (first) {
+        await processPhotoForGps(first);
+      }
+
       setProcessing(false);
-      return;
+    } catch (err) {
+      console.error("handleNativeGallery error:", err);
+      setError("Gagal memproses foto. Silakan coba lagi.");
+      setProcessing(false);
     }
-
-    if (firstExif?.make || firstExif?.model) {
-      setCameraModel([firstExif.make, firstExif.model].filter(Boolean).join(" "));
-    }
-
-    setPhotos((prev) => [...prev, ...newPhotos].slice(0, 3));
-    setPhotoPreviews((prev) => [...prev, ...newPreviews].slice(0, 3));
-    setQualityScoresArray((prev) => [...prev, ...newQualityScores].slice(0, 3));
-    setPhotoHashes((prev) => [...prev, ...newHashes].slice(0, 3));
-    if (warnings.length > 0) setUploadWarnings(warnings);
-
-    // GPS from first photo
-    const first = photos.concat(newPhotos).slice(0, 3)[0];
-    const firstPick = pickResult.photos[0];
-    if (firstPick.lat != null && firstPick.lng != null) {
-      await applyCoordinates(firstPick.lat, firstPick.lng, "exif");
-    } else if (firstExif?.gps) {
-      await applyCoordinates(firstExif.gps.latitude, firstExif.gps.longitude, "exif");
-    } else if (first) {
-      await processPhotoForGps(first);
-    }
-
-    setProcessing(false);
   }
 
   async function handleSendEvidence() {
