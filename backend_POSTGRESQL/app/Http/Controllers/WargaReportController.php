@@ -264,15 +264,11 @@ class WargaReportController extends Controller
             } elseif ($status === 'Selesai') {
                 $query->where('status', 'Selesai');
             } else {
-                $query->where('status', $status);
+                $query->where(function ($q) use ($status) {
+                    $q->where('overall_severity', $status)
+                        ->orWhere('ai_severity', $status);
+                });
             }
-        }
-
-        if ($severity) {
-            $query->where(function ($q) use ($severity) {
-                $q->where('overall_severity', $severity)
-                    ->orWhere('ai_severity', $severity);
-            });
         }
 
         if ($search) {
@@ -284,15 +280,35 @@ class WargaReportController extends Controller
             });
         }
 
-        $reports = $query->paginate($perPage);
+        $reports = $query
+            ->withCount('progressUpdates')
+            ->paginate($perPage);
 
         $data = $reports->getCollection()->map(function ($r) {
-            $r->append('first_photo_url');
-            $arr = $r->toArray();
-            if (array_key_exists('pci_score', $arr)) {
-                $arr['pci_score'] = $arr['pci_score'] !== null ? (float) $arr['pci_score'] : null;
-            }
-            return $arr;
+            return [
+                'id' => $r->id,
+                'report_code' => $r->report_code,
+                'reporter_name' => $r->reporter_name,
+                'road_name' => $r->road_name,
+                'district' => $r->district,
+                'overall_severity' => $r->overall_severity,
+                'ai_severity' => $r->ai_severity,
+                'status' => $r->status,
+                'source' => $r->source,
+                'first_photo_url' => $r->first_photo_url,
+                'created_at' => $r->created_at?->toIso8601String(),
+                'estimasi_hari' => $r->estimasi_hari,
+                'progress_updates_count' => (int) $r->progress_updates_count,
+                'kerusakan_panjang' => $r->kerusakan_panjang ? (float) $r->kerusakan_panjang : null,
+                'kerusakan_lebar' => $r->kerusakan_lebar ? (float) $r->kerusakan_lebar : null,
+                'deadline_review' => $r->deadline_review?->toIso8601String(),
+                'deadline_resolusi' => $r->deadline_resolusi?->toIso8601String(),
+                'terlambat_review' => $r->terlambat_review,
+                'terlambat_resolusi' => $r->terlambat_resolusi,
+                'status_deadline' => $r->terlambat_review || $r->terlambat_resolusi ? 'terlambat' : 'tepat_waktu',
+                'is_duplicate' => $r->relationLoaded('duplicateOf') && $r->duplicateOf !== null,
+                'pci_score' => $r->pci_score ? (float) $r->pci_score : null,
+            ];
         });
 
         return response()->json([

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { PullToRefresh } from "@/components/jk/PullToRefresh";
 import { ReportCard, ReportCardSkeleton } from "@/components/jk/ReportCard";
@@ -48,20 +48,65 @@ function WargaLaporanIndexPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [lastPage, setLastPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  const [filter, setFilter] = useState("");
+  const [query, setQuery] = useState("");
+
+  const pageStartRef = useRef(0);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setQuery(searchQuery), 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setFilter(activeFilter === "all" ? "" : activeFilter);
+  }, [activeFilter]);
+
   const loadLaporan = useCallback(
-    async (showLoader?: boolean) => {
-      if (showLoader) setIsLoading(true);
+    async (p: number, opts?: { append?: boolean; showLoader?: boolean }) => {
+      if (opts?.showLoader) setIsLoading(true);
       try {
-        const params = new URLSearchParams({ per_page: "20" });
+        const params = new URLSearchParams({ per_page: "20", page: String(p) });
+        if (filter) params.set("status", filter);
+        if (query) params.set("q", query);
+
+        const t0 = performance.now();
         const res = await fetch(`${API_BASE_URL}/warga/reports?${params}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        const t1 = performance.now();
         const json = await res.json();
+        const t2 = performance.now();
         if (json.success) {
-          setLaporan((json.data ?? []) as Laporan[]);
+          const data = (json.data ?? []) as Laporan[];
+          setLaporan(opts?.append ? (prev) => [...prev, ...data] : data);
+          setTotal(json.meta?.total ?? 0);
+          setLastPage(json.meta?.last_page ?? 1);
+          setPage(p);
+
+          const hasPhoto = data.filter((r: Laporan) => r.first_photo_url).length;
+
+          console.groupCollapsed(`[PERF] /warga/laporan page=${p}`);
+          console.log(`Fetch: ${(t1 - t0).toFixed(0)}ms`);
+          console.log(`Parse JSON: ${(t2 - t1).toFixed(0)}ms`);
+          console.log(`Total API call: ${(t2 - t0).toFixed(0)}ms`);
+          console.log(`Records: ${data.length}, total: ${json.meta?.total ?? 0}, photos: ${hasPhoto}`);
+          try {
+            const estBytes = new TextEncoder().encode(JSON.stringify(json)).length;
+            console.log(`Response size: ${(estBytes / 1024).toFixed(1)} KB`);
+          } catch {}
+          data.forEach((r: Laporan, i: number) => {
+            console.log(
+              `  [${i}] ${r.id?.substring(0, 8)} status=${r.status} severity=${r.overall_severity ?? "-"} photo=${r.first_photo_url ? r.first_photo_url.substring(0, 55) + "..." : "null"}`,
+            );
+          });
+          console.groupEnd();
         }
       } catch {
         // silent
@@ -69,12 +114,25 @@ function WargaLaporanIndexPage() {
         setIsLoading(false);
       }
     },
-    [token],
+    [token, filter, query],
   );
 
   useEffect(() => {
-    loadLaporan(true);
+    pageStartRef.current = performance.now();
+    loadLaporan(1, { showLoader: true });
+
+    const t30 = setTimeout(() => {
+      const elapsed = ((performance.now() - pageStartRef.current) / 1000).toFixed(1);
+      console.log(`[PERF] /warga/laporan — 30s check: still mounted at ${elapsed}s`);
+    }, 30_000);
+    return () => clearTimeout(t30);
   }, [loadLaporan]);
+
+  const handleLoadMore = useCallback(() => {
+    if (page < lastPage) {
+      loadLaporan(page + 1, { append: true });
+    }
+  }, [page, lastPage, loadLaporan]);
 
   const handleDeleteClick = useCallback((id: string) => {
     setDeleteTarget(id);
@@ -90,7 +148,7 @@ function WargaLaporanIndexPage() {
       });
       if (res.ok) {
         setDeleteTarget(null);
-        loadLaporan(true);
+        loadLaporan(1, { showLoader: true });
       } else {
         const json = await res.json().catch(() => ({}));
         alert(json.message ?? "Gagal menghapus laporan.");
@@ -109,7 +167,7 @@ function WargaLaporanIndexPage() {
   }, [laporan, activeFilter, searchQuery]);
 
   return (
-    <PullToRefresh onRefresh={loadLaporan}>
+    <PullToRefresh onRefresh={() => loadLaporan(1, { showLoader: true })}>
       {/* Search bar */}
       <section className="px-margin-mobile pt-md">
         <div className="relative flex items-center">
@@ -123,10 +181,13 @@ function WargaLaporanIndexPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
-          {searchQuery && (
+            {searchQuery && (
             <button
               className="absolute right-3 text-on-surface-variant hover:text-on-surface"
-              onClick={() => setSearchQuery("")}
+              onClick={() => {
+                setSearchQuery("");
+                setQuery("");
+              }}
               aria-label="Hapus pencarian"
             >
               <Icon name="close" />
@@ -155,7 +216,7 @@ function WargaLaporanIndexPage() {
       {/* Report count */}
       <div className="px-margin-mobile mb-sm">
         <p className="font-label-md text-label-md text-on-surface-variant">
-          {filtered.length} laporan
+          {total} laporan
           {activeFilter !== "all" && ` • ${FILTERS.find((f) => f.key === activeFilter)?.label}`}
           {searchQuery && ` • Cari: "${searchQuery}"`}
         </p>
@@ -201,27 +262,39 @@ function WargaLaporanIndexPage() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {filtered.map((r) => (
-              <ReportCard
-                key={r.id}
-                report={r}
-                cardLink={{ to: "/warga/laporan/$id", params: { id: r.id } }}
-                actions={
-                  ["Menunggu Review", "Ditinjau"].includes(r.status)
-                    ? [
-                        {
-                          label: "Hapus",
-                          icon: "delete",
-                          variant: "destructive" as const,
-                          onClick: () => handleDeleteClick(r.id),
-                        },
-                      ]
-                    : undefined
-                }
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {filtered.map((r) => (
+                <ReportCard
+                  key={r.id}
+                  report={r}
+                  cardLink={{ to: "/warga/laporan/$id", params: { id: r.id } }}
+                  actions={
+                    ["Menunggu Review", "Ditinjau"].includes(r.status)
+                      ? [
+                          {
+                            label: "Hapus",
+                            icon: "delete",
+                            variant: "destructive" as const,
+                            onClick: () => handleDeleteClick(r.id),
+                          },
+                        ]
+                      : undefined
+                  }
+                />
+              ))}
+            </div>
+            {page < lastPage && (
+              <div className="flex justify-center pt-4">
+                <button
+                  onClick={handleLoadMore}
+                  className="px-6 py-3 bg-primary text-on-primary rounded-lg font-label-md text-label-md active:scale-95 transition-all"
+                >
+                  Muat Lebih Banyak
+                </button>
+              </div>
+            )}
+          </>
         )}
       </main>
 
