@@ -82,7 +82,7 @@ function SupervisorReview() {
 
   // Fetch detail for selected report
   const selectedId = reports[selectedIndex]?.id;
-  const { data: selectedDetail, isFetching: detailLoading } = useQuery({
+  const { data: selectedDetail, isPending: detailLoading } = useQuery({
     queryKey: ["review-detail", selectedId],
     queryFn: async () => {
       if (!selectedId) return null;
@@ -176,9 +176,9 @@ function SupervisorReview() {
 
   return (
     <PageLayout title="Review Laporan" withBottomNav fullPage>
-      <div className="flex flex-col md:flex-row h-full">
+      <div className="flex flex-col md:flex-row flex-1 min-h-0">
         {/* Queue List */}
-        <div className="w-full md:w-[35%] md:min-w-[320px] flex flex-col border-b md:border-b-0 md:border-r border-[#D0DAE8]">
+        <div className="w-full md:w-[35%] md:min-w-[320px] flex flex-col min-h-0 border-b md:border-b-0 md:border-r border-[#D0DAE8]">
           {/* Filters */}
           <div className="flex items-center gap-2 px-3 py-2 border-b border-[#D0DAE8] bg-white shrink-0">
             <select
@@ -265,7 +265,7 @@ function SupervisorReview() {
             ) : (
               <div className="divide-y divide-[#E2E8F0]">
                 {reports.map((r, idx) => {
-                  const isSelected = idx === selectedIndex && !showMobileDrawer;
+                  const isSelected = idx === selectedIndex;
                   const isOverdue = r.terlambat_review || r.status_deadline === "terlambat";
                   const thumbUrl = resolveImageUrl(r.first_photo_url);
                   const deadlineTime = r.deadline_review
@@ -280,9 +280,9 @@ function SupervisorReview() {
                     <button
                       key={r.id}
                       onClick={() => selectReport(idx)}
-                      className={`w-full text-left px-3 py-2.5 flex gap-3 transition-colors hover:bg-[#F8FAFC] ${
+                      className={`w-full text-left px-3 py-2.5 flex gap-3 transition-colors cursor-pointer hover:bg-[#F8FAFC] ${
                         isSelected
-                          ? "bg-[#EEF2FF] border-l-2 border-[#1e40af]"
+                          ? "bg-[#DBE4FF] border-l-2 border-[#1e40af]"
                           : "border-l-2 border-transparent"
                       }`}
                     >
@@ -390,7 +390,7 @@ function SupervisorReview() {
         </div>
 
         {/* Drawer - Desktop side panel */}
-        <div className="hidden md:flex flex-1 flex-col min-h-0">
+        <div className="hidden md:flex flex-1 flex-col min-h-0 overflow-hidden">
           <ReviewDrawer
             report={selectedDetail ?? null}
             loading={detailLoading}

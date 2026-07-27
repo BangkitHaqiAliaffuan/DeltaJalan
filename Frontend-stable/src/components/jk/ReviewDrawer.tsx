@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { Icon } from "@/components/jk/Icon";
+import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
 import { resolveImageUrl } from "@/lib/imageUrl";
 import { severityBadgeStyle, severityDotStyle, formatDateRelative } from "@/lib/format";
 import { pciColor, pciConditionLabel, pciBgColor } from "@/lib/pci";
 import { ReportMap, type ReportMapPoint } from "@/components/jk/ReportMap";
 import { DetectionList } from "@/components/jk/DetectionList";
 import type { Laporan } from "@/types/laporan";
+import { REJECT_REASONS, REJECT_OTHER_VALUE } from "@/lib/rejectReasons";
 
 interface ReviewDrawerProps {
   report: Laporan | null;
@@ -37,8 +39,10 @@ export function ReviewDrawer({
   rejectLoading,
 }: ReviewDrawerProps) {
   const [showRejectForm, setShowRejectForm] = useState(false);
+  const [showApproveConfirm, setShowApproveConfirm] = useState(false);
   const [rejectAlasan, setRejectAlasan] = useState("");
   const [rejectCatatan, setRejectCatatan] = useState("");
+  const [rejectIsOther, setRejectIsOther] = useState(false);
 
   const [imgAspect, setImgAspect] = useState<number | null>(null);
   const [imgError, setImgError] = useState(false);
@@ -57,7 +61,6 @@ export function ReviewDrawer({
 
   // Reset img states when switching photos
   useEffect(() => {
-    setShowAiPhoto(false);
     setImgAspect(null);
     setImgLoading(true);
     setImgError(false);
@@ -113,12 +116,13 @@ export function ReviewDrawer({
     setShowRejectForm(false);
     setRejectAlasan("");
     setRejectCatatan("");
+    setRejectIsOther(false);
   }
 
   // Loading state
   if (loading || !report) {
     return (
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col flex-1 min-h-0">
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#D0DAE8] shrink-0">
           <div className="flex items-center gap-2">
             <button onClick={onClose} className="md:hidden p-1 -ml-1">
@@ -175,8 +179,10 @@ export function ReviewDrawer({
         ? "bg-sky-50 text-[#0284C7] border border-sky-200"
         : "bg-blue-50 text-[#2563EB] border border-blue-200";
 
+  const scrollPb = showRejectForm ? "pb-[310px]" : "pb-[110px]";
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#D0DAE8] shrink-0 bg-white">
         <div className="flex items-center gap-2 min-w-0">
           <button onClick={onClose} className="md:hidden p-1 -ml-1" title="Tutup">
@@ -207,8 +213,9 @@ export function ReviewDrawer({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        {/* Photo Area */}
+      <div className="flex-1 relative min-h-0">
+        <div className={`absolute inset-0 overflow-y-auto ${scrollPb}`}>
+          {/* Photo Area */}
         <div
           className="relative w-full bg-[#0F172A] overflow-hidden"
           style={
@@ -395,25 +402,21 @@ export function ReviewDrawer({
             </div>
           )}
 
-          {/* Map Preview */}
-          {report.latitude && report.longitude && (
+          {/* Detection List per active photo */}
+          {currentPhoto && (
             <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
-              <div className="h-36">
-                <ReportMap
-                  points={mapPoints}
-                  center={[Number(report.latitude), Number(report.longitude)]}
-                  zoom={15}
-                />
-              </div>
-              <a
-                href={`https://www.google.com/maps?q=${report.latitude},${report.longitude}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-semibold text-[#1e40af] bg-white border-t border-[#E2E8F0] hover:bg-[#F8FAFC] transition-colors"
-              >
-                <Icon name="open_in_new" className="!text-[14px]" />
-                Buka di Google Maps
-              </a>
+              <DetectionList
+                detections={(() => {
+                  if (!currentPhoto.ai_raw_output) return [];
+                  return Array.isArray(currentPhoto.ai_raw_output)
+                    ? currentPhoto.ai_raw_output
+                    : (currentPhoto.ai_raw_output as { detections: import("@/types/laporan").AIDetection[] })?.detections ?? [];
+                })()}
+                totalDetections={currentPhoto.total_detections}
+                overallConfidence={currentPhoto.ai_confidence}
+                kerusakanPanjang={currentPhoto.kerusakan_panjang}
+                kerusakanLebar={currentPhoto.kerusakan_lebar}
+              />
             </div>
           )}
 
@@ -470,21 +473,25 @@ export function ReviewDrawer({
             </div>
           </div>
 
-          {/* Detection List per active photo */}
-          {currentPhoto && (
+          {/* Map Preview */}
+          {report.latitude && report.longitude && (
             <div className="bg-white border border-[#E2E8F0] rounded-xl overflow-hidden">
-              <DetectionList
-                detections={(() => {
-                  if (!currentPhoto.ai_raw_output) return [];
-                  return Array.isArray(currentPhoto.ai_raw_output)
-                    ? currentPhoto.ai_raw_output
-                    : (currentPhoto.ai_raw_output as { detections: import("@/types/laporan").AIDetection[] })?.detections ?? [];
-                })()}
-                totalDetections={currentPhoto.total_detections}
-                overallConfidence={currentPhoto.ai_confidence}
-                kerusakanPanjang={currentPhoto.kerusakan_panjang}
-                kerusakanLebar={currentPhoto.kerusakan_lebar}
-              />
+              <div className="h-36">
+                <ReportMap
+                  points={mapPoints}
+                  center={[Number(report.latitude), Number(report.longitude)]}
+                  zoom={15}
+                />
+              </div>
+              <a
+                href={`https://www.google.com/maps?q=${report.latitude},${report.longitude}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-semibold text-[#1e40af] bg-white border-t border-[#E2E8F0] hover:bg-[#F8FAFC] transition-colors"
+              >
+                <Icon name="open_in_new" className="!text-[14px]" />
+                Buka di Google Maps
+              </a>
             </div>
           )}
 
@@ -509,18 +516,40 @@ export function ReviewDrawer({
             </div>
           )}
         </div>
-        {/* Reject Form */}
+        </div>
+
+        {/* Reject Form (absolute overlay) */}
         {showRejectForm && (
-          <div className="bg-white">
-            <div className="border-t border-[#D0DAE8]" />
+          <div className="absolute bottom-[110px] left-0 right-0 bg-white border-t border-[#D0DAE8] shadow-[0_-2px_8px_rgba(0,0,0,0.06)] z-10">
             <div className="px-4 py-3 space-y-2">
-              <textarea
-                value={rejectAlasan}
-                onChange={(e) => setRejectAlasan(e.target.value)}
-                placeholder="Alasan tolak (wajib)"
-                rows={2}
-                className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/25 resize-none"
-              />
+              <select
+                value={rejectIsOther ? REJECT_OTHER_VALUE : rejectAlasan}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === REJECT_OTHER_VALUE) {
+                    setRejectIsOther(true);
+                    setRejectAlasan("");
+                  } else {
+                    setRejectIsOther(false);
+                    setRejectAlasan(val);
+                  }
+                }}
+                className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/25 bg-white"
+              >
+                <option value="" disabled>Pilih alasan penolakan…</option>
+                {REJECT_REASONS.map((r) => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
+              {rejectIsOther && (
+                <textarea
+                  value={rejectAlasan}
+                  onChange={(e) => setRejectAlasan(e.target.value)}
+                  placeholder="Tulis alasan penolakan (wajib)"
+                  rows={2}
+                  className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary/25 resize-none"
+                />
+              )}
               <textarea
                 value={rejectCatatan}
                 onChange={(e) => setRejectCatatan(e.target.value)}
@@ -537,7 +566,12 @@ export function ReviewDrawer({
                   {rejectLoading ? "Menyimpan..." : "Konfirmasi Tolak"}
                 </button>
                 <button
-                  onClick={() => setShowRejectForm(false)}
+                  onClick={() => {
+                    setShowRejectForm(false);
+                    setRejectAlasan("");
+                    setRejectCatatan("");
+                    setRejectIsOther(false);
+                  }}
                   className="px-3 py-2 border border-[#D0DAE8] text-[#476788] text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Batal
@@ -547,35 +581,53 @@ export function ReviewDrawer({
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="border-t border-[#D0DAE8] bg-white px-4 py-3 space-y-2">
-          <button
-            onClick={onApprove}
-            disabled={approveLoading}
-            className="w-full py-2.5 md:py-3 min-h-[40px] bg-[#1A4F8A] text-white rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm"
-          >
-            <Icon name="check" className="!text-[20px]" />
-            {approveLoading ? "Menyetujui..." : "Setujui & Assign Tim"}
-          </button>
-          <div className="flex gap-3">
+        {/* Action Bar (absolute at bottom) */}
+        <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-[#D0DAE8] z-10">
+          <div className="px-4 py-3 space-y-2">
             <button
-              onClick={() => setShowRejectForm(true)}
-              disabled={rejectLoading}
-              className="flex-1 py-2 md:py-2.5 min-h-[36px] bg-[#FFF5F5] border border-[#FECACA] text-[#DC2626] rounded-xl text-[12px] font-semibold flex items-center justify-center gap-1.5 hover:bg-[#FEF2F2] hover:border-[#F87171] active:scale-95 transition-all disabled:opacity-50"
+              onClick={() => setShowApproveConfirm(true)}
+              disabled={approveLoading}
+              className="w-full py-2.5 md:py-3 min-h-[40px] bg-[#1A4F8A] text-white rounded-xl text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-[#153d6e] active:scale-[0.98] transition-all disabled:opacity-50 shadow-sm"
             >
-              <Icon name="close" className="!text-[16px]" />
-              {showRejectForm ? "Tutup Form" : "Tolak"}
+              <Icon name="check" className="!text-[20px]" />
+              {approveLoading ? "Menyetujui..." : "Setujui & Assign Tim"}
             </button>
-            <button
-              onClick={onDetail}
-              className="flex-1 flex py-2 md:py-2.5 min-h-[36px] rounded-xl text-[12px] font-semibold items-center justify-center gap-1.5 bg-[#F8FAFC] border border-[#CBD5E1] text-[#475569] hover:bg-[#F1F5F9] hover:border-[#94A3B8] active:scale-95 transition-all"
-            >
-              <Icon name="open_in_new" className="!text-[16px]" />
-              Detail
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowRejectForm(true)}
+                disabled={rejectLoading}
+                className="flex-1 py-2 md:py-2.5 min-h-[36px] bg-[#FFF5F5] border border-[#FECACA] text-[#DC2626] rounded-xl text-[12px] font-semibold flex items-center justify-center gap-1.5 hover:bg-[#FEF2F2] hover:border-[#F87171] active:scale-95 transition-all disabled:opacity-50"
+              >
+                <Icon name="close" className="!text-[16px]" />
+                {showRejectForm ? "Tutup Form" : "Tolak"}
+              </button>
+              <button
+                onClick={onDetail}
+                className="flex-1 flex py-2 md:py-2.5 min-h-[36px] rounded-xl text-[12px] font-semibold items-center justify-center gap-1.5 bg-[#F8FAFC] border border-[#CBD5E1] text-[#475569] hover:bg-[#F1F5F9] hover:border-[#94A3B8] active:scale-95 transition-all"
+              >
+                <Icon name="open_in_new" className="!text-[16px]" />
+                Detail
+              </button>
+            </div>
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={showApproveConfirm}
+        title="Setujui Laporan"
+        message="Apakah Anda yakin ingin menyetujui laporan ini? Laporan akan langsung di-assign ke tim terkait."
+        confirmText="Ya, Setujui"
+        cancelText="Batal"
+        confirmLoading={approveLoading}
+        onConfirm={() => {
+          setShowApproveConfirm(false);
+          onApprove();
+        }}
+        onCancel={() => setShowApproveConfirm(false)}
+        icon="check_circle"
+        confirmClassName="flex-1 px-4 py-2.5 text-[13px] font-bold text-white bg-[#1A4F8A] rounded-xl hover:bg-[#153d6e] disabled:opacity-40 transition-all flex items-center justify-center gap-1.5"
+      />
     </div>
   );
 }

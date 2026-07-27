@@ -1,5 +1,6 @@
 import { Icon } from "@/components/jk/Icon";
 import type { TimelineEvent } from "@/types/laporan";
+import { extractRejectReason } from "@/lib/rejectReasons";
 
 interface TimelineCardProps {
   events: TimelineEvent[];
@@ -155,8 +156,10 @@ export function TimelineCard({ events }: TimelineCardProps) {
                   {formatDateTime(evt.timestamp)}
                   {evt.actor_name ? ` — ${evt.actor_name}` : ""}
                 </p>
-                {evt.notes && evt.notes !== "Laporan dibuat" && !evt.notes.startsWith("[") && (
-                  <p className="text-[12px] text-[#475569] mt-1 leading-relaxed">{evt.notes}</p>
+                {evt.notes && evt.notes !== "Laporan dibuat" && (
+                  evt.notes.startsWith("[REJECTED]")
+                    ? <p className="text-[12px] text-[#DC2626] mt-1 leading-relaxed">Alasan: {extractRejectReason(evt.notes) ?? evt.notes}</p>
+                    : !evt.notes.startsWith("[") && <p className="text-[12px] text-[#475569] mt-1 leading-relaxed">{evt.notes}</p>
                 )}
               </div>
             </div>

@@ -24,6 +24,7 @@ import {
   statusIconColor,
   statusTextColor,
 } from "@/components/jk/StatCard";
+import { extractRejectReason } from "@/lib/rejectReasons";
 
 // ── Types ──
 
@@ -375,6 +376,17 @@ export function ReportDetail({
 
           {/* ── TRUST SCORE [NONAKTIF] — Trust Score Card dihapus */}
         </div>
+
+        {/* Rejection Reason */}
+        {rejected && report.system_notes && (
+          <div className="bg-white border border-[#FECACA] rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Icon name="block" className="!text-[18px] text-[#E11D48]" />
+              <h3 className="font-bold text-[13px] text-[#E11D48]">Laporan Ditolak</h3>
+            </div>
+            <p className="text-[13px] text-[#991B1B]">{extractRejectReason(report.system_notes) ?? "Tidak ada alasan"}</p>
+          </div>
+        )}
 
         {/* Info Jalan */}
         <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">

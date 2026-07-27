@@ -26,6 +26,7 @@ import { ModalBase } from "@/components/jk/ModalBase";
 import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
 import { formatCountdown, hitungProgress } from "@/lib/deadline";
 import { sanitizeUrls, resolveImageUrl } from "@/lib/imageUrl";
+import { REJECT_REASONS, REJECT_OTHER_VALUE, extractRejectReason } from "@/lib/rejectReasons";
 function qualityLabel(status: string): string {
   const map: Record<string, string> = {
     blurry: "Kabur",
@@ -89,6 +90,7 @@ function DetailReportPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionMsg, setActionMsg] = useState("");
   const [tolakAlasan, setTolakAlasan] = useState("");
+  const [tolakIsOther, setTolakIsOther] = useState(false);
   const [showTolak, setShowTolak] = useState(false);
   const [showApproval, setShowApproval] = useState(false);
   const [showTeamPicker, setShowTeamPicker] = useState(false);
@@ -299,6 +301,7 @@ function DetailReportPage() {
         setShowTolak(false);
         setTolakAlasan("");
         setCatatan("");
+        setTolakIsOther(false);
         await refreshReport();
       }
     } catch {
@@ -966,6 +969,17 @@ function DetailReportPage() {
             {/* ── PCI ── */}
             {report.pci_score != null && <PciCard score={report.pci_score} />}
 
+            {/* ── Alasan Ditolak ── */}
+            {report.status === "Ditolak" && report.system_notes && (
+              <div className="bg-white border border-[#FECACA] rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Icon name="block" className="!text-[18px] text-[#E11D48]" />
+                  <h3 className="font-bold text-[13px] text-[#E11D48]">Laporan Ditolak</h3>
+                </div>
+                <p className="text-[13px] text-[#991B1B]">{extractRejectReason(report.system_notes) ?? "Tidak ada alasan"}</p>
+              </div>
+            )}
+
             {/* ── Info Jalan ── */}
             <div className="bg-white border border-[#E2E8F0] rounded-xl p-4">
               <h2 className="font-headline-sm text-[17px] font-bold text-[#0F172A] mb-3">
@@ -1114,7 +1128,12 @@ function DetailReportPage() {
         {/* ── Tolak Modal ── */}
         {showTolak && (
           <ModalBase
-            onClose={() => setShowTolak(false)}
+            onClose={() => {
+              setShowTolak(false);
+              setTolakAlasan("");
+              setCatatan("");
+              setTolakIsOther(false);
+            }}
             icon="block"
             badge="TOLAK LAPORAN"
             title="Tolak Laporan"
@@ -1137,7 +1156,12 @@ function DetailReportPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowTolak(false)}
+                  onClick={() => {
+                    setShowTolak(false);
+                    setTolakAlasan("");
+                    setCatatan("");
+                    setTolakIsOther(false);
+                  }}
                   className="w-full h-10 text-[13px] text-[#64748B] font-medium hover:text-[#0F172A] transition-colors"
                 >
                   Batal
@@ -1149,12 +1173,33 @@ function DetailReportPage() {
               <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">
                 Alasan Penolakan <span className="text-[#E11D48]">*</span>
               </label>
-              <textarea
-                value={tolakAlasan}
-                onChange={(e) => setTolakAlasan(e.target.value)}
-                className="w-full h-24 px-3 py-2 rounded-lg border border-[#D0DAE8] resize-none text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
-                placeholder="Jelaskan alasan mengapa laporan ini ditolak…"
-              />
+              <select
+                value={tolakIsOther ? REJECT_OTHER_VALUE : tolakAlasan}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === REJECT_OTHER_VALUE) {
+                    setTolakIsOther(true);
+                    setTolakAlasan("");
+                  } else {
+                    setTolakIsOther(false);
+                    setTolakAlasan(val);
+                  }
+                }}
+                className="w-full h-10 px-3 rounded-lg border border-[#D0DAE8] text-[13px] text-[#0F172A] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A] bg-white"
+              >
+                <option value="" disabled>Pilih alasan penolakan…</option>
+                {REJECT_REASONS.map((r) => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
+              {tolakIsOther && (
+                <textarea
+                  value={tolakAlasan}
+                  onChange={(e) => setTolakAlasan(e.target.value)}
+                  className="w-full h-24 px-3 py-2 rounded-lg border border-[#D0DAE8] resize-none text-[13px] text-[#0F172A] placeholder-[#94A3B8] outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+                  placeholder="Tulis alasan penolakan (wajib)"
+                />
+              )}
             </div>
             <div>
               <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">

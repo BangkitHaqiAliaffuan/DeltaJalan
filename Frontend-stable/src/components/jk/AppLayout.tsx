@@ -19,11 +19,9 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, fullPage }: AppLayoutProps) {
   return (
-    <div
-      className={`bg-[#F5F7FA] flex ${fullPage ? "min-h-screen" : "h-[100dvh] overflow-hidden"}`}
-    >
+    <div className="bg-[#F5F7FA] flex h-[100dvh] overflow-hidden">
       <Sidebar />
-      <div className={`flex-1 flex flex-col min-w-0 ${fullPage ? "" : "min-h-0"}`}>{children}</div>
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">{children}</div>
     </div>
   );
 }
