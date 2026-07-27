@@ -11,6 +11,7 @@ import {
 
 import { Toaster } from "sonner";
 import { SubmissionQueue } from "@/components/jk/SubmissionQueue";
+import { AuthProvider } from "@/lib/AuthContext";
 
 function NotFoundComponent() {
   return (
@@ -155,8 +156,10 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
-      <SubmissionQueue />
+      <AuthProvider>
+        <Outlet />
+        <SubmissionQueue />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

@@ -2,7 +2,8 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Icon } from "./Icon";
 import { NotificationBell } from "./NotificationBell";
 import { useState, useEffect, useRef } from "react";
-import { getCurrentUser, clearAuth, getToken } from "@/lib/auth";
+import { clearAuth, getToken } from "@/lib/auth";
+import { useAuth } from "@/lib/AuthContext";
 
 export function TopBar({
   title,
@@ -18,19 +19,7 @@ export function TopBar({
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [user, setUser] = useState<{
-    name: string;
-    role: string;
-    initials: string;
-    team_name: string | null;
-  } | null>(null);
-
-  useEffect(() => {
-    const u = getCurrentUser();
-    if (u) {
-      setUser({ name: u.name, role: u.role, initials: u.initials, team_name: u.team_name ?? null });
-    }
-  }, []);
+  const { user } = useAuth();
 
   useEffect(() => {
     if (!dropdownOpen) return;

@@ -1,14 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { Icon } from "./Icon";
-import { getCurrentUser } from "@/lib/auth";
-import { useEffect, useState } from "react";
+import { useAuth } from "@/lib/AuthContext";
 
 export default function Fab() {
-  const [user, setUser] = useState<ReturnType<typeof getCurrentUser>>(null);
-
-  useEffect(() => {
-    setUser(getCurrentUser());
-  }, []);
+  const { user } = useAuth();
 
   if (!user) return null;
 

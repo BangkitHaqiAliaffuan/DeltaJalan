@@ -1,8 +1,8 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { Icon } from "./Icon";
-import { getCurrentUser, clearAuth, getToken, type User } from "@/lib/auth";
-import { useEffect, useState } from "react";
+import { clearAuth, getToken } from "@/lib/auth";
 import { usePwaInstall } from "@/hooks/usePwaInstall";
+import { useAuth } from "@/lib/AuthContext";
 
 interface MenuItem {
   icon: string;
@@ -37,17 +37,13 @@ const WARGA_MENU: MenuItem[] = [
 export function Sidebar() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
+  const { user } = useAuth();
   const menuItems =
     user?.role === "supervisor"
       ? SUPERVISOR_MENU
       : user?.role === "warga"
         ? WARGA_MENU
         : PETUGAS_MENU;
-
-  useEffect(() => {
-    setUser(getCurrentUser());
-  }, []);
 
   const displayUser = user ?? {
     name: "",

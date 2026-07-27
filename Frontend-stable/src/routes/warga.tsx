@@ -1,14 +1,14 @@
 import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { getCurrentUser } from "@/lib/auth";
+import { useAuth } from "@/lib/AuthContext";
 
 export const Route = createFileRoute("/warga")({
   component: WargaLayout,
 });
 
 function WargaLayout() {
-  const user = getCurrentUser();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (!user || user.role !== "warga") {

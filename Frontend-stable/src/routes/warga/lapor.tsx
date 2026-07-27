@@ -19,6 +19,7 @@ import { readExifOnce } from "@/lib/exifCache";
 import { analyzeImageQuality } from "@/lib/imageQualityCheck";
 import { computeFileHash } from "@/lib/hash";
 import { FraudWarningModal } from "@/components/jk/FraudWarningModal";
+import { ActionSheet } from "@/components/jk/ActionSheet";
 import { getRecaptchaToken } from "@/lib/recaptcha";
 import { useDuplicateCheck } from "@/hooks/useDuplicateCheck";
 import { DuplicateChecker } from "@/components/jk/DuplicateChecker";
@@ -83,6 +84,7 @@ function WargaLaporPage() {
   const [loading, setLoading] = useState(false);
   const [locating, setLocating] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [showAddPhotoChoice, setShowAddPhotoChoice] = useState(false);
   const [locatingMessage, setLocatingMessage] = useState("");
   const [locationSource, setLocationSource] = useState<"exif" | "geolocation" | null>(null);
   const [geoError, setGeoError] = useState("");
@@ -436,6 +438,88 @@ function WargaLaporPage() {
       setProcessing(false);
     } catch (err) {
       console.error("handleNativeCamera error:", err);
+      setError("Gagal memproses foto. Silakan coba lagi.");
+      setProcessing(false);
+    }
+  }
+
+  async function handleNativeCameraAppend() {
+    if (processing) return;
+    setProcessing(true);
+    setCameraModel("");
+    setFraudModal((s) => ({ ...s, isOpen: false }));
+    setUploadWarnings([]);
+
+    try {
+      const result = await nativeTakePhoto();
+      if (!result) {
+        setProcessing(false);
+        return;
+      }
+
+      const exif = await readExifOnce(result.file);
+      if (!exif.dateValid) {
+        setFraudModal({
+          isOpen: true,
+          status: "too_old",
+          title: "Foto Tidak Valid",
+          message: exif.photoDate
+            ? "Tanggal foto lebih dari 7 hari yang lalu atau di masa depan."
+            : "Foto tidak memiliki metadata tanggal.",
+        });
+        setProcessing(false);
+        return;
+      }
+
+      const compressed = await compressImage(result.file);
+
+      const qualityCheck = await analyzeImageQuality(compressed);
+      if (qualityCheck.status !== "good" && !qualityCheck.isWarningOnly) {
+        setFraudModal({
+          isOpen: true,
+          status: qualityCheck.status,
+          title: qualityCheck.title,
+          message: qualityCheck.message,
+        });
+        setProcessing(false);
+        return;
+      }
+
+      const cleanQuality = JSON.stringify({
+        ...qualityCheck,
+        title: undefined,
+        message: undefined,
+        isWarningOnly: undefined,
+      });
+
+      if (exif.make || exif.model) setCameraModel([exif.make, exif.model].filter(Boolean).join(" "));
+
+      const hash = await computeFileHash(compressed);
+
+      const seenHashes = new Set(photoHashes);
+      if (seenHashes.has(hash)) {
+        setUploadWarnings(["Foto duplikat, dilewati"]);
+        setProcessing(false);
+        return;
+      }
+
+      setPhotos((prev) => [...prev, compressed].slice(0, 3));
+      setPhotoPreviews((prev) => [...prev, URL.createObjectURL(compressed)].slice(0, 3));
+      setQualityScoresArray((prev) => [...prev, cleanQuality].slice(0, 3));
+      setPhotoHashes((prev) => [...prev, hash].slice(0, 3));
+
+      pendingRemoveIdx.current = [photos.length];
+      if (result.lat != null && result.lng != null) {
+        await applyCoordinates(result.lat, result.lng, "exif");
+      } else if (exif.gps) {
+        await applyCoordinates(exif.gps.latitude, exif.gps.longitude, "exif");
+      } else {
+        await processPhotoForGps(compressed);
+      }
+
+      setProcessing(false);
+    } catch (err) {
+      console.error("handleNativeCameraAppend error:", err);
       setError("Gagal memproses foto. Silakan coba lagi.");
       setProcessing(false);
     }
@@ -798,7 +882,7 @@ function WargaLaporPage() {
                             </button>
                             <button
                               type="button"
-                              onClick={handleNativeGallery}
+                              onClick={() => setShowAddPhotoChoice(true)}
                               className="flex-1 h-10 border border-[#c4c5d5] rounded-lg text-xs text-[#475569] font-semibold hover:bg-gray-50 transition-colors cursor-pointer"
                             >
                               {photos.length < 3
@@ -1199,6 +1283,30 @@ function WargaLaporPage() {
         title={fraudModal.title}
         message={fraudModal.message}
         onClose={closeFraudModal}
+      />
+
+      <ActionSheet
+        isOpen={showAddPhotoChoice}
+        onClose={() => setShowAddPhotoChoice(false)}
+        title="Tambah Foto"
+        options={[
+          {
+            icon: "camera_alt",
+            label: "Ambil Foto",
+            onClick: async () => {
+              await handleNativeCameraAppend();
+              setShowAddPhotoChoice(false);
+            },
+          },
+          {
+            icon: "photo_library",
+            label: "Pilih dari Galeri",
+            onClick: async () => {
+              setShowAddPhotoChoice(false);
+              await handleNativeGallery();
+            },
+          },
+        ]}
       />
     </PageLayout>
   );

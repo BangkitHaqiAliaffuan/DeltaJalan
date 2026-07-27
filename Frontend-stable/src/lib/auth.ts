@@ -54,6 +54,8 @@ export function clearAuth(): void {
   if (typeof window !== "undefined") {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    localStorage.removeItem("auth_token");
+    sessionStorage.removeItem("auth_token");
     window.dispatchEvent(new CustomEvent("auth:logout"));
   }
 }

@@ -4,7 +4,7 @@ import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { useQueryClient } from "@tanstack/react-query";
 import { SkeletonCard } from "@/components/jk/Skeleton";
-import { getCurrentUser, getToken } from "@/lib/auth";
+import { useAuth } from "@/lib/AuthContext";
 import { useStats, useRecentReports } from "@/hooks/useReportQueries";
 import { ReportCard } from "@/components/jk/ReportCard";
 import { PatrolScheduleCard } from "@/components/jk/PatrolScheduleCard";
@@ -24,8 +24,8 @@ export const Route = createFileRoute("/home")({
 });
 
 function HomePage() {
-  const user = getCurrentUser();
-  const token = getToken() ?? "";
+  const { user, token: rawToken } = useAuth();
+  const token = rawToken ?? "";
   const [isClient, setIsClient] = useState(false);
   useEffect(() => {
     setIsClient(true);
@@ -313,6 +313,12 @@ function HomePage() {
                   }
                   if (report.status === "Sedang Diperbaiki") {
                     const hasProgress = (report.progress_updates_count ?? 0) > 0;
+                    actions.push({
+                      label: "Tambah Progress",
+                      variant: "secondary",
+                      icon: "add_a_photo",
+                      onClick: () => handleProgressClick(report.id, report.report_code ?? ""),
+                    });
                     if (hasProgress) {
                       actions.push({
                         label: "Selesai",
@@ -320,13 +326,6 @@ function HomePage() {
                         icon: "check_circle",
                         to: "/complete-report",
                         search: { reportId: report.id },
-                      });
-                    } else {
-                      actions.push({
-                        label: "Foto Progress",
-                        variant: "primary",
-                        icon: "add_a_photo",
-                        onClick: () => handleProgressClick(report.id, report.report_code ?? ""),
                       });
                     }
                   }

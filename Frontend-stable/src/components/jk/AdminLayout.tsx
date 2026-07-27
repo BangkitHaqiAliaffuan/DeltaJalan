@@ -1,8 +1,9 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { Icon } from "@/components/jk/Icon";
 import { NotificationBell } from "@/components/jk/NotificationBell";
-import { getCurrentUser, clearAuth } from "@/lib/auth";
+import { clearAuth } from "@/lib/auth";
 import { useEffect, useState, type ReactNode } from "react";
+import { useAuth } from "@/lib/AuthContext";
 
 const ADMIN_MENU = [
   {
@@ -32,16 +33,14 @@ const ADMIN_MENU = [
 
 export function AdminLayout({ children }: { children?: ReactNode }) {
   const { pathname } = useLocation();
-  const [user, setUser] = useState<ReturnType<typeof getCurrentUser>>(null);
+  const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    const u = getCurrentUser();
-    setUser(u);
-    if (!u || u.role !== "admin") {
+    if (!user || user.role !== "admin") {
       window.location.href = "/admin/login";
     }
-  }, []);
+  }, [user]);
 
   function handleLogout() {
     clearAuth();

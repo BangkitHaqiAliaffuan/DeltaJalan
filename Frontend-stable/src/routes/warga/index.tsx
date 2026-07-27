@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { ReportCard, ReportCardSkeleton } from "@/components/jk/ReportCard";
-import { getCurrentUser, getToken } from "@/lib/auth";
+import { useAuth } from "@/lib/AuthContext";
 import { API_BASE_URL } from "@/lib/aiStore";
 import type { Laporan } from "@/types/laporan";
 
@@ -13,8 +13,8 @@ export const Route = createFileRoute("/warga/")({
 });
 
 function WargaDashboard() {
-  const user = getCurrentUser();
-  const token = getToken() ?? "";
+  const { user, token: rawToken } = useAuth();
+  const token = rawToken ?? "";
   const [reports, setReports] = useState<Laporan[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, diproses: 0, selesai: 0, ditolak: 0 });

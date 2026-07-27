@@ -1,7 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { Icon } from "./Icon";
-import { getCurrentUser } from "@/lib/auth";
-import { useEffect, useState } from "react";
+import { useAuth } from "@/lib/AuthContext";
 
 const PETUGAS_ITEMS = [
   { to: "/home", icon: "home", label: "Beranda" },
@@ -26,15 +25,11 @@ const WARGA_ITEMS = [
 
 export function BottomNav() {
   const { pathname } = useLocation();
-  const [user, setUser] = useState<ReturnType<typeof getCurrentUser>>(null);
-
-  useEffect(() => {
-    setUser(getCurrentUser());
-  }, []);
+  const { user } = useAuth();
 
   if (!user) return null;
 
-  const role = user?.role;
+  const role = user.role;
   const isPetugas = role === "petugas";
   const isWarga = role === "warga";
   const items = isWarga ? WARGA_ITEMS : isPetugas ? PETUGAS_ITEMS : SUPERVISOR_ITEMS;

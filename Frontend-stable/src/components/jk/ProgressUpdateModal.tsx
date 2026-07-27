@@ -39,14 +39,7 @@ export function ProgressUpdateModal({
       return;
     }
 
-    let fileToUpload: File;
-    try {
-      const buf = await foto.arrayBuffer();
-      fileToUpload = new File([buf], foto.name, { type: foto.type });
-    } catch {
-      setError("Gagal membaca file foto.");
-      return;
-    }
+    const fileToUpload = foto;
 
     let dateValidation = await validatePhotoDate(fileToUpload);
     if (dateValidation.status === "no_exif_date") {

@@ -649,6 +649,12 @@ function PerbaikanSection({
                 const ac: ActionButton[] = [];
                 if (r.status === "Sedang Diperbaiki") {
                   const hasProgress = (r.progress_updates_count ?? 0) > 0;
+                  ac.push({
+                    label: "Tambah Progress",
+                    icon: "add_a_photo",
+                    variant: "secondary",
+                    onClick: () => onProgressClick(r.id, r.report_code),
+                  });
                   if (hasProgress) {
                     ac.push({
                       label: "Selesai",
@@ -656,13 +662,6 @@ function PerbaikanSection({
                       variant: "primary",
                       to: "/complete-report",
                       search: { reportId: r.id },
-                    });
-                  } else {
-                    ac.push({
-                      label: "Foto Progress",
-                      icon: "add_a_photo",
-                      variant: "primary",
-                      onClick: () => onProgressClick(r.id, r.report_code),
                     });
                   }
                 }
