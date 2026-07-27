@@ -37,7 +37,8 @@ export type PhotoDateValidationStatus =
   | "too_bright"
   | "low_contrast"
   | "analysis_error"
-  | "image_not_relevant";
+  | "image_not_relevant"
+  | "outside_sidoarjo";
 
 /**
  * Status yang hanya membutuhkan peringatan (upload tetap lanjut).

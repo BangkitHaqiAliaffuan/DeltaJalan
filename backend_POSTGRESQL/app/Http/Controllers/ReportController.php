@@ -334,6 +334,14 @@ class ReportController extends Controller
             $exifGpsNotes = '[INFO] Gagal membaca GPS EXIF: '.$e->getMessage();
         }
 
+        if ($photoLat !== null && $photoLng !== null && ! $this->isInSidoarjo($photoLat, $photoLng)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Foto bukti diambil di luar wilayah Kabupaten Sidoarjo. Pastikan foto diambil di lokasi kerusakan.',
+                'error_code' => 'FOTO_DILUAR_WILAYAH',
+            ], 422);
+        }
+
         try {
             $photo = DB::transaction(function () use ($report, $imageFile, $validated, $imageHash, $isBatch, $resultPath, $totalDetections, $aiJeniusKerusakan, $aiSeverity, $aiConfidence, $aiRawOutput, $photoLat, $photoLng, $koordinatSumber, $exifGpsNotes) {
 
@@ -1774,6 +1782,17 @@ class ReportController extends Controller
                     $photoLat = (float) ($analysis['photo_lat'] ?? $validated['latitude']);
                     $photoLng = (float) ($analysis['photo_lng'] ?? $validated['longitude']);
                     $koordinatSumber = $analysis['koordinat_sumber'] ?? $validated['koordinat_sumber'];
+
+                    if (isset($analysis['photo_lat']) && ! $this->isInSidoarjo($photoLat, $photoLng)) {
+                        Log::info('DeltaJalan: Foto batch dilewati karena koordinat di luar Sidoarjo.', [
+                            'file_index' => $idx,
+                            'file_name' => $analysis['file_name'] ?? '',
+                            'lat' => $photoLat,
+                            'lng' => $photoLng,
+                        ]);
+
+                        continue;
+                    }
 
                     if ($file) {
                         if ($imageHash && in_array($imageHash, $existingHashes)) {

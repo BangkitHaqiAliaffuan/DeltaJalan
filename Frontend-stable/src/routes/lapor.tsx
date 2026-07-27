@@ -24,6 +24,7 @@ import { validateIndonesianPhone, validateNamaLengkap } from "@/lib/validators";
 import { getRecaptchaToken } from "@/lib/recaptcha";
 import { useDuplicateCheck } from "@/hooks/useDuplicateCheck";
 import { DuplicateChecker } from "@/components/jk/DuplicateChecker";
+import { isInSidoarjoBbox } from "@/lib/sidoarjoBounds";
 
 export const Route = createFileRoute("/lapor")({
   component: PublicLaporPage,
@@ -190,7 +191,18 @@ function PublicLaporPage() {
 
   const isEvidenceSending = duplicateCheck.addEvidenceState === "loading";
 
+  const pendingRemoveIdx = useRef<number[]>([]);
+
   function closeFraudModal() {
+    if (fraudModal.status === "outside_sidoarjo" && pendingRemoveIdx.current.length > 0) {
+      const idxSet = new Set(pendingRemoveIdx.current);
+      setPhotos((prev) => prev.filter((_, i) => !idxSet.has(i)));
+      setPhotoPreviews((prev) => prev.filter((_, i) => !idxSet.has(i)));
+      setQualityScoresArray((prev) => prev.filter((_, i) => !idxSet.has(i)));
+      setPhotoHashes((prev) => prev.filter((_, i) => !idxSet.has(i)));
+      if (idxSet.has(0)) setCameraModel("");
+      pendingRemoveIdx.current = [];
+    }
     setFraudModal((s) => ({ ...s, isOpen: false }));
   }
 
@@ -233,10 +245,25 @@ function PublicLaporPage() {
   }
 
   async function applyCoordinates(lat: number, lng: number, source: "exif" | "geolocation") {
+    setLocatingMessage("Mengidentifikasi lokasi...");
+
+    if (!isInSidoarjoBbox(lat, lng)) {
+      setFraudModal({
+        isOpen: true,
+        status: "outside_sidoarjo",
+        title: "Lokasi di Luar Kabupaten Sidoarjo",
+        message:
+          "Foto ini diambil di luar wilayah Kabupaten Sidoarjo. " +
+          "Sistem hanya menerima laporan untuk kerusakan jalan di wilayah Kabupaten Sidoarjo. " +
+          "Silakan ambil foto baru di lokasi yang berada dalam Kabupaten Sidoarjo.",
+      });
+      setLocating(false);
+      return;
+    }
+
     setLatitude(lat.toFixed(6));
     setLongitude(lng.toFixed(6));
     setLocationSource(source);
-    setLocatingMessage("Mengidentifikasi lokasi...");
 
     const geo = await reverseGeocode(lat, lng);
     if (geo.namaJalan) setRoadName(geo.namaJalan);
@@ -394,8 +421,11 @@ function PublicLaporPage() {
 
       if (warnings.length > 0) setUploadWarnings(warnings);
 
-      // GPS from first photo if this is the first batch
-      if (photos.length === 0 && newPhotos.length > 0) {
+      // GPS from first new photo
+      if (newPhotos.length > 0) {
+        const startIdx = photos.length;
+        const addedCountBP = Math.min(newPhotos.length, 3 - startIdx);
+        pendingRemoveIdx.current = Array.from({ length: addedCountBP }, (_, i) => startIdx + i);
         await processPhotoForGps(newPhotos[0]);
       }
 
@@ -470,6 +500,7 @@ function PublicLaporPage() {
       setQualityScoresArray([cleanQuality]);
       setPhotoHashes([hash]);
 
+      pendingRemoveIdx.current = [0];
       if (result.lat != null && result.lng != null) {
         await applyCoordinates(result.lat, result.lng, "exif");
       } else if (exif.gps) {
@@ -605,8 +636,9 @@ function PublicLaporPage() {
       if (warnings.length > 0) setUploadWarnings(warnings);
 
       // GPS from first photo
-      const first = photos.concat(newPhotos).slice(0, 3)[0];
       const firstPick = pickResult.photos[0];
+      const addedCount = Math.min(newPhotos.length, 3 - photos.length);
+      pendingRemoveIdx.current = Array.from({ length: addedCount }, (_, i) => photos.length + i);
       if (firstPick.lat != null && firstPick.lng != null) {
         await applyCoordinates(firstPick.lat, firstPick.lng, "exif");
       } else if (firstExif?.gps) {
@@ -615,8 +647,8 @@ function PublicLaporPage() {
         const geo = await geoPromise;
         if (geo?.latitude && geo?.longitude) {
           await applyCoordinates(geo.latitude, geo.longitude, "geolocation");
-        } else if (first) {
-          await processPhotoForGps(first);
+        } else if (newPhotos.length > 0) {
+          await processPhotoForGps(newPhotos[0]);
         }
       }
 

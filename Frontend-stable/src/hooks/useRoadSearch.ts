@@ -16,6 +16,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { SIDOARJO_BBOX, isInSidoarjoBbox } from "@/lib/sidoarjoBounds";
 
 // ── Konstanta ──────────────────────────────────────────────────────────────
 
@@ -24,21 +25,6 @@ const LOCATIONIQ_AUTOCOMPLETE_URL = "https://us1.locationiq.com/v1/autocomplete"
 
 const DEBOUNCE_MS = 400;
 const MIN_QUERY_LENGTH = 3;
-
-/**
- * Bounding box Kabupaten Sidoarjo (sedikit diperlebar agar jalan di perbatasan masuk).
- * Format LocationIQ viewbox: "lng_min,lat_min,lng_max,lat_max"
- *
- * Koordinat referensi:
- *   Barat  : 112.50  Timur : 112.95
- *   Selatan: -7.65   Utara : -7.25
- */
-const SIDOARJO_BBOX = {
-  lngMin: 112.5,
-  lngMax: 112.95,
-  latMin: -7.65,
-  latMax: -7.25,
-};
 
 /** Format viewbox untuk LocationIQ */
 const SIDOARJO_VIEWBOX = `${SIDOARJO_BBOX.lngMin},${SIDOARJO_BBOX.latMin},${SIDOARJO_BBOX.lngMax},${SIDOARJO_BBOX.latMax}`;
@@ -89,16 +75,6 @@ export interface UseRoadSearchReturn {
 }
 
 // ── Helper ─────────────────────────────────────────────────────────────────
-
-/** Cek apakah koordinat berada di dalam bounding box Sidoarjo */
-function isInSidoarjoBbox(lat: number, lng: number): boolean {
-  return (
-    lat >= SIDOARJO_BBOX.latMin &&
-    lat <= SIDOARJO_BBOX.latMax &&
-    lng >= SIDOARJO_BBOX.lngMin &&
-    lng <= SIDOARJO_BBOX.lngMax
-  );
-}
 
 /** Cocokkan string ke salah satu dari 18 kecamatan Sidoarjo */
 function matchKecamatan(raw: string): string | null {

@@ -21,6 +21,7 @@ const PETUGAS_MENU: MenuItem[] = [
 
 const SUPERVISOR_MENU: MenuItem[] = [
   { icon: "dashboard", label: "Dashboard", to: "/supervisor" },
+  { icon: "rate_review", label: "Review", to: "/supervisor/review" },
   { icon: "map", label: "Peta", to: "/map" },
   { icon: "bar_chart", label: "Statistik", to: "/stats" },
   { icon: "calendar_month", label: "Jadwal Patroli", to: "/supervisor/patrol-schedule" },

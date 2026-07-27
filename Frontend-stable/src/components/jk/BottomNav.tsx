@@ -12,6 +12,7 @@ const PETUGAS_ITEMS = [
 
 const SUPERVISOR_ITEMS = [
   { to: "/supervisor", icon: "dashboard", label: "Dashboard" },
+  { to: "/supervisor/review", icon: "rate_review", label: "Review" },
   { to: "/supervisor/patrol-schedule", icon: "calendar_month", label: "Jadwal" },
   { to: "/map", icon: "map", label: "Peta" },
   { to: "/stats", icon: "bar_chart", label: "Statistik" },

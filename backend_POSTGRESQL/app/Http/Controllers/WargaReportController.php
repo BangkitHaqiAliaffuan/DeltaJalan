@@ -933,6 +933,19 @@ class WargaReportController extends Controller
 
             $exifGps = $this->extractExifGps($imageFile->getPathname(), $fullExif);
 
+            if ($exifGps && ! $this->isInSidoarjo($exifGps['lat'], $exifGps['lng'])) {
+                if ($idx === 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Foto utama diambil di luar wilayah Kabupaten Sidoarjo. Pastikan Anda berada di lokasi kerusakan saat mengambil foto.',
+                        'error_code' => 'FOTO_DILUAR_WILAYAH',
+                    ], 422);
+                }
+                $warnings[] = 'Foto ke-'.($idx + 1).' diambil di luar wilayah Sidoarjo, dilewati.';
+
+                continue;
+            }
+
             $systemNotes = null;
             if ($idx === 0) {
                 if ($exifGps) {

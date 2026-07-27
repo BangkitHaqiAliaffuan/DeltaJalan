@@ -1,8 +1,12 @@
+import { isInSidoarjoBbox } from "@/lib/sidoarjoBounds";
+
 const NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse";
 const LIQ_REVERSE_URL = "https://us1.locationiq.com/v1/reverse";
 const LIQ_KEY = import.meta.env.VITE_LOCATIONIQ_KEY;
 
 export async function getRoadNameFromGps(lat: number, lng: number): Promise<string | null> {
+  if (!isInSidoarjoBbox(lat, lng)) return null;
+
   try {
     const res = await fetch(
       `${NOMINATIM_REVERSE_URL}?lat=${lat}&lon=${lng}&format=json&zoom=16&addressdetails=1`,

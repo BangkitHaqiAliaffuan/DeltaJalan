@@ -66,6 +66,10 @@ const STATUS_CONFIG: Record<
     icon: "block",
     badgeText: "FOTO TIDAK RELEVAN",
   },
+  outside_sidoarjo: {
+    icon: "location_off",
+    badgeText: "LOKASI LUAR SIDOARJO",
+  },
   valid: {
     icon: "check_circle",
     badgeText: "VALID",
@@ -94,6 +98,7 @@ export function FraudWarningModal({
       icon={cfg.icon}
       badge={cfg.badgeText}
       title={title}
+      closeOnBackdrop={isWarningOnly}
       footer={
         isWarningOnly ? (
           <button

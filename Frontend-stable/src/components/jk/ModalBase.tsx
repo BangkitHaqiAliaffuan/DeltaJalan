@@ -8,15 +8,16 @@ interface ModalBaseProps {
   title: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  closeOnBackdrop?: boolean;
 }
 
-export function ModalBase({ onClose, icon, badge, title, children, footer }: ModalBaseProps) {
+export function ModalBase({ onClose, icon, badge, title, children, footer, closeOnBackdrop = true }: ModalBaseProps) {
   return (
     <Portal>
       <div
         className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
         style={{ backgroundColor: "rgba(0, 0, 0, 0.55)" }}
-        onClick={onClose}
+        onClick={closeOnBackdrop ? onClose : undefined}
         aria-hidden="true"
       >
         <div

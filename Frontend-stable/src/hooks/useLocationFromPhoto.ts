@@ -20,6 +20,7 @@ import { snapToRoad } from "@/lib/geo";
 import { API_BASE_URL } from "@/lib/aiStore";
 import { getToken } from "@/lib/auth";
 import { PhotoExifGps } from "@jalankita/capacitor-exif-gps";
+import { isInSidoarjoBbox } from "@/lib/sidoarjoBounds";
 
 /** Capacitor hanya tersedia di native — dicek via global window tanpa import */
 export function isNativePlatform(): boolean {
@@ -333,6 +334,20 @@ function constructFullAddress(
  * 4 road-name tiers (1-4), 1 admin enrichment tier (5).
  */
 export async function reverseGeocode(lat: number, lng: number): Promise<ReverseGeocodeResult> {
+  if (!isInSidoarjoBbox(lat, lng)) {
+    return {
+      namaJalan: "",
+      roadFound: false,
+      kecamatan: null,
+      desa: null,
+      kabupaten: null,
+      provinsi: null,
+      kodePos: null,
+      fullAddress: "Lokasi di luar Kabupaten Sidoarjo",
+      tiers: [],
+    };
+  }
+
   let namaJalan = "";
   let roadFound = false;
   let kecamatan: string | null = null;
