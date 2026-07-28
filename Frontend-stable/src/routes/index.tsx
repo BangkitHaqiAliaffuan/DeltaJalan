@@ -53,7 +53,7 @@ const damageTypes = [
   {
     icon: "landslide",
     title: "Lubang",
-    desc: "Depresi lokal di permukaan perkerasan dengan diameter bervariasi, seringkali disebabkan oleh infiltrasi air.",
+    desc: "Lubang pada permukaan jalan akibat infiltrasi air.",
     color: "from-[#1e40af] to-[#3b82f6]",
     bg: "#eff6ff",
     badge: "#dbeafe",
@@ -62,7 +62,7 @@ const damageTypes = [
   {
     icon: "grid_on",
     title: "Retak Kulit Buaya",
-    desc: "Serangkaian retak saling terhubung membentuk pola poligonal menyerupai kulit buaya akibat kelelahan beban.",
+    desc: "Retak berjaring seperti kulit buaya akibat kelelahan beban jalan.",
     color: "from-[#4338ca] to-[#6366f1]",
     bg: "#eef2ff",
     badge: "#e0e7ff",
@@ -71,7 +71,7 @@ const damageTypes = [
   {
     icon: "view_column",
     title: "Retak Memanjang",
-    desc: "Retakan yang sejajar dengan sumbu tengah jalan, biasanya disebabkan oleh sambungan konstruksi yang kurang sempurna.",
+    desc: "Retak sejajar sumbu jalan akibat sambungan konstruksi kurang sempurna.",
     color: "from-[#0d9488] to-[#14b8a6]",
     bg: "#f0fdfa",
     badge: "#ccfbf1",
@@ -80,7 +80,7 @@ const damageTypes = [
   {
     icon: "view_stream",
     title: "Retak Melintang",
-    desc: "Retakan yang melintasi lebar jalan secara tegak lurus, sering terjadi karena perubahan suhu ekstrim.",
+    desc: "Retak tegak lurus lebar jalan akibat perubahan suhu ekstrem.",
     color: "from-[#b45309] to-[#f59e0b]",
     bg: "#fffbeb",
     badge: "#fef3c7",
@@ -877,30 +877,30 @@ function LandingPage() {
       </section>
 
       {/* â”€â”€ AI KLASIFIKASI â€” 2-column â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <section className="py-10 md:py-16 px-6 bg-[#f8f9ff]">
+      <section className="py-20 md:py-28 px-6 bg-[#f8f9ff]">
         <div className="max-w-5xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-start">
+          <div className="grid md:grid-cols-2 gap-12 md:gap-16 items-start">
             {/* Left: text */}
             <AnimatedContent distance={60} duration={0.8} direction="horizontal" reverse>
               <div>
-                <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-4">
+                <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-5">
                   <Icon name="smart_toy" className="!text-[14px]" />
                   AI Detection
                 </span>
-                <h2 className="font-headline-lg text-headline-lg md:text-[32px] md:leading-[40px] font-extrabold text-[#0F172A] mt-2 mb-3">
+                <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A] mt-2 mb-4">
                   Klasifikasi Kerusakan{" "}
                   <GradientText
                     text="Berbasis AI"
-                    className="font-headline-lg text-headline-lg md:text-[32px] md:leading-[40px] font-extrabold"
+                    className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold"
                     gradient="linear-gradient(135deg, #1e40af 0%, #6366f1 60%, #3b82f6 100%)"
                   />
                 </h2>
-                <p className="font-body-md text-body-md text-[#64748b] leading-relaxed mb-4">
+                <p className="font-body-md text-body-md text-[#64748b] leading-relaxed mb-6">
                   Model YOLOv8 kami mampu mendeteksi dan mengklasifikasikan 4 jenis kerusakan jalan
                   langsung dari foto yang Anda ambil. Tidak perlu keahlian teknis — cukup foto dan
                   sistem kami yang bekerja.
                 </p>
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-3">
                   {[
                     { icon: "bolt", text: "Deteksi < 3 detik", color: "#f59e0b" },
                     {
@@ -924,20 +924,20 @@ function LandingPage() {
             </AnimatedContent>
 
             {/* Right: cards staggered */}
-            <div className="grid grid-cols-2 gap-3 md:gap-4">
+            <div className="grid grid-cols-1 gap-4">
               {damageTypes.map((d, i) => (
                 <AnimatedContent key={d.title} distance={40} duration={0.65} delay={i * 0.12}>
                   <SpotlightCard
-                    className="bg-white border border-[#e0e7ff] rounded-2xl p-3 md:p-4 flex gap-3 landing-hover-lift"
+                    className="bg-white border border-[#e0e7ff] rounded-2xl p-5 flex gap-4 landing-hover-lift"
                     spotlightColor="rgba(99, 102, 241, 0.1)"
                   >
                     <div
-                      className={`w-10 h-10 rounded-xl bg-gradient-to-br ${d.color} flex items-center justify-center shrink-0 shadow-md`}
+                      className={`w-12 h-12 rounded-xl bg-gradient-to-br ${d.color} flex items-center justify-center shrink-0 shadow-md`}
                     >
-                      <Icon name={d.icon} className="!text-[18px] text-white" />
+                      <Icon name={d.icon} className="!text-[22px] text-white" />
                     </div>
-                    <div className="min-w-0">
-                      <h3 className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-0.5">
+                    <div>
+                      <h3 className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-1">
                         {d.title}
                       </h3>
                       <p className="font-body-sm text-body-sm text-[#64748b] leading-relaxed line-clamp-2">
@@ -1046,6 +1046,10 @@ function LandingPage() {
                               controlledPos={sliderPos}
                               beforeLabel="Kerusakan"
                               afterLabel="Perbaikan"
+                              onToggle={() => {
+                                setSliderPos((prev) => (prev > 50 ? 0 : 100));
+                                setIsPaused(true);
+                              }}
                             />
                           </Suspense>
                         </div>

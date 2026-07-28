@@ -1141,19 +1141,19 @@ FASTAPI_URL=https://xxxxx.lambda-url.ap-southeast-1.on.aws/
 
 # ── Google reCAPTCHA v3 ──
 # Aktifkan untuk production — kosongkan untuk development (skip verify)
-RECAPTCHA_SECRET=6LezSUstAAAAABxHH5tTUlEtSnDT4z3cu8ng390u
+RECAPTCHA_SECRET=xxxxxxxx
 
 # ── LocationIQ (reverse geocoding) ──
-LOCATIONIQ_KEY=pk.f5d5ab673156566cb03ba95c9e4ab2ee
+LOCATIONIQ_KEY=xxxxxxxx
 
 # ── Telegram Bot ──
-TELEGRAM_BOT_TOKEN=8756306369:AAG_3bySmTBqhaZwuDd6ZLPUCtTwLw1Wtwk
-TELEGRAM_WEBHOOK_SECRET=jalankita-telegram-2026
+TELEGRAM_BOT_TOKEN=xxxxxxxx
+TELEGRAM_WEBHOOK_SECRET=xxxxxxxx
 # Set webhook URL: https://api.jalankita.go.id/api/telegram/webhook
 
 # ── VAPID Keys (WebPush notifications) ──
-VAPID_PUBLIC_KEY=BJ2Y0r8-5g9AwX9v19hT599mpmJqZM9yjNSe3qmzD8UGf6dEYb8PHwEHbe4Fs0PZBJy8TZM1-W-jAbweuUtN-e0
-VAPID_PRIVATE_KEY=UImFGElzAiyjGMWeWLNZhadRpoG3I6BF_T8eqbDshSY
+VAPID_PUBLIC_KEY=xxxxxxxx
+VAPID_PRIVATE_KEY=xxxxxxxx
 VAPID_SUBJECT=mailto:admin@dispu.binamarga.go.id
 
 LOG_CHANNEL=stack

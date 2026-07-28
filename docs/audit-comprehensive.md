@@ -18,7 +18,7 @@
 
 | Secret | Lokasi |
 |--------|--------|
-| Production DB password (`HaqiGoesToRomania1!`) | `.env.production`, `backup-jalankita` |
+| Production DB password (`[REDACTED]`) | `.env.production`, `backup-jalankita` |
 | Gmail SMTP password | `.env`, `.env.production` |
 | Telegram Bot Token | `.env`, `.env.production` |
 | Telegram Webhook Secret | `.env`, `.env.production` |
@@ -150,7 +150,7 @@ Route::post('/auth/login', [AuthController::class, 'login'])
 **Area:** Security — Infrastructure  
 **File:** `scripts/backup-jalankita:6`
 
-**Temuan:** `PGPASSWORD='HaqiGoesToRomania1!' pg_dump ...` — password DB dalam plaintext di script.
+**Temuan:** Dulu script menyimpan password DB dalam plaintext (`PGPASSWORD=...`). **SUDAH DIPERBAIKI** — versi sekarang (`scripts/backup-jalankita`) menggunakan `.pgpass` atau identitas sistem.
 
 **Fix:** Gunakan `~/.pgpass` file dengan permission 0600.
 

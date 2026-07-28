@@ -38,7 +38,20 @@ Scripts & `.env` are OS-specific — no cross-contamination.
 - **Never** run `migrate:fresh`, `migrate:reset`, `db:wipe`, or `DROP` without asking. Allowed: `migrate`, `db:seed`, `cache:clear`, `config:clear`.
 - **Never** run `migrate:fresh`, `migrate:reset`, `db:wipe`, or `DROP` even if you think you have user consent — always wait for the user to explicitly type the command before proceeding.
 - **Never** commit or push unless the user explicitly says "commit", "push", or "commit dan push". You may stage files.
-- **Sebelum commit**, wajib cek secara mendalam apakah ada secret/key file, file binary tak terduga, file temp, atau file pribadi (`.pem`, `.key`, `.env`, `*.json` berisi token, dll) yang akan ikut ter-commit. Pastikan sudah masuk `.gitignore` atau di `git rm --cached`. Jalankan `git status --short` dan inspeksi setiap file baru/berubah sebelum commit. Jika ragu, tanya user.
+- **Sebelum commit**, jalankan checklist keamanan berikut:
+  1. `git status --short` — inspeksi SETIAP file baru/berubah
+  2. Jalankan scan otomatis: `bash scripts/pre-commit-scan.sh` (jika ada) atau scan manual:
+     ```bash
+     # Cari token Telegram/API di tracked files
+     rtk grep -rnE '[0-9]{8,10}:[A-Za-z0-9_-]{35}' --include="*.md" --include="*.php" --include="*.ts" --include="*.tsx" --include="*.sh" --include="*.yml" --include="*.yaml" --include="*.json" --include="*.env*" . 2>/dev/null | grep -v node_modules | grep -v vendor | grep -v ".git/" | grep -v dist/ | grep -v android/
+     # Cari LOCATIONIQ_KEY atau API key pattern
+     rtk grep -rnE '(LOCATIONIQ_KEY|_SECRET=|_TOKEN=|_KEY=|_PASSWORD=|PRIVATE_KEY)' --include="*.md" --include="*.php" --include="*.ts" --include="*.tsx" --include="*.json" --include="*.sh" --include="*.yml" . 2>/dev/null | grep -v node_modules | grep -v vendor | grep -v ".git/" | grep -v dist/ | grep -v android/ | grep -v ".env.example" | grep -v "\/\/.*placeholder" | grep -v "xxxxx"
+     # Cari private key / PEM
+     rtk grep -rn '-----BEGIN' --include="*.md" --include="*.php" --include="*.ts" --include="*.json" --include="*.sh" --include="*.yml" . 2>/dev/null | grep -v node_modules | grep -v vendor | grep -v ".git/" | grep -v "DIST" | grep -v "/test" | grep -v "roots.pem" | grep -v "tests/"
+     ```
+  3. Pastikan `docs/*.md` TIDAK mengandung live secrets (hanya placeholder `xxxxxxxx` atau `[REDACTED]`)
+  4. Pastikan file `.env`, `.env.production`, `*.pem`, `*.key`, `opencode.json` ada di `.gitignore` dan tidak muncul di `git status`
+  Jika ragu terhadap satu file pun, **STOP DAN TANYA USER**. Jangan commit sampai yakin 100% tidak ada secret terleak.
 - **Commit message** harus dalam **Bahasa Indonesia** secara konsisten. Gunakan format `tipe: pesan singkat` (contoh: `fix: ...`, `feat: ...`, `refactor: ...`). Semua commit ke depannya wajib menggunakan bahasa Indonesia pada bagian deskripsi. Commit message bahasa Inggris dilarang.
 - **Production SSH key** (public only): `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA8xwr8n4igJxAtnDakuFYbfePqVKqzhOatluUhPhlWy deploy@deltajalan.web.id` (terdaftar di GitHub → BangkitHaqiAliaffuan)
 - **Sebelum SSH ke server**, wajib buat plan terlebih dahulu dan minta persetujuan user. Jelaskan secara spesifik perintah yang akan dijalankan.

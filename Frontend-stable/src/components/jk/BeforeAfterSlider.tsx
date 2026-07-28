@@ -9,6 +9,7 @@ interface BeforeAfterSliderProps {
   panjang?: number | null;
   lebar?: number | null;
   controlledPos?: number;
+  onToggle?: () => void;
 }
 
 export function BeforeAfterSlider({
@@ -19,6 +20,7 @@ export function BeforeAfterSlider({
   panjang,
   lebar,
   controlledPos,
+  onToggle,
 }: BeforeAfterSliderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const beforeBlob = useBlobImage(beforeSrc || undefined);
@@ -143,9 +145,12 @@ export function BeforeAfterSlider({
 
       {/* Divider line + handle */}
       <div
-        className={`absolute top-0 bottom-0 w-0.5 bg-white z-20 ${isControlled ? "" : "cursor-col-resize"}`}
+        className={`absolute top-0 bottom-0 w-0.5 bg-white z-20 ${isControlled ? "cursor-pointer" : "cursor-col-resize"}`}
         style={{ left: `${displayPos}%`, transform: "translateX(-50%)" }}
-        {...(isControlled ? {} : { onMouseDown: onDragStart, onTouchStart: onDragStart })}
+        {...(isControlled
+          ? { onClick: onToggle }
+          : { onMouseDown: onDragStart, onTouchStart: onDragStart }
+        )}
       >
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">

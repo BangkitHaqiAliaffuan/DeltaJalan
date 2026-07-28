@@ -125,7 +125,7 @@ export function ReportCard({ report, actions, options, cardLink }: ReportCardPro
         </div>
       </ImageLink>
 
-      <div className="flex-1 flex flex-col p-4 gap-2">
+      <div className="flex flex-col p-4 gap-2">
         <HeaderLink {...(headerLinkProps as any)}>
           <div className="flex items-start gap-2">
             <h4 className="text-[15px] font-bold text-[#0F172A] leading-tight line-clamp-2 flex-1">
@@ -293,8 +293,6 @@ export function ReportCard({ report, actions, options, cardLink }: ReportCardPro
             </span>
           </div>
         )}
-
-        <div className="flex-1" />
 
         {actions && actions.length > 0 && (
           <>
