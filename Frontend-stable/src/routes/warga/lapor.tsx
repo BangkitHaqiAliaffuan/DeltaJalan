@@ -134,6 +134,14 @@ function WargaLaporPage() {
     fetchRemaining();
   }, [fetchRemaining]);
 
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.id = "recaptcha-badge-show";
+    style.textContent = `.grecaptcha-badge { visibility: visible !important; bottom: 80px !important; }`;
+    document.head.appendChild(style);
+    return () => document.getElementById("recaptcha-badge-show")?.remove();
+  }, []);
+
   const cameraProps = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
     ? { capture: "environment" as const }
     : {};

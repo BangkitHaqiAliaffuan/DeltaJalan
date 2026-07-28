@@ -512,3 +512,8 @@ body {
 .sidebar-icon.shadow-active {
   filter: drop-shadow(2px 3px 0 rgba(26, 79, 138, 0.3));
 }
+
+/* Google reCAPTCHA v3 badge — hidden by default, shown only on lapor pages */
+.grecaptcha-badge {
+  visibility: hidden !important;
+}

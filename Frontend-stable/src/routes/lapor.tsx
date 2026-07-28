@@ -174,6 +174,14 @@ function PublicLaporPage() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [success, confirmed]);
 
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.id = "recaptcha-badge-show";
+    style.textContent = `.grecaptcha-badge { visibility: visible !important; }`;
+    document.head.appendChild(style);
+    return () => document.getElementById("recaptcha-badge-show")?.remove();
+  }, []);
+
   const cameraProps = getMobileCameraProps();
   const isCameraMode = "capture" in cameraProps;
   const isNative = isNativePlatform();
