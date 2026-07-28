@@ -695,6 +695,9 @@ function WargaLaporPage() {
       return;
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120_000);
+
     try {
       const formData = new FormData();
       formData.append("reporter_name", reporterName);
@@ -721,16 +724,23 @@ function WargaLaporPage() {
           "X-Device-ID": getDeviceId(),
         },
         body: formData,
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       const json = await res.json();
 
       if (res.ok && json.success) {
         fetchRemaining();
-        setSuccess("Laporan berhasil dikirim! Menunggu verifikasi petugas.");
+        const warnings = json.data?.warnings;
+        const successMsg = warnings?.length
+          ? `Laporan berhasil dikirim! ${warnings.join(" ")}`
+          : "Laporan berhasil dikirim! Menunggu verifikasi petugas.";
+        setSuccess(successMsg);
         setTimeout(() => navigate({ to: "/warga/laporan" }), 2000);
       } else {
-        if (json.error_code === "IMAGE_NOT_RELEVANT") {
+        if (json.error_code === "NO_VALID_PHOTOS") {
           setFraudModal({
             isOpen: true,
             status: "image_not_relevant",
@@ -741,9 +751,14 @@ function WargaLaporPage() {
           setError(json.message ?? "Gagal mengirim laporan.");
         }
       }
-    } catch {
-      setError("Gagal terhubung ke server.");
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") {
+        setError("Waktu tunggu habis. Silakan coba lagi.");
+      } else {
+        setError("Gagal terhubung ke server.");
+      }
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   }

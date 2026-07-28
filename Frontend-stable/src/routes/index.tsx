@@ -610,7 +610,7 @@ function LandingPage() {
 
       {/* â”€â”€ TENTANG â€” Bento Grid + parallax background â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AnimatedContent distance={60} duration={0.85}>
-        <section ref={tentangSectionRef} className="py-20 md:py-28 px-6 bg-[#f8f9ff] relative">
+        <section ref={tentangSectionRef} className="py-10 md:py-16 px-6 bg-[#f8f9ff] relative">
           {/* Parallax decorative blob */}
           <div
             ref={tentangParallaxRef}
@@ -618,16 +618,16 @@ function LandingPage() {
           />
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-16">
-              <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-5">
+              <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-4">
                 <Icon name="info" className="!text-[14px]" />
                 Tentang Platform
               </span>
               <BlurText
                 text="Sistem Terpadu untuk Jalan Lebih Baik"
                 tag="h2"
-                className="font-headline-lg text-headline-lg md:text-[38px] md:leading-[46px] font-extrabold text-[#0F172A] mt-2"
+                className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A] mt-2"
               />
-              <p className="mt-4 font-body-md text-body-md text-[#64748b] max-w-2xl mx-auto leading-relaxed">
+              <p className="mt-3 font-body-md text-body-md text-[#64748b] max-w-2xl mx-auto leading-relaxed">
                 DeltaJalan adalah sistem informasi pelaporan dan monitoring kerusakan jalan terpadu
                 milik{" "}
                 <strong className="text-[#1e40af]">
@@ -638,17 +638,17 @@ function LandingPage() {
             </div>
 
             {/* Bento Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-5">
               {/* Large card â€” AI */}
               <SpotlightCard
-                className="md:col-span-2 bento-card p-7 relative overflow-hidden"
+                className="md:col-span-2 bento-card p-4 md:p-5 relative overflow-hidden"
                 spotlightColor="rgba(99, 102, 241, 0.1)"
               >
                 <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-[#e0e7ff] to-transparent rounded-bl-[80px] opacity-60" />
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#1e40af] to-[#6366f1] flex items-center justify-center mb-5 shadow-lg shadow-[#1e40af]/25">
-                  <Icon name="smart_toy" className="!text-[24px] text-white" />
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#1e40af] to-[#6366f1] flex items-center justify-center mb-3 shadow-lg shadow-[#1e40af]/25">
+                  <Icon name="smart_toy" className="!text-[20px] text-white" />
                 </div>
-                <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-3">
+                <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-2">
                   Berbasis AI
                 </h3>
                 <p className="font-body-sm text-body-sm text-[#475569] leading-relaxed max-w-sm">
@@ -657,11 +657,11 @@ function LandingPage() {
                   <strong className="text-[#1e40af]">4 kelas kerusakan</strong>: Lubang, Retak Kulit
                   Buaya, Retak Memanjang, dan Retak Melintang.
                 </p>
-                <div className="mt-5 flex flex-wrap gap-2">
+                <div className="mt-3 flex flex-wrap gap-1.5">
                   {["YOLOv8", "ONNX Runtime", "WBF Ensemble", "AWS Lambda"].map((t) => (
                     <span
                       key={t}
-                      className="bg-[#eef2ff] text-[#3730a3] text-xs font-semibold px-3 py-1 rounded-full border border-[#e0e7ff]"
+                      className="bg-[#eef2ff] text-[#3730a3] text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-[#e0e7ff]"
                     >
                       {t}
                     </span>
@@ -670,11 +670,11 @@ function LandingPage() {
               </SpotlightCard>
 
               {/* Small cards */}
-              <SpotlightCard className="bento-card p-7" spotlightColor="rgba(30, 64, 175, 0.08)">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#dbeafe] to-[#bfdbfe] flex items-center justify-center mb-5">
-                  <Icon name="speed" className="!text-[24px] text-[#1e40af]" />
+              <SpotlightCard className="bento-card p-4 md:p-5" spotlightColor="rgba(30, 64, 175, 0.08)">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#dbeafe] to-[#bfdbfe] flex items-center justify-center mb-3">
+                  <Icon name="speed" className="!text-[20px] text-[#1e40af]" />
                 </div>
-                <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-2">
+                <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-1">
                   Respon Cepat
                 </h3>
                 <p className="font-body-sm text-body-sm text-[#475569] leading-relaxed">
@@ -684,14 +684,14 @@ function LandingPage() {
 
               {/* Large card â€” GIS */}
               <SpotlightCard
-                className="md:col-span-2 bento-card p-7 relative overflow-hidden"
+                className="md:col-span-2 bento-card p-4 md:p-5 relative overflow-hidden"
                 spotlightColor="rgba(99, 102, 241, 0.1)"
               >
                 <div className="absolute bottom-0 left-0 w-48 h-24 bg-gradient-to-tr from-[#eef2ff] to-transparent opacity-50" />
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#4338ca] to-[#6366f1] flex items-center justify-center mb-5 shadow-lg shadow-[#4338ca]/20">
-                  <Icon name="map" className="!text-[24px] text-white" />
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#4338ca] to-[#6366f1] flex items-center justify-center mb-3 shadow-lg shadow-[#4338ca]/20">
+                  <Icon name="map" className="!text-[20px] text-white" />
                 </div>
-                <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-3">
+                <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-2">
                   Terintegrasi GIS
                 </h3>
                 <p className="font-body-sm text-body-sm text-[#475569] leading-relaxed max-w-sm">
@@ -702,11 +702,11 @@ function LandingPage() {
               </SpotlightCard>
 
               {/* Small card â€” Transparan */}
-              <SpotlightCard className="bento-card p-7" spotlightColor="rgba(30, 64, 175, 0.08)">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#dbeafe] to-[#bfdbfe] flex items-center justify-center mb-5">
-                  <Icon name="visibility" className="!text-[24px] text-[#1e40af]" />
+              <SpotlightCard className="bento-card p-4 md:p-5" spotlightColor="rgba(30, 64, 175, 0.08)">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#dbeafe] to-[#bfdbfe] flex items-center justify-center mb-3">
+                  <Icon name="visibility" className="!text-[20px] text-[#1e40af]" />
                 </div>
-                <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-2">
+                <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-1">
                   Transparan
                 </h3>
                 <p className="font-body-sm text-body-sm text-[#475569] leading-relaxed">
@@ -719,41 +719,41 @@ function LandingPage() {
       </AnimatedContent>
 
       {/* â”€â”€ CARA MELAPOR â€” Vertical Timeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <section className="py-20 md:py-28 px-6 bg-white">
+      <section className="py-10 md:py-16 px-6 bg-white">
         <div className="max-w-5xl mx-auto">
           <AnimatedContent distance={40} duration={0.7}>
-            <div className="text-center mb-16">
-              <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-5">
+            <div className="text-center mb-8 md:mb-12">
+              <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-4">
                 <Icon name="route" className="!text-[14px]" />
                 Alur Pelaporan
               </span>
               <BlurText
                 text="Cara Melapor"
                 tag="h2"
-                className="font-headline-lg text-headline-lg md:text-[38px] md:leading-[46px] font-extrabold text-[#0F172A] mt-2"
+                className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A] mt-2"
               />
-              <p className="mt-4 font-body-md text-body-md text-[#64748b] max-w-lg mx-auto">
+              <p className="mt-3 font-body-md text-body-md text-[#64748b] max-w-lg mx-auto">
                 Tiga langkah mudah untuk berkontribusi dalam perbaikan jalan di Sidoarjo.
               </p>
             </div>
           </AnimatedContent>
 
           {/* Steps */}
-          <div className="flex flex-col md:flex-row gap-6 md:gap-8 relative">
+          <div className="flex flex-col md:flex-row gap-4 md:gap-6 relative">
             {/* Desktop connector line */}
-            <div className="hidden md:block absolute top-[52px] left-[calc(16.66%+20px)] right-[calc(16.66%+20px)] h-px">
+            <div className="hidden md:block absolute top-[44px] left-[calc(16.66%+20px)] right-[calc(16.66%+20px)] h-px">
               <div className="w-full h-full bg-gradient-to-r from-[#c7d2fe] via-[#6366f1]/30 to-[#c7d2fe]" />
             </div>
 
             {steps.map((s, i) => (
               <AnimatedContent key={s.title} distance={40} duration={0.7} delay={i * 0.15}>
                 <SpotlightCard
-                  className="flex-1 bg-white border border-[#e0e7ff] rounded-2xl p-7 text-center relative landing-hover-lift"
+                  className="flex-1 bg-white border border-[#e0e7ff] rounded-2xl p-4 md:p-5 text-center relative landing-hover-lift"
                   spotlightColor="rgba(99, 102, 241, 0.12)"
                 >
                   {/* Step number */}
                   <div
-                    className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 relative shadow-xl"
+                    className="w-11 h-11 rounded-2xl flex items-center justify-center mx-auto mb-3 relative shadow-xl"
                     style={{ background: `linear-gradient(135deg, ${s.accent}ee, ${s.accent})` }}
                   >
                     <span className="font-headline-md text-headline-md font-black text-white">
@@ -768,8 +768,8 @@ function LandingPage() {
                       }}
                     />
                   </div>
-                  <Icon name={s.icon} className="!text-[30px] mb-3" style={{ color: s.accent }} />
-                  <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-2">
+                  <Icon name={s.icon} className="!text-[24px] mb-2" style={{ color: s.accent }} />
+                  <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-1">
                     {s.title}
                   </h3>
                   <p className="font-body-sm text-body-sm text-[#64748b] leading-relaxed">
@@ -781,7 +781,7 @@ function LandingPage() {
           </div>
 
           <AnimatedContent distance={20} duration={0.5} delay={0.5}>
-            <div className="text-center mt-12">
+            <div className="text-center mt-8">
               <Link
                 to={loggedIn ? "/warga/lapor" : "/lapor"}
                 className="inline-flex items-center gap-2 bg-[#1e40af] text-white font-label-md text-label-md font-semibold px-7 py-3.5 rounded-2xl hover:bg-[#1730a0] shadow-lg shadow-[#1e40af]/25 hover:shadow-xl hover:shadow-[#1e40af]/30 transition-all active:scale-[0.97]"
@@ -795,9 +795,9 @@ function LandingPage() {
       </section>
 
       {/* ── 3 CARA MELAPOR ── */}
-      <section className="py-16 md:py-20 px-6 bg-white">
+      <section className="py-10 md:py-14 px-6 bg-white">
         <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12 md:mb-14">
+          <div className="text-center mb-8 md:mb-10">
             <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-5">
               <Icon name="grid_view" className="!text-[14px]" />
               Platform
@@ -810,16 +810,16 @@ function LandingPage() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-5 md:gap-6">
+          <div className="grid md:grid-cols-3 gap-4 md:gap-6">
             {/* Telegram */}
-            <div className="bg-white border border-[#e0e7ff] rounded-2xl p-6 md:p-7 text-center hover:shadow-lg hover:shadow-[#1e40af]/5 transition-all duration-300">
-              <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Icon name="send" className="!text-[26px] text-[#1e40af]" />
+            <div className="bg-white border border-[#e0e7ff] rounded-2xl p-5 text-center hover:shadow-lg hover:shadow-[#1e40af]/5 transition-all duration-300">
+              <div className="w-11 h-11 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <Icon name="send" className="!text-[22px] text-[#1e40af]" />
               </div>
               <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-1">
                 Telegram Bot
               </h3>
-              <p className="text-xs text-[#64748B] mb-3 font-mono">@DeltaJalanBot</p>
+              <p className="text-xs text-[#64748B] mb-2 font-mono">@DeltaJalanBot</p>
               <p className="font-body-sm text-body-sm text-[#475569]">
                 Cukup kirim foto dan lokasi ke bot Telegram. Cepat, praktis, tanpa perlu install
                 aplikasi tambahan.
@@ -827,9 +827,9 @@ function LandingPage() {
             </div>
 
             {/* Website */}
-            <div className="bg-white border border-[#e0e7ff] rounded-2xl p-6 md:p-7 text-center hover:shadow-lg hover:shadow-[#1e40af]/5 transition-all duration-300">
-              <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Icon name="language" className="!text-[26px] text-[#4338ca]" />
+            <div className="bg-white border border-[#e0e7ff] rounded-2xl p-5 text-center hover:shadow-lg hover:shadow-[#1e40af]/5 transition-all duration-300">
+              <div className="w-11 h-11 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <Icon name="language" className="!text-[22px] text-[#4338ca]" />
               </div>
               <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-1">
                 Website
@@ -842,22 +842,22 @@ function LandingPage() {
             </div>
 
             {/* Aplikasi Android */}
-            <div className="bg-white border border-[#e0e7ff] rounded-2xl p-6 md:p-7 text-center hover:shadow-lg hover:shadow-[#1e40af]/5 transition-all duration-300">
-              <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Icon name="android" className="!text-[26px] text-[#1e40af]" />
+            <div className="bg-white border border-[#e0e7ff] rounded-2xl p-5 text-center hover:shadow-lg hover:shadow-[#1e40af]/5 transition-all duration-300">
+              <div className="w-11 h-11 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <Icon name="android" className="!text-[22px] text-[#1e40af]" />
               </div>
               <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-1">
                 Aplikasi Android
               </h3>
-              <p className="font-body-sm text-body-sm text-[#475569] mb-4">
+              <p className="font-body-sm text-body-sm text-[#475569] mb-3">
                 Download aplikasi DeltaJalan untuk pengalaman terbaik. GPS otomatis, notifikasi
                 real-time, dan fitur lengkap.
               </p>
-              <div className="flex flex-col items-center gap-3">
+              <div className="flex flex-col items-center gap-2">
                 <img
-                  src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=https%3A%2F%2Fapi.deltajalan.web.id%2Fapi%2Fpublic%2Fdownload-apk"
+                  src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=https%3A%2F%2Fapi.deltajalan.web.id%2Fapi%2Fpublic%2Fdownload-apk"
                   alt="QR Code download DeltaJalan"
-                  className="w-[120px] h-[120px] rounded-lg border border-[#e0e7ff]"
+                  className="w-[90px] h-[90px] rounded-lg border border-[#e0e7ff]"
                   loading="lazy"
                 />
                 <span className="font-label-sm text-label-sm text-[#94a3b8]">Scan QR dengan HP</span>
@@ -877,30 +877,30 @@ function LandingPage() {
       </section>
 
       {/* â”€â”€ AI KLASIFIKASI â€” 2-column â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <section className="py-20 md:py-28 px-6 bg-[#f8f9ff]">
+      <section className="py-10 md:py-16 px-6 bg-[#f8f9ff]">
         <div className="max-w-5xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-12 md:gap-16 items-start">
+          <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-start">
             {/* Left: text */}
             <AnimatedContent distance={60} duration={0.8} direction="horizontal" reverse>
               <div>
-                <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-5">
+                <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-4">
                   <Icon name="smart_toy" className="!text-[14px]" />
                   AI Detection
                 </span>
-                <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A] mt-2 mb-4">
+                <h2 className="font-headline-lg text-headline-lg md:text-[32px] md:leading-[40px] font-extrabold text-[#0F172A] mt-2 mb-3">
                   Klasifikasi Kerusakan{" "}
                   <GradientText
                     text="Berbasis AI"
-                    className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold"
+                    className="font-headline-lg text-headline-lg md:text-[32px] md:leading-[40px] font-extrabold"
                     gradient="linear-gradient(135deg, #1e40af 0%, #6366f1 60%, #3b82f6 100%)"
                   />
                 </h2>
-                <p className="font-body-md text-body-md text-[#64748b] leading-relaxed mb-6">
+                <p className="font-body-md text-body-md text-[#64748b] leading-relaxed mb-4">
                   Model YOLOv8 kami mampu mendeteksi dan mengklasifikasikan 4 jenis kerusakan jalan
-                  langsung dari foto yang Anda ambil. Tidak perlu keahlian teknis â€” cukup foto dan
+                  langsung dari foto yang Anda ambil. Tidak perlu keahlian teknis — cukup foto dan
                   sistem kami yang bekerja.
                 </p>
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-2">
                   {[
                     { icon: "bolt", text: "Deteksi < 3 detik", color: "#f59e0b" },
                     {
@@ -924,20 +924,20 @@ function LandingPage() {
             </AnimatedContent>
 
             {/* Right: cards staggered */}
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-2 gap-3 md:gap-4">
               {damageTypes.map((d, i) => (
                 <AnimatedContent key={d.title} distance={40} duration={0.65} delay={i * 0.12}>
                   <SpotlightCard
-                    className="bg-white border border-[#e0e7ff] rounded-2xl p-5 flex gap-4 landing-hover-lift"
+                    className="bg-white border border-[#e0e7ff] rounded-2xl p-3 md:p-4 flex gap-3 landing-hover-lift"
                     spotlightColor="rgba(99, 102, 241, 0.1)"
                   >
                     <div
-                      className={`w-12 h-12 rounded-xl bg-gradient-to-br ${d.color} flex items-center justify-center shrink-0 shadow-md`}
+                      className={`w-10 h-10 rounded-xl bg-gradient-to-br ${d.color} flex items-center justify-center shrink-0 shadow-md`}
                     >
-                      <Icon name={d.icon} className="!text-[22px] text-white" />
+                      <Icon name={d.icon} className="!text-[18px] text-white" />
                     </div>
-                    <div>
-                      <h3 className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-1">
+                    <div className="min-w-0">
+                      <h3 className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-0.5">
                         {d.title}
                       </h3>
                       <p className="font-body-sm text-body-sm text-[#64748b] leading-relaxed line-clamp-2">
@@ -953,26 +953,26 @@ function LandingPage() {
       </section>
 
       {/* â”€â”€ CAKUPAN WILAYAH â€” Marquee â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <section className="py-16 md:py-20 bg-white overflow-hidden">
+      <section className="py-8 md:py-12 bg-white overflow-hidden">
         <AnimatedContent distance={30} duration={0.7}>
-          <div className="text-center mb-10 px-6">
-            <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-5">
+          <div className="text-center mb-6 px-6">
+            <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-4">
               <Icon name="location_on" className="!text-[14px]" />
               Cakupan Wilayah
             </span>
             <BlurText
               text="18 Kecamatan Kabupaten Sidoarjo"
               tag="h2"
-              className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A] mt-2"
+              className="font-headline-lg text-headline-lg md:text-[32px] md:leading-[40px] font-extrabold text-[#0F172A] mt-2"
             />
           </div>
 
           {/* Top marquee */}
-          <div className="mb-3">
+          <div className="mb-2">
             <Marquee
               items={kecamatanList.slice(0, 9)}
               speed={25}
-              itemClassName="font-label-md text-label-md font-semibold text-[#1e40af] bg-[#eef2ff] border border-[#e0e7ff] rounded-full px-5 py-2.5"
+              itemClassName="font-label-md text-label-md font-semibold text-[#1e40af] bg-[#eef2ff] border border-[#e0e7ff] rounded-full px-4 py-2"
             />
           </div>
           {/* Bottom marquee reversed */}
@@ -980,16 +980,16 @@ function LandingPage() {
             items={kecamatanList.slice(9)}
             speed={20}
             reverse
-            itemClassName="font-label-md text-label-md font-semibold text-[#3730a3] bg-[#f5f3ff] border border-[#ede9fe] rounded-full px-5 py-2.5"
+            itemClassName="font-label-md text-label-md font-semibold text-[#3730a3] bg-[#f5f3ff] border border-[#ede9fe] rounded-full px-4 py-2"
           />
         </AnimatedContent>
       </section>
 
       {/* â”€â”€ LAPORAN TERAKHIR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AnimatedContent distance={60} duration={0.85}>
-        <section className="py-20 md:py-28 px-6 bg-[#f8f9ff]">
+        <section className="py-10 md:py-16 px-6 bg-[#f8f9ff]">
           <div className="max-w-5xl mx-auto">
-            <div className="text-center mb-14">
+            <div className="text-center mb-6 md:mb-8">
               <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-5">
                 <Icon name="history" className="!text-[14px]" />
                 Live Activity
@@ -1018,10 +1018,10 @@ function LandingPage() {
                     transition={{ duration: 0.25, ease: "easeInOut" }}
                   >
                     <SpotlightCard
-                      className="bg-white rounded-2xl p-8 border border-[#e0e7ff] shadow-xl shadow-[#1e40af]/6 hover:shadow-2xl hover:shadow-[#1e40af]/15 hover:border-[#6366f1]/40 hover:-translate-y-0.5 transition-all duration-200"
+                      className="bg-white rounded-2xl p-4 md:p-5 border border-[#e0e7ff] shadow-xl shadow-[#1e40af]/6 hover:shadow-2xl hover:shadow-[#1e40af]/15 hover:border-[#6366f1]/40 hover:-translate-y-0.5 transition-all duration-200"
                       spotlightColor="rgba(99, 102, 241, 0.1)"
                     >
-                      <div className="flex items-start justify-between mb-5">
+                      <div className="flex items-start justify-between mb-3">
                         <div className={`flex items-center gap-2 rounded-full px-3 py-1 ${isPaused ? "bg-[#fef3c7] text-[#92400e]" : "bg-[#d1fae5] text-[#065f46]"}`}>
                           <span className={`w-2 h-2 rounded-full ${isPaused ? "bg-[#f59e0b] animate-none" : "bg-[#10b981] animate-pulse"}`} />
                           <span className="font-label-sm text-label-sm font-semibold">
@@ -1034,7 +1034,7 @@ function LandingPage() {
                       </div>
 
                       {activeTesti.photo_url && activeTesti.after_photo_url ? (
-                        <div className="mb-5 rounded-xl overflow-hidden">
+                        <div className="mb-3 rounded-xl overflow-hidden">
                           <Suspense
                             fallback={
                               <div className="w-full aspect-[16/9] bg-gray-200 animate-pulse rounded-xl" />
@@ -1151,9 +1151,9 @@ function LandingPage() {
 
       {/* â”€â”€ FAQ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AnimatedContent distance={60} duration={0.85}>
-        <section className="py-20 md:py-28 px-6 bg-white">
+        <section className="py-10 md:py-16 px-6 bg-white">
           <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-14">
+            <div className="text-center mb-8">
               <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-5">
                 <Icon name="help" className="!text-[14px]" />
                 FAQ
@@ -1179,9 +1179,9 @@ function LandingPage() {
 
       {/* â”€â”€ CTA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AnimatedContent distance={40} duration={0.8}>
-        <section className="py-16 md:py-20 px-6 bg-[#f8f9ff]">
+        <section className="py-8 md:py-12 px-6 bg-[#f8f9ff]">
           <div className="max-w-5xl mx-auto">
-            <div className="relative rounded-3xl overflow-hidden p-10 md:p-16 text-center">
+            <div className="relative rounded-3xl overflow-hidden p-8 md:p-10 text-center">
               {/* Gradient background */}
               <div className="absolute inset-0 bg-gradient-to-br from-[#1e3a8a] via-[#1e40af] to-[#3730a3]" />
               {/* Mesh pattern */}
@@ -1197,11 +1197,11 @@ function LandingPage() {
               <div className="absolute bottom-[-40px] left-[-40px] w-64 h-64 rounded-full bg-[#3b82f6]/20 blur-3xl" />
 
               <div className="relative z-10">
-                <span className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-white/80 rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-6">
+                <span className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-white/80 rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-4">
                   <Icon name="campaign" className="!text-[14px]" />
                   Bergabung Bersama Kami
                 </span>
-                <h2 className="font-headline-lg text-headline-lg md:text-[40px] md:leading-[48px] font-extrabold text-white mb-4">
+                <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-white mb-3">
                   Mari Wujudkan Sidoarjo <br className="hidden md:block" />
                   <span
                     style={{
@@ -1216,7 +1216,7 @@ function LandingPage() {
                     Tanpa Lubang
                   </span>
                 </h2>
-                <p className="font-body-lg text-body-lg md:text-[17px] text-white/70 max-w-lg mx-auto mb-10 leading-relaxed">
+                <p className="font-body-lg text-body-lg md:text-[16px] text-white/70 max-w-lg mx-auto mb-8 leading-relaxed">
                   Kontribusi Anda sangat berharga bagi keselamatan jutaan pengendara. Laporkan
                   sekarang demi kenyamanan bersama.
                 </p>
@@ -1244,9 +1244,9 @@ function LandingPage() {
       </AnimatedContent>
 
       {/* ── PETA PERSEBARAN ── */}
-      <section className="py-16 md:py-20 px-6 bg-[#f8f9ff]">
+      <section className="py-8 md:py-12 px-6 bg-[#f8f9ff]">
         <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-10">
+          <div className="text-center mb-6">
             <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-5">
               <Icon name="map" className="!text-[14px]" />
               Peta Persebaran
@@ -1262,7 +1262,7 @@ function LandingPage() {
           <div className="max-w-4xl mx-auto">
             <Suspense
               fallback={
-                <div className="w-full rounded-xl bg-slate-100 flex items-center justify-center" style={{ height: "350px" }}>
+                <div className="w-full rounded-xl bg-slate-100 flex items-center justify-center" style={{ height: "280px" }}>
                   <span className="w-6 h-6 border-2 border-[#1e40af]/30 border-t-[#1e40af] rounded-full animate-spin" />
                 </div>
               }
@@ -1299,9 +1299,9 @@ function LandingPage() {
       </section>
 
       {/* ── FOOTER ──────────────────────────────────────────────────────── */}
-      <footer className="bg-[#0a1628] text-white/55 px-6 py-14 md:py-20">
+      <footer className="bg-[#0a1628] text-white/55 px-6 py-10 md:py-14">
         <div className="max-w-5xl mx-auto">
-          <div className="grid md:grid-cols-4 gap-10">
+          <div className="grid md:grid-cols-4 gap-6 md:gap-10">
             <div className="md:col-span-2">
               <div className="flex items-center gap-2.5 mb-5">
                 <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center p-1">

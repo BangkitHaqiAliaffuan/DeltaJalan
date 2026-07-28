@@ -129,7 +129,7 @@ function PublicLaporPage() {
   const [error, setError] = useState("");
   const [reporterNameError, setReporterNameError] = useState("");
   const [phoneError, setPhoneError] = useState("");
-  const [success, setSuccess] = useState<{ reportCode: string } | null>(null);
+  const [success, setSuccess] = useState<{ reportCode: string; warnings?: string[] } | null>(null);
   const [serverRemaining, setServerRemaining] = useState<number | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [initialized, setInitialized] = useState(false);
@@ -813,6 +813,9 @@ function PublicLaporPage() {
       return;
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120_000);
+
     try {
       const formData = new FormData();
       formData.append("reporter_name", reporterName);
@@ -837,16 +840,22 @@ function PublicLaporPage() {
         method: "POST",
         headers: { "X-Device-ID": getDeviceId() },
         body: formData,
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       const json = await res.json();
 
       if (res.ok && json.success) {
         fetchRemaining();
         setConfirmed(false);
-        setSuccess({ reportCode: json.data?.report?.report_code ?? "" });
+        setSuccess({
+          reportCode: json.data?.report?.report_code ?? "",
+          warnings: json.data?.warnings,
+        });
       } else {
-        if (json.error_code === "IMAGE_NOT_RELEVANT") {
+        if (json.error_code === "NO_VALID_PHOTOS") {
           setFraudModal({
             isOpen: true,
             status: "image_not_relevant",
@@ -862,9 +871,14 @@ function PublicLaporPage() {
           setError(json.message ?? "Gagal mengirim laporan.");
         }
       }
-    } catch {
-      setError("Gagal terhubung ke server.");
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") {
+        setError("Waktu tunggu habis. Silakan coba lagi.");
+      } else {
+        setError("Gagal terhubung ke server.");
+      }
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   }
@@ -902,6 +916,16 @@ function PublicLaporPage() {
             <p className="text-sm text-[#476788] mb-4">
               Simpan kode ini untuk melacak status laporan Anda.
             </p>
+            {success.warnings?.length > 0 && (
+              <div className="flex flex-col gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4 text-left">
+                {success.warnings.map((w, i) => (
+                  <p key={i} className="text-xs text-[#D97706] flex items-start gap-1.5">
+                    <Icon name="warning" className="!text-[14px] shrink-0 mt-0.5" />
+                    {w}
+                  </p>
+                ))}
+              </div>
+            )}
             <label className="flex items-center justify-center gap-2.5 mb-6 cursor-pointer select-none">
               <input
                 type="checkbox"
