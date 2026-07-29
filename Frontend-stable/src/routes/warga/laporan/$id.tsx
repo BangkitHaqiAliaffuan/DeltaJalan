@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useState, useEffect, useCallback } from "react";
+import { Portal } from "@/components/jk/Portal";
 import { Share as CapacitorShare } from "@capacitor/share";
 import { Icon } from "@/components/jk/Icon";
 import { getToken } from "@/lib/auth";
@@ -36,6 +37,7 @@ function WargaLaporanDetailPage() {
   const [ratingComment, setRatingComment] = useState("");
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
+  const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
 
   useEffect(() => {
     loadDetail();
@@ -199,6 +201,7 @@ function WargaLaporanDetailPage() {
   const statusInfo = getStatusBadge(report.status);
 
   return (
+    <>
     <main className="pb-4">
       <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] p-6 text-white">
         <div>
@@ -423,7 +426,8 @@ function WargaLaporanDetailPage() {
                   <img
                     src={resolveImageUrl(ap.url) ?? ""}
                     alt={`Setelah perbaikan ${ap.sort_order + 1}`}
-                    className="w-full object-cover h-36"
+                    className="w-full object-cover h-36 cursor-pointer transition-opacity hover:opacity-85"
+                    onClick={() => setFullscreenPhoto(resolveImageUrl(ap.url) ?? "")}
                   />
                 </div>
               ))}
@@ -446,7 +450,8 @@ function WargaLaporanDetailPage() {
                       <img
                         src={resolveImageUrl(pu.foto_url) ?? ""}
                         alt={`Progress hari ke-${pu.day_number}`}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover cursor-pointer transition-opacity hover:opacity-85"
+                        onClick={() => setFullscreenPhoto(resolveImageUrl(pu.foto_url) ?? "")}
                       />
                     </div>
                   )}
@@ -547,5 +552,28 @@ function WargaLaporanDetailPage() {
         )}
       </div>
     </main>
+
+    {fullscreenPhoto && (
+      <Portal>
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setFullscreenPhoto(null)}
+        >
+          <button
+            onClick={() => setFullscreenPhoto(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10"
+          >
+            <Icon name="close" className="!text-[20px]" />
+          </button>
+          <img
+            src={fullscreenPhoto}
+            alt="Progress pengerjaan"
+            className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      </Portal>
+    )}
+    </>
   );
 }

@@ -404,6 +404,19 @@ useEffect(() => {
 
 The hook already returns `src` directly for browser (line `if (!isNative) return src;`), so `setBlobUrl` was a no-op re-render that cancelled image requests.
 
+## Anti-Slop Design Rules
+
+Wajib untuk setiap section landing page agar tidak terlihat AI-generated:
+
+1. **Warna**: Hindari hue 200-290° (biru-ungu) untuk accent/gradient. Gunakan solid color bukan gradient untuk connector/divider.
+2. **Layout**: Jangan gunakan 3-card grid horizontal. Gunakan vertical timeline, list, atau layout asimetris. Setiap section harus punya struktur layout yang berbeda.
+3. **Card radius**: Jangan `rounded-2xl` (16px) untuk semuanya. Variasikan: button `rounded-[6px]`, card `rounded-[14px]` atau `rounded-[10px]`, container `rounded-[12px]`. Off-grid values lebih natural.
+4. **Hover effect**: Jangan `scale-105 + shadow`. Gunakan border color change, background shift, atau subtle underline.
+5. **Motion**: Jangan pakai easing `ease-in-out` untuk semua. Gunakan custom `cubic-bezier()` atau GSAP `power2.out`/`power3.out`. Variasikan duration antar elemen. Tambah `prefers-reduced-motion`.
+6. **Spacing**: Jangan hanya pakai 4px multiples. Sesekali pakai `14px`, `18px`, `22px`. Jangan pakai `gap-6` untuk semua grid.
+7. **Component**: Jangan pakai struktur icon + heading + paragraph card yang identik untuk semua item. Setiap card harus punya susunan konten yang berbeda (misal: sebagian ada icon di atas, sebagian icon di samping, sebagian badge di dalam).
+8. **Section header**: Variasikan badge background color antar section. Jangan pakai indigo-50 (`#eef2ff`) untuk badge di semua section.
+
 ## Context7 MCP
 
 Available as a remote MCP server in `opencode.json`. Use these tools for library/framework documentation instead of relying on training data:

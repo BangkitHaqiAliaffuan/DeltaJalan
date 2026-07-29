@@ -46,6 +46,8 @@ interface StatsData {
     updated_at: string;
     photo_url?: string;
     after_photo_url?: string | null;
+    overall_severity?: string | null;
+    team_name?: string | null;
   }[];
 }
 
@@ -91,24 +93,30 @@ const damageTypes = [
 const steps = [
   {
     icon: "photo_camera",
-    title: "Ambil Foto",
-    desc: "Potret kondisi jalan yang rusak secara jelas untuk mempermudah identifikasi dan klasifikasi oleh AI.",
+    title: "Ambil Foto Jalan",
+    desc: "Potret kondisi jalan yang rusak secara jelas. AI akan langsung mendeteksi jenis dan tingkat keparahannya — cukup foto, sisanya biar teknologi yang bekerja.",
     number: "01",
     accent: "#1e40af",
+    time: "1-2 menit",
+    tip: "Pastikan foto memiliki pencahayaan yang cukup dan fokus pada area kerusakan. Semakin jelas foto, semakin akurat deteksi AI.",
   },
   {
     icon: "description",
-    title: "Isi Laporan",
-    desc: "Lengkapi data lokasi GPS otomatis dan deskripsi singkat. AI kami akan mendeteksi jenis kerusakan secara otomatis.",
+    title: "Lengkapi Detail Laporan",
+    desc: "Lokasi GPS terisi otomatis. Cukup tambahkan keterangan singkat dan verifikasi hasil klasifikasi AI sebelum mengirim.",
     number: "02",
-    accent: "#4338ca",
+    accent: "#2e68d8",
+    time: "2-3 menit",
+    tip: "Pilih nama jalan dari saran autocomplete agar lebih akurat. Jika GPS tidak aktif, kamu bisa menandai lokasi di peta secara manual.",
   },
   {
     icon: "track_changes",
-    title: "Pantau Status",
-    desc: "Ikuti perkembangan perbaikan laporan Anda secara real-time dari penugasan hingga selesai.",
+    title: "Pantau Hingga Selesai",
+    desc: "Setelah dilaporkan, tim satgas akan menangani dan kamu bisa memantau progres perbaikan secara real-time — dari diterima hingga selesai diperbaiki.",
     number: "03",
-    accent: "#6366f1",
+    accent: "#3b82f6",
+    time: "Real-time",
+    tip: "Aktifkan notifikasi untuk mendapat update otomatis setiap kali status laporan berubah. Kamu juga bisa melihat riwayat laporan kapan saja.",
   },
 ];
 
@@ -153,27 +161,27 @@ const aboutFeatures = [
 const faqData = [
   {
     q: "Bagaimana cara melaporkan kerusakan jalan?",
-    a: "Cukup ambil foto kerusakan, isi form lokasi dan deskripsi melalui website atau aplikasi DeltaJalan. Anda bisa melapor tanpa perlu login terlebih dahulu.",
+    a: "Kamu bisa melapor melalui 3 cara berikut:\n\n(a) Website — buka delta-jalan.vercel.app dan klik tombol Lapor, isi form tanpa perlu login.\n\n(b) Aplikasi Android — download file APK di halaman utama DeltaJalan, install di HP, lalu lapor langsung dari mana saja.\n\n(c) Telegram Bot — chat @DeltaJalanBot dan kirim perintah /lapor, bot akan memandu langkah demi langkah.\n\nCukup foto kerusakan, lokasi GPS terisi otomatis, dan AI langsung mendeteksi jenis kerusakan serta tingkat keparahannya. Setelah submit, kamu langsung mendapat kode laporan (contoh: LP-2026-00111) untuk memantau progres perbaikan.",
   },
   {
     q: "Apakah laporan saya akan ditindaklanjuti?",
-    a: "Ya. Setiap laporan yang masuk akan diverifikasi oleh petugas dan diteruskan ke Tim Satgas terkait untuk penanganan lebih lanjut.",
+    a: "Pasti. Setiap laporan baru otomatis di-assign ke supervisor Dinas PU yang bertanggung jawab atas kecamatan tersebut. Supervisor akan mereview, menyetujui, dan menugaskan laporan ke Tim Satgas (UPR) terdekat.\n\nTim satgas kemudian melakukan perbaikan dan mengunggah foto setelah perbaikan sebagai bukti.\n\nProses ini memiliki sistem deadline: prioritas Tinggi target selesai 4 hari, Sedang 10 hari, dan Rendah 21 hari. Jika melewati batas, sistem otomatis menandai sebagai terlambat dan mengirim notifikasi.",
   },
   {
     q: "Berapa lama proses penanganan kerusakan?",
-    a: "Waktu penanganan bervariasi tergantung tingkat kerusakan dan ketersediaan sumber daya. Anda dapat memantau perkembangan laporan melalui fitur Lacak Laporan.",
+    a: "Lama penanganan tergantung tingkat prioritas yang ditentukan supervisor. Prioritas Tinggi target selesai 4 hari (24 jam review + 72 jam eksekusi), Sedang target 10 hari, dan Rendah target 21 hari.\n\nKamu bisa memantau progres secara real-time melalui halaman Lacak Laporan di delta-jalan.vercel.app/lacak dengan memasukkan kode laporan. Di sana akan muncul timeline lengkap — dari laporan diterima, direview, ditugaskan ke tim satgas, sedang diperbaiki, hingga selesai.",
   },
   {
     q: "Apakah saya harus login untuk melapor?",
-    a: "Anda dapat melapor tanpa login sebagai warga. Cukup masukkan nomor telepon dan nama Anda. Namun dengan login, Anda dapat memantau riwayat laporan dengan lebih mudah.",
+    a: "Tidak. Kamu bisa melapor sebagai warga tanpa login cukup dengan nama dan nomor telepon (batas 1 laporan per hari).\n\nNamun jika mendaftar akun warga, kamu mendapat benefit lebih: kuota 5 laporan per hari, riwayat laporan yang tersimpan, notifikasi otomatis saat status berubah, dan bisa memberikan rating setelah perbaikan selesai. Login via Telegram Bot juga langsung terdaftar sebagai akun warga.",
   },
   {
     q: "Wilayah mana saja yang bisa dilaporkan?",
-    a: "Saat ini DeltaJalan melayani seluruh wilayah Kabupaten Sidoarjo yang terdiri dari 18 kecamatan.",
+    a: "DeltaJalan melayani seluruh 18 kecamatan di Kabupaten Sidoarjo:\n\nSidoarjo, Buduran, Gedangan, Sedati, Waru, Taman, Krian, Balongbendo, Wonoayu\nSukodono, Candi, Porong, Krembung, Tulangan, Tanggulangin, Jabon, Tarik, Prambon.\n\nSistem juga memvalidasi koordinat GPS agar berada dalam batas wilayah Sidoarjo (112,5°–112,95° BT, 7,25°–7,65° LS) untuk memastikan laporan masuk ke dinas yang tepat.",
   },
   {
     q: "Bagaimana jika lokasi kerusakan di luar Sidoarjo?",
-    a: "Sistem kami hanya memproses laporan di wilayah Kabupaten Sidoarjo. Untuk lokasi di luar wilayah, silakan hubungi dinas PU setempat.",
+    a: "Saat ini sistem hanya memproses laporan di wilayah Kabupaten Sidoarjo. Untuk kerusakan jalan di luar Sidoarjo, silakan hubungi Dinas PU setempat atau layanan pengaduan infrastruktur di kota/kabupaten masing-masing.\n\nJika ragu apakah suatu lokasi masuk Sidoarjo, kamu bisa cek peta di halaman utama DeltaJalan yang menampilkan batas wilayah 18 kecamatan.",
   },
 ];
 
@@ -211,7 +219,11 @@ function FaqItem({ q, a }: { q: string; a: string }) {
         }`}
       >
         <div className="overflow-hidden">
-          <p className="px-6 pb-5 font-body-sm text-body-sm text-[#3730a3] leading-relaxed">{a}</p>
+          <div className="px-6 pb-5 font-body-sm text-body-sm text-[#3730a3] leading-relaxed space-y-3">
+            {a.split('\n\n').map((p, i) => (
+              <p key={i}>{p}</p>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -293,6 +305,7 @@ function LandingPage() {
   const [sliderPos, setSliderPos] = useState(100);
   const [isPaused, setIsPaused] = useState(false);
   const [activeFaqIdx] = useState<number | null>(null);
+  const [expandedStep, setExpandedStep] = useState<number | null>(null);
 
   const { data: statsRes } = useQuery({
     queryKey: ["public-stats"],
@@ -719,11 +732,11 @@ function LandingPage() {
       </AnimatedContent>
 
       {/* â”€â”€ CARA MELAPOR â€” Vertical Timeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <section className="py-10 md:py-16 px-6 bg-white">
-        <div className="max-w-5xl mx-auto">
+      <section className="py-14 md:py-20 px-6 bg-white">
+        <div className="max-w-4xl mx-auto">
           <AnimatedContent distance={40} duration={0.7}>
-            <div className="text-center mb-8 md:mb-12">
-              <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-4">
+            <div className="text-center mb-10 md:mb-14">
+              <span className="inline-flex items-center gap-2 bg-[#f1f5f9] text-[#475569] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-4">
                 <Icon name="route" className="!text-[14px]" />
                 Alur Pelaporan
               </span>
@@ -738,45 +751,96 @@ function LandingPage() {
             </div>
           </AnimatedContent>
 
-          {/* Steps */}
-          <div className="flex flex-col md:flex-row gap-4 md:gap-6 relative">
-            {/* Desktop connector line */}
-            <div className="hidden md:block absolute top-[44px] left-[calc(16.66%+20px)] right-[calc(16.66%+20px)] h-px">
-              <div className="w-full h-full bg-gradient-to-r from-[#c7d2fe] via-[#6366f1]/30 to-[#c7d2fe]" />
-            </div>
+          {/* Vertical timeline */}
+          <div className="relative">
+            {/* Vertical line (desktop) */}
+            <div className="hidden md:block absolute left-[33px] top-0 bottom-0 w-0.5 bg-slate-200" />
 
             {steps.map((s, i) => (
-              <AnimatedContent key={s.title} distance={40} duration={0.7} delay={i * 0.15}>
-                <SpotlightCard
-                  className="flex-1 bg-white border border-[#e0e7ff] rounded-2xl p-4 md:p-5 text-center relative landing-hover-lift"
-                  spotlightColor="rgba(99, 102, 241, 0.12)"
-                >
-                  {/* Step number */}
+              <div key={s.title} className="relative flex gap-4 md:gap-7 pb-10 md:pb-12 last:pb-0">
+                {/* Timeline dot (mobile) */}
+                <div className="flex flex-col items-center md:hidden">
                   <div
-                    className="w-11 h-11 rounded-2xl flex items-center justify-center mx-auto mb-3 relative shadow-xl"
+                    className="w-11 h-11 rounded-[14px] flex items-center justify-center shadow-md relative z-10 shrink-0"
                     style={{ background: `linear-gradient(135deg, ${s.accent}ee, ${s.accent})` }}
                   >
                     <span className="font-headline-md text-headline-md font-black text-white">
                       {s.number}
                     </span>
-                    {/* Pulse ring */}
                     <span
-                      className="absolute inset-0 rounded-2xl opacity-30"
+                      className="absolute inset-0 rounded-[14px] opacity-30"
                       style={{
                         border: `2px solid ${s.accent}`,
                         animation: "pulse-ring 2.5s ease-out infinite",
                       }}
                     />
                   </div>
-                  <Icon name={s.icon} className="!text-[24px] mb-2" style={{ color: s.accent }} />
-                  <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-1">
-                    {s.title}
-                  </h3>
-                  <p className="font-body-sm text-body-sm text-[#64748b] leading-relaxed">
-                    {s.desc}
-                  </p>
-                </SpotlightCard>
-              </AnimatedContent>
+                  {i < steps.length - 1 && (
+                    <div className="w-0.5 flex-1 bg-slate-200 min-h-[24px]" />
+                  )}
+                </div>
+
+                {/* Timeline dot (desktop) */}
+                <div className="hidden md:flex flex-col items-center pt-[11px] relative z-10">
+                  <div
+                    className="w-[18px] h-[18px] rounded-full border-[3px] border-white shadow-sm"
+                    style={{ backgroundColor: s.accent }}
+                  />
+                </div>
+
+                {/* Card */}
+                <div
+                  className="flex-1 bg-white border border-slate-200 rounded-[14px] p-[18px] md:p-[22px] transition-all duration-200 cursor-pointer hover:border-slate-300 hover:shadow-sm"
+                  onClick={() => setExpandedStep(expandedStep === i ? null : i)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpandedStep(expandedStep === i ? null : i); }}}
+                >
+                  {/* Time badge */}
+                  <span
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold rounded-full px-2.5 py-0.5 mb-3 w-fit"
+                    style={{
+                      color: s.accent,
+                      backgroundColor: `${s.accent}15`,
+                    }}
+                  >
+                    <Icon name="schedule" className="!text-[12px]" />
+                    {s.time}
+                  </span>
+
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="w-10 h-10 rounded-[10px] flex items-center justify-center shrink-0 mt-0.5"
+                      style={{ backgroundColor: `${s.accent}15` }}
+                    >
+                      <Icon name={s.icon} className="!text-[20px]" style={{ color: s.accent }} />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-1">
+                        {s.title}
+                      </h3>
+                      <p className="font-body-sm text-body-sm text-[#64748b] leading-relaxed">
+                        {s.desc}
+                      </p>
+                      {expandedStep === i && s.tip && (
+                        <p className="mt-2.5 font-label-sm text-label-sm text-[#94a3b8] italic leading-relaxed border-t border-slate-100 pt-2.5">
+                          {s.tip}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Expand indicator */}
+                  <div className="flex justify-end mt-1">
+                    <span
+                      className="text-[#94a3b8] transition-transform duration-200 text-sm"
+                      style={{ transform: expandedStep === i ? "rotate(180deg)" : "rotate(0deg)", display: "inline-block" }}
+                    >
+                      <Icon name={expandedStep === i ? "expand_less" : "expand_more"} className="!text-[16px]" />
+                    </span>
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
 
@@ -795,7 +859,7 @@ function LandingPage() {
       </section>
 
       {/* ── 3 CARA MELAPOR ── */}
-      <section className="py-10 md:py-14 px-6 bg-white">
+      <section className="py-14 md:py-20 px-6 bg-white">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-8 md:mb-10">
             <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-5">
@@ -810,50 +874,40 @@ function LandingPage() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-4 md:gap-6">
-            {/* Telegram */}
-            <div className="bg-white border border-[#e0e7ff] rounded-2xl p-5 text-center hover:shadow-lg hover:shadow-[#1e40af]/5 transition-all duration-300">
-              <div className="w-11 h-11 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                <Icon name="send" className="!text-[22px] text-[#1e40af]" />
+          <div className="grid md:grid-cols-3 gap-4 md:gap-6 items-stretch">
+            {/* Telegram — kiri */}
+            <div className="bg-white border border-[#e0e7ff] rounded-2xl text-center hover:shadow-lg hover:shadow-[#1e40af]/5 transition-all duration-300 flex flex-col h-full">
+              <div className="p-5">
+                <div className="w-11 h-11 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                  <Icon name="send" className="!text-[22px] text-[#1e40af]" />
+                </div>
+                <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-1">
+                  Telegram Bot
+                </h3>
+                <p className="text-xs text-[#64748B] mb-2 font-mono">@DeltaJalanBot</p>
+                <p className="font-body-sm text-body-sm text-[#475569]">
+                  Cukup kirim foto dan lokasi ke bot Telegram. Cepat, praktis, tanpa perlu install
+                  aplikasi tambahan.
+                </p>
               </div>
-              <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-1">
-                Telegram Bot
-              </h3>
-              <p className="text-xs text-[#64748B] mb-2 font-mono">@DeltaJalanBot</p>
-              <p className="font-body-sm text-body-sm text-[#475569]">
-                Cukup kirim foto dan lokasi ke bot Telegram. Cepat, praktis, tanpa perlu install
-                aplikasi tambahan.
-              </p>
+              <div className="mt-auto" />
             </div>
 
-            {/* Website */}
-            <div className="bg-white border border-[#e0e7ff] rounded-2xl p-5 text-center hover:shadow-lg hover:shadow-[#1e40af]/5 transition-all duration-300">
-              <div className="w-11 h-11 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                <Icon name="language" className="!text-[22px] text-[#4338ca]" />
+            {/* Aplikasi Android — tengah (QR + download) */}
+            <div className="bg-white border border-[#e0e7ff] rounded-2xl text-center hover:shadow-lg hover:shadow-[#1e40af]/5 transition-all duration-300 flex flex-col h-full">
+              <div className="p-5 pb-0">
+                <div className="w-11 h-11 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                  <Icon name="android" className="!text-[22px] text-[#1e40af]" />
+                </div>
+                <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-1">
+                  Aplikasi Android
+                </h3>
+                <p className="font-body-sm text-body-sm text-[#475569] mb-3">
+                  Download aplikasi DeltaJalan untuk pengalaman terbaik. GPS otomatis, notifikasi
+                  real-time, dan fitur lengkap.
+                </p>
               </div>
-              <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-1">
-                Website
-              </h3>
-              <p className="font-body-sm text-body-sm text-[#475569]">
-                Lapor melalui website di{" "}
-                <span className="font-semibold text-[#1e40af]">deltajalan.web.id/lapor</span>. Bisa
-                login untuk riwayat lengkap, atau tanpa login langsung kirim laporan.
-              </p>
-            </div>
-
-            {/* Aplikasi Android */}
-            <div className="bg-white border border-[#e0e7ff] rounded-2xl p-5 text-center hover:shadow-lg hover:shadow-[#1e40af]/5 transition-all duration-300">
-              <div className="w-11 h-11 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                <Icon name="android" className="!text-[22px] text-[#1e40af]" />
-              </div>
-              <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-1">
-                Aplikasi Android
-              </h3>
-              <p className="font-body-sm text-body-sm text-[#475569] mb-3">
-                Download aplikasi DeltaJalan untuk pengalaman terbaik. GPS otomatis, notifikasi
-                real-time, dan fitur lengkap.
-              </p>
-              <div className="flex flex-col items-center gap-2">
+              <div className="mt-auto flex flex-col items-center gap-2 p-5 pt-3">
                 <img
                   src="https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=https%3A%2F%2Fapi.deltajalan.web.id%2Fapi%2Fpublic%2Fdownload-apk"
                   alt="QR Code download DeltaJalan"
@@ -871,6 +925,24 @@ function LandingPage() {
                   Download APK (22 MB)
                 </a>
               </div>
+            </div>
+
+            {/* Website — kanan */}
+            <div className="bg-white border border-[#e0e7ff] rounded-2xl text-center hover:shadow-lg hover:shadow-[#1e40af]/5 transition-all duration-300 flex flex-col h-full">
+              <div className="p-5">
+                <div className="w-11 h-11 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                  <Icon name="language" className="!text-[22px] text-[#4338ca]" />
+                </div>
+                <h3 className="font-headline-md text-headline-md font-extrabold text-[#0F172A] mb-1">
+                  Website
+                </h3>
+                <p className="font-body-sm text-body-sm text-[#475569]">
+                  Lapor melalui website di{" "}
+                  <span className="font-semibold text-[#1e40af]">deltajalan.web.id/lapor</span>. Bisa
+                  login untuk riwayat lengkap, atau tanpa login langsung kirim laporan.
+                </p>
+              </div>
+              <div className="mt-auto" />
             </div>
           </div>
         </div>
@@ -1004,117 +1076,190 @@ function LandingPage() {
               </p>
             </div>
 
-            <div
-              className="max-w-2xl mx-auto cursor-pointer"
-              onMouseEnter={() => setIsPaused(true)}
-              onMouseLeave={() => setIsPaused(false)}
-            >
-              <AnimatePresence mode="wait" initial={false}>
-                {activeTesti ? (
-                  <motion.div
-                    key={testiIndex}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -12 }}
-                    transition={{ duration: 0.25, ease: "easeInOut" }}
+            <div className="max-w-2xl mx-auto">
+              <div className="flex items-center gap-2 md:gap-3">
+                {testimonials.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => { setSliderPos(100); setTestiIndex((p) => (p - 1 + testimonials.length) % testimonials.length); }}
+                    className="shrink-0 w-10 h-10 rounded-full border border-[#e0e7ff] bg-white flex items-center justify-center hover:bg-[#1e40af] hover:border-[#1e40af] hover:text-white transition-all active:scale-95 hidden md:flex"
+                    aria-label="Laporan sebelumnya"
                   >
+                    <Icon name="chevron_left" className="!text-[22px]" />
+                  </button>
+                )}
+                <div className="flex-1 min-w-0 cursor-pointer"
+                  onMouseEnter={() => setIsPaused(true)}
+                  onMouseLeave={() => setIsPaused(false)}
+                >
+                  {activeTesti ? (
                     <SpotlightCard
                       className="bg-white rounded-2xl p-4 md:p-5 border border-[#e0e7ff] shadow-xl shadow-[#1e40af]/6 hover:shadow-2xl hover:shadow-[#1e40af]/15 hover:border-[#6366f1]/40 hover:-translate-y-0.5 transition-all duration-200"
                       spotlightColor="rgba(99, 102, 241, 0.1)"
                     >
-                      <div className="flex items-start justify-between mb-3">
-                        <div className={`flex items-center gap-2 rounded-full px-3 py-1 ${isPaused ? "bg-[#fef3c7] text-[#92400e]" : "bg-[#d1fae5] text-[#065f46]"}`}>
+                      <div className="mb-3">
+                        <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 ${isPaused ? "bg-[#fef3c7] text-[#92400e]" : "bg-[#d1fae5] text-[#065f46]"}`}>
                           <span className={`w-2 h-2 rounded-full ${isPaused ? "bg-[#f59e0b] animate-none" : "bg-[#10b981] animate-pulse"}`} />
                           <span className="font-label-sm text-label-sm font-semibold">
                             {isPaused ? "Dijeda" : activeTesti.status}
                           </span>
                         </div>
-                        <span className="font-label-sm text-label-sm text-[#94a3b8] font-mono">
-                          {activeTesti.report_code}
-                        </span>
                       </div>
 
-                      {activeTesti.photo_url && activeTesti.after_photo_url ? (
-                        <div className="mb-3 rounded-xl overflow-hidden">
-                          <Suspense
-                            fallback={
-                              <div className="w-full aspect-[16/9] bg-gray-200 animate-pulse rounded-xl" />
-                            }
-                          >
-                            <BeforeAfterSlider
-                              beforeSrc={resolveImageUrl(activeTesti.photo_url) ?? ""}
-                              afterSrc={resolveImageUrl(activeTesti.after_photo_url) ?? ""}
-                              controlledPos={sliderPos}
-                              beforeLabel="Kerusakan"
-                              afterLabel="Perbaikan"
-                              onToggle={() => {
-                                setSliderPos((prev) => (prev > 50 ? 0 : 100));
-                                setIsPaused(true);
+                      <motion.div
+                        key={testiIndex}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        {activeTesti.photo_url && activeTesti.after_photo_url ? (
+                          <div className="grid grid-cols-2 gap-2 mb-5">
+                            <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-gray-100">
+                              <span className="absolute top-2 left-2 z-10 bg-black/60 text-white text-[10px] font-semibold px-2 py-0.5 rounded">
+                                Sebelum
+                              </span>
+                              {!imgLoaded[`${activeTesti.report_code}_before`] && (
+                                <div className="absolute inset-0 bg-gray-200 animate-pulse" />
+                              )}
+                              <img
+                                src={resolveImageUrl(activeTesti.photo_url) ?? ""}
+                                alt={activeTesti.road_name}
+                                className={`w-full h-full object-cover transition-opacity duration-300 ${
+                                  imgLoaded[`${activeTesti.report_code}_before`] ? "opacity-100" : "opacity-0"
+                                }`}
+                                onLoad={() =>
+                                  setImgLoaded((prev) => ({
+                                    ...prev,
+                                    [`${activeTesti.report_code}_before`]: true,
+                                  }))
+                                }
+                                onError={(e) => {
+                                  e.currentTarget.style.display = "none";
+                                  const parent = e.currentTarget.parentElement;
+                                  if (parent) {
+                                    const placeholder = parent.querySelector("[data-placeholder]");
+                                    if (placeholder) {
+                                      (placeholder as HTMLElement).style.display = "flex";
+                                    }
+                                  }
+                                }}
+                              />
+                              <div
+                                data-placeholder
+                                className="absolute inset-0 flex-col items-center justify-center text-[#94a3b8] hidden"
+                              >
+                                <Icon name="broken_image" className="!text-[24px] mb-1" />
+                                <span className="text-[10px]">Gagal</span>
+                              </div>
+                            </div>
+                            <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-gray-100">
+                              <span className="absolute top-2 left-2 z-10 bg-green-600/80 text-white text-[10px] font-semibold px-2 py-0.5 rounded">
+                                Sesudah
+                              </span>
+                              {!imgLoaded[`${activeTesti.report_code}_after`] && (
+                                <div className="absolute inset-0 bg-gray-200 animate-pulse" />
+                              )}
+                              <img
+                                src={resolveImageUrl(activeTesti.after_photo_url) ?? ""}
+                                alt={activeTesti.road_name}
+                                className={`w-full h-full object-cover transition-opacity duration-300 ${
+                                  imgLoaded[`${activeTesti.report_code}_after`] ? "opacity-100" : "opacity-0"
+                                }`}
+                                onLoad={() =>
+                                  setImgLoaded((prev) => ({
+                                    ...prev,
+                                    [`${activeTesti.report_code}_after`]: true,
+                                  }))
+                                }
+                                onError={(e) => {
+                                  e.currentTarget.style.display = "none";
+                                  const parent = e.currentTarget.parentElement;
+                                  if (parent) {
+                                    const placeholder = parent.querySelector("[data-placeholder]");
+                                    if (placeholder) {
+                                      (placeholder as HTMLElement).style.display = "flex";
+                                    }
+                                  }
+                                }}
+                              />
+                              <div
+                                data-placeholder
+                                className="absolute inset-0 flex-col items-center justify-center text-[#94a3b8] hidden"
+                              >
+                                <Icon name="broken_image" className="!text-[24px] mb-1" />
+                                <span className="text-[10px]">Gagal</span>
+                              </div>
+                            </div>
+                          </div>
+                        ) : activeTesti.photo_url ? (
+                          <div className="relative w-full aspect-[16/9] rounded-xl overflow-hidden mb-5 bg-gray-100">
+                            {!imgLoaded[activeTesti.report_code] && (
+                              <div className="absolute inset-0 bg-gray-200 animate-pulse" />
+                            )}
+                            <img
+                              src={resolveImageUrl(activeTesti.photo_url) ?? ""}
+                              alt={activeTesti.road_name}
+                              className={`w-full h-full object-cover transition-opacity duration-300 ${
+                                imgLoaded[activeTesti.report_code] ? "opacity-100" : "opacity-0"
+                              }`}
+                              onLoad={() =>
+                                setImgLoaded((prev) => ({
+                                  ...prev,
+                                  [activeTesti.report_code]: true,
+                                }))
+                              }
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                                const parent = e.currentTarget.parentElement;
+                                if (parent) {
+                                  const placeholder = parent.querySelector("[data-placeholder]");
+                                  if (placeholder) {
+                                    (placeholder as HTMLElement).style.display = "flex";
+                                  }
+                                }
                               }}
                             />
-                          </Suspense>
-                        </div>
-                      ) : activeTesti.photo_url ? (
-                        <div className="relative w-full aspect-[16/9] rounded-xl overflow-hidden mb-5 bg-gray-100">
-                          {!imgLoaded[activeTesti.report_code] && (
-                            <div className="absolute inset-0 bg-gray-200 animate-pulse" />
-                          )}
-                          <img
-                            src={resolveImageUrl(activeTesti.photo_url) ?? ""}
-                            alt={activeTesti.road_name}
-                            className={`w-full h-full object-cover transition-opacity duration-300 ${
-                              imgLoaded[activeTesti.report_code] ? "opacity-100" : "opacity-0"
-                            }`}
-                            onLoad={() =>
-                              setImgLoaded((prev) => ({
-                                ...prev,
-                                [activeTesti.report_code]: true,
-                              }))
-                            }
-                            onError={(e) => {
-                              e.currentTarget.style.display = "none";
-                              const parent = e.currentTarget.parentElement;
-                              if (parent) {
-                                const placeholder = parent.querySelector("[data-placeholder]");
-                                if (placeholder) {
-                                  (placeholder as HTMLElement).style.display = "flex";
-                                }
-                              }
-                            }}
-                          />
-                          <div
-                            data-placeholder
-                            className="absolute inset-0 flex-col items-center justify-center text-[#94a3b8] hidden"
-                          >
-                            <Icon name="broken_image" className="!text-[32px] mb-1" />
-                            <span className="font-label-sm text-label-sm">Gagal memuat foto</span>
+                            <div
+                              data-placeholder
+                              className="absolute inset-0 flex-col items-center justify-center text-[#94a3b8] hidden"
+                            >
+                              <Icon name="broken_image" className="!text-[32px] mb-1" />
+                              <span className="font-label-sm text-label-sm">Gagal memuat foto</span>
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="relative w-full aspect-[16/9] rounded-xl overflow-hidden mb-5 bg-gray-100 flex flex-col items-center justify-center text-[#94a3b8]">
-                          <Icon name="photo_camera" className="!text-[32px] mb-1" />
-                          <span className="font-label-sm text-label-sm">Tidak ada foto</span>
-                        </div>
-                      )}
+                        ) : (
+                          <div className="relative w-full aspect-[16/9] rounded-xl overflow-hidden mb-5 bg-gray-100 flex flex-col items-center justify-center text-[#94a3b8]">
+                            <Icon name="photo_camera" className="!text-[32px] mb-1" />
+                            <span className="font-label-sm text-label-sm">Tidak ada foto</span>
+                          </div>
+                        )}
+                      </motion.div>
 
                       <h3 className="font-headline-md text-headline-md font-bold text-[#0F172A] mb-2 leading-snug">
                         {activeTesti.road_name}
                       </h3>
-                      <p className="font-body-sm text-body-sm text-[#64748b] mb-5 line-clamp-2 leading-relaxed">
-                        {activeTesti.description || "Tidak ada deskripsi."}
-                      </p>
-                      <div className="flex items-center gap-1.5 text-[#6366f1] font-label-sm text-label-sm">
-                        <Icon name="location_on" className="!text-[14px]" />
-                        {activeTesti.district}
+                      <div className="flex items-center gap-2 mb-2">
+                        {activeTesti.overall_severity && (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[#dbeafe] text-[#1e40af]">
+                            {activeTesti.overall_severity}
+                          </span>
+                        )}
+                        <span className="text-xs text-[#94a3b8] font-mono">{activeTesti.report_code}</span>
+                      </div>
+                      <div className="flex items-center gap-3 font-label-sm text-label-sm">
+                        <span className="flex items-center gap-1.5 text-[#6366f1]">
+                          <Icon name="location_on" className="!text-[14px]" />
+                          {activeTesti.district}
+                        </span>
+                        {activeTesti.team_name && (
+                          <span className="flex items-center gap-1.5 text-[#64748b]">
+                            <Icon name="group" className="!text-[14px]" />
+                            {activeTesti.team_name}
+                          </span>
+                        )}
                       </div>
                     </SpotlightCard>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="empty"
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.25, ease: "easeInOut" }}
-                  >
+                  ) : (
                     <div className="bg-white rounded-2xl p-10 border border-[#e0e7ff] shadow-sm text-center">
                       <Icon
                         name="sentiment_satisfied"
@@ -1124,9 +1269,19 @@ function LandingPage() {
                         Belum ada laporan yang selesai ditangani.
                       </p>
                     </div>
-                  </motion.div>
+                  )}
+                </div>
+                {testimonials.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => { setSliderPos(100); setTestiIndex((p) => (p + 1) % testimonials.length); }}
+                    className="shrink-0 w-10 h-10 rounded-full border border-[#e0e7ff] bg-white flex items-center justify-center hover:bg-[#1e40af] hover:border-[#1e40af] hover:text-white transition-all active:scale-95 hidden md:flex"
+                    aria-label="Laporan berikutnya"
+                  >
+                    <Icon name="chevron_right" className="!text-[22px]" />
+                  </button>
                 )}
-              </AnimatePresence>
+              </div>
 
               {/* Dots indicator */}
               {testimonials.length > 1 && (
@@ -1181,9 +1336,64 @@ function LandingPage() {
         </section>
       </AnimatedContent>
 
+      {/* ── PETA PERSEBARAN ── */}
+      <section className="py-8 md:py-12 px-6 bg-[#f8f9ff]">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-6">
+            <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-5">
+              <Icon name="map" className="!text-[14px]" />
+              Peta Persebaran
+            </span>
+            <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A] mt-2">
+              Persebaran Kerusakan Jalan di Sidoarjo
+            </h2>
+            <p className="mt-3 font-body-md text-body-md text-[#64748b] max-w-lg mx-auto">
+              Visualisasi sebaran laporan kerusakan jalan di seluruh 18 kecamatan Kabupaten Sidoarjo.
+            </p>
+          </div>
+
+          <div className="max-w-4xl mx-auto">
+            <Suspense
+              fallback={
+                <div className="w-full rounded-xl bg-slate-100 flex items-center justify-center" style={{ height: "280px" }}>
+                  <span className="w-6 h-6 border-2 border-[#1e40af]/30 border-t-[#1e40af] rounded-full animate-spin" />
+                </div>
+              }
+            >
+              <LandingMapPreview data={mapOverviewData} />
+            </Suspense>
+          </div>
+
+          <div className="text-center mt-8">
+            {loggedIn ? (
+              <Link
+                to="/map"
+                className="inline-flex items-center gap-2 bg-[#1e40af] text-white font-label-md text-label-md font-semibold px-7 py-3.5 rounded-2xl hover:bg-[#1730a0] shadow-lg shadow-[#1e40af]/25 hover:shadow-xl hover:shadow-[#1e40af]/30 transition-all active:scale-[0.97]"
+              >
+                <Icon name="open_in_new" className="!text-[18px]" />
+                Lihat Secara Detail
+              </Link>
+            ) : (
+              <div>
+                <p className="text-sm text-[#64748b] mb-3">
+                  Login untuk melihat data persebaran kerusakan secara detail dan interaktif.
+                </p>
+                <Link
+                  to="/masuk"
+                  className="inline-flex items-center gap-2 bg-[#1e40af] text-white font-label-md text-label-md font-semibold px-7 py-3.5 rounded-2xl hover:bg-[#1730a0] shadow-lg shadow-[#1e40af]/25 hover:shadow-xl hover:shadow-[#1e40af]/30 transition-all active:scale-[0.97]"
+                >
+                  <Icon name="login" className="!text-[18px]" />
+                  Login
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
       {/* â”€â”€ CTA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AnimatedContent distance={40} duration={0.8}>
-        <section className="py-8 md:py-12 px-6 bg-[#f8f9ff]">
+        <section className="py-8 md:py-12 px-6 bg-white">
           <div className="max-w-5xl mx-auto">
             <div className="relative rounded-3xl overflow-hidden p-8 md:p-10 text-center">
               {/* Gradient background */}
@@ -1246,61 +1456,6 @@ function LandingPage() {
           </div>
         </section>
       </AnimatedContent>
-
-      {/* ── PETA PERSEBARAN ── */}
-      <section className="py-8 md:py-12 px-6 bg-[#f8f9ff]">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-6">
-            <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-5">
-              <Icon name="map" className="!text-[14px]" />
-              Peta Persebaran
-            </span>
-            <h2 className="font-headline-lg text-headline-lg md:text-[36px] md:leading-[44px] font-extrabold text-[#0F172A] mt-2">
-              Persebaran Kerusakan Jalan di Sidoarjo
-            </h2>
-            <p className="mt-3 font-body-md text-body-md text-[#64748b] max-w-lg mx-auto">
-              Visualisasi sebaran laporan kerusakan jalan di seluruh 18 kecamatan Kabupaten Sidoarjo.
-            </p>
-          </div>
-
-          <div className="max-w-4xl mx-auto">
-            <Suspense
-              fallback={
-                <div className="w-full rounded-xl bg-slate-100 flex items-center justify-center" style={{ height: "280px" }}>
-                  <span className="w-6 h-6 border-2 border-[#1e40af]/30 border-t-[#1e40af] rounded-full animate-spin" />
-                </div>
-              }
-            >
-              <LandingMapPreview data={mapOverviewData} />
-            </Suspense>
-          </div>
-
-          <div className="text-center mt-8">
-            {loggedIn ? (
-              <Link
-                to="/map"
-                className="inline-flex items-center gap-2 bg-[#1e40af] text-white font-label-md text-label-md font-semibold px-7 py-3.5 rounded-2xl hover:bg-[#1730a0] shadow-lg shadow-[#1e40af]/25 hover:shadow-xl hover:shadow-[#1e40af]/30 transition-all active:scale-[0.97]"
-              >
-                <Icon name="open_in_new" className="!text-[18px]" />
-                Lihat Secara Detail
-              </Link>
-            ) : (
-              <div>
-                <p className="text-sm text-[#64748b] mb-3">
-                  Login untuk melihat data persebaran kerusakan secara detail dan interaktif.
-                </p>
-                <Link
-                  to="/masuk"
-                  className="inline-flex items-center gap-2 bg-[#1e40af] text-white font-label-md text-label-md font-semibold px-7 py-3.5 rounded-2xl hover:bg-[#1730a0] shadow-lg shadow-[#1e40af]/25 hover:shadow-xl hover:shadow-[#1e40af]/30 transition-all active:scale-[0.97]"
-                >
-                  <Icon name="login" className="!text-[18px]" />
-                  Login
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
 
       {/* ── FOOTER ──────────────────────────────────────────────────────── */}
       <footer className="bg-[#0a1628] text-white/55 px-6 py-10 md:py-14">

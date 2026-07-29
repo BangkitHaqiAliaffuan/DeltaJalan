@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Icon } from "./Icon";
 import { useAuth } from "@/lib/AuthContext";
+import { isNativePlatform } from "@/hooks/useLocationFromPhoto";
 
 export default function Fab() {
   const { user } = useAuth();
@@ -11,6 +12,7 @@ export default function Fab() {
   const isPetugas = user.role === "petugas";
 
   if (!isPetugas && !isWarga) return null;
+  if (!isNativePlatform()) return null;
 
   const to = isWarga ? "/warga/lapor" : "/upload";
 
