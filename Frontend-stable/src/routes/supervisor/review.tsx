@@ -126,12 +126,6 @@ function SupervisorReview() {
         showMsg(json.message ?? "Berhasil.");
         await refetchQueue();
         queryClient.invalidateQueries({ queryKey: ["stats"] });
-        // Auto advance to next report
-        if (selectedIndex < reports.length - 1) {
-          setSelectedIndex((i) => i + 1);
-        } else {
-          setSelectedIndex(0);
-        }
       } else {
         showMsg(json.message ?? "Gagal.", "error");
       }
