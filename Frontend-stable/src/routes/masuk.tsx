@@ -8,7 +8,7 @@ export const Route = createFileRoute("/masuk")({
   component: WargaLoginPage,
   head: () => ({
     meta: [
-      { title: "Masuk — DeltaJalan Warga" },
+      { title: "Masuk — DeltaJalan" },
       {
         name: "description",
         content: "Masuk untuk melaporkan kerusakan jalan di Kabupaten Sidoarjo.",
@@ -61,30 +61,17 @@ function WargaLoginPage() {
         return;
       }
 
-      const isNative =
-        typeof window !== "undefined" &&
-        (window as any).Capacitor?.isNativePlatform?.() === true;
-
-      if (!isNative && data.user.role !== "warga") {
-        setError("Akun ini adalah akun petugas. Silakan gunakan halaman khusus petugas.");
-        return;
-      }
+      if (data.user.role === "admin") return;
 
       saveAuth(data.user, data.token);
 
-      if (isNative) {
-        const path =
-          data.user.role === "admin"
-            ? "/admin/dashboard"
-            : data.user.role === "supervisor"
-              ? "/supervisor"
-              : data.user.role === "petugas"
-                ? "/home"
-                : "/warga";
-        navigate({ to: path });
-      } else {
-        navigate({ to: "/warga" });
-      }
+      const path =
+        data.user.role === "supervisor"
+          ? "/supervisor"
+          : data.user.role === "petugas" || data.user.role === "petugas_eksekusi"
+            ? "/home"
+            : "/warga";
+      navigate({ to: path });
     } catch {
       setError("Tidak dapat terhubung ke server. Pastikan server berjalan.");
     } finally {

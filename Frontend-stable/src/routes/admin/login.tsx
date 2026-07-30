@@ -57,7 +57,7 @@ function AdminLoginPage() {
         return;
       }
 
-      if (!isAdminRole(data.user.role)) {
+      if (data.user.role !== "admin") {
         setError("Akun ini tidak memiliki akses admin.");
         return;
       }
