@@ -1308,6 +1308,7 @@ function PublicLaporPage() {
               evidenceLimitReached={duplicateCheck.evidenceLimitReached}
               hasFile={photos.length > 0}
               reporterName={reporterName}
+              hasCoordinate={latitude !== "" && longitude !== ""}
               onSendEvidence={(reportId) =>
                 photos[0] && duplicateCheck.submitEvidence(reportId, photos[0], reporterName)
               }

@@ -732,7 +732,7 @@ function LandingPage() {
       </AnimatedContent>
 
       {/* â”€â”€ CARA MELAPOR â€” Vertical Timeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <section className="py-14 md:py-20 px-6 bg-white">
+      <section className="relative z-0 py-14 md:py-20 px-6 bg-white before:absolute before:inset-x-0 before:top-0 before:h-36 before:bg-gradient-to-b before:from-[#f8f9ff] before:to-transparent before:pointer-events-none before:content-[''] before:-z-10">
         <div className="max-w-4xl mx-auto">
           <AnimatedContent distance={40} duration={0.7}>
             <div className="text-center mb-10 md:mb-14">
@@ -949,7 +949,7 @@ function LandingPage() {
       </section>
 
       {/* â”€â”€ AI KLASIFIKASI â€” 2-column â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <section className="py-20 md:py-28 px-6 bg-[#f8f9ff]">
+      <section className="relative z-0 py-20 md:py-28 px-6 bg-[#f8f9ff] before:absolute before:inset-x-0 before:top-0 before:h-36 before:bg-gradient-to-b before:from-white before:to-transparent before:pointer-events-none before:content-[''] before:-z-10">
         <div className="max-w-5xl mx-auto">
           <div className="grid md:grid-cols-2 gap-12 md:gap-16 items-start">
             {/* Left: text */}
@@ -1025,7 +1025,7 @@ function LandingPage() {
       </section>
 
       {/* â”€â”€ CAKUPAN WILAYAH â€” Marquee â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <section className="py-8 md:py-12 bg-white overflow-hidden">
+      <section className="relative z-0 py-8 md:py-12 bg-white overflow-hidden before:absolute before:inset-x-0 before:top-0 before:h-36 before:bg-gradient-to-b before:from-[#f8f9ff] before:to-transparent before:pointer-events-none before:content-[''] before:-z-10">
         <AnimatedContent distance={30} duration={0.7}>
           <div className="text-center mb-6 px-6">
             <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-4">
@@ -1059,7 +1059,7 @@ function LandingPage() {
 
       {/* â”€â”€ LAPORAN TERAKHIR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AnimatedContent distance={60} duration={0.85}>
-        <section className="py-10 md:py-16 px-6 bg-[#f8f9ff]">
+        <section className="relative z-0 py-10 md:py-16 px-6 bg-[#f8f9ff] before:absolute before:inset-x-0 before:top-0 before:h-36 before:bg-gradient-to-b before:from-white before:to-transparent before:pointer-events-none before:content-[''] before:-z-10">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-6 md:mb-8">
               <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-5">
@@ -1310,7 +1310,7 @@ function LandingPage() {
 
       {/* â”€â”€ FAQ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AnimatedContent distance={60} duration={0.85}>
-        <section className="py-10 md:py-16 px-6 bg-white">
+        <section className="relative z-0 py-10 md:py-16 px-6 bg-white before:absolute before:inset-x-0 before:top-0 before:h-36 before:bg-gradient-to-b before:from-[#f8f9ff] before:to-transparent before:pointer-events-none before:content-[''] before:-z-10">
           <div className="max-w-3xl mx-auto">
             <div className="text-center mb-8">
               <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-5">
@@ -1337,7 +1337,7 @@ function LandingPage() {
       </AnimatedContent>
 
       {/* ── PETA PERSEBARAN ── */}
-      <section className="py-8 md:py-12 px-6 bg-[#f8f9ff]">
+      <section className="relative z-0 py-8 md:py-12 px-6 bg-[#f8f9ff] before:absolute before:inset-x-0 before:top-0 before:h-36 before:bg-gradient-to-b before:from-white before:to-transparent before:pointer-events-none before:content-[''] before:-z-10">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-6">
             <span className="inline-flex items-center gap-2 bg-[#eef2ff] text-[#3730a3] rounded-full px-4 py-1.5 font-label-sm text-label-sm font-semibold mb-5">
@@ -1393,7 +1393,7 @@ function LandingPage() {
 
       {/* â”€â”€ CTA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <AnimatedContent distance={40} duration={0.8}>
-        <section className="py-8 md:py-12 px-6 bg-white">
+        <section className="relative z-0 py-8 md:py-12 px-6 bg-white before:absolute before:inset-x-0 before:top-0 before:h-36 before:bg-gradient-to-b before:from-[#f8f9ff] before:to-transparent before:pointer-events-none before:content-[''] before:-z-10">
           <div className="max-w-5xl mx-auto">
             <div className="relative rounded-3xl overflow-hidden p-8 md:p-10 text-center">
               {/* Gradient background */}

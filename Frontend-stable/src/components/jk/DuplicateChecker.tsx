@@ -10,6 +10,7 @@ interface DuplicateCheckerProps {
   evidenceLimitReached: boolean;
   hasFile: boolean;
   reporterName: string;
+  hasCoordinate?: boolean;
   onSendEvidence?: (reportId: string) => void;
   onOverride?: () => void;
 }
@@ -40,6 +41,7 @@ export function DuplicateChecker({
   evidenceLimitReached,
   hasFile,
   reporterName,
+  hasCoordinate,
   onSendEvidence,
   onOverride,
 }: DuplicateCheckerProps) {
@@ -54,6 +56,7 @@ export function DuplicateChecker({
   }
 
   if (!activeReport) {
+    if (!hasCoordinate) return null;
     return (
       <div className="flex items-center gap-2 bg-[#D1FAE5] border border-[#6EE7B7] rounded-xl px-4 py-3">
         <Icon name="check_circle" className="text-[#065F46] !text-[18px] shrink-0" filled />
