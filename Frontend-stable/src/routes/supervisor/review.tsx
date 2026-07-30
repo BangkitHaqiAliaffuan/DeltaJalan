@@ -5,6 +5,7 @@ import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { Portal } from "@/components/jk/Portal";
 import { ReviewDrawer } from "@/components/jk/ReviewDrawer";
+import { ModalBase } from "@/components/jk/ModalBase";
 import { SafeImage } from "@/components/jk/SafeImage";
 import { API_BASE_URL } from "@/lib/aiStore";
 import { getCurrentUser, getToken } from "@/lib/auth";
@@ -35,6 +36,7 @@ function SupervisorReview() {
   const [rejectLoading, setRejectLoading] = useState(false);
   const [actionMsg, setActionMsg] = useState("");
   const [actionMsgType, setActionMsgType] = useState<"success" | "error">("success");
+  const [successModal, setSuccessModal] = useState({ open: false, message: "" });
 
   // Filters
   const [filterSource, setFilterSource] = useState("");
@@ -123,9 +125,9 @@ function SupervisorReview() {
       });
       const json = await res.json();
       if (res.ok) {
-        showMsg(json.message ?? "Berhasil.");
         await refetchQueue();
         queryClient.invalidateQueries({ queryKey: ["stats"] });
+        setSuccessModal({ open: true, message: json.message ?? "Berhasil." });
       } else {
         showMsg(json.message ?? "Gagal.", "error");
       }
@@ -434,6 +436,26 @@ function SupervisorReview() {
             />
           </div>
         </Portal>
+      )}
+
+      {/* Success modal */}
+      {successModal.open && (
+        <ModalBase
+          onClose={() => setSuccessModal({ open: false, message: "" })}
+          icon="check_circle"
+          badge="BERHASIL"
+          title="Laporan Disetujui"
+          footer={
+            <button
+              onClick={() => setSuccessModal({ open: false, message: "" })}
+              className="w-full py-2.5 rounded-xl bg-[#1e40af] text-white text-[14px] font-bold hover:bg-[#1e3a8a] transition-colors cursor-pointer"
+            >
+              Lanjut ke Laporan Berikutnya
+            </button>
+          }
+        >
+          <p className="text-[14px] text-[#0F172A] leading-relaxed">{successModal.message}</p>
+        </ModalBase>
       )}
     </PageLayout>
   );
