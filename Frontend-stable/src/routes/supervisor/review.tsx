@@ -9,7 +9,7 @@ import { SafeImage } from "@/components/jk/SafeImage";
 import { API_BASE_URL } from "@/lib/aiStore";
 import { getCurrentUser, getToken } from "@/lib/auth";
 import { resolveImageUrl } from "@/lib/imageUrl";
-import { severityDotStyle, severityBadgeStyle } from "@/lib/format";
+
 import { pciBgColor } from "@/lib/pci";
 import type { Laporan } from "@/types/laporan";
 
@@ -317,14 +317,6 @@ function SupervisorReview() {
                         </div>
                         <div className="flex items-center gap-1.5 text-[10px] text-[#476788]">
                           <span className="font-mono">{r.report_code}</span>
-                          <span>·</span>
-                          <span
-                            className={`px-1 py-0.5 rounded text-[9px] font-bold ${severityBadgeStyle(
-                              r.overall_severity,
-                            )}`}
-                          >
-                            {r.overall_severity ?? "—"}
-                          </span>
                           {r.pci_score != null && (
                             <>
                               <span>·</span>
