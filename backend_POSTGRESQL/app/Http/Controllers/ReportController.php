@@ -899,7 +899,7 @@ class ReportController extends Controller
         $total = (clone $query)->count();
 
         // Dynamic sorting — default created_at desc, deadline sort asc
-        $allowedSortBy = ['created_at', 'deadline_review', 'deadline_resolusi', 'priority'];
+        $allowedSortBy = ['created_at', 'deadline_review', 'deadline_resolusi', 'priority', 'pci_score'];
         $sortBy = $request->input('sort_by', 'created_at');
         $sortBy = in_array($sortBy, $allowedSortBy) ? $sortBy : 'created_at';
         $defaultOrder = $sortBy === 'created_at' ? 'desc' : 'asc';

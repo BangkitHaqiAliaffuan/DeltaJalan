@@ -10,6 +10,7 @@ import { API_BASE_URL } from "@/lib/aiStore";
 import { getCurrentUser, getToken } from "@/lib/auth";
 import { resolveImageUrl } from "@/lib/imageUrl";
 import { severityDotStyle, severityBadgeStyle } from "@/lib/format";
+import { pciBgColor } from "@/lib/pci";
 import type { Laporan } from "@/types/laporan";
 
 export const Route = createFileRoute("/supervisor/review")({
@@ -38,7 +39,7 @@ function SupervisorReview() {
   // Filters
   const [filterSource, setFilterSource] = useState("");
   const [filterSeverity, setFilterSeverity] = useState("");
-  const [sortBy, setSortBy] = useState("deadline_review");
+  const [sortBy, setSortBy] = useState("pci_score");
 
   const queryParams = new URLSearchParams();
   queryParams.set("status", "menunggu_review");
@@ -213,6 +214,7 @@ function SupervisorReview() {
               onChange={(e) => setSortBy(e.target.value)}
               className="text-[11px] px-2 py-1.5 border border-[#D0DAE8] rounded-lg bg-white outline-none text-[#0F1623]"
             >
+              <option value="pci_score">PCI (Kritis)</option>
               <option value="deadline_review">Deadline</option>
               <option value="created_at">Terbaru</option>
               <option value="priority">Prioritas</option>
@@ -323,6 +325,16 @@ function SupervisorReview() {
                           >
                             {r.overall_severity ?? "—"}
                           </span>
+                          {r.pci_score != null && (
+                            <>
+                              <span>·</span>
+                              <span
+                                className={`px-1 py-0.5 rounded text-[9px] font-bold ${pciBgColor(r.pci_score)}`}
+                              >
+                                PCI {r.pci_score}
+                              </span>
+                            </>
+                          )}
                           {r.source && r.source !== "petugas" && (
                             <>
                               <span>·</span>
