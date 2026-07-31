@@ -116,87 +116,85 @@ class ReportController extends Controller
      * Endpoint pengecekan laporan aktif di suatu lokasi.
      *
      * Mencari laporan aktif (status != 'Selesai') berdasarkan:
-     * 1. Spatial: radius 15 meter dari koordinat GPS (Haversine Formula)
-     * 2. Textual: kecamatan + nama jalan (ILIKE)
-     * 3. Image hash: foto yang sama sudah pernah digunakan
+     * 1. Spatial: radius 6 meter dari koordinat GPS (Haversine Formula)
+     * 2. Image hash: foto yang sama sudah pernah digunakan
+     *
+     * Mendukung 2 mode:
+     * - Batch (POST /api/v1/reports/check-duplicate): body `photos[]` =
+     *   `[{hash?, lat?, lng?}]` → klasifikasi per foto (valid/spatial_dup/hash_dup).
+     *   Parameter `latitude`/`longitude` dipakai sebagai fallback koordinat
+     *   bila foto tidak memiliki koordinat EXIF.
+     * - Single (GET /api/v1/reports/check-duplicate): query params
+     *   `latitude, longitude, file_hash` → respons tetap menyertakan
+     *   `results`/`summary` untuk konsistensi.
      *
      * Endpoint ini bersifat PUBLIK (tidak perlu autentikasi).
-     *
-     * GET /api/v1/reports/check-duplicate
-     * Query params: latitude, longitude, district, road_name, file_hash
      */
     public function checkDuplicate(Request $request): JsonResponse
     {
         try {
             $duplicateCheck = app(DuplicateCheckService::class);
-            $foundReport = null;
 
-            // ── Prioritas 1: Pencarian Spasial (Haversine, 6m) ──────
-            $lat = $request->query('latitude');
-            $lng = $request->query('longitude');
-            if ($lat !== null && $lng !== null && is_numeric($lat) && is_numeric($lng)) {
-                $nearby = $duplicateCheck->checkSpatial((float) $lat, (float) $lng, 6);
-                if ($nearby) {
-                    $foundReport = [
-                        'id' => $nearby->id,
-                        'report_code' => $nearby->report_code,
-                        'road_name' => $nearby->road_name,
-                        'district' => $nearby->district,
-                        'latitude' => $nearby->latitude ? (float) $nearby->latitude : null,
-                        'longitude' => $nearby->longitude ? (float) $nearby->longitude : null,
-                        'status' => $nearby->status,
-                        'created_at' => $nearby->created_at?->toIso8601String(),
+            $lat = $request->input('latitude', $request->query('latitude'));
+            $lng = $request->input('longitude', $request->query('longitude'));
+            $lat = is_numeric($lat) ? (float) $lat : null;
+            $lng = is_numeric($lng) ? (float) $lng : null;
+
+            $fallbackCoord = ($lat !== null && $lng !== null)
+                ? ['lat' => $lat, 'lng' => $lng]
+                : null;
+
+            // ── Mode batch: POST photos[] ──────────────────────────────
+            $photosInput = $request->input('photos', []);
+            $hasBatch = is_array($photosInput) && count($photosInput) > 0;
+
+            if ($hasBatch) {
+                $photos = [];
+                foreach ($photosInput as $photo) {
+                    if (! is_array($photo)) {
+                        continue;
+                    }
+                    $photos[] = [
+                        'hash' => $photo['hash'] ?? null,
+                        'lat' => isset($photo['lat']) && is_numeric($photo['lat']) ? (float) $photo['lat'] : null,
+                        'lng' => isset($photo['lng']) && is_numeric($photo['lng']) ? (float) $photo['lng'] : null,
                     ];
                 }
-            }
 
-            // ── TEKSTUAL [NONAKTIF] ───────────────────────────────────────
-            // Cek duplikasi tekstual dinonaktifkan. Method checkTextual() di
-            // DuplicateCheckService tetap tersedia untuk diaktifkan kembali.
-            // ── Prioritas 2: Pencarian Tekstual (ILIKE) ──────────────
-            // if (! $foundReport) {
-            //     $district = $request->query('district');
-            //     $roadName = $request->query('road_name');
-            //     if ($district) {
-            //         $textualResult = $duplicateCheck->checkTextual($district, $roadName);
-            //         if ($textualResult) {
-            //             $foundReport = [
-            //                 'id' => $textualResult->id,
-            //                 'report_code' => $textualResult->report_code,
-            //                 'road_name' => $textualResult->road_name,
-            //                 'district' => $textualResult->district,
-            //                 'latitude' => $textualResult->latitude ? (float) $textualResult->latitude : null,
-            //                 'longitude' => $textualResult->longitude ? (float) $textualResult->longitude : null,
-            //                 'status' => $textualResult->status,
-            //                 'created_at' => $textualResult->created_at?->toIso8601String(),
-            //             ];
-            //         }
-            //     }
-            // }
+                $batch = $duplicateCheck->checkBatch($photos, $fallbackCoord);
+                $results = $batch['results'];
+                $summary = $batch['summary'];
 
-            // ── Prioritas 3: Pencarian Berdasarkan Hash Gambar ──────
-            if (! $foundReport) {
-                $fileHash = $request->query('file_hash');
-                if ($fileHash) {
-                    $hashResult = $duplicateCheck->checkByHash($fileHash);
-                    if ($hashResult) {
-                        $foundReport = [
-                            'id' => $hashResult->id,
-                            'report_code' => $hashResult->report_code,
-                            'road_name' => $hashResult->road_name,
-                            'district' => $hashResult->district,
-                            'latitude' => $hashResult->latitude ? (float) $hashResult->latitude : null,
-                            'longitude' => $hashResult->longitude ? (float) $hashResult->longitude : null,
-                            'status' => $hashResult->status,
-                            'created_at' => $hashResult->created_at?->toIso8601String(),
-                        ];
+                $firstDup = null;
+                foreach ($results as $r) {
+                    if ($r['class'] !== 'valid') {
+                        $firstDup = $r;
+                        break;
                     }
                 }
+
+                return response()->json([
+                    'has_active_report' => $firstDup !== null,
+                    'report' => $firstDup['report'] ?? null,
+                    'nearest_distance_meters' => null,
+                    'results' => $results,
+                    'summary' => $summary,
+                ], 200);
             }
 
+            // ── Mode single (GET, legacy) ──────────────────────────────
+            $fileHash = $request->query('file_hash');
+
+            $batch = $duplicateCheck->checkBatch([
+                ['hash' => $fileHash, 'lat' => $lat, 'lng' => $lng],
+            ], null);
+            $results = $batch['results'];
+            $summary = $batch['summary'];
+            $foundReport = $results[0]['report'] ?? null;
+
             $nearestDistance = null;
-            if ($lat !== null && $lng !== null && is_numeric($lat) && is_numeric($lng)) {
-                $nearest = $duplicateCheck->findNearest((float) $lat, (float) $lng);
+            if ($lat !== null && $lng !== null) {
+                $nearest = $duplicateCheck->findNearest($lat, $lng);
                 if ($nearest) {
                     $nearestDistance = $nearest['distance_meters'];
                 }
@@ -206,6 +204,8 @@ class ReportController extends Controller
                 'has_active_report' => $foundReport !== null,
                 'report' => $foundReport,
                 'nearest_distance_meters' => $nearestDistance,
+                'results' => $results,
+                'summary' => $summary,
             ], 200);
 
         } catch (\Exception $e) {
@@ -215,6 +215,8 @@ class ReportController extends Controller
                 'has_active_report' => false,
                 'report' => null,
                 'nearest_distance_meters' => null,
+                'results' => [],
+                'summary' => ['duplicate_count' => 0, 'valid_count' => 0, 'all_duplicates' => false],
             ], 200);
         }
     }

@@ -876,7 +876,7 @@ function LandingPage() {
 
           <div className="grid md:grid-cols-3 gap-4 md:gap-6 items-stretch">
             {/* Telegram — kiri */}
-            <div className="bg-white border border-[#e0e7ff] rounded-2xl text-center hover:shadow-lg hover:shadow-[#1e40af]/5 transition-all duration-300 flex flex-col h-full">
+            <div className="bg-white border border-[#e0e7ff] rounded-2xl text-center hover:shadow-lg hover:shadow-[#1e40af]/5 transition-all duration-300 flex flex-col justify-center h-full">
               <div className="p-5">
                 <div className="w-11 h-11 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
                   <Icon name="send" className="!text-[22px] text-[#1e40af]" />
@@ -890,7 +890,6 @@ function LandingPage() {
                   aplikasi tambahan.
                 </p>
               </div>
-              <div className="mt-auto" />
             </div>
 
             {/* Aplikasi Android — tengah (QR + download) */}
@@ -928,7 +927,7 @@ function LandingPage() {
             </div>
 
             {/* Website — kanan */}
-            <div className="bg-white border border-[#e0e7ff] rounded-2xl text-center hover:shadow-lg hover:shadow-[#1e40af]/5 transition-all duration-300 flex flex-col h-full">
+            <div className="bg-white border border-[#e0e7ff] rounded-2xl text-center hover:shadow-lg hover:shadow-[#1e40af]/5 transition-all duration-300 flex flex-col justify-center h-full">
               <div className="p-5">
                 <div className="w-11 h-11 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
                   <Icon name="language" className="!text-[22px] text-[#4338ca]" />
@@ -942,7 +941,6 @@ function LandingPage() {
                   login untuk riwayat lengkap, atau tanpa login langsung kirim laporan.
                 </p>
               </div>
-              <div className="mt-auto" />
             </div>
           </div>
         </div>

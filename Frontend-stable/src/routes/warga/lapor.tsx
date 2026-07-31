@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Icon } from "@/components/jk/Icon";
 import { PageLayout } from "@/components/jk/PageLayout";
 import { getCurrentUser, getToken } from "@/lib/auth";
@@ -63,6 +63,18 @@ function getDeviceId(): string {
   return id;
 }
 
+async function readPhotoCoords(file: File): Promise<{ lat: number | null; lng: number | null } | null> {
+  try {
+    const gps = await exifr.gps(file);
+    if (gps?.latitude != null && gps?.longitude != null) {
+      return { lat: gps.latitude, lng: gps.longitude };
+    }
+  } catch {
+    /* empty */
+  }
+  return null;
+}
+
 function WargaLaporPage() {
   const user = getCurrentUser();
   const token = getToken() ?? "";
@@ -81,6 +93,9 @@ function WargaLaporPage() {
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [qualityScoresArray, setQualityScoresArray] = useState<(string | null)[]>([]);
   const [photoHashes, setPhotoHashes] = useState<string[]>([]);
+  const [photoCoords, setPhotoCoords] = useState<
+    ({ lat: number | null; lng: number | null } | null)[]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [locating, setLocating] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -108,7 +123,8 @@ function WargaLaporPage() {
     district,
     roadName,
     locationSource !== null && !locating,
-    photoHashes[0] ?? null,
+    photoHashes,
+    photoCoords,
   );
 
   const fetchRemaining = useCallback(async () => {
@@ -149,7 +165,28 @@ function WargaLaporPage() {
   const isNative = isNativePlatform();
   const isAndroidWeb = /Android/i.test(navigator.userAgent) && !isNative;
   const isBlocked = serverRemaining !== null && serverRemaining <= 0;
-  const isEvidenceMode = duplicateCheck.activeReport?.status === "Menunggu Review";
+  const isEvidenceMode = duplicateCheck.evidenceTarget != null;
+
+  const dupBlocked = (() => {
+    const main = duplicateCheck.photoResults.find((r) => r.index === 0);
+    if (main) {
+      return (
+        main.class === "spatial_dup" &&
+        main.report != null &&
+        main.report.status !== "Menunggu Review" &&
+        main.report.status !== "Ditolak" &&
+        main.distance != null &&
+        main.distance <= 6
+      );
+    }
+    return (
+      duplicateCheck.activeReport != null &&
+      duplicateCheck.activeReport.status !== "Menunggu Review" &&
+      duplicateCheck.activeReport.status !== "Ditolak" &&
+      duplicateCheck.nearestDistance != null &&
+      duplicateCheck.nearestDistance <= 6
+    );
+  })();
 
   const canSubmit =
     (isEvidenceMode ? true : reporterName.trim().length > 0) &&
@@ -161,6 +198,30 @@ function WargaLaporPage() {
 
   const isEvidenceSending = duplicateCheck.addEvidenceState === "loading";
 
+  const evidenceFiles = useMemo(() => {
+    if (duplicateCheck.photoResults.length > 0) {
+      return duplicateCheck.photoResults
+        .filter(
+          (r) =>
+            r.class === "spatial_dup" &&
+            r.report !== null &&
+            r.report.status === "Menunggu Review",
+        )
+        .map((r) => photos[r.index])
+        .filter((f): f is File => Boolean(f));
+    }
+    return photos[0] ? [photos[0]] : [];
+  }, [duplicateCheck.photoResults, photos]);
+
+  const skipIndexes = useMemo(() => {
+    const set = new Set<number>();
+    if (duplicateCheck.summary.duplicate_count === 0) return set;
+    duplicateCheck.photoResults.forEach((r) => {
+      if (r.class !== "valid") set.add(r.index);
+    });
+    return set;
+  }, [duplicateCheck.photoResults, duplicateCheck.summary]);
+
   const pendingRemoveIdx = useRef<number[]>([]);
 
   function closeFraudModal() {
@@ -170,6 +231,7 @@ function WargaLaporPage() {
       setPhotoPreviews((prev) => prev.filter((_, i) => !idxSet.has(i)));
       setQualityScoresArray((prev) => prev.filter((_, i) => !idxSet.has(i)));
       setPhotoHashes((prev) => prev.filter((_, i) => !idxSet.has(i)));
+      setPhotoCoords((prev) => prev.filter((_, i) => !idxSet.has(i)));
       if (idxSet.has(0)) setCameraModel("");
       pendingRemoveIdx.current = [];
     }
@@ -181,6 +243,7 @@ function WargaLaporPage() {
     setPhotoPreviews((prev) => prev.filter((_, i) => i !== index));
     setQualityScoresArray((prev) => prev.filter((_, i) => i !== index));
     setPhotoHashes((prev) => prev.filter((_, i) => i !== index));
+    setPhotoCoords((prev) => prev.filter((_, i) => i !== index));
     if (index === 0) {
       setCameraModel("");
     }
@@ -263,6 +326,7 @@ function WargaLaporPage() {
       const newPreviews: string[] = [];
       const newQualityScores: (string | null)[] = [];
       const newHashes: string[] = [];
+      const newCoords: ({ lat: number | null; lng: number | null } | null)[] = [];
       const warnings: string[] = [];
 
       if (incoming.length > remaining) {
@@ -340,6 +404,7 @@ function WargaLaporPage() {
         newPreviews.push(URL.createObjectURL(compressed));
         newQualityScores.push(cleanQuality);
         newHashes.push(hash);
+        newCoords.push(await readPhotoCoords(compressed));
         isFirstInBatch = false;
       }
 
@@ -353,6 +418,7 @@ function WargaLaporPage() {
       setPhotoPreviews((prev) => [...prev, ...newPreviews].slice(0, 3));
       setQualityScoresArray((prev) => [...prev, ...newQualityScores].slice(0, 3));
       setPhotoHashes((prev) => [...prev, ...newHashes].slice(0, 3));
+      setPhotoCoords((prev) => [...prev, ...newCoords].slice(0, 3));
 
       if (warnings.length > 0) setUploadWarnings(warnings);
 
@@ -433,6 +499,11 @@ function WargaLaporPage() {
       setPhotoPreviews([URL.createObjectURL(compressed)]);
       setQualityScoresArray([cleanQuality]);
       setPhotoHashes([hash]);
+      setPhotoCoords([
+        exif.gps?.latitude != null && exif.gps?.longitude != null
+          ? { lat: exif.gps.latitude, lng: exif.gps.longitude }
+          : null,
+      ]);
 
       pendingRemoveIdx.current = [0];
       if (result.lat != null && result.lng != null) {
@@ -515,6 +586,14 @@ function WargaLaporPage() {
       setPhotoPreviews((prev) => [...prev, URL.createObjectURL(compressed)].slice(0, 3));
       setQualityScoresArray((prev) => [...prev, cleanQuality].slice(0, 3));
       setPhotoHashes((prev) => [...prev, hash].slice(0, 3));
+      setPhotoCoords((prev) =>
+        [
+          ...prev,
+          exif.gps?.latitude != null && exif.gps?.longitude != null
+            ? { lat: exif.gps.latitude, lng: exif.gps.longitude }
+            : null,
+        ].slice(0, 3),
+      );
 
       pendingRemoveIdx.current = [photos.length];
       if (result.lat != null && result.lng != null) {
@@ -600,6 +679,7 @@ function WargaLaporPage() {
       const newPreviews: string[] = [];
       const newQualityScores: (string | null)[] = [];
       const newHashes: string[] = [];
+      const newCoords: ({ lat: number | null; lng: number | null } | null)[] = [];
       const seenHashes = new Set(photoHashes);
 
       for (const r of results) {
@@ -618,6 +698,11 @@ function WargaLaporPage() {
         newPreviews.push(r.preview);
         newQualityScores.push(r.quality);
         newHashes.push(r.hash);
+        newCoords.push(
+          r.exif?.gps?.latitude != null && r.exif?.gps?.longitude != null
+            ? { lat: r.exif.gps.latitude, lng: r.exif.gps.longitude }
+            : null,
+        );
       }
 
       if (newPhotos.length === 0) {
@@ -642,6 +727,7 @@ function WargaLaporPage() {
       setPhotoPreviews((prev) => [...prev, ...newPreviews].slice(0, 3));
       setQualityScoresArray((prev) => [...prev, ...newQualityScores].slice(0, 3));
       setPhotoHashes((prev) => [...prev, ...newHashes].slice(0, 3));
+      setPhotoCoords((prev) => [...prev, ...newCoords].slice(0, 3));
       if (warnings.length > 0) setUploadWarnings(warnings);
 
       // GPS from first photo
@@ -665,8 +751,9 @@ function WargaLaporPage() {
   }
 
   async function handleSendEvidence() {
-    if (!photos[0] || !duplicateCheck.activeReport) return;
-    await duplicateCheck.submitEvidence(duplicateCheck.activeReport.id, photos[0], reporterName);
+    const target = duplicateCheck.evidenceTarget;
+    if (!target || evidenceFiles.length === 0) return;
+    await duplicateCheck.submitEvidenceBatch(target.id, evidenceFiles, reporterName);
   }
 
   async function handleSubmit() {
@@ -685,6 +772,13 @@ function WargaLaporPage() {
       setError("Semua field wajib diisi, termasuk foto.");
       return;
     }
+
+    const submitPhotos = photos.filter((_, i) => !skipIndexes.has(i));
+    if (submitPhotos.length === 0) {
+      setError("Tidak ada foto yang dapat dikirim karena semua foto sudah tercatat pada laporan lain.");
+      return;
+    }
+    const submitQuality = qualityScoresArray.filter((_, i) => !skipIndexes.has(i));
 
     setLoading(true);
 
@@ -705,10 +799,10 @@ function WargaLaporPage() {
       formData.append("district", district);
       formData.append("latitude", latitude);
       formData.append("longitude", longitude);
-      photos.forEach((f, i) => {
+      submitPhotos.forEach((f, i) => {
         formData.append(`images[${i}]`, f);
-        if (qualityScoresArray[i]) {
-          formData.append(`quality_scores[${i}]`, qualityScoresArray[i]);
+        if (submitQuality[i]) {
+          formData.append(`quality_scores[${i}]`, submitQuality[i]);
         }
       });
       if (description) formData.append("description", description);
@@ -1092,15 +1186,16 @@ function WargaLaporPage() {
                   checking={duplicateCheck.checking}
                   activeReport={duplicateCheck.activeReport}
                   nearestDistance={duplicateCheck.nearestDistance}
+                  photoResults={duplicateCheck.photoResults}
+                  summary={duplicateCheck.summary}
                   addEvidenceState={duplicateCheck.addEvidenceState}
                   addEvidenceMessage={duplicateCheck.addEvidenceMessage}
                   evidenceLimitReached={duplicateCheck.evidenceLimitReached}
                   hasFile={photos.length > 0}
                   reporterName={reporterName}
                   hasCoordinate={latitude !== "" && longitude !== ""}
-                  onSendEvidence={(reportId) =>
-                    photos[0] && duplicateCheck.submitEvidence(reportId, photos[0], reporterName)
-                  }
+                  evidenceCount={evidenceFiles.length}
+                  onSendEvidence={() => handleSendEvidence()}
                   onOverride={duplicateCheck.reset}
                 />
 
@@ -1273,8 +1368,8 @@ function WargaLaporPage() {
                   onClick={isEvidenceMode ? handleSendEvidence : handleSubmit}
                   disabled={
                     isEvidenceMode
-                      ? !photos[0] || isEvidenceSending
-                      : loading || locating || !canSubmit
+                      ? !photos[0] || isEvidenceSending || duplicateCheck.evidenceLimitReached
+                      : loading || locating || !canSubmit || dupBlocked
                   }
                   className="w-full h-12 bg-gradient-to-r from-[#1e40af] to-[#2e68d8] text-white rounded-xl font-label-md text-label-md font-semibold flex items-center justify-center gap-2 mt-2 hover:shadow-lg hover:shadow-[#1e40af]/25 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >

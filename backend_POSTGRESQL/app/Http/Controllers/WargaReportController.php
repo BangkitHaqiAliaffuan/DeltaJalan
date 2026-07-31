@@ -7,6 +7,7 @@ use App\Models\Report;
 use App\Models\ReportPhoto;
 use App\Models\StatusLog;
 use App\Models\User;
+use App\Services\DuplicateCheckService;
 use App\Services\GeographicService;
 use App\Services\PciService;
 use Illuminate\Http\JsonResponse;
@@ -32,6 +33,8 @@ class WargaReportController extends Controller
     private const FINGERPRINT_LIMIT = 1;
 
     private const DEVICE_LIMIT = 1;
+
+    private const IP_LIMIT = 3;
 
     public function store(Request $request): JsonResponse
     {
@@ -152,6 +155,12 @@ class WargaReportController extends Controller
             }
         }
 
+        // ── Layer 0: IP daily limit ──────────────────────────────────────
+        $ipCheck = $this->checkIpLimit($request);
+        if ($ipCheck !== null) {
+            return $ipCheck;
+        }
+
         // ── Layer 1: Pseudo-fingerprint (IP + User-Agent) daily limit ──────
         $fingerprintCheck = $this->checkFingerprintLimit($request);
         if ($fingerprintCheck !== null) {
@@ -189,6 +198,7 @@ class WargaReportController extends Controller
         $response = $this->processAndCreateReport($request, $validated, $user->id);
 
         if ($response->getStatusCode() === 201) {
+            $this->incrementIpCounter($request);
             $this->incrementFingerprintCounter($request);
             $this->incrementDeviceCounter($request);
         }
@@ -672,8 +682,17 @@ class WargaReportController extends Controller
             $user = Auth::guard('sanctum')->user();
         }
 
-        // Fingerprint & device limits only for guests
+        // Fingerprint, IP & device limits only for guests
         if (! $user) {
+            // 0. IP limit
+            $ipHash = hash('sha256', $request->ip());
+            $ipCounter = DailyUploadCounter::where('identifier_type', 'ip')
+                ->where('identifier_hash', $ipHash)
+                ->where('report_date', today())
+                ->first();
+            $ipCount = $ipCounter?->count ?? 0;
+            $limits[] = self::IP_LIMIT - $ipCount;
+
             // 1. Fingerprint limit
             $fingerprint = $this->buildFingerprint($request);
             $fpCounter = DailyUploadCounter::where('identifier_type', 'fingerprint')
@@ -709,7 +728,7 @@ class WargaReportController extends Controller
             'success' => true,
             'data' => [
                 'remaining' => $remaining,
-                'limit' => self::DAILY_LIMIT,
+                'limit' => $user ? self::DAILY_LIMIT : self::FINGERPRINT_LIMIT,
                 'reached' => $remaining <= 0,
             ],
         ]);
@@ -835,6 +854,51 @@ class WargaReportController extends Controller
         });
     }
 
+    private function checkIpLimit(Request $request): ?JsonResponse
+    {
+        $ipHash = hash('sha256', $request->ip());
+        $counter = DailyUploadCounter::where('identifier_type', 'ip')
+            ->where('identifier_hash', $ipHash)
+            ->where('report_date', today())
+            ->first();
+
+        $count = $counter?->count ?? 0;
+
+        if ($count >= self::IP_LIMIT) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Batas upload harian untuk jaringan ini telah tercapai ('.self::IP_LIMIT.' laporan). Silakan coba lagi besok atau gunakan akun untuk kuota lebih besar.',
+                'error_code' => 'IP_LIMIT_EXCEEDED',
+            ], 429);
+        }
+
+        return null;
+    }
+
+    private function incrementIpCounter(Request $request): void
+    {
+        $ipHash = hash('sha256', $request->ip());
+
+        DB::transaction(function () use ($ipHash) {
+            $counter = DailyUploadCounter::where('identifier_type', 'ip')
+                ->where('identifier_hash', $ipHash)
+                ->where('report_date', today())
+                ->lockForUpdate()
+                ->first();
+
+            if ($counter) {
+                $counter->increment('count');
+            } else {
+                DailyUploadCounter::create([
+                    'identifier_type' => 'ip',
+                    'identifier_hash' => $ipHash,
+                    'report_date' => today(),
+                    'count' => 1,
+                ]);
+            }
+        });
+    }
+
     private function verifyRecaptcha(string $token): true|JsonResponse
     {
         if (! config('services.recaptcha.secret')) {
@@ -934,7 +998,18 @@ class WargaReportController extends Controller
                 }
             }
 
-            $exifGps = $this->extractExifGps($imageFile->getPathname(), $fullExif);
+            $photoGps = $this->extractExifGps($imageFile->getPathname(), $fullExif);
+
+            if ($idx > 0 && $photoGps && $this->isInSidoarjo($photoGps['lat'], $photoGps['lng'])) {
+                $nearby = app(DuplicateCheckService::class)->checkSpatial($photoGps['lat'], $photoGps['lng'], 6);
+                if ($nearby) {
+                    $warnings[] = 'Foto ke-'.($idx + 1).' berada di lokasi laporan aktif '.$nearby->report_code.', dilewati.';
+
+                    continue;
+                }
+            }
+
+            $exifGps = $photoGps;
 
             if ($exifGps && ! $this->isInSidoarjo($exifGps['lat'], $exifGps['lng'])) {
                 if ($idx === 0) {

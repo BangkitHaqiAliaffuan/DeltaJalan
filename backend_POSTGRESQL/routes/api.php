@@ -52,6 +52,13 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
  */
 Route::get('/v1/reports/check-duplicate', [ReportController::class, 'checkDuplicate']);
 
+/**
+ * POST /api/v1/reports/check-duplicate
+ * Pengecekan duplikasi batch per foto — PUBLIK, tidak perlu autentikasi.
+ * Body: photos[] = [{hash?, lat?, lng?}], latitude?, longitude? (fallback).
+ */
+Route::post('/v1/reports/check-duplicate', [ReportController::class, 'checkDuplicate']);
+
 // ── Auth routes (public) ──────────────────────────────────────────────────
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 Route::post('/auth/register', [AuthController::class, 'register']);
