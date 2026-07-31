@@ -19,7 +19,8 @@ export const Route = createFileRoute("/tugas-saya")({
   component: TugasSayaPage,
   validateSearch: (search: Record<string, unknown>) => {
     const tab = search.tab as string | undefined;
-    return { ...(tab ? { tab } : {}) };
+    const subTab = search.subTab as string | undefined;
+    return { ...(tab ? { tab } : {}), ...(subTab ? { subTab } : {}) };
   },
   head: () => ({ meta: [{ title: "Tugas Saya — DeltaJalan" }] }),
 });
@@ -68,10 +69,13 @@ function TugasSayaPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const token = getToken() ?? "";
-  const { tab: tabParam } = Route.useSearch();
+  const { tab: tabParam, subTab: subTabParam } = Route.useSearch();
   const [isClient, setIsClient] = useState(false);
   const [tab, setTab] = useState<"patroli" | "perbaikan">(
     tabParam === "perbaikan" ? "perbaikan" : "patroli",
+  );
+  const [subTab, setSubTab] = useState<"baru" | "berjalan" | "selesai" | "semua">(
+    (subTabParam as "baru" | "berjalan" | "selesai" | "semua") ?? "baru",
   );
   const today = todayStr();
   const teamId = user?.team_id;
@@ -81,6 +85,15 @@ function TugasSayaPage() {
     navigate({
       to: "/tugas-saya",
       search: t === "perbaikan" ? { tab: "perbaikan" } : {},
+      replace: true,
+    });
+  }
+
+  function handleSubTabChange(t: "baru" | "berjalan" | "selesai" | "semua") {
+    setSubTab(t);
+    navigate({
+      to: "/tugas-saya",
+      search: { tab: "perbaikan", subTab: t },
       replace: true,
     });
   }
@@ -109,7 +122,7 @@ function TugasSayaPage() {
   const [errorPerbaikan, setErrorPerbaikan] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<string>("semua");
-  const [sortBy, setSortBy] = useState<string>("prioritas");
+  const [sortBy, setSortBy] = useState<string>("pci");
   const [estimasiTarget, setEstimasiTarget] = useState<Laporan | null>(null);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [progressTargetId, setProgressTargetId] = useState<string | null>(null);
@@ -127,7 +140,7 @@ function TugasSayaPage() {
     setLoadingPerbaikan(true);
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const reportsRes = await fetch(`${API_BASE_URL}/reports?limit=50&team_tasks=1`, { headers });
+      const reportsRes = await fetch(`${API_BASE_URL}/reports?limit=50&team_tasks=1&sort_by=pci_score`, { headers });
       if (reportsRes.ok) {
         const json = await reportsRes.json();
         setLaporan(json.data ?? []);
@@ -185,6 +198,11 @@ function TugasSayaPage() {
 
   const sortFn = useMemo(() => {
     return (a: Laporan, b: Laporan) => {
+      if (sortBy === "pci") {
+        const ap = a.pci_score ?? 999;
+        const bp = b.pci_score ?? 999;
+        return ap - bp;
+      }
       if (sortBy === "prioritas") {
         const prioOrder: Record<string, number> = { Tinggi: 0, Sedang: 1, Rendah: 2 };
         const ap = prioOrder[a.priority ?? ""] ?? 3;
@@ -315,6 +333,8 @@ function TugasSayaPage() {
               handleMulai={handleMulai}
               isClient={isClient}
               onProgressClick={handleProgressClick}
+              subTab={subTab}
+              onSubTabChange={handleSubTabChange}
             />
           )}
         </div>
@@ -445,6 +465,8 @@ function PerbaikanSection({
   handleMulai,
   isClient,
   onProgressClick,
+  subTab,
+  onSubTabChange,
 }: {
   loading: boolean;
   error: string;
@@ -461,6 +483,8 @@ function PerbaikanSection({
   handleMulai: (id: string) => Promise<void>;
   isClient: boolean;
   onProgressClick: (id: string, code: string) => void;
+  subTab: "baru" | "berjalan" | "selesai" | "semua";
+  onSubTabChange: (t: "baru" | "berjalan" | "selesai" | "semua") => void;
 }) {
   if (loading) {
     return (
@@ -575,6 +599,32 @@ function PerbaikanSection({
         </div>
       </section>
 
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        {[
+          { key: "baru", label: "Baru" },
+          { key: "berjalan", label: "Sedang Dikerjakan" },
+          { key: "selesai", label: "Selesai" },
+          { key: "semua", label: "Semua" },
+        ].map((t) => (
+          <button
+            key={t.key}
+            onClick={() => onSubTabChange(t.key as typeof subTab)}
+            className={`px-4 py-1.5 rounded-full text-[12px] font-bold border transition-all ${
+              subTab === t.key
+                ? "bg-primary text-white border-primary"
+                : "bg-[#EEF3FA] text-[#476788] border-transparent hover:bg-[#D6E2F5]"
+            }`}
+          >
+            {t.label}
+            {t.key !== "semua" && (
+              <span className="ml-1.5 opacity-80">
+                ({t.key === "baru" ? tugasBaru.length : t.key === "berjalan" ? tugasBerjalan.length : tugasSelesai.length})
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
       {error && (
         <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-red-50 border border-red-200 text-[#E11D48]">
           {error}
@@ -593,6 +643,7 @@ function PerbaikanSection({
               onChange={(e) => setSortBy(e.target.value)}
               className="font-label-sm text-label-sm text-[#0F172A] bg-white border border-[#E2E8F0] rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af]"
             >
+              <option value="pci">Prioritas Kerusakan (PCI)</option>
               <option value="prioritas">Prioritas Tertinggi</option>
               <option value="deadline">Paling Mendesak</option>
               <option value="terdekat">Terdekat</option>
@@ -601,7 +652,7 @@ function PerbaikanSection({
           </div>
         </div>
 
-        {tugasBaru.length > 0 && (
+        {(subTab === "baru" || subTab === "semua") && tugasBaru.length > 0 && (
           <div className="mb-6">
             <h3 className="font-label-md font-bold text-[#0F172A] mb-3 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
@@ -638,7 +689,19 @@ function PerbaikanSection({
           </div>
         )}
 
-        {tugasBerjalan.length > 0 && (
+        {(subTab === "baru" || subTab === "semua") && tugasBaru.length === 0 && subTab !== "semua" && (
+          <div className="flex flex-col items-center justify-center py-12 text-center bg-white border border-[#E2E8F0] rounded-xl mb-6">
+            <div className="w-12 h-12 rounded-xl bg-[#F1F5F9] border border-[#E2E8F0] flex items-center justify-center mb-4">
+              <Icon name="task_alt" className="text-[#059669] !text-[22px]" />
+            </div>
+            <p className="font-body-md font-semibold text-[#0F172A] mb-1">Tidak ada tugas baru</p>
+            <p className="font-body-sm text-body-sm text-[#475569]">
+              Semua tugas yang ditugaskan sudah dikerjakan.
+            </p>
+          </div>
+        )}
+
+        {(subTab === "berjalan" || subTab === "semua") && tugasBerjalan.length > 0 && (
           <div className="mb-6">
             <h3 className="font-label-md font-bold text-[#0F172A] mb-3 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
@@ -685,19 +748,19 @@ function PerbaikanSection({
           </div>
         )}
 
-        {!hasAny && (
-          <div className="flex flex-col items-center justify-center py-16 text-center bg-white border border-[#E2E8F0] rounded-xl">
+        {(subTab === "berjalan" || subTab === "semua") && tugasBerjalan.length === 0 && subTab !== "semua" && (
+          <div className="flex flex-col items-center justify-center py-12 text-center bg-white border border-[#E2E8F0] rounded-xl mb-6">
             <div className="w-12 h-12 rounded-xl bg-[#F1F5F9] border border-[#E2E8F0] flex items-center justify-center mb-4">
-              <Icon name="assignment" className="text-[#475569] !text-[22px]" />
+              <Icon name="check_circle" className="text-[#059669] !text-[22px]" />
             </div>
-            <p className="font-body-md font-semibold text-[#0F172A] mb-1">Belum ada tugas</p>
+            <p className="font-body-md font-semibold text-[#0F172A] mb-1">Tidak ada tugas berjalan</p>
             <p className="font-body-sm text-body-sm text-[#475569]">
-              Laporan yang ditugaskan supervisor akan muncul di sini sebagai "Baru Ditugaskan".
+              Semua tugas sudah selesai atau belum dimulai.
             </p>
           </div>
         )}
 
-        {tugasSelesai.length > 0 && (
+        {(subTab === "selesai" || subTab === "semua") && tugasSelesai.length > 0 && (
           <div className="mb-6">
             <h3 className="font-label-md font-bold text-[#0F172A] mb-3 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
@@ -724,6 +787,30 @@ function PerbaikanSection({
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {(subTab === "selesai" || subTab === "semua") && tugasSelesai.length === 0 && subTab !== "semua" && (
+          <div className="flex flex-col items-center justify-center py-12 text-center bg-white border border-[#E2E8F0] rounded-xl mb-6">
+            <div className="w-12 h-12 rounded-xl bg-[#F1F5F9] border border-[#E2E8F0] flex items-center justify-center mb-4">
+              <Icon name="history" className="text-[#475569] !text-[22px]" />
+            </div>
+            <p className="font-body-md font-semibold text-[#0F172A] mb-1">Belum ada riwayat selesai</p>
+            <p className="font-body-sm text-body-sm text-[#475569]">
+              Tugas yang sudah diselesaikan akan muncul di sini.
+            </p>
+          </div>
+        )}
+
+        {subTab === "semua" && !hasAny && (
+          <div className="flex flex-col items-center justify-center py-16 text-center bg-white border border-[#E2E8F0] rounded-xl">
+            <div className="w-12 h-12 rounded-xl bg-[#F1F5F9] border border-[#E2E8F0] flex items-center justify-center mb-4">
+              <Icon name="assignment" className="text-[#475569] !text-[22px]" />
+            </div>
+            <p className="font-body-md font-semibold text-[#0F172A] mb-1">Belum ada tugas</p>
+            <p className="font-body-sm text-body-sm text-[#475569]">
+              Laporan yang ditugaskan supervisor akan muncul di sini sebagai "Baru Ditugaskan".
+            </p>
           </div>
         )}
       </section>
