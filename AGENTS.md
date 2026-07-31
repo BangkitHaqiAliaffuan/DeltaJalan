@@ -211,6 +211,7 @@ FASTAPI_URL=https://sxhryovsbl4g6kbsvageizvane0tiqat.lambda-url.ap-southeast-1.o
 - **`build.py`** handles SPA build + HTML patching (splash CSS, error script) for Capacitor. Run `python build.py --build-only` after code changes.
 - **No frontend test framework** is configured.
 - **CI/CD workflows** exist under `.github/workflows/` — deploy-backend (SSH), deploy-ai (ECR + Lambda), health-check (cron).
+- **Deploy Backend CI/CD TIDAK BERFUNGSI** (riwayat 59/59 runs failure, SSH step gagal di server — bahkan setelah path di-fix ke `/var/www/deltajalan`). Jangan mengandalkan auto-deploy backend; semua deploy backend WAJIB manual via SSH (lihat "Deploy Laravel" di atas). Health Check & Deploy AI tetap berjalan normal.
 - **Always add new DB columns via migration** — never modify existing columns or tables.
 - **Store photos on disk** (`storage/app/public/`) — never base64 in DB.
 - **Never use emoji as UI labels/icons** — always use the `<Icon>` component with Material icon names instead of emoji characters.
