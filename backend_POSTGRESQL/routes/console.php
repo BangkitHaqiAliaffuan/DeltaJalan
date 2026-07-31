@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\BatchAnalysis;
 use App\Models\WorkerLocation;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -37,3 +38,9 @@ Schedule::command('patrol:reminder-evening')->dailyAt('16:00');
 
 // Rekalkulasi PCI setiap jam — update laporan yang AI-nya selesai diproses via queue
 Schedule::command('pci:recalculate')->hourly();
+
+// Hapus analisis batch sementara yang tidak pernah disimpan menjadi laporan (>24 jam)
+Schedule::call(function () {
+    $deleted = BatchAnalysis::where('created_at', '<', now()->subHours(24))->delete();
+    Log::info("BatchAnalysis: purged {$deleted} expired records (>24 jam).");
+})->hourly();

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BatchAnalysis;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Pool;
 use Illuminate\Http\JsonResponse;
@@ -227,6 +228,21 @@ class AIController extends Controller
 
         $photosWithExifGps = count(array_filter($analyses, fn ($a) => $a['has_exif_gps'] ?? false));
         $photosRejected = count(array_filter($analyses, fn ($a) => $a['exif_invalid'] ?? false));
+
+        // ── Persist sementara hasil analisis agar POST /reports/batch tidak perlu
+        //    meng-upload ulang image_result base64 (menghindari hang WebView pada
+        //    multipart besar). Row dihapus saat laporan berhasil disimpan atau lewat TTL. ──
+        try {
+            BatchAnalysis::updateOrCreate(
+                ['batch_id' => $batchId],
+                ['analyses' => $analyses]
+            );
+        } catch (\Exception $e) {
+            Log::warning('DeltaJalan: Gagal menyimpan analisis batch sementara.', [
+                'batch_id' => $batchId,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return response()->json([
             'batch_id' => $batchId,

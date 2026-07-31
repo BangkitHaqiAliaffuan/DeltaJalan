@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BatchAnalysis;
 use App\Models\Report;
 use App\Models\ReportAfterPhoto;
 use App\Models\ReportDuplicate;
@@ -1624,7 +1625,6 @@ class ReportController extends Controller
                 'longitude' => 'required|numeric|between:95,141',
                 'koordinat_sumber' => 'required|in:exif,browser_gps,manual',
                 // ── TRUST SCORE [NONAKTIF] — 'fake_gps_suspected' => 'boolean', dihapus dari validasi
-                'analyses' => 'required|json',
                 'kerusakan_panjang' => ['required', 'array', 'min:1'],
                 'kerusakan_panjang.*' => ['required', 'numeric', 'min:0', 'max:999999.99'],
                 'kerusakan_lebar' => ['required', 'array', 'min:1'],
@@ -1643,14 +1643,18 @@ class ReportController extends Controller
             ], 422);
         }
 
-        $analyses = json_decode($validated['analyses'], true);
+        // ── Analisis batch diambil dari penyimpanan sementara (dibuat saat
+        //    POST /api/analyze-batch), bukan di-upload ulang dari client. ──
+        $storedBatch = BatchAnalysis::where('batch_id', $validated['batch_id'])->first();
 
-        if (! is_array($analyses) || count($analyses) === 0) {
+        if (! $storedBatch || ! is_array($storedBatch->analyses) || count($storedBatch->analyses) === 0) {
             return response()->json([
                 'success' => false,
-                'message' => 'Data analyses tidak valid atau kosong.',
+                'message' => 'Sesi analisis batch kedaluwarsa atau tidak ditemukan. Silakan analisis ulang foto.',
             ], 422);
         }
+
+        $analyses = $storedBatch->analyses;
 
         // ── Validasi koordinat berada di wilayah Sidoarjo ─────────────────
         if (! $this->isInSidoarjo((float) $validated['latitude'], (float) $validated['longitude'])) {
@@ -1920,6 +1924,9 @@ class ReportController extends Controller
                 'debug' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
+
+        // ── Analisis sementara sudah terpakai — hapus agar tidak bisa di-reuse ──
+        BatchAnalysis::where('batch_id', $validated['batch_id'])->delete();
 
         $mainReport = $result['main_report'];
 

@@ -281,27 +281,6 @@ function normSev(s: string): string {
   return "Baik";
 }
 
-function reconstructAnalyses(photos: BatchPhotoResult[]): string {
-  const analyses = photos.map((p) => ({
-    file_index: p.fileIndex,
-    file_name: p.fileName,
-    detections: p.detections.map((d) => ({
-      type: d.class,
-      confidence: d.confidence,
-      severity: d.severity,
-      bbox: [d.bbox.x1, d.bbox.y1, d.bbox.x2, d.bbox.y2],
-    })),
-    severity: p.severity,
-    confidence: p.confidence,
-    image_result: p.imageResult,
-    has_exif_gps: p.hasExifGps ?? false,
-    ...(p.lat != null && p.lng != null ? { photo_lat: p.lat, photo_lng: p.lng } : {}),
-    ...(p.hasExifGps && p.lat != null && p.lng != null ? { exif_lat: p.lat, exif_lng: p.lng } : {}),
-    ...(p.hasError ? { error: "error" } : {}),
-  }));
-  return JSON.stringify(analyses);
-}
-
 function AiResultPage() {
   const navigate = useNavigate();
   const { reportId: reportReviewId } = Route.useSearch();
@@ -793,7 +772,6 @@ function AiResultPage() {
         fd.append("latitude", String(formData.lat ?? 0));
         fd.append("longitude", String(formData.lng ?? 0));
         fd.append("koordinat_sumber", "exif");
-        fd.append("analyses", reconstructAnalyses(batchResult!.photos));
         if (editCatatan) fd.append("catatan", editCatatan);
         if (formData.duplicate_of_id) fd.append("duplicate_of_id", formData.duplicate_of_id);
         if (formData.survey_task_id) fd.append("survey_task_id", formData.survey_task_id);
@@ -803,17 +781,27 @@ function AiResultPage() {
         });
         pendingFiles.forEach((f) => fd.append("files[]", f));
 
-        const r2 = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? "/api"}/reports/batch`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: fd,
-        });
-        if (!r2.ok) {
-          const errData = await r2.json().catch(() => ({}));
-          throw new Error(errData.message ?? `Gagal menyimpan batch (HTTP ${r2.status})`);
+        // Timeout pengaman: jika server tidak merespons 120 detik, batalkan agar
+        // tombol tidak terlihat "stuck" selamanya.
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 120_000);
+
+        try {
+          const r2 = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? "/api"}/reports/batch`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: fd,
+            signal: controller.signal,
+          });
+          if (!r2.ok) {
+            const errData = await r2.json().catch(() => ({}));
+            throw new Error(errData.message ?? `Gagal menyimpan batch (HTTP ${r2.status})`);
+          }
+          const reportData = await r2.json();
+          setSavedCode(reportData.main_report_code ?? "");
+        } finally {
+          clearTimeout(timer);
         }
-        const reportData = await r2.json();
-        setSavedCode(reportData.main_report_code ?? "");
       } else {
         // ── Single mode submit ─────────────────────────────────────────────
         if (!formData.file) {
@@ -873,7 +861,13 @@ function AiResultPage() {
       }, 1500);
     } catch (err) {
       setSubmitState("error");
-      setSubmitError(err instanceof Error ? err.message : "Terjadi kesalahan");
+      setSubmitError(
+        err instanceof DOMException && err.name === "AbortError"
+          ? "Waktu penyimpanan habis. Silakan coba lagi."
+          : err instanceof Error
+            ? err.message
+            : "Terjadi kesalahan",
+      );
     }
   }
 
@@ -1272,7 +1266,7 @@ function AiResultPage() {
               </section>
 
               {/* ── Informasi Lokasi ── */}
-              <section className="bg-white border border-[#D0DAE8] rounded-lg p-4 flex flex-col gap-2">
+              <section className="bg-white border border-[#D0DAE8] rounded-lg p-4 flex flex-col gap-3">
                 <div className="flex items-center gap-2">
                   <Icon name="location_on" className="text-primary !text-[20px]" filled />
                   <h3 className="font-headline-sm text-[14px] font-bold text-primary">
@@ -1281,7 +1275,7 @@ function AiResultPage() {
                 </div>
                 <div className="grid grid-cols-3 gap-3 mt-1">
                   <div className="col-span-3">
-                    <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
+                    <p className="font-label-sm text-[11px] text-on-surface-variant mb-1">
                       Nama Jalan
                       {hasGps &&
                         (gpsRoadLoading ? (
@@ -1301,7 +1295,7 @@ function AiResultPage() {
                     />
                   </div>
                   <div className="col-span-3">
-                    <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
+                    <p className="font-label-sm text-[11px] text-on-surface-variant mb-1">
                       Kecamatan
                       {hasGps &&
                         (gpsRoadLoading ? (
@@ -1320,8 +1314,8 @@ function AiResultPage() {
                       className="w-full px-3 py-2 border border-[#D0DAE8] rounded-lg text-[13px] text-on-surface focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-[#F1F5F9] disabled:cursor-not-allowed"
                     />
                   </div>
-                  <div className="col-span-6">
-                    <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
+                  <div className="col-span-3">
+                    <p className="font-label-sm text-[11px] text-on-surface-variant mb-1">
                       Alamat Lengkap
                       <span className="ml-1.5 text-[9px] font-medium text-[#64748B] bg-[#F1F5F9] px-1.5 py-[1px] rounded-full align-middle">
                         otomatis
@@ -1336,27 +1330,27 @@ function AiResultPage() {
                       )}
                     </div>
                   </div>
-                  <div>
-                    <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
+                  <div className="min-w-0">
+                    <p className="font-label-sm text-[11px] text-on-surface-variant mb-1">
                       Tanggal
                     </p>
-                    <p className="font-label-md text-[13px] font-semibold text-on-surface">
+                    <p className="font-label-md text-[13px] font-semibold text-on-surface truncate">
                       {formData.tanggal}
                     </p>
                   </div>
-                  <div>
-                    <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
+                  <div className="min-w-0">
+                    <p className="font-label-sm text-[11px] text-on-surface-variant mb-1">
                       {isBatch ? "Jumlah Foto" : "File Foto"}
                     </p>
                     <p className="font-id-code text-[11px] text-on-surface truncate">
-                      {formData.fileName}
+                      {isBatch ? `${batchResult!.photos.length} Foto` : formData.fileName}
                     </p>
                   </div>
-                  <div>
-                    <p className="font-label-sm text-[11px] text-on-surface-variant mb-0.5">
+                  <div className="min-w-0">
+                    <p className="font-label-sm text-[11px] text-on-surface-variant mb-1">
                       Koordinat GPS
                     </p>
-                    <p className="font-label-md text-[13px] font-semibold text-on-surface font-mono">
+                    <p className="font-id-code text-[11px] font-semibold text-on-surface truncate">
                       {formData.lat != null && formData.lng != null
                         ? `${formData.lat.toFixed(6)}, ${formData.lng.toFixed(6)}`
                         : "GPS tidak tersedia"}
