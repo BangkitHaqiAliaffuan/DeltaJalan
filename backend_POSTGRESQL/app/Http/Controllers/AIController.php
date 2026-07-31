@@ -246,7 +246,7 @@ class AIController extends Controller
             ]);
         }
 
-        Log::info('DeltaJalan: analyze-batch selesai.', [
+        Log::warning('DeltaJalan: analyze-batch selesai.', [
             'batch_id' => $batchId,
             'files' => count($analyses),
             'duration_ms' => (int) round((microtime(true) - $startTime) * 1000),
