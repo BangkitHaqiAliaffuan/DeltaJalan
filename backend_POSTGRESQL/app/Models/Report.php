@@ -151,6 +151,31 @@ class Report extends Model
     ];
 
     /**
+     * Buang field `image_result` (base64 JPEG) dari ai_raw_output.
+     *
+     * FastAPI/Lambda menyertakan gambar hasil deteksi sebagai base64 di
+     * `ai_raw_output.image_result` (±500-700 KB per foto). Frontend hanya
+     * membutuhkan `detections` dan menampilkan gambar lewat `image_result_url`,
+     * jadi base64 ini hanya membengkakkan payload JSON saat diserialisasi.
+     */
+    public static function trimAiRawOutput(?array $raw): ?array
+    {
+        if (! is_array($raw)) {
+            return $raw;
+        }
+
+        $clean = [];
+        foreach ($raw as $key => $value) {
+            if ($key === 'image_result') {
+                continue;
+            }
+            $clean[$key] = is_array($value) ? self::trimAiRawOutput($value) : $value;
+        }
+
+        return $clean;
+    }
+
+    /**
      * Nilai default untuk kolom-kolom tertentu.
      * Ini sebagai fallback di sisi PHP, meskipun database juga punya default.
      */

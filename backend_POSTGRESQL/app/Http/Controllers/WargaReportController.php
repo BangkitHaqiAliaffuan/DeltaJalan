@@ -362,6 +362,7 @@ class WargaReportController extends Controller
             ->get(['old_status', 'new_status', 'notes', 'created_at', 'actor_name', 'actor_role']);
 
         $reportData = $report->toArray();
+        $reportData['ai_raw_output'] = Report::trimAiRawOutput($reportData['ai_raw_output'] ?? null);
 
         // Transform after_photos: expose only needed fields
         $reportData['after_photos'] = $report->afterPhotos->map(fn ($ap) => [
@@ -1335,7 +1336,7 @@ class WargaReportController extends Controller
                 'success' => true,
                 'message' => 'Laporan berhasil dikirim dan sedang menunggu verifikasi petugas.',
                 'data' => [
-                    'report' => $report->toArray(),
+                    'report' => Report::trimAiRawOutput($report->toArray()),
                     'total_photos' => count($processedPhotos),
                     'warnings' => $warnings,
                     'mobileclip_score' => $primary['mobileclipScore'],

@@ -772,7 +772,7 @@ class ReportController extends Controller
                 'overall_severity' => $report->overall_severity,
                 'severity_color' => $report->severity_color,
                 'status' => $report->status,
-                'ai_raw_output' => $report->ai_raw_output,
+                'ai_raw_output' => Report::trimAiRawOutput($report->ai_raw_output),
                 // ── TRUST SCORE [NONAKTIF] — trust_score, trust_label dihapus dari response
                 // URL gambar yang bisa langsung dipakai oleh frontend React
                 'image_original_url' => $report->image_original_url,
@@ -1021,7 +1021,7 @@ class ReportController extends Controller
             'description' => $report->description,
             // ── TRUST SCORE [NONAKTIF] — trust_score, trust_label, trust_breakdown dihapus dari response detail
             'system_notes' => $report->system_notes,
-            'ai_raw_output' => $report->ai_raw_output,
+            'ai_raw_output' => Report::trimAiRawOutput($report->ai_raw_output),
             'pci_score' => $report->pci_score ? (float) $report->pci_score : null,
             'image_original_url' => $report->image_original_url,
             'image_result_url' => $report->image_result_url,
@@ -1064,7 +1064,7 @@ class ReportController extends Controller
                 'ai_severity' => $p->ai_severity,
                 'ai_confidence' => $p->ai_confidence ? (float) $p->ai_confidence : null,
                 'total_detections' => $p->total_detections,
-                'ai_raw_output' => $p->ai_raw_output,
+                'ai_raw_output' => Report::trimAiRawOutput($p->ai_raw_output),
                 'latitude' => $p->latitude ? (float) $p->latitude : null,
                 'longitude' => $p->longitude ? (float) $p->longitude : null,
                 'image_original_url' => $p->image_original_url,
