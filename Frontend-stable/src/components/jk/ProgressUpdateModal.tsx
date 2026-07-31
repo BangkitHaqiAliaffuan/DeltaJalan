@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ModalBase } from "@/components/jk/ModalBase";
 import { Icon } from "@/components/jk/Icon";
 import { API_BASE_URL } from "@/lib/aiStore";
-import { validatePhotoDate } from "@/lib/validatePhotoDate";
+import { validatePhotoDate, type PhotoDateValidationResult } from "@/lib/validatePhotoDate";
+import { isNativePlatform, convertFileSrc } from "@/hooks/useLocationFromPhoto";
+import { PhotoExifGps } from "@jalankita/capacitor-exif-gps";
 
 interface ProgressUpdateModalProps {
   reportId: string;
@@ -24,6 +26,7 @@ export function ProgressUpdateModal({
   const [catatan, setCatatan] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -31,6 +34,41 @@ export function ProgressUpdateModal({
       setFoto(file);
       setPreview(URL.createObjectURL(file));
     }
+  }
+
+  async function handlePickPhoto() {
+    if (!isNativePlatform()) {
+      fileInputRef.current?.click();
+      return;
+    }
+    try {
+      const result = await PhotoExifGps.pickPhotos({ limit: 1 });
+      if (!result.photos?.length) return;
+      const photo = result.photos[0];
+      const capUrl = convertFileSrc(photo.uri);
+      const resp = await fetch(capUrl);
+      const blob = await resp.blob();
+      const file = new File([blob], photo.name || "photo.jpg", {
+        type: blob.type || "image/jpeg",
+      });
+      setFoto(file);
+      setPreview(URL.createObjectURL(file));
+      setError("");
+    } catch {
+      setError("Gagal membaca foto. Silakan coba pilih ulang.");
+    }
+  }
+
+  async function validateWithRetry(file: File): Promise<PhotoDateValidationResult> {
+    let result = await validatePhotoDate(file);
+    // Android WebView: file yang baru dipilih kadang belum siap dibaca pada
+    // percobaan pertama (content:// stream belum terbuka). Retry bertahap
+    // sebelum menolak upload.
+    for (let attempt = 0; attempt < 3 && result.status === "no_exif_date"; attempt++) {
+      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+      result = await validatePhotoDate(file);
+    }
+    return result;
   }
 
   async function handleSubmit() {
@@ -41,11 +79,7 @@ export function ProgressUpdateModal({
 
     const fileToUpload = foto;
 
-    let dateValidation = await validatePhotoDate(fileToUpload);
-    if (dateValidation.status === "no_exif_date") {
-      await new Promise((r) => setTimeout(r, 500));
-      dateValidation = await validatePhotoDate(fileToUpload);
-    }
+    const dateValidation = await validateWithRetry(fileToUpload);
     if (dateValidation.status !== "valid") {
       setError(dateValidation.message);
       return;
@@ -117,7 +151,15 @@ export function ProgressUpdateModal({
         <label className="text-[12px] font-semibold text-[#0F172A] mb-1 block">
           Foto Progress <span className="text-[#E11D48]">*</span>
         </label>
-        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-[#D0DAE8] rounded-lg cursor-pointer hover:border-[#1A4F8A] transition-colors bg-[#F8FAFC]">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={handlePickPhoto}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") handlePickPhoto();
+          }}
+          className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-[#D0DAE8] rounded-lg cursor-pointer hover:border-[#1A4F8A] transition-colors bg-[#F8FAFC]"
+        >
           {preview ? (
             <img src={preview} alt="Preview" className="w-full h-full object-cover rounded-lg" />
           ) : (
@@ -127,12 +169,13 @@ export function ProgressUpdateModal({
             </div>
           )}
           <input
+            ref={fileInputRef}
             type="file"
             accept="image/jpeg,image/png,image/jpg"
             onChange={handleFile}
             className="hidden"
           />
-        </label>
+        </div>
       </div>
 
       <div>
