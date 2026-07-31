@@ -364,6 +364,10 @@ class WargaReportController extends Controller
         $reportData = $report->toArray();
         $reportData['ai_raw_output'] = Report::trimAiRawOutput($reportData['ai_raw_output'] ?? null);
 
+        // Gabungkan foto utama level-report ke daftar photos agar tidak hilang di detail.
+        // Alur warga menyimpan foto utama hanya di baris reports, bukan di report_photos.
+        $reportData['photos'] = Report::ensurePrimaryPhotoInPhotos($reportData['photos'] ?? [], $report);
+
         // Transform after_photos: expose only needed fields
         $reportData['after_photos'] = $report->afterPhotos->map(fn ($ap) => [
             'id' => $ap->id,

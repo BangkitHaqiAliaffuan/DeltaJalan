@@ -375,6 +375,54 @@ class Report extends Model
     }
 
     /**
+     * Gabungkan foto utama level-report ke daftar photos bila belum terwakili.
+     *
+     * Alur warga menyimpan foto utama (index 0) hanya di kolom `image_original_path`
+     * pada baris `reports`, sedangkan `report_photos` hanya berisi foto 2..N.
+     * Akibatnya halaman detail yang membaca `report.photos` kehilangan foto utama.
+     * Helper ini prepend entry sintetis foto utama (sort_order 0) ke daftar photos,
+     * dengan dedup agar alur Telegram (yang menyimpan foto yang sama di kedua tempat)
+     * tidak terduplikasi.
+     */
+    public static function ensurePrimaryPhotoInPhotos(array $photos, self $report): array
+    {
+        $primaryUrl = $report->image_original_url;
+        if (! $primaryUrl) {
+            return $photos;
+        }
+
+        $alreadyPresent = collect($photos)->contains(
+            fn ($p) => ($p['image_original_url'] ?? null) === $primaryUrl
+                || ($report->image_hash && ($p['image_hash'] ?? null) === $report->image_hash)
+        );
+
+        if ($alreadyPresent) {
+            return $photos;
+        }
+
+        array_unshift($photos, [
+            'id' => 'primary-'.$report->id,
+            'reporter_name' => $report->reporter_name,
+            'ai_jenis_kerusakan' => $report->ai_jenis_kerusakan,
+            'ai_severity' => $report->ai_severity ?? $report->overall_severity,
+            'ai_confidence' => $report->ai_confidence !== null ? (float) $report->ai_confidence : null,
+            'total_detections' => $report->total_detections,
+            'ai_raw_output' => self::trimAiRawOutput($report->ai_raw_output),
+            'latitude' => $report->latitude !== null ? (float) $report->latitude : null,
+            'longitude' => $report->longitude !== null ? (float) $report->longitude : null,
+            'image_original_url' => $primaryUrl,
+            'image_result_url' => $report->image_result_url,
+            'system_notes' => $report->system_notes,
+            'sort_order' => 0,
+            'kerusakan_panjang' => $report->kerusakan_panjang !== null ? (float) $report->kerusakan_panjang : null,
+            'kerusakan_lebar' => $report->kerusakan_lebar !== null ? (float) $report->kerusakan_lebar : null,
+            'created_at' => $report->created_at?->toIso8601String(),
+        ]);
+
+        return $photos;
+    }
+
+    /**
      * Hitung deadline review berdasarkan priority.
      */
     public static function hitungDeadlineReview(string $priority): Carbon
