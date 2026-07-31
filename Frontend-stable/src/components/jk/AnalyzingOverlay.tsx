@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Icon } from "./Icon";
 
 export type AnalyzeStage = "gps" | "analyzing" | "processing" | "complete";
@@ -6,7 +7,6 @@ interface AnalyzingOverlayProps {
   stage: AnalyzeStage;
   variant: "single" | "batch";
   batchCount?: number;
-  batchProgress?: number;
 }
 
 const STAGE_CONFIG: Record<AnalyzeStage, { icon: string; label: string }> = {
@@ -35,23 +35,24 @@ const TITLE_MAP: Record<AnalyzeStage, string> = {
   complete: "Analisis Selesai",
 };
 
-export function AnalyzingOverlay({
-  stage,
-  variant,
-  batchCount,
-  batchProgress,
-}: AnalyzingOverlayProps) {
+export function AnalyzingOverlay({ stage, variant, batchCount }: AnalyzingOverlayProps) {
   const cfg = STAGE_CONFIG[stage];
   const batchLabel =
     variant === "batch" && batchCount != null && stage === "analyzing"
       ? `Menganalisis ${batchCount} foto...`
       : null;
-  const progressLabel =
-    variant === "batch" && batchProgress != null && batchCount != null
-      ? `Foto ${Math.min(batchProgress + 1, batchCount)}/${batchCount}`
-      : null;
   const isComplete = stage === "complete";
   const isLoading = stage === "gps" || stage === "analyzing";
+
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (isComplete) return;
+    const start = Date.now();
+    const timer = window.setInterval(() => {
+      setElapsed(Math.floor((Date.now() - start) / 1000));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [isComplete]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -87,18 +88,8 @@ export function AnalyzingOverlay({
           </p>
           <p className="text-[13px] text-[#475569]">{cfg.label}</p>
           {batchLabel && <p className="text-[12px] text-[#64748B] mt-1">{batchLabel}</p>}
-          {progressLabel && (
-            <div className="w-full mt-2">
-              <div className="h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-[#1e40af] rounded-full transition-all duration-300"
-                  style={{
-                    width: `${((batchProgress ?? 0) / (batchCount ?? 1)) * 100}%`,
-                  }}
-                />
-              </div>
-              <p className="text-[11px] text-[#64748B] mt-1.5">{progressLabel}</p>
-            </div>
+          {!isComplete && (
+            <p className="text-[11px] text-[#64748B] mt-1.5">Berjalan {elapsed} detik...</p>
           )}
         </div>
 

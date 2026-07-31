@@ -830,7 +830,6 @@ function UploadPage() {
         stage={analyzeState.stage}
         variant={analyzeState.variant}
         batchCount={analyzeState.batchCount}
-        batchProgress={analyzeState.batchProgress}
       />
     </Portal>
   );

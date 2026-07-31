@@ -471,6 +471,17 @@ def _draw_detections(
     Bbox di response tetap normalized (0-1) untuk frontend overlay.
     """
     h_img, w_img = img_cv.shape[:2]
+
+    # Perkecil annotasi agar payload image_result tidak membengkak di jaringan mobile.
+    max_dim = 1280
+    longest = max(h_img, w_img)
+    if longest > max_dim:
+        scale = max_dim / longest
+        new_w = int(round(w_img * scale))
+        new_h = int(round(h_img * scale))
+        img_cv = cv2.resize(img_cv, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        h_img, w_img = new_h, new_w
+
     line_w = max(4, int(min(w_img, h_img) * 0.003))
     label_scale = max(0.55, round(min(w_img, h_img) * 0.0004, 2))
     label_th = max(1, int(min(w_img, h_img) * 0.0008))
@@ -511,7 +522,7 @@ def _draw_detections(
             "area_px": area_px,
         })
 
-    _, buf = cv2.imencode(".jpg", img_cv, [cv2.IMWRITE_JPEG_QUALITY, 75])
+    _, buf = cv2.imencode(".jpg", img_cv, [cv2.IMWRITE_JPEG_QUALITY, 55])
     img_b64 = base64.b64encode(buf).decode()
 
     if detections:

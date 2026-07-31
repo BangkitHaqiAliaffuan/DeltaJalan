@@ -62,6 +62,8 @@ class AIController extends Controller
             ], 422);
         }
 
+        $startTime = microtime(true);
+
         $inputLat = (float) $request->latitude;
         $inputLng = (float) $request->longitude;
         $batchId = (string) Str::uuid();
@@ -243,6 +245,12 @@ class AIController extends Controller
                 'error' => $e->getMessage(),
             ]);
         }
+
+        Log::info('DeltaJalan: analyze-batch selesai.', [
+            'batch_id' => $batchId,
+            'files' => count($analyses),
+            'duration_ms' => (int) round((microtime(true) - $startTime) * 1000),
+        ]);
 
         return response()->json([
             'batch_id' => $batchId,

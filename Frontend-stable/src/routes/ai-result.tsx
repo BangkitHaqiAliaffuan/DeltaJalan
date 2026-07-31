@@ -857,7 +857,7 @@ function AiResultPage() {
       setSubmitState("success");
       clearAiStore();
       setTimeout(() => {
-        navigate({ to: "/tugas-saya" });
+        navigate({ to: "/my-reports" });
       }, 1500);
     } catch (err) {
       setSubmitState("error");
