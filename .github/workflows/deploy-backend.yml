@@ -31,7 +31,7 @@ jobs:
             set -e
 
             echo "[1/7] Pull latest code..."
-            cd /var/www/jalankita
+            cd /var/www/deltajalan
             git pull origin main
 
             echo "[2/7] Composer install (production)..."
