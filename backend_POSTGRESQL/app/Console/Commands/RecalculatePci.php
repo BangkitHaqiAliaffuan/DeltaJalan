@@ -20,8 +20,16 @@ class RecalculatePci extends Command
         $updated = 0;
         $skipped = 0;
 
-        $query = Report::whereNotNull('ai_raw_output')
-            ->where('total_detections', '>', 0);
+        // Laporan yang punya ai_raw_output di reports (single & batch baru)
+        // ATAU laporan batch lama yang deteksi AI-nya hanya ada di report_photos.
+        $query = Report::query()
+            ->where(function ($q) {
+                $q->whereNotNull('ai_raw_output')
+                    ->where('total_detections', '>', 0);
+            })
+            ->orWhereHas('photos', function ($q) {
+                $q->whereNotNull('ai_raw_output');
+            });
 
         if ($reportId = $this->option('report')) {
             $query->where('id', $reportId);
@@ -39,11 +47,27 @@ class RecalculatePci extends Command
         $bar = $this->output->createProgressBar($total);
         $bar->start();
 
-        $query->chunk(100, function ($reports) use ($pciService, &$updated, &$skipped, $bar) {
+        $query->with('photos')->chunk(100, function ($reports) use ($pciService, &$updated, &$skipped, $bar) {
             foreach ($reports as $report) {
+                // Backfill: laporan batch lama tidak punya ai_raw_output di
+                // reports — agregasi dari report_photos dulu.
+                if (empty($report->ai_raw_output)) {
+                    $aggregated = $report->aggregateAiRawFromPhotos();
+                    if ($aggregated === null) {
+                        $skipped++;
+                        $bar->advance();
+
+                        continue;
+                    }
+                    $report->ai_raw_output = $aggregated;
+                    $report->total_detections = count($aggregated);
+                }
+
                 $pciScore = $pciService->calculateFromReport($report);
                 if ($pciScore !== null) {
                     $report->updateQuietly([
+                        'ai_raw_output' => $report->ai_raw_output,
+                        'total_detections' => $report->total_detections,
                         'pci_score' => $pciScore,
                         'pci_calculated_at' => now(),
                     ]);

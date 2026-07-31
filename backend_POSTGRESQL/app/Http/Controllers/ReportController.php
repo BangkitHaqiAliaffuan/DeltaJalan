@@ -1930,6 +1930,16 @@ class ReportController extends Controller
 
         $mainReport = $result['main_report'];
 
+        // ── Agregasi deteksi AI dari semua foto ke main report ──────────
+        // Deteksi batch disimpan per-foto di report_photos; PciService membaca
+        // ai_raw_output di reports. Simpan payload agregat agar PCI terhitung.
+        $aggregatedDetections = $mainReport->aggregateAiRawFromPhotos();
+        if ($aggregatedDetections !== null) {
+            $mainReport->ai_raw_output = $aggregatedDetections;
+            $mainReport->total_detections = count($aggregatedDetections);
+            $mainReport->saveQuietly();
+        }
+
         // ── Hitung PCI ──
         $pci = app(PciService::class)->calculateFromReport($mainReport);
         if ($pci !== null) {

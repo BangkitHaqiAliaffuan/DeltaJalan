@@ -319,6 +319,70 @@ class Report extends Model
     }
 
     /**
+     * Agregasi deteksi AI dari semua foto batch ke dalam satu payload
+     * yang kompatibel dengan PciService (format single report).
+     *
+     * Deteksi per-foto disimpan di `report_photos.ai_raw_output` dengan skema:
+     *   [{ 'type': '...', 'confidence': ..., 'bbox': [x1, y1, x2, y2] }]
+     *
+     * Sedangkan PciService mengharapkan format single:
+     *   [{ 'class': '...', 'confidence': ..., 'bbox': {x1, y1, x2, y2} }]
+     *
+     * @return array|null null jika tidak ada foto yang punya deteksi AI
+     */
+    public function aggregateAiRawFromPhotos(): ?array
+    {
+        $rawOutputs = [];
+        foreach ($this->photos as $photo) {
+            $rawOutputs[] = $photo->ai_raw_output;
+        }
+
+        return self::aggregateDetectionsFromPhotoOutputs($rawOutputs);
+    }
+
+    /**
+     * Gabungkan payload ai_raw_output beberapa foto menjadi satu list deteksi
+     * dengan normalisasi skema batch → single (dipakai di storeBatch & recalculate).
+     *
+     * @param  array  $photoRawOutputs  list `ai_raw_output` per foto (mungkin null/[]).
+     * @return array|null null jika tidak ada deteksi yang valid
+     */
+    public static function aggregateDetectionsFromPhotoOutputs(array $photoRawOutputs): ?array
+    {
+        $detections = [];
+
+        foreach ($photoRawOutputs as $raw) {
+            if (empty($raw) || ! is_array($raw)) {
+                continue;
+            }
+
+            foreach ($raw as $d) {
+                if (! is_array($d)) {
+                    continue;
+                }
+
+                $bbox = $d['bbox'] ?? null;
+                if (is_array($bbox) && array_is_list($bbox) && count($bbox) >= 4) {
+                    $bbox = [
+                        'x1' => (float) $bbox[0],
+                        'y1' => (float) $bbox[1],
+                        'x2' => (float) $bbox[2],
+                        'y2' => (float) $bbox[3],
+                    ];
+                }
+
+                $detections[] = [
+                    'class' => $d['type'] ?? $d['class'] ?? 'Unknown',
+                    'confidence' => (float) ($d['confidence'] ?? 0),
+                    'bbox' => is_array($bbox) ? $bbox : [],
+                ];
+            }
+        }
+
+        return empty($detections) ? null : $detections;
+    }
+
+    /**
      * Riwayat perubahan status laporan ini.
      */
     public function statusLogs(): HasMany
