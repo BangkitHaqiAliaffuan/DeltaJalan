@@ -779,12 +779,13 @@ function AiResultPage() {
           fd.append("kerusakan_panjang[]", batchEditDimensi[idx]?.panjang ?? "0");
           fd.append("kerusakan_lebar[]", batchEditDimensi[idx]?.lebar ?? "0");
         });
-        pendingFiles.forEach((f) => fd.append("files[]", f));
+        // Foto TIDAK di-upload ulang — backend membaca dari photo_paths (temp
+        // analyze-batch) sehingga payload batch kecil dan tidak melewati timeout.
 
-        // Timeout pengaman: jika server tidak merespons 120 detik, batalkan agar
+        // Timeout pengaman: jika server tidak merespons 300 detik, batalkan agar
         // tombol tidak terlihat "stuck" selamanya.
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 120_000);
+        const timer = setTimeout(() => controller.abort(), 300_000);
 
         try {
           const r2 = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? "/api"}/reports/batch`, {
@@ -842,11 +843,21 @@ function AiResultPage() {
           }
         }
 
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? "/api"}/reports`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: fd,
-        });
+        // Timeout pengaman untuk single mode — konsisten dengan batch.
+        const singleController = new AbortController();
+        const singleTimer = setTimeout(() => singleController.abort(), 300_000);
+
+        let response: globalThis.Response;
+        try {
+          response = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? "/api"}/reports`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: fd,
+            signal: singleController.signal,
+          });
+        } finally {
+          clearTimeout(singleTimer);
+        }
         const resultData = await response.json();
         if (!response.ok) {
           throw new Error(resultData.message ?? "Gagal menyimpan laporan");

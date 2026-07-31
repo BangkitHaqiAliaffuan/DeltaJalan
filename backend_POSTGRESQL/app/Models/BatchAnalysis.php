@@ -13,12 +13,14 @@ class BatchAnalysis extends Model
     protected $fillable = [
         'batch_id',
         'analyses',
+        'photo_paths',
     ];
 
     protected function casts(): array
     {
         return [
             'analyses' => 'array',
+            'photo_paths' => 'array',
         ];
     }
 }

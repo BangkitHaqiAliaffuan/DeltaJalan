@@ -6,6 +6,7 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
+use Illuminate\Support\Facades\Storage;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -41,6 +42,12 @@ Schedule::command('pci:recalculate')->hourly();
 
 // Hapus analisis batch sementara yang tidak pernah disimpan menjadi laporan (>24 jam)
 Schedule::call(function () {
-    $deleted = BatchAnalysis::where('created_at', '<', now()->subHours(24))->delete();
-    Log::info("BatchAnalysis: purged {$deleted} expired records (>24 jam).");
+    $expired = BatchAnalysis::where('created_at', '<', now()->subHours(24))->pluck('batch_id');
+    if ($expired->isNotEmpty()) {
+        foreach ($expired as $batchId) {
+            Storage::disk('local')->deleteDirectory('batch-tmp/'.$batchId);
+        }
+        $deleted = BatchAnalysis::whereIn('batch_id', $expired)->delete();
+        Log::info("BatchAnalysis: purged {$deleted} expired records (>24 jam).");
+    }
 })->hourly();

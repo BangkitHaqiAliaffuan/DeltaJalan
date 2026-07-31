@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use lsolesen\pel\PelIfd;
@@ -69,6 +70,12 @@ class AIController extends Controller
         $batchId = (string) Str::uuid();
         $analyses = [];
 
+        // ── Foto valid disimpan sementara agar POST /reports/batch tidak perlu
+        //    meng-upload ulang file dari client (menghindari payload ganda yang
+        //    melewati batas timeout 120s di jaringan mobile). Folder dihapus
+        //    saat laporan tersimpan atau lewat TTL scheduler. ──
+        $photoPaths = [];
+
         $fastApiUrl = rtrim(config('services.fastapi.url', env('FASTAPI_URL', 'http://127.0.0.1:8000')), '/');
         $endpoint = $fastApiUrl.'/analyze';
 
@@ -121,6 +128,26 @@ class AIController extends Controller
                     $exifGps['lat'], $exifGps['lng'],
                     $inputLat, $inputLng
                 );
+            }
+
+            // ── Simpan foto valid ke disk private untuk dipakai storeBatch ──
+            try {
+                $ext = $file->getClientOriginalExtension() ?: $file->guessExtension() ?: 'jpg';
+                $storedPath = Storage::disk('local')->putFileAs(
+                    'batch-tmp/'.$batchId,
+                    $file,
+                    $idx.'.'.$ext
+                );
+                if ($storedPath) {
+                    $photoPaths[$idx] = $storedPath;
+                }
+            } catch (\Exception $e) {
+                Log::warning('DeltaJalan: Gagal menyimpan foto batch sementara.', [
+                    'batch_id' => $batchId,
+                    'file_index' => $idx,
+                    'file_name' => $fileName,
+                    'error' => $e->getMessage(),
+                ]);
             }
 
             $pendingAi[$idx] = compact(
@@ -237,7 +264,10 @@ class AIController extends Controller
         try {
             BatchAnalysis::updateOrCreate(
                 ['batch_id' => $batchId],
-                ['analyses' => $analyses]
+                [
+                    'analyses' => $analyses,
+                    'photo_paths' => $photoPaths,
+                ]
             );
         } catch (\Exception $e) {
             Log::warning('DeltaJalan: Gagal menyimpan analisis batch sementara.', [

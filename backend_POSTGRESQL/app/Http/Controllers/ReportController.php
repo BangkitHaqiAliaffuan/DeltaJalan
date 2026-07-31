@@ -1632,8 +1632,8 @@ class ReportController extends Controller
                 'catatan' => ['nullable', 'string', 'max:1000'],
                 'duplicate_of_id' => ['nullable', 'string', 'exists:reports,id'],
                 'survey_task_id' => ['nullable', 'string', 'exists:survey_tasks,id'],
-                'files' => 'required|array|min:1',
-                'files.*' => 'required|file|mimes:jpeg,jpg,png|max:5120',
+                'files' => ['nullable', 'array', 'min:1'],
+                'files.*' => ['required', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
             ]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -1655,6 +1655,29 @@ class ReportController extends Controller
         }
 
         $analyses = $storedBatch->analyses;
+        $photoPaths = $storedBatch->photo_paths ?? [];
+
+        // ── Sumber file per foto ─────────────────────────────────────────
+        // Prioritas: foto yang disimpan sementara oleh analyze-batch
+        // (photo_paths, disk local private). Fallback: upload ulang dari
+        // client (files[]) untuk backward-compat versi lama.
+        $batchSourceFiles = [];
+        foreach ($analyses as $idx => $analysis) {
+            if (isset($photoPaths[$idx])) {
+                $absPath = Storage::disk('local')->path($photoPaths[$idx]);
+                if (is_file($absPath)) {
+                    $batchSourceFiles[$idx] = [
+                        'path' => $absPath,
+                        'name' => $analysis['file_name'] ?? basename($photoPaths[$idx]),
+                    ];
+                }
+            } elseif (($reqFile = $request->file('files')[$idx] ?? null) !== null) {
+                $batchSourceFiles[$idx] = [
+                    'path' => $reqFile->getPathname(),
+                    'name' => $reqFile->getClientOriginalName(),
+                ];
+            }
+        }
 
         // ── Validasi koordinat berada di wilayah Sidoarjo ─────────────────
         if (! $this->isInSidoarjo((float) $validated['latitude'], (float) $validated['longitude'])) {
@@ -1703,8 +1726,8 @@ class ReportController extends Controller
 
         // ── Pre-calculate hashes + batch duplicate check (1 query instead of N) ──
         $imageHashes = [];
-        foreach ($request->file('files') as $idx => $file) {
-            $hash = $this->calculateImageHash($file->getPathname());
+        foreach ($batchSourceFiles as $idx => $source) {
+            $hash = $this->calculateImageHash($source['path']);
             if ($hash) {
                 $imageHashes[$idx] = $hash;
             }
@@ -1729,7 +1752,7 @@ class ReportController extends Controller
         }
 
         try {
-            $result = DB::transaction(function () use ($validated, $analyses, $request, $batchNotes, $imageHashes, $existingHashes, $duplicateOfId, $batchFullAddress) {
+            $result = DB::transaction(function () use ($validated, $analyses, $request, $batchNotes, $imageHashes, $existingHashes, $duplicateOfId, $batchFullAddress, $batchSourceFiles) {
                 $severities = array_column($analyses, 'severity');
                 $aggSeverity = $this->aggregateSeverity($severities);
                 $severityMap = [
@@ -1776,10 +1799,10 @@ class ReportController extends Controller
                         continue;
                     }
 
-                    $file = $request->file('files')[$idx] ?? null;
+                    $source = $batchSourceFiles[$idx] ?? null;
 
-                    if (! $file) {
-                        Log::warning('DeltaJalan: File tidak ditemukan di request batch.', [
+                    if (! $source) {
+                        Log::warning('DeltaJalan: Sumber file tidak ditemukan untuk foto batch.', [
                             'file_index' => $idx,
                             'file_name' => $analysis['file_name'] ?? '',
                         ]);
@@ -1806,34 +1829,39 @@ class ReportController extends Controller
                         continue;
                     }
 
-                    if ($file) {
-                        if ($imageHash && in_array($imageHash, $existingHashes)) {
-                            Log::info('DeltaJalan: Foto duplikat dilewati dalam batch.', [
-                                'file_index' => $idx,
-                                'file_name' => $analysis['file_name'] ?? '',
-                                'hash' => $imageHash,
-                            ]);
-                            $duplicatesSkipped++;
-                            $duplicatePhotoList[] = [
-                                'file_index' => $idx,
-                                'file_name' => $analysis['file_name'] ?? '',
-                            ];
+                    if ($imageHash && in_array($imageHash, $existingHashes)) {
+                        Log::info('DeltaJalan: Foto duplikat dilewati dalam batch.', [
+                            'file_index' => $idx,
+                            'file_name' => $analysis['file_name'] ?? '',
+                            'hash' => $imageHash,
+                        ]);
+                        $duplicatesSkipped++;
+                        $duplicatePhotoList[] = [
+                            'file_index' => $idx,
+                            'file_name' => $analysis['file_name'] ?? '',
+                        ];
 
-                            continue;
-                        }
+                        continue;
+                    }
 
-                        $ext = $file->getClientOriginalExtension() ?: $file->guessExtension() ?: 'jpg';
+                    $reqFile = $request->file('files')[$idx] ?? null;
+                    if ($reqFile) {
+                        $ext = $reqFile->getClientOriginalExtension() ?: $reqFile->guessExtension() ?: 'jpg';
                         $filename = Str::uuid().'-batch-'.time().'.'.$ext;
-                        $photoPath = $this->savePhotoToStorage($file, $filename);
+                        $photoPath = $this->savePhotoToStorage($reqFile, $filename);
+                    } else {
+                        $ext = pathinfo($source['name'], PATHINFO_EXTENSION) ?: 'jpg';
+                        $filename = Str::uuid().'-batch-'.time().'.'.$ext;
+                        $photoPath = $this->savePhotoFromPath($source['path'], $filename);
+                    }
 
-                        if (! $photoPath) {
-                            Log::error('DeltaJalan: Gagal menyimpan foto batch.', [
-                                'file_index' => $idx,
-                                'file_name' => $analysis['file_name'] ?? '',
-                            ]);
+                    if (! $photoPath) {
+                        Log::error('DeltaJalan: Gagal menyimpan foto batch.', [
+                            'file_index' => $idx,
+                            'file_name' => $analysis['file_name'] ?? '',
+                        ]);
 
-                            continue;
-                        }
+                        continue;
                     }
 
                     if (! empty($analysis['image_result'])) {
@@ -1927,6 +1955,16 @@ class ReportController extends Controller
 
         // ── Analisis sementara sudah terpakai — hapus agar tidak bisa di-reuse ──
         BatchAnalysis::where('batch_id', $validated['batch_id'])->delete();
+
+        // ── Hapus folder temp foto yang disimpan analyze-batch ──────────
+        try {
+            Storage::disk('local')->deleteDirectory('batch-tmp/'.$validated['batch_id']);
+        } catch (\Exception $e) {
+            Log::warning('DeltaJalan: Gagal menghapus folder batch temp.', [
+                'batch_id' => $validated['batch_id'],
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         $mainReport = $result['main_report'];
 
@@ -4346,6 +4384,34 @@ class ReportController extends Controller
             }
         } catch (\Exception $e) {
             Log::warning('DeltaJalan: Fallback copy exception.', ['error' => $e->getMessage()]);
+        }
+
+        return null;
+    }
+
+    /**
+     * Menyalin file foto dari path absolut (mis. temp analyze-batch) ke storage public.
+     *
+     * Dipakai saat storeBatch membaca foto dari disk private (photo_paths) yang
+     * disimpan oleh analyze-batch, sehingga client tidak perlu meng-upload ulang.
+     */
+    private function savePhotoFromPath(string $sourcePath, string $filename): ?string
+    {
+        try {
+            $destDir = storage_path('app/public/'.self::ORIGINALS_FOLDER);
+            if (! is_dir($destDir)) {
+                mkdir($destDir, 0755, true);
+            }
+            $destPath = rtrim($destDir, '\\/').'/'.$filename;
+            if (copy($sourcePath, $destPath)) {
+                return self::ORIGINALS_FOLDER.'/'.$filename;
+            }
+        } catch (\Exception $e) {
+            Log::warning('DeltaJalan: savePhotoFromPath copy exception.', [
+                'error' => $e->getMessage(),
+                'filename' => $filename,
+                'source' => $sourcePath,
+            ]);
         }
 
         return null;
