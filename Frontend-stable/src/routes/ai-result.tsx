@@ -528,9 +528,10 @@ function AiResultPage() {
     if (import.meta.env.VITE_DEDUP_ENABLED !== "false") try {
       const hash = await computeFileHash(compressedFile);
       const token = getToken() ?? "";
-      const url = new URL(
-        `${window.location.origin}${import.meta.env.VITE_API_BASE_URL ?? "/api"}/v1/reports/check-duplicate`,
-      );
+      const base = (import.meta.env.VITE_API_BASE_URL ?? "/api").startsWith("http")
+        ? import.meta.env.VITE_API_BASE_URL
+        : `${window.location.origin}${import.meta.env.VITE_API_BASE_URL ?? "/api"}`;
+      const url = new URL(`${base}/v1/reports/check-duplicate`);
       url.searchParams.set("file_hash", hash);
       const res = await fetch(url.toString(), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},

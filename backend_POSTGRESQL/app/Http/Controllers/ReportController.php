@@ -150,26 +150,29 @@ class ReportController extends Controller
                 }
             }
 
+            // ── TEKSTUAL [NONAKTIF] ───────────────────────────────────────
+            // Cek duplikasi tekstual dinonaktifkan. Method checkTextual() di
+            // DuplicateCheckService tetap tersedia untuk diaktifkan kembali.
             // ── Prioritas 2: Pencarian Tekstual (ILIKE) ──────────────
-            if (! $foundReport) {
-                $district = $request->query('district');
-                $roadName = $request->query('road_name');
-                if ($district) {
-                    $textualResult = $duplicateCheck->checkTextual($district, $roadName);
-                    if ($textualResult) {
-                        $foundReport = [
-                            'id' => $textualResult->id,
-                            'report_code' => $textualResult->report_code,
-                            'road_name' => $textualResult->road_name,
-                            'district' => $textualResult->district,
-                            'latitude' => $textualResult->latitude ? (float) $textualResult->latitude : null,
-                            'longitude' => $textualResult->longitude ? (float) $textualResult->longitude : null,
-                            'status' => $textualResult->status,
-                            'created_at' => $textualResult->created_at?->toIso8601String(),
-                        ];
-                    }
-                }
-            }
+            // if (! $foundReport) {
+            //     $district = $request->query('district');
+            //     $roadName = $request->query('road_name');
+            //     if ($district) {
+            //         $textualResult = $duplicateCheck->checkTextual($district, $roadName);
+            //         if ($textualResult) {
+            //             $foundReport = [
+            //                 'id' => $textualResult->id,
+            //                 'report_code' => $textualResult->report_code,
+            //                 'road_name' => $textualResult->road_name,
+            //                 'district' => $textualResult->district,
+            //                 'latitude' => $textualResult->latitude ? (float) $textualResult->latitude : null,
+            //                 'longitude' => $textualResult->longitude ? (float) $textualResult->longitude : null,
+            //                 'status' => $textualResult->status,
+            //                 'created_at' => $textualResult->created_at?->toIso8601String(),
+            //             ];
+            //         }
+            //     }
+            // }
 
             // ── Prioritas 3: Pencarian Berdasarkan Hash Gambar ──────
             if (! $foundReport) {

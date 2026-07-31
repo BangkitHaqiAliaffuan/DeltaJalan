@@ -75,7 +75,7 @@ export function DuplicateChecker({
   const isError = addEvidenceState === "error";
 
   const isNearby =
-    nearestDistance !== null && nearestDistance !== undefined && nearestDistance <= 5;
+    nearestDistance !== null && nearestDistance !== undefined && nearestDistance <= 6;
 
   const isRejected = activeReport.status === "Ditolak";
   const isClosed = isFinalStatus && !isRejected;
