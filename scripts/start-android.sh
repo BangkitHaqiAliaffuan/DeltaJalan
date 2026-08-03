@@ -88,10 +88,10 @@ if [ ! -f "$FRONTEND_DIR/dist/client/index.html" ]; then
   wait_for_enter; exit 1
 fi
 
-# ── Sync web assets ──────────────────────────────────────────────────────────
-write_step "..." "npx cap copy..."
-npx cap copy || write_step "W" "cap copy gagal — lanjut..."
-write_step "OK" "Web assets tersalur"
+# ── Sync native project + web assets ────────────────────────────────────────
+write_step "..." "npx cap sync..."
+npx cap sync || write_step "W" "cap sync gagal — lanjut..."
+write_step "OK" "Native project + web assets tersinkron"
 
 # ── Build APK ────────────────────────────────────────────────────────────────
 write_step "..." "Build APK (gradlew assembleDebug)..."

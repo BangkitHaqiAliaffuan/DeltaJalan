@@ -8,6 +8,7 @@ import { Component, StrictMode, type ErrorInfo, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "@tanstack/react-router";
 import { getRouter } from "./router";
+import { useAndroidBackButton } from "@/hooks/useAndroidBackButton";
 import { useFcmRegistration } from "@/hooks/useFcmRegistration";
 import { useWorkerTracking } from "@/hooks/useWorkerTracking";
 
@@ -64,6 +65,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 }
 
 function AppInit() {
+  useAndroidBackButton();
   useFcmRegistration();
   useWorkerTracking();
   return null;

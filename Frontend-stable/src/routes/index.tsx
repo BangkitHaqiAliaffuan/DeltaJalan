@@ -651,7 +651,7 @@ function LandingPage() {
             </div>
 
             {/* Bento Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-5">
               {/* Large card â€” AI */}
               <SpotlightCard
                 className="md:col-span-2 bento-card p-4 md:p-5 relative overflow-hidden"
