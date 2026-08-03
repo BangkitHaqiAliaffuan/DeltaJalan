@@ -36,6 +36,7 @@ interface ReportData {
   created_at: string;
   updated_at: string;
   photos: { image_original_url: string; created_at: string }[];
+  after_photos?: { id: number; url: string; sort_order: number }[];
 }
 
 interface TimelineItem {
@@ -217,6 +218,29 @@ function LacakPage() {
                           </div>
                         );
                       })}
+                    </div>
+                  </div>
+                )}
+
+                {data.report.after_photos && data.report.after_photos.length > 0 && (
+                  <div>
+                    <h3 className="font-label-sm text-label-sm font-semibold text-[#0F172A] mb-3 flex items-center gap-1.5">
+                      <Icon name="photo_library" className="!text-[16px] text-[#1e40af]" />
+                      Foto Setelah Perbaikan
+                    </h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {data.report.after_photos.map((ap) => (
+                        <div
+                          key={ap.id}
+                          className="rounded-lg overflow-hidden border border-[#D0DAE8] bg-[#0F172A]"
+                        >
+                          <img
+                            src={resolveImageUrl(ap.url) ?? ""}
+                            alt="Setelah perbaikan"
+                            className="w-full object-cover h-32"
+                          />
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}

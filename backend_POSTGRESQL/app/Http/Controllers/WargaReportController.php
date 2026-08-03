@@ -414,7 +414,7 @@ class WargaReportController extends Controller
         $report = Report::where('report_code', $validated['report_code'])
             ->with(['photos' => function ($q) {
                 $q->orderBy('sort_order');
-            }])
+            }, 'afterPhotos'])
             ->first();
 
         if (! $report) {
@@ -452,6 +452,11 @@ class WargaReportController extends Controller
                             'quality_scores' => $p->quality_scores,
                         ];
                     }),
+                    'after_photos' => $report->afterPhotos->map(fn ($ap) => [
+                        'id' => $ap->id,
+                        'url' => $ap->url,
+                        'sort_order' => $ap->sort_order,
+                    ]),
                 ],
                 'timeline' => $timeline,
             ],
