@@ -233,6 +233,7 @@ function MyReportsPage() {
                     {
                       label: "Lihat Detail",
                       icon: "arrow_forward",
+                      iconOnly: true,
                       variant: "secondary",
                       to: "/detail-report",
                       search: { reportId: c.id },

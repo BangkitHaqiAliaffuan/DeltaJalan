@@ -17,21 +17,35 @@ const VARIANT_STYLES: Record<string, string> = {
 const BASE = "flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all";
 
 function ActionButtonItem({ action }: { action: ActionButton }) {
-  const className = `${BASE} ${VARIANT_STYLES[action.variant]}`;
+  const className = `${BASE} ${VARIANT_STYLES[action.variant]} ${action.iconOnly ? "px-2" : ""}`;
+  const icon = action.icon ? <Icon name={action.icon} className="!text-[13px]" /> : null;
+  const label = action.iconOnly ? undefined : action.label;
 
   if (action.to) {
     return (
-      <Link to={action.to} search={action.search} className={className} title={action.label}>
-        {action.icon && <Icon name={action.icon} className="!text-[13px]" />}
-        {action.label}
+      <Link
+        to={action.to}
+        search={action.search}
+        className={className}
+        title={action.label}
+        aria-label={action.iconOnly ? action.label : undefined}
+      >
+        {icon}
+        {label}
       </Link>
     );
   }
 
   return (
-    <button onClick={action.onClick} disabled={action.disabled} className={className}>
-      {action.icon && <Icon name={action.icon} className="!text-[13px]" />}
-      {action.label}
+    <button
+      onClick={action.onClick}
+      disabled={action.disabled}
+      className={className}
+      title={action.label}
+      aria-label={action.iconOnly ? action.label : undefined}
+    >
+      {icon}
+      {label}
     </button>
   );
 }
@@ -39,7 +53,7 @@ function ActionButtonItem({ action }: { action: ActionButton }) {
 export function CardActions({ actions }: CardActionsProps) {
   if (actions.length === 0) return null;
   return (
-    <div className="flex items-center gap-1.5 shrink-0">
+    <div className="flex flex-wrap items-center justify-end gap-1.5">
       {actions.map((a, i) => (
         <ActionButtonItem key={i} action={a} />
       ))}

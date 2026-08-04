@@ -332,6 +332,7 @@ function HomePage() {
                   actions.push({
                     label: "Lihat Detail",
                     icon: "arrow_forward",
+                    iconOnly: true,
                     variant: "secondary",
                     to: "/detail-report",
                     search: { reportId: report.id },
@@ -449,6 +450,7 @@ function HomePage() {
                         ac.push({
                           label: "Lihat Detail",
                           icon: "arrow_forward",
+                          iconOnly: true,
                           variant: "secondary",
                           to: "/detail-report",
                           search: { reportId: r.id },

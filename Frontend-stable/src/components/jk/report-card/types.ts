@@ -5,6 +5,7 @@ export type ActionVariant = "primary" | "secondary" | "destructive";
 export interface ActionButton {
   label: string;
   icon?: string;
+  iconOnly?: boolean;
   variant: ActionVariant;
   onClick?: () => void;
   to?: string;
