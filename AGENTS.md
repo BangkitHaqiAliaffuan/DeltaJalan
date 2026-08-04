@@ -1,6 +1,6 @@
 # AGENTS.md — DeltaJalan (JalanKita)
 
-Internal road damage reporting app for Dinas PU Bina Marga Kabupaten Sidoarjo. 3 roles: `petugas`, `petugas_eksekusi`, `supervisor`.
+Internal road damage reporting app for Dinas PU Bina Marga Kabupaten Sidoarjo. Roles: `petugas`, `supervisor`, `admin`, `warga` (public self-registration). `petugas_eksekusi` was merged into `petugas` (migration `2026_06_23_000007_remove_upr_and_merge_petugas_eksekusi_role`); UPR was removed and replaced by `teams`.
 
 ## Architecture
 
@@ -40,7 +40,7 @@ Scripts & `.env` are OS-specific — no cross-contamination.
 - **Never** commit or push unless the user explicitly says "commit", "push", or "commit dan push". You may stage files.
 - **Sebelum commit**, jalankan checklist keamanan berikut:
   1. `git status --short` — inspeksi SETIAP file baru/berubah
-  2. Jalankan scan otomatis: `bash scripts/pre-commit-scan.sh` (jika ada) atau scan manual:
+  2. Scan manual (tidak ada pre-commit-scan.sh di repo):
      ```bash
      # Cari token Telegram/API di tracked files
      rtk grep -rnE '[0-9]{8,10}:[A-Za-z0-9_-]{35}' --include="*.md" --include="*.php" --include="*.ts" --include="*.tsx" --include="*.sh" --include="*.yml" --include="*.yaml" --include="*.json" --include="*.env*" . 2>/dev/null | grep -v node_modules | grep -v vendor | grep -v ".git/" | grep -v dist/ | grep -v android/
@@ -79,7 +79,7 @@ php vendor/bin/pint                  # Laravel Pint (PHP lint)
 cd backend_AI && pip install -r requirements.txt && python server.py  # :8000 (development only)
 
 # Lambda AI — rebuild & deploy after handler.py changes
-# FASTAPI_URL di .env sudah指向 Lambda — rebuild jika handler.py diubah
+# FASTAPI_URL di .env sudah menunjuk ke Lambda — rebuild jika handler.py diubah
 bash scripts/update-lambda.sh               # build + push + update + test
 bash scripts/update-lambda.sh --skip-test   # build + push + update only
 
@@ -103,6 +103,7 @@ bash scripts/start-android.sh --rebuild              # (sama seperti tanpa flag)
 bash scripts/start-dev-with-ngrok.sh --ngrok         # desktop dev + tunnel
 
 # Ubuntu (Docker) — pakai jika PHP 8.3 tidak tersedia native
+# Setup sekali: ikuti docs/setup-ubuntu-fresh.md
 bash scripts/start-ubuntu.sh                        # Docker PHP + PostgreSQL + ngrok
 bash scripts/start-ubuntu.sh --rebuild               # + rebuild Capacitor APK
 bash scripts/start-dev-ubuntu.sh                    # desktop dev (FastAPI + Vite)
@@ -218,6 +219,8 @@ FASTAPI_URL=https://sxhryovsbl4g6kbsvageizvane0tiqat.lambda-url.ap-southeast-1.o
 
 ### Login test accounts
 
+Sumber resmi: `docs/akun-testing.md`. Tidak ada akun `warga` yang di-seed — warga mendaftar sendiri via `POST /auth/register`.
+
 | Role | Name | Email | Team |
 |---|---|---|---|
 | `petugas` | Agus Setiawan | agus.setiawan@dispu.binamarga.go.id | Tim Satgas Utara |
@@ -255,15 +258,15 @@ The index route (`foo/index.tsx`) renders when the URL exactly matches `/foo`; c
 
 ## Non-obvious conventions
 
-- **Trust score is NONAKTIF** — see `docs/reactivate-trust-score.md` to re-enable. All code preserved with `// ── TRUST SCORE [NONAKTIF] ──` markers.
+- **Trust score is NONAKTIF** — all code preserved with `// ── TRUST SCORE [NONAKTIF] ──` markers (e.g. `app/Services/TrustScoreService.php`, `ReportController.php`). Re-enable by restoring the marker-guarded code. Do NOT re-add trust columns to responses — frontend `TrustBadge` was removed too.
 - **Batch upload**: each sub-report gets its own GPS EXIF coordinate if available, falls back to form coordinate.
 - **EXIF date validation**: photos >2 days old or future-dated are rejected (single) or skipped per-file (batch).
 - **Image dedup**: SHA-256 hash on file content. Duplicates silently skipped.
 - **Road name**: must be selected from autocomplete (LocationIQ). API still accepts manual input but supervisor can review mismatches.
 - **Coordinate boundary**: all coordinates validated within Sidoarjo / Indonesia bounds.
+- **Public warga flow**: `warga` self-register via `POST /auth/register` (no seeded warga accounts). Anonymous reports via `POST /public/reports` (phone-keyed, `/reports/track` by report code); logged-in warga use `/warga/reports` + rating. Frontend routes: `warga/` panel + public `lapor.tsx` / `lacak.tsx` / `daftar.tsx`.
+- **`admin` role**: has its own panel (`routes/admin/`) with user/team management, report status override (`POST /admin/reports/{id}/status`), PCI, export.
 - **`auth.ts`** stores token + user in `localStorage` (known XSS risk, not mitigated).
-- **`solution.md`** is the original implementation spec — do not delete.
-- **`SECURITY_ANALYSIS.md`** documents known vs fixed security issues.
 
 ## Capacitor plugin gotchas
 
@@ -328,14 +331,19 @@ map.fitBounds(group.getBounds().pad(0.2), { maxZoom: 16, animate: false });
 | Endpoint | Notes |
 |---|---|
 | `POST /auth/login` | Public, throttled 10/min |
+| `POST /auth/register` | Public — warga self-registration |
+| `POST /reports/track` | Public, track by report code |
+| `POST /public/reports` | Public (anon), phone-keyed warga report |
 | `POST /reports` | Single report |
 | `POST /reports/batch` | Batch (main + sub-reports) |
-| `POST /analyze` | Single photo AI (forward to FastAPI) |
-| `POST /analyze-batch` | Batch AI (max 20 photos) |
-| `GET /v1/reports/check-duplicate` | Public, spatial (15m) + textual dedup |
-| `POST /reports/{id}/mulai` | Assign UPR + start work |
+| `POST /analyze` / `POST /analyze-batch` | Single / batch AI (max 20 photos) — proxy to Lambda |
+| `GET\|POST /v1/reports/check-duplicate` | Public, spatial (15m) + textual dedup |
+| `POST /reports/{id}/mulai` | Start work (→ Sedang Diperbaiki) |
 | `POST /reports/{id}/complete` | Requires `after_photo` |
-| `GET /uprs` | List active UPR/satgas |
+| `/warga/reports` | Role `warga` — own reports + rating |
+| `/pci/*` | PCI overview / trend / kritis |
+
+Note: UPR was removed (Juni 2026) — `GET /uprs` no longer exists; team assignment lives under `/teams`. Full route list: `backend_POSTGRESQL/routes/api.php`.
 
 ## Detection
 
