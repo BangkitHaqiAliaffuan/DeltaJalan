@@ -11,6 +11,10 @@ const DEFAULT_ZOOM = 11;
 const POLYGON_MIN_ZOOM = 10;
 const POLYGON_MAX_ZOOM = 12;
 
+function isPolygonZoom(z: number): boolean {
+  return z >= POLYGON_MIN_ZOOM && z < POLYGON_MAX_ZOOM;
+}
+
 const SEVERITY_CONFIG: Record<string, { color: string; label: string }> = {
   berat: { color: "#E11D48", label: "Rusak Berat" },
   sedang: { color: "#F97316", label: "Rusak Sedang" },
@@ -249,7 +253,7 @@ export function PetaInteraktif({
       const key = severityScoreToKey(score);
       const color = POLYGON_SEVERITY_COLORS[key] ?? "#94A3B8";
       const z = currentZoomRef.current;
-      const show = z >= POLYGON_MIN_ZOOM && z < POLYGON_MAX_ZOOM;
+      const show = isPolygonZoom(z);
       return {
         fillColor: color,
         fillOpacity: show ? 0.25 : 0,
@@ -293,8 +297,13 @@ export function PetaInteraktif({
       if (polygonLayerRef.current) {
         polygonLayerRef.current.setStyle((feature) => styleFnRef.current(feature));
       }
-      if (markerClusterRef.current && !map.hasLayer(markerClusterRef.current)) {
-        map.addLayer(markerClusterRef.current);
+      const showMarkers = !isPolygonZoom(z);
+      if (markerClusterRef.current) {
+        if (showMarkers && !map.hasLayer(markerClusterRef.current)) {
+          map.addLayer(markerClusterRef.current);
+        } else if (!showMarkers && map.hasLayer(markerClusterRef.current)) {
+          map.removeLayer(markerClusterRef.current);
+        }
       }
     });
 
@@ -411,7 +420,9 @@ export function PetaInteraktif({
           });
         },
       });
-      map.addLayer(mcg);
+      if (!isPolygonZoom(currentZoomRef.current)) {
+        map.addLayer(mcg);
+      }
       markerClusterRef.current = mcg;
     }
 
@@ -649,7 +660,7 @@ export function PetaInteraktif({
   const validReportsCount = mapReports.filter((r) => r.latitude && r.longitude).length;
   const polygonsShown = zoomLevel >= POLYGON_MIN_ZOOM && zoomLevel < POLYGON_MAX_ZOOM;
 
-  const zoomLabel = zoomLevel < POLYGON_MIN_ZOOM ? "Tampilan Kecamatan" : "Tampilan Detail";
+  const zoomLabel = isPolygonZoom(zoomLevel) ? "Tampilan Kecamatan" : "Tampilan Detail";
 
   return (
     <div className="relative w-full h-full">
