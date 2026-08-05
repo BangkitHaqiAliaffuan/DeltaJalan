@@ -36,14 +36,14 @@ export default defineConfig({
         name: "DeltaJalan - Sistem Pelaporan Kerusakan Jalan",
         short_name: "DeltaJalan",
         description: "Sistem pelaporan dan penanganan kerusakan jalan",
-        theme_color: "#2563EB",
+        theme_color: "#1E40AF",
         background_color: "#FFFFFF",
         display: "standalone",
         scope: "/",
         start_url: "/",
         lang: "id",
         icons: [
-          { src: "/logo.png", sizes: "248x247", type: "image/png" },
+          { src: "/logo.png", sizes: "500x500", type: "image/png" },
           { src: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
           { src: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
           {

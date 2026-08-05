@@ -1464,7 +1464,7 @@ function LandingPage() {
                 <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center p-1">
                   <img
                     src="/logo.png"
-                    alt="Dinas PU Bina Marga"
+                    alt="DeltaJalan"
                     className="w-full h-full object-contain"
                   />
                 </div>
