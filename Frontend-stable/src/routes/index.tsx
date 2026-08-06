@@ -475,7 +475,7 @@ function LandingPage() {
         }`}
       >
         <Link to="/" className="flex items-center gap-2.5">
-          <img src="/logo.png" alt="DeltaJalan" className="w-10 h-10" />
+          <img src="/icons/logo.png" alt="DeltaJalan" className="w-10 h-10" />
           <span
             className={`font-headline-md text-headline-md font-bold tracking-tight transition-colors ${scrolled ? "text-[#0F172A]" : "text-white"}`}
           >
@@ -1463,7 +1463,7 @@ function LandingPage() {
               <div className="flex items-center gap-2.5 mb-5">
                 <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center p-1">
                   <img
-                    src="/logo.png"
+                    src="/icons/logo.png"
                     alt="DeltaJalan"
                     className="w-full h-full object-contain"
                   />

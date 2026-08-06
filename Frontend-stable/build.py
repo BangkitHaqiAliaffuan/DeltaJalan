@@ -16,7 +16,7 @@ body::before {
 body::after {
   content: '';
   position: fixed; inset: 0; z-index: 10000;
-  background: url(/logo.png) center 38% no-repeat;
+  background: url(/icons/logo.png) center 38% no-repeat;
   background-size: 88px;
   pointer-events: none;
   transition: opacity 0.5s ease-out;

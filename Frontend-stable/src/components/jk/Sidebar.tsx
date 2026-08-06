@@ -74,13 +74,13 @@ export function Sidebar() {
   return (
     <aside className="hidden md:flex flex-col w-64 shrink-0 min-h-screen bg-gradient-to-br from-[#1e40af] to-[#2e68d8] sticky top-0 h-screen overflow-y-auto">
       {/* Header */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-white/15">
+      <div className="flex items-center gap-3 px-5 py-5 bg-white border-b border-[#E2E8F0]">
         <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0">
-          <img src="/logo.png" alt="DeltaJalan" className="w-10 h-10 object-contain" />
+          <img src="/icons/logo.png" alt="DeltaJalan" className="w-10 h-10 object-contain" />
         </div>
         <div className="flex flex-col min-w-0">
-          <span className="font-bold text-white text-[16px] leading-tight">DeltaJalan</span>
-          <span className="text-white/60 text-[11px] leading-tight truncate">
+          <span className="font-bold text-[#1e40af] text-[16px] leading-tight">DeltaJalan</span>
+          <span className="text-[#1e40af]/60 text-[11px] leading-tight truncate">
             Dinas PU Bina Marga
           </span>
         </div>

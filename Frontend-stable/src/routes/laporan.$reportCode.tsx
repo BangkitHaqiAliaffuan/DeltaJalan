@@ -121,7 +121,7 @@ function LaporanPublicPage() {
           >
             <div className="flex flex-col items-center pt-6 pb-4 px-6">
               <div className="w-14 h-14 rounded-xl bg-white shadow-md flex items-center justify-center mb-3">
-                <img src="/logo.png" alt="DeltaJalan" className="w-9 h-9" />
+                <img src="/icons/logo.png" alt="DeltaJalan" className="w-9 h-9" />
               </div>
               <h1 className="font-headline-md text-headline-md font-extrabold bg-gradient-to-r from-[#1e40af] to-[#2e68d8] bg-clip-text text-transparent tracking-tight">
                 Detail Laporan

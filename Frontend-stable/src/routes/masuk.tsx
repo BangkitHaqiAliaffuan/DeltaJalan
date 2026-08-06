@@ -107,7 +107,7 @@ function WargaLoginPage() {
             >
               <div className="flex flex-col items-center pt-8 pb-6 px-8">
                 <div className="w-16 h-16 rounded-xl bg-white shadow-md flex items-center justify-center mb-4">
-                  <img src="/logo.png" alt="DeltaJalan" className="w-10 h-10" />
+                  <img src="/icons/logo.png" alt="DeltaJalan" className="w-10 h-10" />
                 </div>
                 <h1 className="font-headline-lg text-headline-lg font-extrabold bg-gradient-to-r from-[#1e40af] to-[#2e68d8] bg-clip-text text-transparent tracking-tight">
                   DeltaJalan
