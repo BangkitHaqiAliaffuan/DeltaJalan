@@ -6,6 +6,7 @@ on:
     paths:
       - 'backend_POSTGRESQL/**'
       - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
 
 concurrency:
   group: deploy-backend
@@ -13,45 +14,25 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy Laravel via SSH
-    runs-on: ubuntu-24.04
+    name: Deploy Laravel (self-hosted)
+    runs-on: [self-hosted, prod]
     timeout-minutes: 15
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Pull + composer + migrate + cache
+        run: sudo -u ubuntu /usr/local/bin/deltajalan-deploy
 
-      - name: Deploy to Lightsail via SSH
-        uses: appleboy/ssh-action@v1.2.1
-        with:
-          host: ${{ secrets.LIGHTSAIL_HOST }}
-          username: ${{ secrets.LIGHTSAIL_USER }}
-          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
-          script: |
-            set -e
+      - name: Restart queue worker
+        run: sudo /usr/local/bin/restart-jalankita-workers
 
-            echo "[1/7] Pull latest code..."
-            cd /var/www/deltajalan
-            git pull origin main
+      - name: Reload PHP-FPM
+        run: sudo systemctl reload php8.3-fpm
 
-            echo "[2/7] Composer install (production)..."
-            cd backend_POSTGRESQL
-            export COMPOSER_ALLOW_SUPERUSER=1
-            composer install --no-dev --optimize-autoloader --no-interaction
-
-            echo "[3/7] Run migrations..."
-            php artisan migrate --force
-
-            echo "[4/7] Clear & rebuild cache..."
-            php artisan config:cache
-            php artisan route:cache
-            php artisan view:cache
-
-            echo "[5/7] Restart queue worker..."
-            sudo supervisorctl restart jalankita-worker:*
-
-            echo "[6/7] Reload PHP-FPM..."
-            sudo systemctl reload php8.3-fpm
-
-            echo "[7/7] Deploy selesai!"
-            echo "Timestamp: $(date)"
+      - name: Verify endpoint live
+        run: |
+          for i in 1 2 3 4 5 6; do
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "https://api.deltajalan.web.id/api/app/version?platform=android") && [ "$CODE" = "200" ] && echo "OK: /api/app/version live" && exit 0
+            echo "coba-$i: HTTP $CODE, tunggu 10 dtk..."
+            sleep 10
+          done
+          echo "GAGAL: endpoint belum live setelah 60 dtk"; exit 1
