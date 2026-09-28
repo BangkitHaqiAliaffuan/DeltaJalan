@@ -24,7 +24,7 @@ SKIP_TEST=false
 # ── Paths ──────────────────────────────────────────────────────────────────
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LAMBDA_DIR="$PROJECT_ROOT/backend_AI/lambda"
-TEST_IMG="$PROJECT_ROOT/Photos EXIF/output/20260525_115831.jpg"
+TEST_IMG="$PROJECT_ROOT/backend_AI/output_test/Baik__Baik__0.0__20260525_115831.jpg"
 
 echo "═══════════════════════════════════════════════════════════════════"
 echo "  Update Lambda — $LAMBDA_NAME"

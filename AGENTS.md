@@ -1,449 +1,85 @@
 # AGENTS.md — DeltaJalan (JalanKita)
 
-Internal road damage reporting app for Dinas PU Bina Marga Kabupaten Sidoarjo. Roles: `petugas`, `supervisor`, `admin`, `warga` (public self-registration). `petugas_eksekusi` was merged into `petugas` (migration `2026_06_23_000007_remove_upr_and_merge_petugas_eksekusi_role`); UPR was removed and replaced by `teams`.
+Road damage reporting app for Dinas PU Bina Marga Kab. Sidoarjo. Roles: `petugas`, `supervisor`, `admin`, `warga` (self-registers via `POST /auth/register`, never seeded).
+`petugas_eksekusi` was merged into `petugas`; UPR removed → `teams` (migration `2026_06_23_000007_remove_upr_and_merge_petugas_eksekusi_role`). No `GET /uprs`.
 
-## Architecture
+## Layout
 
 ```
-Frontend-stable/          React 19 + TanStack Start SSR + Tailwind v4, Vite 7
-backend_POSTGRESQL/       Laravel 13 REST API (PHP 8.3, Sanctum, PostgreSQL)
-  ├─ Dockerfile            PHP 8.3 container build (Ubuntu Docker)
-backend_AI/               FastAPI dev / Lambda production (4 damage classes)
-scripts/                  Dev/tunnel scripts
-  ├─ start-tunnel.ps1         Windows (PowerShell)
-  ├─ start-android.sh         Linux native PHP
-  ├─ start-dev-with-ngrok.sh  Linux native PHP
-  ├─ start-ubuntu.sh          Ubuntu Docker (new)
-  └─ start-dev-ubuntu.sh      Ubuntu Docker dev helper (new)
-docker-compose.yml        PHP 8.3 + PostgreSQL 16 containers (Ubuntu Docker)
+Frontend-stable/        React 19 + TanStack Start SSR + Tailwind v4, Vite 7
+backend_POSTGRESQL/     Laravel 13 REST API (PHP 8.3, Sanctum, PostgreSQL 16)
+backend_AI/             FastAPI dev (server.py :8000) / Lambda prod (lambda/handler.py, onnxruntime — no PyTorch)
+scripts/                start-android.sh, start-dev-with-ngrok.sh, start-ubuntu.sh, start-dev-ubuntu.sh,
+                        deploy-laravel.sh, update-lambda.sh, deltajalan.nginx.conf, deltajalan-worker.conf
+docker-compose.yml      PHP 8.3 + PostgreSQL 16 (Ubuntu Docker path; Windows uses native PHP)
 ```
 
-Production server (AWS Lightsail Ubuntu 24.04):
-  IP: 47.131.39.245
-  API: https://api.deltajalan.web.id (Let's Encrypt SSL)
-  Nginx (worker_processes auto) + PHP 8.3 FPM + PostgreSQL 16
-  Supervisor: 3 queue workers
-  Backup harian (7 hari retensi)
-  UFW: port 22, 80, 443
-
-Frontend `VITE_API_BASE_URL` langsung ke production API (`https://api.deltajalan.web.id/api`). Gambar (storage) diproses via `resolveImageUrl()` yang prepend API origin. Laravel forwards AI requests ke Lambda Function URL.
-
-**Dual boot note**: Ubuntu uses Docker for PHP+PostgreSQL; Windows uses native PHP.
-Scripts & `.env` are OS-specific — no cross-contamination.
+3 independent services, no workspaces. Prod API: `https://api.deltajalan.web.id` (Lightsail `47.131.39.245`, Ubuntu 24.04, PHP-FPM + PG16 + Supervisor 3 workers). Frontend `VITE_API_BASE_URL` points at prod API; Laravel forwards AI calls via `config('services.fastapi.url')` (`FASTAPI_URL` in backend `.env`).
 
 ## Mandatory rules
 
-- **Never** run `php artisan serve`, `npm run dev`, `vite`, or any dev server. User handles startup.
-- **Never** run `build:mobile`, `npx cap`, `python build.py`, `gradlew`, or any Android build. User runs `bash scripts/start-android.sh` or `bash scripts/start-ubuntu.sh` exclusively.
-- **Never** run `migrate:fresh`, `migrate:reset`, `db:wipe`, or `DROP` without asking. Allowed: `migrate`, `db:seed`, `cache:clear`, `config:clear`.
-- **Never** run `migrate:fresh`, `migrate:reset`, `db:wipe`, or `DROP` even if you think you have user consent — always wait for the user to explicitly type the command before proceeding.
-- **Never** commit or push unless the user explicitly says "commit", "push", or "commit dan push". You may stage files.
-- **Sebelum commit**, jalankan checklist keamanan berikut:
-  1. `git status --short` — inspeksi SETIAP file baru/berubah
-  2. Scan manual (tidak ada pre-commit-scan.sh di repo):
-     ```bash
-     # Cari token Telegram/API di tracked files
-     rtk grep -rnE '[0-9]{8,10}:[A-Za-z0-9_-]{35}' --include="*.md" --include="*.php" --include="*.ts" --include="*.tsx" --include="*.sh" --include="*.yml" --include="*.yaml" --include="*.json" --include="*.env*" . 2>/dev/null | grep -v node_modules | grep -v vendor | grep -v ".git/" | grep -v dist/ | grep -v android/
-     # Cari LOCATIONIQ_KEY atau API key pattern
-     rtk grep -rnE '(LOCATIONIQ_KEY|_SECRET=|_TOKEN=|_KEY=|_PASSWORD=|PRIVATE_KEY)' --include="*.md" --include="*.php" --include="*.ts" --include="*.tsx" --include="*.json" --include="*.sh" --include="*.yml" . 2>/dev/null | grep -v node_modules | grep -v vendor | grep -v ".git/" | grep -v dist/ | grep -v android/ | grep -v ".env.example" | grep -v "\/\/.*placeholder" | grep -v "xxxxx"
-     # Cari private key / PEM
-     rtk grep -rn '-----BEGIN' --include="*.md" --include="*.php" --include="*.ts" --include="*.json" --include="*.sh" --include="*.yml" . 2>/dev/null | grep -v node_modules | grep -v vendor | grep -v ".git/" | grep -v "DIST" | grep -v "/test" | grep -v "roots.pem" | grep -v "tests/"
-     ```
-  3. Pastikan `docs/*.md` TIDAK mengandung live secrets (hanya placeholder `xxxxxxxx` atau `[REDACTED]`)
-  4. Pastikan file `.env`, `.env.production`, `*.pem`, `*.key`, `opencode.json` ada di `.gitignore` dan tidak muncul di `git status`
-  Jika ragu terhadap satu file pun, **STOP DAN TANYA USER**. Jangan commit sampai yakin 100% tidak ada secret terleak.
-- **Commit message** harus dalam **Bahasa Indonesia** secara konsisten. Gunakan format `tipe: pesan singkat` (contoh: `fix: ...`, `feat: ...`, `refactor: ...`). Semua commit ke depannya wajib menggunakan bahasa Indonesia pada bagian deskripsi. Commit message bahasa Inggris dilarang.
-- **Production SSH key** (public only): `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA8xwr8n4igJxAtnDakuFYbfePqVKqzhOatluUhPhlWy deploy@deltajalan.web.id` (terdaftar di GitHub → BangkitHaqiAliaffuan)
-- **Sebelum SSH ke server**, wajib buat plan terlebih dahulu dan minta persetujuan user. Jelaskan secara spesifik perintah yang akan dijalankan.
-- **SSH key production**: `C:\DeltaJalan\LightsailDefaultKey-ap-southeast-1.pem` — user `ubuntu@47.131.39.245`
-- Before any 10s+ command, warn the user with estimated duration.
-- Before writing code involving any library/framework, use Context7 MCP (`resolve-library-id` → `query-docs`) and cite sources. See "Context7" section below.
+- **Never** start dev servers (`php artisan serve`, `npm run dev`, `vite`) or Android builds (`build:mobile`, `npx cap`, `python build.py`, `gradlew`). User runs those.
+- **Never** run `migrate:fresh`, `migrate:reset`, `db:wipe`, or `DROP` — even if you think consent exists. Allowed without asking: `migrate`, `db:seed`, `cache:clear`, `config:clear`. New DB columns only via migration, never alter existing ones.
+- **Never** commit/push unless user literally says "commit"/"push"/"commit dan push". Staging is fine.
+- Commit messages in **Bahasa Indonesia**, `tipe: pesan singkat` (`fix:`, `feat:`, `refactor:` …).
+- Before SSH to prod (`ubuntu@47.131.39.245`, key `~/.ssh/LightsailDefaultKey-ap-southeast-1.pem`), present the exact command plan and get approval.
+- Warn before any command expected to take 10s+.
+- For library/framework code, resolve docs via Context7 MCP (`resolve-library-id` → `query-docs`) and cite sources.
 
-## Dev commands
+## Pre-commit security check (no pre-commit hook in repo — do it manually)
+
+1. `git status --short` — inspect every new/changed file.
+2. Scan tracked files for tokens/keys/PEM:
+```bash
+rtk grep -rnE '[0-9]{8,10}:[A-Za-z0-9_-]{35}' --include='*.md' --include='*.php' --include='*.ts' --include='*.tsx' --include='*.sh' --include='*.yml' . 2>/dev/null | grep -v -e node_modules -e vendor -e '.git/' -e dist/ -e android/
+rtk grep -rnE '(LOCATIONIQ_KEY|_SECRET=|_TOKEN=|_KEY=|_PASSWORD=|PRIVATE_KEY)' --include='*.md' --include='*.php' --include='*.ts' --include='*.tsx' --include='*.json' --include='*.sh' --include='*.yml' . 2>/dev/null | grep -v -e node_modules -e vendor -e '.git/' -e dist/ -e android/ -e '.env.example'
+rtk grep -rn '-----BEGIN' --include='*.md' --include='*.php' --include='*.ts' --include='*.json' --include='*.sh' --include='*.yml' . 2>/dev/null | grep -v -e node_modules -e vendor -e '.git/'
+```
+3. `docs/*.md` must contain only placeholders (`xxxxxxxx`/`[REDACTED]`), never live secrets.
+4. `.env*`, `*.pem`, `*.key`, `opencode.json` are gitignored — must never appear in `git status`. If unsure about any file, STOP and ask.
+
+## Commands
 
 ```bash
 # Frontend (Frontend-stable/)
-npm install && npm run dev           # Vite on :5173
-npm run lint                         # eslint
-npm run format                       # prettier --write .
-npm run build                        # SSR production build
-npm run build:mobile                 # SPA build for Capacitor (python build.py)
+npm run lint | npm run format            # eslint / prettier --write .
+npm run build                            # SSR prod build (Vercel)
+npm run build:mobile                     # SPA for Capacitor (vite.config.sw.ts + build.py --build-only)
 
-# Laravel (backend_POSTGRESQL/)
-composer install && php artisan serve --port=8080
-composer run dev                     # artisan :8080 + queue + logs + Vite (concurrently)
-composer run test                    # php artisan config:clear && php artisan test
-php vendor/bin/pint                  # Laravel Pint (PHP lint)
+# Laravel (backend_POSTGRESQL/) — native; on Ubuntu Docker prefix with `docker compose exec php`
+composer run dev                         # serve :8080 + queue + logs + schedule + vite (concurrently)
+composer run test                        # config:clear + phpunit (SQLite :memory:, see phpunit.xml)
+php vendor/bin/pint                      # PHP lint
+docker compose exec php php artisan {command}   # artisan via Docker
 
-# AI server (backend_AI/) — production via Lambda
-cd backend_AI && pip install -r requirements.txt && python server.py  # :8000 (development only)
+# AI: dev `cd backend_AI && python server.py` (:8000); prod redeploy after handler.py changes:
+bash scripts/update-lambda.sh [--skip-test]
 
-# Lambda AI — rebuild & deploy after handler.py changes
-# FASTAPI_URL di .env sudah menunjuk ke Lambda — rebuild jika handler.py diubah
-bash scripts/update-lambda.sh               # build + push + update + test
-bash scripts/update-lambda.sh --skip-test   # build + push + update only
-
-# Deploy Laravel (SSH ke server dulu, baru jalankan)
-# Script ini HARUS dijalankan DI SERVER via SSH, bukan lokal.
-# Langkah: SSH ke server, cd /var/www/deltajalan, lalu:
-#   git pull origin main
-#   cd backend_POSTGRESQL
-#   php artisan config:cache
-#   php artisan route:cache
-#   php artisan view:cache
-#   (migrate jika ada: php artisan migrate --force)
-#
-# Atau via SSH one-liner:
-# ssh -i "<key>" ubuntu@47.131.39.245 "cd /var/www/deltajalan && git pull origin main && cd backend_POSTGRESQL && php artisan config:cache && php artisan route:cache && php artisan view:cache"
-
-# All stacked (Linux native)
-bash scripts/start-android.sh                       # build + deploy ke device (API production)
-bash scripts/start-android.sh --build-only           # build APK saja
-bash scripts/start-android.sh --rebuild              # (sama seperti tanpa flag)
-bash scripts/start-dev-with-ngrok.sh --ngrok         # desktop dev + tunnel
-
-# Ubuntu (Docker) — pakai jika PHP 8.3 tidak tersedia native
-# Setup sekali: ikuti docs/setup-ubuntu-fresh.md
-bash scripts/start-ubuntu.sh                        # Docker PHP + PostgreSQL + ngrok
-bash scripts/start-ubuntu.sh --rebuild               # + rebuild Capacitor APK
-bash scripts/start-dev-ubuntu.sh                    # desktop dev (FastAPI + Vite)
-bash scripts/start-dev-ubuntu.sh --ngrok             # + ngrok tunnel to Vite
-docker compose exec php php artisan {command}        # artisan via Docker
-docker compose logs php                              # Laravel logs
-docker compose exec php composer {command}           # composer via Docker
+# Backend deploy: CI `.github/workflows/deploy-backend.yml` (push main touching backend_POSTGRESQL/).
+# Fallback manual on server: `bash scripts/deploy-laravel.sh` (pull + install + migrate --force + cache + restart workers)
 ```
 
-## Production server (AWS Lightsail)
-
-| Item | Value |
-|---|---|
-| IP | `47.131.39.245` |
-| Domain | `api.deltajalan.web.id` |
-| SSL | Let's Encrypt (exp: 10 Okt 2026, auto-renew via systemd timer) |
-| OS | Ubuntu 24.04 LTS |
-| PHP | 8.3.6 (FPM, pm.dynamic, max_children=12) |
-| PostgreSQL | 16 (shared_buffers=256MB, effective_cache_size=768MB) |
-| Queue | Supervisor 3 workers (`jalankita-worker:0-2`) |
-| Backup | Harian 03:00 UTC, retensi 7 hari |
-| Firewall | UFW: 22, 80, 443 only |
-
-### Deployment file configs
-
-- `scripts/deltajalan.nginx.conf` — Nginx site config
-- `scripts/deltajalan-worker.conf` — Supervisor queue workers
-- `scripts/backup-jalankita` — Backup script
-- `scripts/logrotate-jalankita` — Log rotation
-
-### Services
-
-| Service | URL |
-|---|---|
-| API (Laravel) | `https://api.deltajalan.web.id` |
-| Frontend (Vercel) | `https://delta-jalan.vercel.app` |
-| AI Detection (Lambda) | Via `.env.FASTAPI_URL` (AWS Lambda URL) |
-
-### Telegram Bot
-
-Webhook endpoint: `POST /telegram/webhook` (no `/api` prefix) — di `routes/web.php`.
-Dikecualikan dari CSRF via `$middleware->validateCsrfTokens()` di `bootstrap/app.php`.
-Set webhook via:
-```bash
-curl -X POST "https://api.telegram.org/bot{TOKEN}/setWebhook" \
-  -d "url=https://api.deltajalan.web.id/telegram/webhook" \
-  -d "secret_token=jalankita-telegram-2026"
-```
-
-## AI Detection (Lambda)
-
-Laravel delegates AI inference (damage class + severity + quality check) to an AWS Lambda function URL via `config('services.fastapi.url')`.
-
-### Architecture
-
-```
-backend_AI/lambda/
-  Dockerfile              FROM public.ecr.aws/lambda/python:3.12
-  handler.py              Lambda entry point (onnxruntime, no PyTorch)
-  requirements.txt        4 deps: onnxruntime, opencv-python-headless, numpy, Pillow
-  models/
-    best.onnx              ~2.9 MB — main detection model
-    best_stable.onnx       ~11 MB  — ensemble model (WBF)
-
-GitHub Actions CI         deploy-ai.yml → push main → build + push to ECR → update Lambda
-```
-
-### Key facts
-
-- **No PyTorch / ultralytics** on Lambda — uses raw `onnxruntime` for cold start < 150 MB image
-- **WBF ensemble** — merges output from both ONNX models via Weighted Box Fusion
-- **MobileCLIP relevance guard aktif** — MobileCLIP2-S0 ONNX (44 MB) di-deploy via S3, di-download saat Docker build. Threshold relevance: 0.15. Score dihitung real via CLIP image-text similarity (ONNX runtime). Lihat `backend_AI/lambda/handler.py:546-567`.
-- **Cold start**: ~3-6 detik (memuat 2 model ONNX)
-- **Warm invoke**: ~1-3 detik
-- **Payload limit**: 6 MB (Lambda Function URL default)
-- **Timeout**: 15 detik (default Lambda container timeout)
-
-### Dev vs Production
-
-| Environment | Implementasi | Cara deploy |
-|---|---|---|
-| **Development** | `backend_AI/server.py` (FastAPI, port 8000) | `python server.py` manual |
-| **Production** | `backend_AI/lambda/handler.py` (Lambda Function URL) | `bash scripts/update-lambda.sh` |
-
-### Rebuild & deploy
-
-```bash
-bash scripts/update-lambda.sh               # build + push + update + test
-bash scripts/update-lambda.sh --skip-test   # build + push + update only
-```
-
-Triggered via `FASTAPI_URL` in `.env`:
-```
-FASTAPI_URL=https://sxhryovsbl4g6kbsvageizvane0tiqat.lambda-url.ap-southeast-1.on.aws
-```
-
-## Key structural facts
-
-- **`vite.config.ts`** uses `@lovable.dev/vite-tanstack-config` — do NOT add Vite plugins manually (TanStack Start, React, Tailwind already bundled).
-- **`routeTree.gen.ts`** is auto-generated by TanStack Router — do not edit.
-- **Tailwind v4** is CSS-only (`@import "tailwindcss"` in `src/styles.css`) — no `tailwind.config.*` or `postcss.config.*`.
-- **3 independent services**, each with its own deps and build system. No npm workspaces, no Turborepo.
-- **AI detection in production uses AWS Lambda** (ONNX runtime via Lambda Function URL), not FastAPI dev server.
-- **Capacitor config**: app ID `com.jalankita.app`, `androidScheme: "http"`, `cleartext: true`.
-- **Laravel tests** use SQLite `:memory:` (see `phpunit.xml`).
-- **`build.py`** handles SPA build + HTML patching (splash CSS, error script) for Capacitor. Run `python build.py --build-only` after code changes.
-- **No frontend test framework** is configured.
-- **CI/CD workflows** exist under `.github/workflows/` — deploy-backend (SSH), deploy-ai (ECR + Lambda), health-check (cron).
-- **Deploy Backend CI/CD TIDAK BERFUNGSI** (riwayat 59/59 runs failure, SSH step gagal di server — bahkan setelah path di-fix ke `/var/www/deltajalan`). Jangan mengandalkan auto-deploy backend; semua deploy backend WAJIB manual via SSH (lihat "Deploy Laravel" di atas). Health Check & Deploy AI tetap berjalan normal.
-- **Always add new DB columns via migration** — never modify existing columns or tables.
-- **Store photos on disk** (`storage/app/public/`) — never base64 in DB.
-- **Never use emoji as UI labels/icons** — always use the `<Icon>` component with Material icon names instead of emoji characters.
-
-### Login test accounts
-
-Sumber resmi: `docs/akun-testing.md`. Tidak ada akun `warga` yang di-seed — warga mendaftar sendiri via `POST /auth/register`.
-
-| Role | Name | Email | Team |
-|---|---|---|---|
-| `petugas` | Agus Setiawan | agus.setiawan@dispu.binamarga.go.id | Tim Satgas Utara |
-| `petugas` | Rizky Firmansyah | rizky.firmansyah@dispu.binamarga.go.id | Tim Satgas Pusat |
-| `petugas` | Dewi Rahayu | dewi.rahayu@dispu.binamarga.go.id | Tim Satgas Barat |
-| `petugas` | Bambang Eko | bambang.eko@dispu.binamarga.go.id | Tim Satgas Selatan |
-| `petugas` | Dodi Kurniawan | dodi.kurniawan@dispu.binamarga.go.id | Tim Satgas Timur |
-| `supervisor` | Budi Santoso | budi.santoso@dispu.binamarga.go.id | — |
-| `supervisor` | Siti Marlina | siti.marlina@dispu.binamarga.go.id | — |
-| `supervisor` | Hendra Kusuma | hendra.kusuma@dispu.binamarga.go.id | — |
-| `supervisor` | Fajar Nugroho | fajar.nugroho@dispu.binamarga.go.id | — |
-| `admin` | Admin Utama | admin@dispu.binamarga.go.id | — |
-
-Password for all: `password123`
-
-## VITE_API_BASE_URL is build-time embedded
-
-`VITE_API_BASE_URL` is baked into the JS bundle at build time. Changing `.env` alone does NOT update a running app. After changing `.env`, rebuild: `npm run build:mobile`.
-
-## TanStack Router gotchas
-
-### Child routes require `<Outlet />` in parent
-`foo.detail.tsx` (dot notation) creates a **child route** of `foo.tsx`. For the child to render, `foo.tsx` MUST have `<Outlet />`. Without it, navigating to `/foo/detail` renders only the parent component — the child never mounts.
-
-### Index route pattern for list + detail
-A page with a list view and a detail sub-view needs 3 files:
-```
-routes/supervisor/
-  foo.tsx               ← layout: <PageLayout><Outlet /></PageLayout>
-  foo/
-    index.tsx           ← index route (list page)
-  foo.detail.tsx        ← child route (detail page, no PageLayout — parent provides it)
-```
-The index route (`foo/index.tsx`) renders when the URL exactly matches `/foo`; child routes like `/foo/detail` render when their path matches inside the parent's `<Outlet />`.
-
-## Non-obvious conventions
-
-- **Trust score is NONAKTIF** — all code preserved with `// ── TRUST SCORE [NONAKTIF] ──` markers (e.g. `app/Services/TrustScoreService.php`, `ReportController.php`). Re-enable by restoring the marker-guarded code. Do NOT re-add trust columns to responses — frontend `TrustBadge` was removed too.
-- **Batch upload**: each sub-report gets its own GPS EXIF coordinate if available, falls back to form coordinate.
-- **EXIF date validation**: photos >2 days old or future-dated are rejected (single) or skipped per-file (batch).
-- **Image dedup**: SHA-256 hash on file content. Duplicates silently skipped.
-- **Road name**: must be selected from autocomplete (LocationIQ). API still accepts manual input but supervisor can review mismatches.
-- **Coordinate boundary**: all coordinates validated within Sidoarjo / Indonesia bounds.
-- **Public warga flow**: `warga` self-register via `POST /auth/register` (no seeded warga accounts). Anonymous reports via `POST /public/reports` (phone-keyed, `/reports/track` by report code); logged-in warga use `/warga/reports` + rating. Frontend routes: `warga/` panel + public `lapor.tsx` / `lacak.tsx` / `daftar.tsx`.
-- **`admin` role**: has its own panel (`routes/admin/`) with user/team management, report status override (`POST /admin/reports/{id}/status`), PCI, export.
-- **`auth.ts`** stores token + user in `localStorage` (known XSS risk, not mitigated).
-
-## Capacitor plugin gotchas
-
-### Register custom plugins in `MainActivity.java`
-Local `file:` dependencies (`@jalankita/capacitor-exif-gps`) are not auto-discovered by Capacitor's annotation scanner. Always register explicitly:
-```java
-registerPlugin(PhotoExifGpsPlugin.class);
-// Call before super.onCreate()
-```
-
-### `isNativePlatform()` required
-`typeof window.Capacitor !== 'undefined'` is `true` even in browser (side effect of `@capacitor/core` import). Always use:
-```ts
-window.Capacitor.isNativePlatform?.() === true
-```
-
-### Native batch upload needs JS `readExifGps` fallback
-`PhotoExifGps.pickPhotos()` returns `lat: null, lng: null` for DocumentsProvider URIs on Android 14+. Mirror the web batch fallback:
-```ts
-(r.lat != null && r.lng != null)
-  ? Promise.resolve({ latitude: r.lat, longitude: r.lng })
-  : readExifGps(r.file)
-```
-
-### Check ALL permission aliases
-`ACCESS_MEDIA_LOCATION` is auto-granted (normal permission) but `READ_MEDIA_IMAGES` requires a dialog. Check both:
-```java
-getPermissionState("accessMediaLocation") == GRANTED
-&& getPermissionState("readMediaImages") == GRANTED
-```
-
-### Process `getData()` AND `getClipData()`
-They are not mutually exclusive. Both may contain URIs (with overlap). Process independently with dedup.
-
-## PostgreSQL: jangan pakai `DB::raw` di `updateOrCreate`
-
-`updateOrCreate(..., ['count' => DB::raw('COALESCE(count, 0) + 1')])` menghasilkan SQL `INSERT ... VALUES (COALESCE(count, 0) + 1)`. PostgreSQL 16 **reject** karena kolom tabel target tidak bisa direferensi di VALUES clause — hanya valid di `DO UPDATE SET`.
-
-### Pattern aman untuk atomic counter
-
-```php
-DB::transaction(function () use ($identifier) {
-    $row = Model::where(...)->lockForUpdate()->first();
-    if ($row) {
-        $row->increment('count');
-    } else {
-        Model::create([..., 'count' => 1]);
-    }
-});
-```
-
-`lockForUpdate()` + `increment()` dijamin atomic di PostgreSQL.
-
-## Leaflet fitBounds race condition
-Conditionally-rendered Leaflet maps that use `fitBounds` can crash on unmount during CSS zoom animation. Always pass `animate: false`:
-```ts
-map.fitBounds(group.getBounds().pad(0.2), { maxZoom: 16, animate: false });
-```
-
-## API key endpoints
-
-| Endpoint | Notes |
-|---|---|
-| `POST /auth/login` | Public, throttled 10/min |
-| `POST /auth/register` | Public — warga self-registration |
-| `POST /reports/track` | Public, track by report code |
-| `POST /public/reports` | Public (anon), phone-keyed warga report |
-| `POST /reports` | Single report |
-| `POST /reports/batch` | Batch (main + sub-reports) |
-| `POST /analyze` / `POST /analyze-batch` | Single / batch AI (max 20 photos) — proxy to Lambda |
-| `GET\|POST /v1/reports/check-duplicate` | Public, spatial (15m) + textual dedup |
-| `POST /reports/{id}/mulai` | Start work (→ Sedang Diperbaiki) |
-| `POST /reports/{id}/complete` | Requires `after_photo` |
-| `/warga/reports` | Role `warga` — own reports + rating |
-| `/pci/*` | PCI overview / trend / kritis |
-
-Note: UPR was removed (Juni 2026) — `GET /uprs` no longer exists; team assignment lives under `/teams`. Full route list: `backend_POSTGRESQL/routes/api.php`.
-
-## Detection
-
-4 damage classes: Lubang, Retak Kulit Buaya, Retak Memanjang, Retak Melintang. Severity levels: Baik, Rusak Ringan, Rusak Sedang, Rusak Berat.
-
-## AWS Production Mode (Juli 2026)
-
-Frontend local dev (`npm run dev`) sekarang langsung menggunakan API production AWS, tanpa Laravel lokal:
-
-| Service | URL |
-|---|---|
-| API (Laravel) | `https://api.deltajalan.web.id/api` |
-| AI Detection | Lambda Function URL (via `config('services.fastapi.url')`) |
-| Storage | `https://api.deltajalan.web.id/storage/...` |
-
-### Implikasi
-
-- **Tidak perlu** `php artisan serve` atau Laravel lokal — semua API via production
-- **Vite proxy** (`/api/*` → localhost:8080) tidak terpakai karena `VITE_API_BASE_URL` absolute
-- **`resolveImageUrl()`**: semua relative path (`/storage/...`) otomatis prepend `https://api.deltajalan.web.id` — di browser maupun native
-- **Aman dari ORB**: `api.deltajalan.web.id` return JPEG asli (bukan HTML warning seperti ngrok), jadi `<img>` cross-origin tidak masalah
-- **Rebuild required** setelah ganti `.env`: `npm run build:mobile`
-
-## Cross-origin image gotcha (`ERR_BLOCKED_BY_ORB`)
-
-Images can silently fail when `VITE_API_BASE_URL` is set to an absolute ngrok URL.
-
-### The bug chain
-
-1. `.env` has `VITE_API_BASE_URL=https://magnetize...ngrok-free.dev/api`
-2. `resolveImageUrl()` in `src/lib/imageUrl.ts` converts relative `/storage/...` → `https://magnetize.../storage/...`
-3. Page is at `http://localhost:5173` but image loads from `https://magnetize...` → **cross-origin**
-4. `<img>` uses "no-cors" mode by default → response is **opaque**
-5. Ngrok returns its HTML browser-warning page instead of the image
-6. Chrome's ORB sees HTML for an image request → `net::ERR_BLOCKED_BY_ORB`
-
-### Sekarang: aman prepend API origin bahkan di browser
-
-Sebelumnya `resolveImageUrl()` hanya prepend API origin untuk native (Capacitor). Sekarang, karena `VITE_API_BASE_URL` adalah production domain (`api.deltajalan.web.id`), **browser juga prepend**:
-
-```ts
-catch {
-  // Relative URL → prepend API origin (browser maupun native)
-  const apiOrigin = getApiOrigin();
-  if (apiOrigin) {
-    const sep = url.startsWith("/") ? "" : "/";
-    return `${apiOrigin}${sep}${url}`;
-  }
-  return url;
-}
-```
-
-Ini aman karena `api.deltajalan.web.id` return JPEG asli dengan `Content-Type: image/jpeg` — browser tidak akan memblokirnya (tidak seperti ngrok yang return HTML → ORB). `<img>` tag cross-origin tidak butuh CORS untuk display.
-
-Jika `VITE_API_BASE_URL` adalah path relatif (`/api`), `getApiOrigin()` return `""` dan relative path tetap dipertahankan (Vite proxy handle).
-
-### `useBlobImage` re-render cancels in-flight `<img>` requests
-
-In `src/hooks/useBlobImage.ts`, the browser branch called `setBlobUrl(src)` inside a `useEffect`, triggering an unnecessary re-render that cancelled in-flight `<img>` requests. Fix: skip all state management for `!isNative`:
-
-```ts
-useEffect(() => {
-  if (!isNative) return;  // ← browser: return src directly, no state needed
-  ...
-}, [src]);
-```
-
-The hook already returns `src` directly for browser (line `if (!isNative) return src;`), so `setBlobUrl` was a no-op re-render that cancelled image requests.
-
-## Anti-Slop Design Rules
-
-Wajib untuk setiap section landing page agar tidak terlihat AI-generated:
-
-1. **Warna**: Hindari hue 200-290° (biru-ungu) untuk accent/gradient. Gunakan solid color bukan gradient untuk connector/divider.
-2. **Layout**: Jangan gunakan 3-card grid horizontal. Gunakan vertical timeline, list, atau layout asimetris. Setiap section harus punya struktur layout yang berbeda.
-3. **Card radius**: Jangan `rounded-2xl` (16px) untuk semuanya. Variasikan: button `rounded-[6px]`, card `rounded-[14px]` atau `rounded-[10px]`, container `rounded-[12px]`. Off-grid values lebih natural.
-4. **Hover effect**: Jangan `scale-105 + shadow`. Gunakan border color change, background shift, atau subtle underline.
-5. **Motion**: Jangan pakai easing `ease-in-out` untuk semua. Gunakan custom `cubic-bezier()` atau GSAP `power2.out`/`power3.out`. Variasikan duration antar elemen. Tambah `prefers-reduced-motion`.
-6. **Spacing**: Jangan hanya pakai 4px multiples. Sesekali pakai `14px`, `18px`, `22px`. Jangan pakai `gap-6` untuk semua grid.
-7. **Component**: Jangan pakai struktur icon + heading + paragraph card yang identik untuk semua item. Setiap card harus punya susunan konten yang berbeda (misal: sebagian ada icon di atas, sebagian icon di samping, sebagian badge di dalam).
-8. **Section header**: Variasikan badge background color antar section. Jangan pakai indigo-50 (`#eef2ff`) untuk badge di semua section.
-
-## Context7 MCP
-
-Available as a remote MCP server in `opencode.json`. Use these tools for library/framework documentation instead of relying on training data:
-
-| Tool | Usage |
-|---|---|
-| `resolve-library-id` | Search for a library name to get a Context7-compatible ID (e.g. `/reactjs/react.dev`, `/vercel/next.js`) |
-| `query-docs` | Fetch documentation for a specific library ID + question |
-
-**Workflow**: Always call `resolve-library-id` first to get the exact ID, then `query-docs` with that ID. Call `query-docs` max 3x per question. Source: https://context7.com/docs/clients/opencode
-
-## RTK (Rust Token Killer)
-
-RTK v0.43.0 is installed as an OpenCode plugin. It transparently compresses bash command outputs (git, npm, ls, cargo, etc.) by 60-90% before they reach context.
-
-- **Plugin**: `~/.config/opencode/plugins/rtk.ts` — auto-rewrites bash commands
-- **Binary**: `~/.local/bin/rtk` — add to PATH via `export PATH="$HOME/.local/bin:$PATH"`
-- **Check savings**: `rtk gain` or `rtk gain --history`
-- **Config**: `~/.config/rtk/config.toml`
-
-Works on both Linux (native hook) and Windows (CLAUDE.md fallback). Source: https://www.rtk-ai.app/
+## Gotchas that bite
+
+- `VITE_API_BASE_URL` is baked at build time — changing `.env` alone does nothing; rebuild (`build:mobile`/Vercel).
+- `vite.config.ts` uses `@lovable.dev/vite-tanstack-config` — never add Vite plugins manually. Multiple configs exist (`dev`, `capacitor`, `sw`); mobile build uses `vite.config.sw.ts`.
+- `src/routeTree.gen.ts` is auto-generated — do not edit.
+- Tailwind v4 is CSS-only (`@import "tailwindcss"`); no `tailwind.config.*`.
+- TanStack child routes (`foo.detail.tsx`) only mount if parent `foo.tsx` renders `<Outlet />`. List+detail pattern: `foo.tsx` layout + `foo/index.tsx` + `foo.detail.tsx`.
+- No frontend test framework. `build.py` patches HTML (splash CSS, error script) for Capacitor — don't bypass it.
+- Capacitor `com.jalankita.app`, `androidScheme: http`, `cleartext: true`. Custom `PhotoExifGps` plugin must be registered explicitly in `MainActivity.java` before `super.onCreate()` (not auto-discovered). Never detect native via `window.Capacitor !== undefined` — use `Capacitor.isNativePlatform?.() === true`.
+- Native photo pick may return `lat/lng: null` (DocumentsProvider, Android 14+) — fall back to JS `readExifGps(file)`.
+- All `map.fitBounds(...)` calls need `{ animate: false }` — zoom animation races unmount and crashes.
+- `resolveImageUrl()` prepends API origin for `/storage/...` paths (safe: prod domain serves real JPEGs). Don't "fix" cross-origin `<img>` — only ngrok HTML warnings triggered ORB, not prod.
+- Telegram webhook is `POST /telegram/webhook` in `routes/web.php` (no `/api` prefix), CSRF-exempt in `bootstrap/app.php`.
+- Trust score is OFF — code kept behind `// ── TRUST SCORE [NONAKTIF] ──` markers. Don't re-add trust fields to responses.
+- Upload rules (backend-enforced): EXIF date ≤2 days, else reject (single)/skip file (batch); SHA-256 image dedup silently skips; per-photo GPS EXIF with form-coordinate fallback; coordinates validated inside Sidoarjo/Indonesia; road name from LocationIQ autocomplete (API tolerates manual input, supervisor reviews).
+- Photos live on disk (`storage/app/public/`), never base64 in DB. UI icons via `<Icon>` (Material names), never emoji.
+- PostgreSQL: no `DB::raw` counters inside `updateOrCreate` (column refs illegal in `VALUES`). Use `lockForUpdate()` + `increment()`, else `create([... 'count' => 1])` in a transaction.
+- Lambda limits: ~6 MB payload, 15 s timeout, 3–6 s cold start. Rebuild via `update-lambda.sh` after any `handler.py` change.
+
+## References (read, don't duplicate)
+
+- Test accounts + password: `docs/akun-testing.md`. Full route list: `backend_POSTGRESQL/routes/api.php`.
+- Landing-page style constraints: `DESIGN.md` + "Anti-Slop" rules (no blue-purple accents, no uniform 3-card grids/`rounded-2xl`/`scale-105` hovers, vary spacing/easing per section).
+- Stale file: `AGENTS-opencode.md` still describes UPR/`petugas_eksekusi`/FastAPI-prod — do not trust it.

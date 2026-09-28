@@ -7,7 +7,7 @@
 #
 # Prerequisites:
 #   1. Build APK dulu via: bash scripts/start-android.sh --build-only
-#   2. SSH key production: LightsailDefaultKey-ap-southeast-1.pem
+#   2. SSH key production di ~/.ssh/LightsailDefaultKey-ap-southeast-1.pem
 
 set -euo pipefail
 
@@ -17,7 +17,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 APK_SRC="${1:-$PROJECT_ROOT/Frontend-stable/android/app/build/outputs/apk/debug/app-debug.apk}"
 REMOTE_HOST="ubuntu@47.131.39.245"
 REMOTE_DIR="/var/www/deltajalan/backend_POSTGRESQL/storage/app/public/apk"
-SSH_KEY="$PROJECT_ROOT/LightsailDefaultKey-ap-southeast-1.pem"
+SSH_KEY="$HOME/.ssh/LightsailDefaultKey-ap-southeast-1.pem"
 
 if [ ! -f "$APK_SRC" ]; then
     echo "[FAIL] APK tidak ditemukan: $APK_SRC"
