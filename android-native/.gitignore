@@ -1,0 +1,7 @@
+# Android / Gradle — regenerable, jangan commit
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+.DS_Store

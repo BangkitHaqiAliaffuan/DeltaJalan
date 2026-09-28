@@ -101,6 +101,12 @@ Route::get('/v1/public/reports/{reportCode}', [WargaReportController::class, 'pu
  */
 Route::get('/public/download-apk', [ApkDownloadController::class, 'download']);
 
+/**
+ * GET /api/app/version?platform=android&version_code=N
+ * Metadata versi untuk force-update aplikasi native (config-based).
+ */
+Route::get('/app/version', [ApkDownloadController::class, 'version']);
+
 // ── Routes yang memerlukan autentikasi Sanctum ────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
     /**
