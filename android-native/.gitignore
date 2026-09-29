@@ -5,3 +5,5 @@ app/build/
 local.properties
 *.iml
 .DS_Store
+# Firebase — berisi API key; copy manual dari Frontend-stable/android/app/
+app/google-services.json

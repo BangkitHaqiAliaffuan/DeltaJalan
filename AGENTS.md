@@ -9,8 +9,9 @@ Road damage reporting app for Dinas PU Bina Marga Kab. Sidoarjo. Roles: `petugas
 Frontend-stable/        React 19 + TanStack Start SSR + Tailwind v4, Vite 7
 backend_POSTGRESQL/     Laravel 13 REST API (PHP 8.3, Sanctum, PostgreSQL 16)
 backend_AI/             FastAPI dev (server.py :8000) / Lambda prod (lambda/handler.py, onnxruntime — no PyTorch)
-scripts/                start-android.sh, start-dev-with-ngrok.sh, start-ubuntu.sh, start-dev-ubuntu.sh,
-                        deploy-laravel.sh, update-lambda.sh, deltajalan.nginx.conf, deltajalan-worker.conf
+scripts/                deploy-laravel.sh (manual fallback), update-lambda.sh, deltajalan.nginx.conf, deltajalan-worker.conf,
+                        start-*.sh / start-tunnel.ps1 (user-run dev/tunnel helpers — never run these)
+android-native/         separate Kotlin MVP for petugas (same `com.jalankita.app`); agent must not run `gradlew`
 docker-compose.yml      PHP 8.3 + PostgreSQL 16 (Ubuntu Docker path; Windows uses native PHP)
 ```
 
@@ -46,8 +47,8 @@ npm run lint | npm run format            # eslint / prettier --write .
 npm run build                            # SSR prod build (Vercel)
 npm run build:mobile                     # SPA for Capacitor (vite.config.sw.ts + build.py --build-only)
 
-# Laravel (backend_POSTGRESQL/) — native; on Ubuntu Docker prefix with `docker compose exec php`
-composer run dev                         # serve :8080 + queue + logs + schedule + vite (concurrently)
+# Laravel (backend_POSTGRESQL/) — native (`php artisan serve` defaults :8000); on Ubuntu Docker prefix with `docker compose exec php` (container serves :8080)
+composer run dev                         # serve + queue + logs + schedule + vite (concurrently)
 composer run test                        # config:clear + phpunit (SQLite :memory:, see phpunit.xml)
 php vendor/bin/pint                      # PHP lint
 docker compose exec php php artisan {command}   # artisan via Docker
@@ -55,8 +56,9 @@ docker compose exec php php artisan {command}   # artisan via Docker
 # AI: dev `cd backend_AI && python server.py` (:8000); prod redeploy after handler.py changes:
 bash scripts/update-lambda.sh [--skip-test]
 
-# Backend deploy: CI `.github/workflows/deploy-backend.yml` (push main touching backend_POSTGRESQL/).
+# Backend deploy: CI `.github/workflows/deploy-backend.yml` (push main touching backend_POSTGRESQL/; self-hosted prod runner runs `deltajalan-deploy` + worker restart + php-fpm reload + endpoint verify).
 # Fallback manual on server: `bash scripts/deploy-laravel.sh` (pull + install + migrate --force + cache + restart workers)
+# `DEPLOY.md` is stale (old AWS EC2 + Cloudflare-tunnel plan) — do not follow it.
 ```
 
 ## Gotchas that bite
@@ -82,4 +84,5 @@ bash scripts/update-lambda.sh [--skip-test]
 
 - Test accounts + password: `docs/akun-testing.md`. Full route list: `backend_POSTGRESQL/routes/api.php`.
 - Landing-page style constraints: `DESIGN.md` + "Anti-Slop" rules (no blue-purple accents, no uniform 3-card grids/`rounded-2xl`/`scale-105` hovers, vary spacing/easing per section).
-- Stale file: `AGENTS-opencode.md` still describes UPR/`petugas_eksekusi`/FastAPI-prod — do not trust it.
+- Native Android plan: `docs/rencana-native-android.md`; `android-native/README.md` for build (user-run).
+- `README.md` is stale on roles (still lists `petugas_eksekusi`/UPR) and EXIF age (says 7 days; code enforces `max_photo_age_days`, default 2) — trust code + this file.

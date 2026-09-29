@@ -2,7 +2,7 @@
 
 | Item | Isi |
 |---|---|
-| Status | Fase 1 berjalan (scaffold + endpoint version) |
+| Status | Fase 1 selesai di kode (login/logout, push, 401 → login ulang) — menunggu build & uji user |
 | Keputusan terkunci | MVP petugas · MapLibre Native · endpoint version-check baru · sideload via endpoint existing |
 | Backend | `https://api.deltajalan.web.id` (tidak diubah kecuali endpoint versi) |
 
@@ -16,7 +16,7 @@
 | 4 | Layar MVP ada (`upload`, `ai-result`, `detail-report`, `tugas-saya`, `lacak`, `notifications`) | Semua file routes ada | ✅ |
 | 5 | Kontrak API lengkap di `routes/api.php` | Auth, analyze, batch, fcm-token, download-apk, reverse-geocode, worker/location ditemukan | ✅ |
 | 6 | osmdroid diarsipkan — jangan dipakai | Pengumuman arsip GitHub `osmdroid/osmdroid` | ✅ |
-| 7 | MapLibre aktif, clustering + offline resmi | Release `android-v13.6.0` (Agu 2026); dipakai Wikipedia & StreetComplete | ✅ |
+| 7 | MapLibre aktif, clustering + offline resmi | `org.maplibre.gl:android-sdk:11.11.0` (terverifikasi Context7 `/maplibre/maplibre-native` + README upstream, Sep 2026); dipakai Wikipedia & StreetComplete | ✅ |
 | 8 | Tile OSM melarang prefetch/offline, blokir tanpa pemberitahuan | `operations.osmfoundation.org/policies/tiles`; kasus blokir Feb 2026 | ✅ |
 
 ## 2. Tujuan & scope

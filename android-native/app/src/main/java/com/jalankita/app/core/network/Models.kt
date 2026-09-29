@@ -3,7 +3,7 @@ package com.jalankita.app.core.network
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
-/** Envelope standar backend: {success, message?, data?, errors?}. */
+/** Envelope standar backend untuk endpoint yang membungkus payload di `data`. */
 @JsonClass(generateAdapter = true)
 data class ApiEnvelope<T>(
     val success: Boolean,
@@ -11,10 +11,39 @@ data class ApiEnvelope<T>(
     val data: T? = null,
 )
 
+/**
+ * POST /api/auth/login — backend mengembalikan bentuk FLAT
+ * `{success, message, token, user}` (bukan envelope `data`).
+ * Kontrak: backend_POSTGRESQL/app/Http/Controllers/AuthController.php ::login.
+ */
+@JsonClass(generateAdapter = true)
+data class LoginResponse(
+    val success: Boolean,
+    val message: String? = null,
+    val token: String? = null,
+    val user: UserDto? = null,
+)
+
+/**
+ * GET /api/auth/me — bentuk FLAT `{success, user}`.
+ * Kontrak: AuthController.php ::me.
+ */
+@JsonClass(generateAdapter = true)
+data class MeResponse(
+    val success: Boolean,
+    val user: UserDto? = null,
+)
+
 @JsonClass(generateAdapter = true)
 data class LoginRequest(
     val email: String,
     val password: String,
+)
+
+@JsonClass(generateAdapter = true)
+data class FcmTokenRequest(
+    @Json(name = "fcm_token") val fcmToken: String,
+    @Json(name = "device_info") val deviceInfo: Map<String, String>? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -27,12 +56,6 @@ data class UserDto(
     @Json(name = "role_label") val roleLabel: String?,
     @Json(name = "team_id") val teamId: Long?,
     @Json(name = "team_name") val teamName: String?,
-)
-
-@JsonClass(generateAdapter = true)
-data class LoginResponse(
-    val token: String,
-    val user: UserDto,
 )
 
 /** GET /api/app/version — config-based, tanpa auth. */

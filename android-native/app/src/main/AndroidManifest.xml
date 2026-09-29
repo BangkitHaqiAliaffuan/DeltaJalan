@@ -34,5 +34,14 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="delta_jalan_general" />
+
+        <!-- Push Fase 1: terima notifikasi + rotasi token saat sesi aktif -->
+        <service
+            android:name=".core.notify.DeltaJalanMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>
