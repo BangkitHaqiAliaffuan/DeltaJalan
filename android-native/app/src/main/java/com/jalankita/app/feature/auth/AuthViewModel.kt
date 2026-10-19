@@ -9,6 +9,7 @@ import com.google.firebase.messaging.FirebaseMessaging
 import com.jalankita.app.core.data.AuthRepository
 import com.jalankita.app.core.data.FcmRepository
 import com.jalankita.app.core.data.UnauthorizedException
+import com.jalankita.app.core.data.UserRole
 import com.jalankita.app.core.network.UserDto
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
@@ -55,7 +56,14 @@ class AuthViewModel @Inject constructor(
                 if (!auth.isLoggedIn()) {
                     SessionState.Unauthenticated
                 } else {
-                    SessionState.Authenticated(auth.me())
+                    val me = auth.me()
+                    // Sesi admin lama (sebelum gate login) ikut ditolak.
+                    if (me.role == UserRole.ADMIN) {
+                        runCatching { auth.logout() }
+                        SessionState.Unauthenticated
+                    } else {
+                        SessionState.Authenticated(me)
+                    }
                 }
             } catch (e: UnauthorizedException) {
                 SessionState.Unauthenticated
@@ -70,7 +78,7 @@ class AuthViewModel @Inject constructor(
     fun login() {
         if (loginBusy) return
         if (email.isBlank() || password.isBlank()) {
-            loginError = "Email dan kata sandi wajib diisi."
+            loginError = "Email/no. telepon dan kata sandi wajib diisi."
             return
         }
         viewModelScope.launch {
@@ -78,6 +86,14 @@ class AuthViewModel @Inject constructor(
             loginError = null
             try {
                 val user = auth.login(email, password)
+                // Tidak ada admin di aplikasi (cermin masuk.tsx:64) — admin lewat web.
+                if (user.role == UserRole.ADMIN) {
+                    runCatching { auth.logout() }
+                    loginError = "Akun admin hanya dapat masuk lewat versi web."
+                    return@launch
+                }
+                // Aplikasi melayani petugas, warga, dan supervisor (dashboard
+                // bercabang per role di MainActivity.Root).
                 session = SessionState.Authenticated(user)
                 email = ""
                 password = ""
@@ -85,7 +101,9 @@ class AuthViewModel @Inject constructor(
             } catch (e: UnauthorizedException) {
                 loginError = e.message
             } catch (e: Exception) {
-                loginError = e.message ?: "Login gagal, coba lagi."
+                // Frontend menampilkan pesan koneksi yang ramah; bedakan bila jaringan.
+                loginError = e.message?.takeIf { it.isNotBlank() }
+                    ?: "Tidak dapat terhubung ke server. Pastikan server berjalan."
             } finally {
                 loginBusy = false
             }

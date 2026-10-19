@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Paths yang boleh dibagikan via FileProvider (androidx.core.content.FileProvider).
+  Dipakai untuk menyerahkan berkas internal app (mis. hasil CameraX capture,
+  img2img AI, atau cache kompresi) ke aplikasi lain (kamera/gallery/share)
+  tanpa mengandalkan file:// URI yang dilarang sejak Android 7 (N).
+
+  Dirujuk dari AndroidManifest.xml: android:resource="@xml/file_paths".
+-->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Cache internal app: sementara, aman untuk berbagi. -->
+    <cache-path
+        name="internal_cache"
+        path="." />
+    <!-- Cache eksternal app (scoped, tidak butuh izin storage). -->
+    <external-cache-path
+        name="external_cache"
+        path="." />
+    <!-- File internal app (mis. hasil kompresi foto sebelum upload). -->
+    <files-path
+        name="internal_files"
+        path="." />
+    <!-- Direktori Downloads eksternal scoped (getExternalFilesDir — API 29+ scoped storage).
+         Dipakai oleh ReportDownloader untuk berbagi PDF/Excel rekap via Intent ACTION_VIEW. -->
+    <external-files-path
+        name="external_downloads"
+        path="Download/" />
+    <!-- Downloads publik (Environment.getExternalStoragePublicDirectory — API ≤28 atau legacy).
+         Digunakan sebagai fallback primer di ReportDownloader. -->
+    <external-path
+        name="public_downloads"
+        path="Download/" />
+</paths>

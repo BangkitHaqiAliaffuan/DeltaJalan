@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Port permission set versi Capacitor + CAMERA (native butuh langsung,
          versi Capacitor memakai system picker via plugin). -->
@@ -7,13 +8,21 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Android 10+: tracking periodik jalan saat app background (Fase 3). -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- Android <= 12 (API 32): READ_MEDIA_IMAGES tidak berlaku, picker MediaStore butuh ini. -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <!-- Android 10+: tanpa izin ini, tag EXIF GPS DIHAPUS dari stream content://. -->
     <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
+        android:name=".DeltaJalanApplication"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -35,6 +44,22 @@
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="delta_jalan_general" />
 
+        <!--
+          FileProvider — berbagi berkas internal app (mis. hasil CameraX capture
+          Fase 5, cache kompresi, image_result AI) ke intent sistem tanpa file://
+          URI (dilarang sejak Android 7). Path diresmikan di res/xml/file_paths.xml.
+          Diotoritas dengan applicationId agar unik per paket.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- Push Fase 1: terima notifikasi + rotasi token saat sesi aktif -->
         <service
             android:name=".core.notify.DeltaJalanMessagingService"
@@ -43,5 +68,18 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <!-- Fase 3 (prasyarat K8): matikan init otomatis WorkManager agar
+             factory custom dari DeltaJalanApplication yang dipakai. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
     </application>
 </manifest>
