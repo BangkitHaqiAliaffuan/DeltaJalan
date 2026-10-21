@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Support\PhoneNumber;
+use App\Support\UserPayload;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -67,7 +69,7 @@ class AuthController extends Controller
 
         // ── Verifikasi password ───────────────────────────────────────────
         // Gunakan Hash::check() untuk membandingkan password plain dengan hash bcrypt
-        if (! $user || ! Hash::check($request->password, $user->password)) {
+        if (! $user || ! $user->password || ! Hash::check($request->password, $user->password)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Email atau kata sandi salah.',
@@ -92,19 +94,7 @@ class AuthController extends Controller
             'success' => true,
             'message' => 'Login berhasil.',
             'token' => $token,
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'phone' => $user->phone,
-                'role' => $user->role,
-                'role_label' => $user->role_label,
-                'wilayah' => $user->wilayah,
-                'nip' => $user->nip,
-                'initials' => $user->initials,
-                'team_id' => $user->team_id,
-                'team_name' => $user->team?->name,
-            ],
+            'user' => UserPayload::make($user),
         ], 200);
     }
 
@@ -167,6 +157,57 @@ class AuthController extends Controller
         ], 201);
     }
 
+    public function completePhone(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'regex:'.PhoneNumber::VALIDATION_REGEX],
+        ]);
+
+        $user = $request->user();
+
+        if ($user->role !== 'warga') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Endpoint ini hanya untuk akun warga.',
+                'error_code' => 'GOOGLE_WARGA_ONLY',
+            ], 403);
+        }
+
+        $phone = PhoneNumber::normalize($validated['phone']);
+
+        if (filled($user->phone)) {
+            if ($user->phone === $phone) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Nomor telepon sudah tersimpan.',
+                    'user' => UserPayload::make($user),
+                ], 200);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Nomor telepon akun sudah terisi. Hubungi administrator untuk mengubahnya.',
+                'error_code' => 'PHONE_ALREADY_SET',
+            ], 422);
+        }
+
+        if (User::where('phone', $phone)->whereKeyNot($user->id)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Nomor telepon sudah terdaftar.',
+                'error_code' => 'PHONE_TAKEN',
+            ], 422);
+        }
+
+        $user->forceFill(['phone' => $phone])->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Nomor telepon berhasil disimpan.',
+            'user' => UserPayload::make($user->fresh()),
+        ], 200);
+    }
+
     public function logout(Request $request): JsonResponse
     {
         $request->user()->currentAccessToken()->delete();
@@ -179,23 +220,9 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
-        $user = $request->user()->load('team');
-
         return response()->json([
             'success' => true,
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'phone' => $user->phone,
-                'role' => $user->role,
-                'role_label' => $user->role_label,
-                'wilayah' => $user->wilayah,
-                'nip' => $user->nip,
-                'initials' => $user->initials,
-                'team_id' => $user->team_id,
-                'team_name' => $user->team?->name,
-            ],
+            'user' => UserPayload::make($request->user()),
         ], 200);
     }
 }

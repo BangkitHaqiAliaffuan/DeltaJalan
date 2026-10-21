@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -15,6 +16,7 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'firebase_uid',
         'password',
         'role',
         'wilayah',
@@ -27,6 +29,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'firebase_uid',
     ];
 
     protected function casts(): array
@@ -55,12 +58,18 @@ class User extends Authenticatable
 
     public function getInitialsAttribute(): string
     {
-        $words = explode(' ', trim($this->name));
-        if (count($words) >= 2) {
-            return strtoupper(substr($words[0], 0, 1).substr($words[1], 0, 1));
+        $name = trim((string) $this->name);
+        if ($name === '') {
+            return '?';
         }
 
-        return strtoupper(substr($this->name, 0, 2));
+        $words = preg_split('/\s+/u', $name) ?: [];
+
+        if (count($words) >= 2) {
+            return Str::upper(Str::substr($words[0], 0, 1).Str::substr($words[1], 0, 1));
+        }
+
+        return Str::upper(Str::substr($name, 0, 2));
     }
 
     public function getRoleLabelAttribute(): string

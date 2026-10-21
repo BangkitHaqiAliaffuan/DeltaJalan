@@ -1,6 +1,15 @@
 package com.jalankita.app.core.data
 
+import com.google.android.gms.tasks.Task
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
+import com.google.firebase.auth.GoogleAuthProvider
+import com.jalankita.app.core.network.ApiErrorResponse
 import com.jalankita.app.core.network.ApiService
+import com.jalankita.app.core.network.CompleteGoogleOnboardingRequest
+import com.jalankita.app.core.network.CompletePhoneRequest
+import com.jalankita.app.core.network.GoogleLoginRequest
+import com.jalankita.app.core.network.GoogleProfileDto
 import com.jalankita.app.core.network.LoginRequest
 import com.jalankita.app.core.network.RegisterRequest
 import com.jalankita.app.core.network.RegisterResponse
@@ -8,9 +17,12 @@ import com.jalankita.app.core.network.UserDto
 import com.squareup.moshi.Moshi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.suspendCancellableCoroutine
 import retrofit2.HttpException
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 /**
  * Otentikasi Sanctum — token non-expiring.
@@ -25,6 +37,7 @@ class AuthRepository @Inject constructor(
     private val api: ApiService,
     private val tokenStore: TokenStore,
     private val moshi: Moshi,
+    private val firebaseAuth: FirebaseAuth,
 ) {
     val token: Flow<String?> = tokenStore.token
 
@@ -57,6 +70,147 @@ class AuthRepository @Inject constructor(
             // Logout server best-effort — token lokal tetap dibersihkan.
         }
         tokenStore.clear()
+    }
+
+    /**
+     * Login Google dua tahap: Google ID token → Firebase ID token → backend.
+     * Backend memverifikasi Firebase token, bukan Google token.
+     */
+    suspend fun loginWithGoogle(googleIdToken: String): GoogleLoginResult {
+        val firebaseToken = try {
+            firebaseIdToken(googleIdToken)
+        } catch (e: Exception) {
+            throw Exception(firebaseErrorMessage(e))
+        }
+
+        val res = try {
+            api.googleLogin(GoogleLoginRequest(firebaseToken))
+        } catch (e: HttpException) {
+            throw Exception(apiErrorMessage(e))
+        }
+
+        val token = res.token
+        val user = res.user
+        if (res.success && !token.isNullOrBlank() && user != null) {
+            tokenStore.save(token)
+            return GoogleLoginResult.Authenticated(user)
+        }
+
+        val onboardingToken = res.onboardingToken
+        if (res.success && res.needsOnboarding && !onboardingToken.isNullOrBlank()) {
+            val profile = res.profile ?: throw Exception("Profil Google tidak lengkap.")
+            return GoogleLoginResult.NeedsOnboarding(
+                onboardingToken = onboardingToken,
+                profile = profile,
+                isNewUser = res.isNewUser,
+                missingFields = res.missingFields
+                    ?: if (res.isNewUser) listOf("phone", "password") else listOf("phone"),
+            )
+        }
+
+        throw Exception(res.message ?: "Login Google gagal. Coba lagi.")
+    }
+
+    /**
+     * Selesaikan onboarding Google. Password hanya dikirim untuk akun baru;
+     * akun lama tanpa phone cukup mengirim phone.
+     */
+    suspend fun completeGoogleOnboarding(
+        onboardingToken: String,
+        phone: String,
+        password: String? = null,
+        passwordConfirmation: String? = null,
+    ): UserDto {
+        val res = try {
+            api.completeGoogleOnboarding(
+                CompleteGoogleOnboardingRequest(
+                    onboardingToken = onboardingToken,
+                    phone = phone.trim(),
+                    password = password,
+                    passwordConfirmation = passwordConfirmation,
+                ),
+            )
+        } catch (e: HttpException) {
+            throw Exception(apiErrorMessage(e))
+        }
+
+        val token = res.token
+        val user = res.user
+        if (!res.success || token.isNullOrBlank() || user == null) {
+            throw Exception(res.message ?: "Gagal menyelesaikan pendaftaran.")
+        }
+        tokenStore.save(token)
+        return user
+    }
+
+    /** Lengkapi phone untuk sesi Sanctum lama (mis. login password sebelum aturan ini). */
+    suspend fun completePhone(phone: String): UserDto {
+        val res = try {
+            api.completePhone(CompletePhoneRequest(phone.trim()))
+        } catch (e: HttpException) {
+            throw Exception(apiErrorMessage(e))
+        }
+
+        if (!res.success || res.user == null) {
+            throw Exception(res.message ?: "Gagal menyimpan nomor telepon.")
+        }
+        return res.user
+    }
+
+    private suspend fun firebaseIdToken(googleIdToken: String): String {
+        if (googleIdToken.isBlank()) {
+            throw Exception("Token Google tidak tersedia.")
+        }
+
+        return try {
+            val credential = GoogleAuthProvider.getCredential(googleIdToken, null)
+            val authResult = firebaseAuth.signInWithCredential(credential).awaitTask()
+            val firebaseUser = authResult.user
+                ?: throw Exception("Akun Firebase tidak ditemukan.")
+            firebaseUser.getIdToken(false).awaitTask().token
+                ?: throw Exception("Gagal mendapatkan token Firebase.")
+        } finally {
+            // Jangan tinggalkan sesi Firebase aktif; aplikasi memakai Sanctum.
+            firebaseAuth.signOut()
+        }
+    }
+
+    private fun apiErrorMessage(e: HttpException): String {
+        val body = e.response()?.errorBody()?.string()
+        val parsed = runCatching {
+            moshi.adapter(ApiErrorResponse::class.java).fromJson(body ?: "")
+        }.getOrNull()
+
+        val fieldError = parsed?.errors?.values?.flatten()?.firstOrNull()
+        val codeMessage = when (parsed?.errorCode) {
+            "FIREBASE_TOKEN_INVALID" -> "Token Google tidak valid atau kedaluwarsa. Coba lagi."
+            "FIREBASE_UNAVAILABLE" -> "Layanan Google sedang bermasalah. Coba beberapa saat lagi."
+            "GOOGLE_WARGA_ONLY" -> "Akun Google hanya dapat digunakan untuk akun warga."
+            "ACCOUNT_BANNED" -> "Akun telah dinonaktifkan. Hubungi administrator."
+            "FIREBASE_UID_CONFLICT" -> "Akun ini sudah terhubung dengan akun Google lain."
+            "ONBOARDING_EXPIRED" -> "Sesi pendaftaran sudah kedaluwarsa. Silakan login Google lagi."
+            "PHONE_TAKEN" -> "Nomor telepon sudah terdaftar."
+            "PHONE_ALREADY_SET" -> "Nomor telepon akun sudah terisi."
+            "PHONE_REQUIRED" -> "Lengkapi nomor telepon terlebih dahulu."
+            "ONBOARDING_CONFLICT" -> "Email atau nomor telepon sudah terdaftar."
+            else -> null
+        }
+
+        return fieldError ?: codeMessage ?: parsed?.message
+            ?: "Permintaan gagal (${e.code()})."
+    }
+
+    private fun firebaseErrorMessage(e: Throwable): String = when (e) {
+        is FirebaseAuthException -> when (e.errorCode) {
+            "ERROR_NETWORK_REQUEST_FAILED" ->
+                "Tidak dapat terhubung ke Google. Periksa koneksi internet."
+            "ERROR_INVALID_CREDENTIAL" ->
+                "Akun Google tidak valid. Silakan coba lagi."
+            "ERROR_USER_DISABLED" ->
+                "Akun Google ini dinonaktifkan."
+            else -> "Gagal masuk dengan Google. Coba lagi."
+        }
+        else -> e.message ?: "Gagal masuk dengan Google. Coba lagi."
     }
 
     /**
@@ -126,6 +280,37 @@ class AuthRepository @Inject constructor(
 sealed interface RegisterResult {
     data class Success(val message: String) : RegisterResult
     data class Error(val message: String) : RegisterResult
+}
+
+/** Hasil login Google: sesi siap dipakai, atau perlu onboarding phone/password. */
+sealed interface GoogleLoginResult {
+    data class Authenticated(val user: UserDto) : GoogleLoginResult
+
+    data class NeedsOnboarding(
+        val onboardingToken: String,
+        val profile: GoogleProfileDto,
+        val isNewUser: Boolean,
+        val missingFields: List<String>,
+    ) : GoogleLoginResult
+}
+
+/** Bridge Task Google Play Services tanpa menambah coroutines-play-services. */
+private suspend fun <T> Task<T>.awaitTask(): T = suspendCancellableCoroutine { cont ->
+    addOnCompleteListener { task ->
+        if (!cont.isActive) return@addOnCompleteListener
+        val error = task.exception
+        when {
+            task.isCanceled -> cont.resumeWithException(
+                Exception("Permintaan Google dibatalkan."),
+            )
+            error != null -> cont.resumeWithException(error)
+            else -> {
+                val result = task.result
+                if (result != null) cont.resume(result)
+                else cont.resumeWithException(Exception("Respons Google kosong."))
+            }
+        }
+    }
 }
 
 /** Peran yang dikenali backend (AuthController + seeder). */

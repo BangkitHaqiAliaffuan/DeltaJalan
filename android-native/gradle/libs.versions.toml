@@ -13,6 +13,8 @@ camerax = "1.4.2"
 exifinterface = "1.3.7"
 workmanager = "2.9.1"
 firebaseBom = "33.10.0"
+credentials = "1.3.0"
+googleid = "1.1.1"
 maplibre = "11.11.0"
 lifecycle = "2.8.7"
 core = "1.15.0"
@@ -45,6 +47,10 @@ exifinterface = { group = "androidx.exifinterface", name = "exifinterface", vers
 workmanager = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workmanager" }
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
+firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
+credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
+credentials-play-services-auth = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
+googleid = { group = "com.google.android.libraries.identity.googleid", name = "googleid", version.ref = "googleid" }
 lifecycle-runtime = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }
 lifecycle-viewmodel = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "core" }

@@ -3,6 +3,7 @@
 use App\Http\Controllers\AIController;
 use App\Http\Controllers\ApkDownloadController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PatrolScheduleController;
 use App\Http\Controllers\PciController;
@@ -62,6 +63,9 @@ Route::post('/v1/reports/check-duplicate', [ReportController::class, 'checkDupli
 // ── Auth routes (public) ──────────────────────────────────────────────────
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 Route::post('/auth/register', [AuthController::class, 'register']);
+Route::post('/auth/google', [GoogleAuthController::class, 'login'])->middleware('throttle:10,1');
+Route::post('/auth/google/complete', [GoogleAuthController::class, 'complete'])->middleware('throttle:10,1');
+Route::post('/auth/phone', [AuthController::class, 'completePhone'])->middleware(['auth:sanctum', 'throttle:10,1']);
 Route::post('/auth/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
 Route::get('/auth/me', [AuthController::class, 'me'])->middleware('auth:sanctum');
 
@@ -400,14 +404,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
 
     // ── Warga Reports ─────────────────────────────────────────────────────
-    Route::post('/warga/reports', [WargaReportController::class, 'store'])
-        ->middleware('role:warga');
-    Route::get('/warga/reports', [WargaReportController::class, 'index'])
-        ->middleware('role:warga');
-    Route::get('/warga/reports/{id}', [WargaReportController::class, 'show'])
-        ->middleware('role:warga');
-    Route::post('/warga/reports/{id}/rating', [WargaReportController::class, 'rate'])
-        ->middleware('role:warga');
+    Route::middleware(['role:warga', 'ensure.warga.phone'])->group(function () {
+        Route::post('/warga/reports', [WargaReportController::class, 'store']);
+        Route::get('/warga/reports', [WargaReportController::class, 'index']);
+        Route::get('/warga/reports/{id}', [WargaReportController::class, 'show']);
+        Route::post('/warga/reports/{id}/rating', [WargaReportController::class, 'rate']);
+    });
 
     // ── PCI Routes ──────────────────────────────────────────────────────────
     Route::get('/pci/overview', [PciController::class, 'overview']);

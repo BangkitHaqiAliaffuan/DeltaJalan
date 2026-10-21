@@ -25,6 +25,20 @@ interface ApiService {
     @POST("auth/register")
     suspend fun register(@Body body: RegisterRequest): RegisterResponse
 
+    /** POST /api/auth/google — tukar Firebase ID token dengan sesi/onboarding. */
+    @POST("auth/google")
+    suspend fun googleLogin(@Body body: GoogleLoginRequest): GoogleLoginResponse
+
+    /** POST /api/auth/google/complete — selesaikan onboarding Google. */
+    @POST("auth/google/complete")
+    suspend fun completeGoogleOnboarding(
+        @Body body: CompleteGoogleOnboardingRequest,
+    ): LoginResponse
+
+    /** POST /api/auth/phone — lengkapi phone untuk sesi Sanctum yang sudah ada. */
+    @POST("auth/phone")
+    suspend fun completePhone(@Body body: CompletePhoneRequest): MeResponse
+
     @POST("auth/logout")
     suspend fun logout(): ApiEnvelope<StatusPayload?>
 

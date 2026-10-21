@@ -43,6 +43,7 @@ data class LoginResponse(
 @JsonClass(generateAdapter = true)
 data class MeResponse(
     val success: Boolean,
+    val message: String? = null,
     val user: UserDto? = null,
 )
 
@@ -50,6 +51,57 @@ data class MeResponse(
 data class LoginRequest(
     val email: String,
     val password: String,
+)
+
+/**
+ * POST /api/auth/google — body berisi Firebase ID token (bukan Google ID token).
+ * Kontrak: backend_POSTGRESQL/app/Http/Controllers/GoogleAuthController.php ::login.
+ */
+@JsonClass(generateAdapter = true)
+data class GoogleLoginRequest(
+    @Json(name = "firebase_token") val firebaseToken: String,
+)
+
+@JsonClass(generateAdapter = true)
+data class GoogleProfileDto(
+    val name: String,
+    val email: String,
+)
+
+/**
+ * Respons Google login: langsung `{token,user}` untuk warga lama yang sudah
+ * punya phone, atau `{needs_onboarding,onboarding_token,profile}` untuk akun baru
+ * / akun lama tanpa phone.
+ */
+@JsonClass(generateAdapter = true)
+data class GoogleLoginResponse(
+    val success: Boolean,
+    val message: String? = null,
+    @Json(name = "needs_onboarding") val needsOnboarding: Boolean = false,
+    @Json(name = "is_new_user") val isNewUser: Boolean = false,
+    @Json(name = "missing_fields") val missingFields: List<String>? = null,
+    @Json(name = "onboarding_token") val onboardingToken: String? = null,
+    val profile: GoogleProfileDto? = null,
+    val token: String? = null,
+    val user: UserDto? = null,
+)
+
+/**
+ * POST /api/auth/google/complete — password hanya wajib untuk akun baru.
+ * Moshi tidak menyerialkan null, jadi akun lama hanya mengirim token + phone.
+ */
+@JsonClass(generateAdapter = true)
+data class CompleteGoogleOnboardingRequest(
+    @Json(name = "onboarding_token") val onboardingToken: String,
+    val phone: String,
+    val password: String? = null,
+    @Json(name = "password_confirmation") val passwordConfirmation: String? = null,
+)
+
+/** POST /api/auth/phone — melengkapi phone untuk sesi Sanctum yang sudah ada. */
+@JsonClass(generateAdapter = true)
+data class CompletePhoneRequest(
+    val phone: String,
 )
 
 /**
@@ -100,6 +152,8 @@ data class UserDto(
     @Json(name = "role_label") val roleLabel: String?,
     @Json(name = "team_id") val teamId: String?,
     @Json(name = "team_name") val teamName: String?,
+    /** Warga lama tanpa nomor telepon wajib melengkapinya sebelum akses fitur. */
+    @Json(name = "needs_phone") val needsPhone: Boolean = false,
 )
 
 /** GET /api/app/version — config-based, tanpa auth. */

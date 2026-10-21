@@ -121,6 +121,12 @@ dependencies {
     // Push — proyek Firebase sama dengan versi Capacitor
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
+    implementation(libs.firebase.auth)
+
+    // Google Sign-In via Credential Manager (Google ID token → Firebase Auth)
+    implementation(libs.credentials)
+    implementation(libs.credentials.play.services.auth)
+    implementation(libs.googleid)
 
     // Uji instrumentasi (probe diagnostik GPS EXIF)
     androidTestImplementation(libs.androidx.test.ext.junit)

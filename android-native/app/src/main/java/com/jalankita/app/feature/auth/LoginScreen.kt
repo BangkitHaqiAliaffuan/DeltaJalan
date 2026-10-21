@@ -1,11 +1,15 @@
 package com.jalankita.app.feature.auth
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,28 +18,32 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.jalankita.app.core.auth.GoogleSignInCancelled
+import com.jalankita.app.core.auth.GoogleSignInHelper
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.BrandBackground
 import com.jalankita.app.ui.components.BrandCard
 import com.jalankita.app.ui.components.BrandFooter
 import com.jalankita.app.ui.components.BrandPrimaryButton
+import com.jalankita.app.ui.components.BrandSecondaryButton
 import com.jalankita.app.ui.components.BrandTextField
 import com.jalankita.app.ui.components.CardHeader
 import com.jalankita.app.ui.components.ErrorBox
@@ -43,6 +51,7 @@ import com.jalankita.app.ui.components.FieldLabel
 import com.jalankita.app.ui.components.PasswordToggle
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.DeltaJalanTypography
+import kotlinx.coroutines.launch
 
 /**
  * Layar login (universal, multi-role) — semua peran pegawai masuk dari sini.
@@ -56,6 +65,12 @@ fun LoginScreen(
     modifier: Modifier = Modifier,
 ) {
     var showPw by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val activity = remember(context) { context.findActivity() }
+    val scope = rememberCoroutineScope()
+    val googleHelper = remember(context.applicationContext) {
+        GoogleSignInHelper(context.applicationContext)
+    }
 
     // Animasi masuk: fade-in + slide-up (0.6s ease-out), meniru CSS frontend.
     var appeared by remember { mutableStateOf(false) }
@@ -140,6 +155,44 @@ fun LoginScreen(
                         loadingText = "Memverifikasi...",
                         onClick = vm::login,
                     )
+
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        HorizontalDivider(Modifier.weight(1f), color = BrandBlue.copy(alpha = 0.18f))
+                        Text(
+                            text = "atau",
+                            color = BrandBlue.copy(alpha = 0.65f),
+                            style = DeltaJalanTypography.labelSmall,
+                        )
+                        HorizontalDivider(Modifier.weight(1f), color = BrandBlue.copy(alpha = 0.18f))
+                    }
+
+                    BrandSecondaryButton(
+                        text = if (vm.googleBusy) "Menghubungkan..." else "Lanjutkan dengan Google",
+                        icon = AppIcon.Person,
+                        enabled = !vm.loginBusy && !vm.googleBusy,
+                        onClick = {
+                            if (activity == null) {
+                                vm.onGoogleError("Google Sign-In tidak tersedia di perangkat ini.")
+                            } else {
+                                scope.launch {
+                                    try {
+                                        vm.loginWithGoogle(googleHelper.getIdToken(activity))
+                                    } catch (_: GoogleSignInCancelled) {
+                                        // user menutup picker — bukan error
+                                    } catch (e: Exception) {
+                                        vm.onGoogleError(
+                                            e.message?.takeIf { it.isNotBlank() }
+                                                ?: "Gagal masuk dengan Google. Coba lagi.",
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                    )
                 }
 
                 Box(Modifier.fillMaxWidth().padding(bottom = 24.dp), contentAlignment = Alignment.Center) {
@@ -158,4 +211,11 @@ fun LoginScreen(
             BrandFooter()
         }
     }
+}
+
+/** Compose LocalContext kadang dibungkus ContextWrapper, bukan Activity langsung. */
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }

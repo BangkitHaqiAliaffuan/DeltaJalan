@@ -46,6 +46,8 @@ import com.jalankita.app.core.data.UserRole
 import com.jalankita.app.core.network.UserDto
 import com.jalankita.app.feature.auth.AuthViewModel
 import com.jalankita.app.feature.auth.LoginScreen
+import com.jalankita.app.feature.auth.OnboardingScreen
+import com.jalankita.app.feature.auth.PhoneRequiredScreen
 import com.jalankita.app.feature.auth.RegisterScreen
 import com.jalankita.app.feature.auth.SessionState
 import com.jalankita.app.feature.home.DashboardScreen
@@ -227,53 +229,90 @@ private fun Root(vm: AuthViewModel = viewModel()) {
             }
         }
 
+        // Login Google berhasil, tetapi phone/password belum lengkap. Belum ada
+        // Sanctum token di sini; jangan buka scaffold warga sebelum onboarding.
+        is SessionState.NeedsOnboarding -> {
+            LaunchedEffect(Unit) {
+                LocationTracking.stop(context)
+                sessionNotifVm.clear()
+            }
+            androidx.activity.compose.BackHandler {
+                vm.cancelOnboarding()
+            }
+            OnboardingScreen(
+                vm = vm,
+                state = s,
+                onCancel = vm::cancelOnboarding,
+            )
+        }
+
         // ATURAN KERAS isolasi role (crosscheck §3.1): sesi warga TIDAK BOLEH
         // menyentuh endpoint petugas (/reports/stats, /reports?team_tasks, dsb.)
         // karena backend tidak memfilter role warga di sana (data global bocor).
         // Warga → WargaScaffold (/warga/* saja); supervisor → SupervisorScaffold
         // (endpoint triase supervisor); sisanya → MainScaffold petugas.
         is SessionState.Authenticated -> {
-            // Ganti user (termasuk login pertama) → buang state milik user lama.
-            LaunchedEffect(s.user.id) {
-                sessionNotifVm.clear()
-            }
-            when (s.user.role) {            UserRole.WARGA -> {
-                var wargaScreen by remember(s.user.id) {
-                    mutableStateOf(WargaScreen.BERANDA)
+            if (s.user.role == UserRole.WARGA && s.user.needsPhone) {
+                // Sesi warga lama tanpa phone: backend memblokir endpoint warga
+                // (PHONE_REQUIRED), jadi tampilkan form phone sebelum scaffold.
+                LaunchedEffect(s.user.id) {
+                    LocationTracking.stop(context)
+                    sessionNotifVm.clear()
                 }
-                WargaScaffold(
-                    user = s.user,
-                    authVm = vm,
-                    wargaScreen = wargaScreen,
-                    onNavigate = { wargaScreen = it },
-                    deepLinkReportId = pendingReportId,
-                    onDeepLinkConsumed = ::consumeDeepLink,
-                )
-            }
-            UserRole.SUPERVISOR -> {
-                var supervisorScreen by remember(s.user.id) {
-                    mutableStateOf(SupervisorScreen.BERANDA)
+                androidx.activity.compose.BackHandler {
+                    vm.logout()
                 }
-                SupervisorScaffold(
+                PhoneRequiredScreen(
+                    vm = vm,
                     user = s.user,
-                    authVm = vm,
-                    screen = supervisorScreen,
-                    onNavigate = { supervisorScreen = it },
-                    deepLinkReportId = pendingReportId,
-                    onDeepLinkConsumed = ::consumeDeepLink,
+                    onCancel = vm::logout,
                 )
-            }
-            else -> {
-                MainScaffold(
-                    user = s.user,
-                    authVm = vm,
-                    laporVm = laporVm,
-                    mainScreen = mainScreen,
-                    onNavigate = { mainScreen = it },
-                    deepLinkReportId = pendingReportId,
-                    onDeepLinkConsumed = ::consumeDeepLink,
-                )
-            }
+            } else {
+                // Ganti user (termasuk login pertama) → buang state milik user lama.
+                LaunchedEffect(s.user.id) {
+                    sessionNotifVm.clear()
+                }
+                when (s.user.role) {
+                    UserRole.WARGA -> {
+                        var wargaScreen by remember(s.user.id) {
+                            mutableStateOf(WargaScreen.BERANDA)
+                        }
+                        WargaScaffold(
+                            user = s.user,
+                            authVm = vm,
+                            wargaScreen = wargaScreen,
+                            onNavigate = { wargaScreen = it },
+                            deepLinkReportId = pendingReportId,
+                            onDeepLinkConsumed = ::consumeDeepLink,
+                        )
+                    }
+
+                    UserRole.SUPERVISOR -> {
+                        var supervisorScreen by remember(s.user.id) {
+                            mutableStateOf(SupervisorScreen.BERANDA)
+                        }
+                        SupervisorScaffold(
+                            user = s.user,
+                            authVm = vm,
+                            screen = supervisorScreen,
+                            onNavigate = { supervisorScreen = it },
+                            deepLinkReportId = pendingReportId,
+                            onDeepLinkConsumed = ::consumeDeepLink,
+                        )
+                    }
+
+                    else -> {
+                        MainScaffold(
+                            user = s.user,
+                            authVm = vm,
+                            laporVm = laporVm,
+                            mainScreen = mainScreen,
+                            onNavigate = { mainScreen = it },
+                            deepLinkReportId = pendingReportId,
+                            onDeepLinkConsumed = ::consumeDeepLink,
+                        )
+                    }
+                }
             }
         }
     }

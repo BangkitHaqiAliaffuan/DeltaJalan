@@ -2,11 +2,13 @@
 
 namespace App\Providers;
 
+use App\Contracts\FirebaseTokenVerifier;
 use App\Models\Report;
 use App\Notifications\Channels\FcmChannel;
 use App\Notifications\Channels\WebPushChannel;
 use App\Observers\ReportObserver;
 use App\Services\FcmPushService;
+use App\Services\KreaitFirebaseTokenVerifier;
 use App\Services\WebPushService;
 use Illuminate\Notifications\ChannelManager;
 use Illuminate\Support\Facades\Notification;
@@ -19,6 +21,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(WebPushService::class);
         $this->app->singleton(FcmPushService::class);
+        $this->app->singleton(FirebaseTokenVerifier::class, KreaitFirebaseTokenVerifier::class);
     }
 
     public function boot(): void
