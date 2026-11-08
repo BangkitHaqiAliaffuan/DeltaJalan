@@ -47,6 +47,7 @@ import com.jalankita.app.core.network.UserDto
 import com.jalankita.app.feature.auth.AuthViewModel
 import com.jalankita.app.feature.auth.LoginScreen
 import com.jalankita.app.feature.auth.OnboardingScreen
+import com.jalankita.app.feature.auth.OtpScreen
 import com.jalankita.app.feature.auth.PhoneRequiredScreen
 import com.jalankita.app.feature.auth.RegisterScreen
 import com.jalankita.app.feature.auth.SessionState
@@ -225,6 +226,7 @@ private fun Root(vm: AuthViewModel = viewModel()) {
                 )
                 AuthScreen.REGISTER -> RegisterScreen(
                     onNavigateLogin = { authScreen = AuthScreen.LOGIN },
+                    onRegistered = vm::startRegistrationOtp,
                 )
             }
         }
@@ -243,6 +245,23 @@ private fun Root(vm: AuthViewModel = viewModel()) {
                 vm = vm,
                 state = s,
                 onCancel = vm::cancelOnboarding,
+            )
+        }
+
+        // Pendaftaran (manual atau Google) sudah divalidasi, OTP sudah dikirim.
+        // Akun belum ada dan belum ada token Sanctum — jangan buka scaffold dulu.
+        is SessionState.NeedsOtpVerification -> {
+            LaunchedEffect(Unit) {
+                LocationTracking.stop(context)
+                sessionNotifVm.clear()
+            }
+            androidx.activity.compose.BackHandler {
+                vm.cancelOtp()
+            }
+            OtpScreen(
+                state = s,
+                vm = vm,
+                onCancel = vm::cancelOtp,
             )
         }
 

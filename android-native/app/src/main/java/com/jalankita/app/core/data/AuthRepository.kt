@@ -13,7 +13,9 @@ import com.jalankita.app.core.network.GoogleProfileDto
 import com.jalankita.app.core.network.LoginRequest
 import com.jalankita.app.core.network.RegisterRequest
 import com.jalankita.app.core.network.RegisterResponse
+import com.jalankita.app.core.network.ResendRegistrationRequest
 import com.jalankita.app.core.network.UserDto
+import com.jalankita.app.core.network.VerifyRegistrationRequest
 import com.squareup.moshi.Moshi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -114,13 +116,16 @@ class AuthRepository @Inject constructor(
     /**
      * Selesaikan onboarding Google. Password hanya dikirim untuk akun baru;
      * akun lama tanpa phone cukup mengirim phone.
+     *
+     * Akun BARU tidak langsung jadi: backend mengirim OTP dan mengembalikan
+     * [OnboardingResult.NeedsVerification]. Akun lama tetap langsung masuk.
      */
     suspend fun completeGoogleOnboarding(
         onboardingToken: String,
         phone: String,
         password: String? = null,
         passwordConfirmation: String? = null,
-    ): UserDto {
+    ): OnboardingResult {
         val res = try {
             api.completeGoogleOnboarding(
                 CompleteGoogleOnboardingRequest(
@@ -136,11 +141,79 @@ class AuthRepository @Inject constructor(
 
         val token = res.token
         val user = res.user
+        if (res.success && !token.isNullOrBlank() && user != null) {
+            tokenStore.save(token)
+            return OnboardingResult.Authenticated(user)
+        }
+
+        val registrationToken = res.registrationToken
+        if (res.success && res.needsVerification && !registrationToken.isNullOrBlank()) {
+            // Jangan simpan token apa pun: sesi Sanctum belum ada di sini.
+            return OnboardingResult.NeedsVerification(
+                registrationToken = registrationToken,
+                email = res.email.orEmpty(),
+            )
+        }
+
+        throw Exception(res.message ?: "Gagal menyelesaikan pendaftaran.")
+    }
+
+    /**
+     * Tukar kode OTP dengan sesi Sanctum — dipakai jalur daftar manual maupun
+     * jalur Google (akun baru). Setara [login] dalam hal penyimpanan token.
+     *
+     * @throws UnauthorizedException tidak dipakai di sini; error OTP datang
+     *   sebagai HttpException dengan `error_code` (lihat [apiErrorMessage]).
+     */
+    suspend fun verifyRegistration(registrationToken: String, code: String): UserDto {
+        val res = try {
+            api.verifyRegistration(
+                VerifyRegistrationRequest(
+                    registrationToken = registrationToken,
+                    code = code.trim(),
+                ),
+            )
+        } catch (e: HttpException) {
+            throw Exception(apiErrorMessage(e))
+        }
+
+        val token = res.token
+        val user = res.user
         if (!res.success || token.isNullOrBlank() || user == null) {
-            throw Exception(res.message ?: "Gagal menyelesaikan pendaftaran.")
+            throw Exception(res.message ?: "Verifikasi gagal, coba lagi.")
         }
         tokenStore.save(token)
         return user
+    }
+
+    /**
+     * Kirim ulang kode OTP. Token pendaftaran tidak berubah.
+     *
+     * Mengembalikan [ResendResult] alih-alih melempar: pemanggil perlu
+     * MEMBEDAKAN penolakan cooldown server (server masih menghitung mundur)
+     * dari kegagalan biasa. Tanpa itu, kegagalan jaringan akan ikut memicu
+     * hitung mundur 60 detik di UI dan mengunci tombol tanpa alasan.
+     */
+    suspend fun resendRegistrationCode(registrationToken: String): ResendResult {
+        val res = try {
+            api.resendRegistration(ResendRegistrationRequest(registrationToken))
+        } catch (e: HttpException) {
+            // Body dibaca SEKALI — OkHttp menutup stream, panggilan kedua kosong.
+            val parsed = apiError(e)
+            val message = apiErrorMessage(parsed, e.code())
+
+            return if (parsed?.errorCode == "OTP_RESEND_COOLDOWN") {
+                ResendResult.Cooldown(message)
+            } else {
+                ResendResult.Failed(message)
+            }
+        }
+
+        return if (res.success) {
+            ResendResult.Sent(res.message ?: "Kode verifikasi baru telah dikirim.")
+        } else {
+            ResendResult.Failed(res.message ?: "Gagal mengirim ulang kode.")
+        }
     }
 
     /** Lengkapi phone untuk sesi Sanctum lama (mis. login password sebelum aturan ini). */
@@ -175,12 +248,23 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    private fun apiErrorMessage(e: HttpException): String {
+    private fun apiErrorMessage(e: HttpException): String =
+        apiErrorMessage(apiError(e), e.code())
+
+    /**
+     * Parse body error SATU KALI. `errorBody().string()` menutup stream, jadi
+     * pemanggil kedua akan mendapat string kosong — selalu pakai hasil ini
+     * alih-alih memanggil [apiError] lagi.
+     */
+    private fun apiError(e: HttpException): ApiErrorResponse? {
         val body = e.response()?.errorBody()?.string()
-        val parsed = runCatching {
+
+        return runCatching {
             moshi.adapter(ApiErrorResponse::class.java).fromJson(body ?: "")
         }.getOrNull()
+    }
 
+    private fun apiErrorMessage(parsed: ApiErrorResponse?, httpCode: Int): String {
         val fieldError = parsed?.errors?.values?.flatten()?.firstOrNull()
         val codeMessage = when (parsed?.errorCode) {
             "FIREBASE_TOKEN_INVALID" -> "Token Google tidak valid atau kedaluwarsa. Coba lagi."
@@ -193,11 +277,18 @@ class AuthRepository @Inject constructor(
             "PHONE_ALREADY_SET" -> "Nomor telepon akun sudah terisi."
             "PHONE_REQUIRED" -> "Lengkapi nomor telepon terlebih dahulu."
             "ONBOARDING_CONFLICT" -> "Email atau nomor telepon sudah terdaftar."
+            "REGISTRATION_CONFLICT" -> "Email atau nomor telepon sudah terdaftar."
+            "OTP_INVALID" -> "Kode verifikasi salah."
+            "OTP_EXPIRED" -> "Sesi pendaftaran sudah kedaluwarsa. Silakan daftar ulang."
+            "OTP_ATTEMPTS_EXCEEDED" -> "Terlalu banyak percobaan. Silakan daftar ulang."
+            "OTP_RESEND_COOLDOWN" -> "Tunggu sebentar sebelum meminta kode baru."
+            "OTP_SEND_LIMIT" -> "Batas pengiriman kode tercapai. Silakan daftar ulang."
+            "EMAIL_SEND_FAILED" -> "Kode verifikasi gagal dikirim. Silakan coba lagi."
             else -> null
         }
 
         return fieldError ?: codeMessage ?: parsed?.message
-            ?: "Permintaan gagal (${e.code()})."
+            ?: "Permintaan gagal ($httpCode)."
     }
 
     private fun firebaseErrorMessage(e: Throwable): String = when (e) {
@@ -233,9 +324,12 @@ class AuthRepository @Inject constructor(
     suspend fun clearSession() = tokenStore.clear()
 
     /**
-     * Daftar akun warga — POST /api/auth/register.
+     * Langkah 1 daftar akun warga — POST /api/auth/register.
      * Mengembalikan [RegisterResult] (tanpa throw) agar UI bisa menampilkan
      * pesan error validasi per-field. Server selalu membuat role='warga'.
+     *
+     * Akun BELUM dibuat: sukses berarti OTP sudah dikirim, dan pemanggil harus
+     * mengarahkan user ke layar OTP dengan token yang dikembalikan.
      */
     suspend fun register(
         name: String,
@@ -254,14 +348,22 @@ class AuthRepository @Inject constructor(
                     passwordConfirmation = passwordConfirmation,
                 ),
             )
-            if (res.success) {
-                RegisterResult.Success(res.message ?: "Registrasi berhasil. Silakan login.")
-            } else {
-                val firstFieldError = res.errors?.values?.flatten()?.firstOrNull()
-                RegisterResult.Error(firstFieldError ?: res.message ?: "Registrasi gagal.")
+            val token = res.registrationToken
+            when {
+                res.success && res.needsVerification && !token.isNullOrBlank() ->
+                    RegisterResult.NeedsVerification(token, res.email.orEmpty())
+
+                res.success -> RegisterResult.Error(
+                    "Server belum mendukung verifikasi OTP. Perbarui backend/aplikasi lalu coba lagi.",
+                )
+
+                else -> {
+                    val firstFieldError = res.errors?.values?.flatten()?.firstOrNull()
+                    RegisterResult.Error(firstFieldError ?: res.message ?: "Registrasi gagal.")
+                }
             }
         } catch (e: HttpException) {
-            // FastAPI/Laravel 422 bisa tetap membawa body errors — parsir bila ada.
+            // Laravel 422 bisa tetap membawa body errors — parsir bila ada.
             val body = e.response()?.errorBody()?.string()
             val parsed = runCatching {
                 moshi.adapter(RegisterResponse::class.java).fromJson(body ?: "")
@@ -278,8 +380,31 @@ class AuthRepository @Inject constructor(
 
 /** Hasil registrasi tanpa exception — UI menampilkan pesan yang tepat. */
 sealed interface RegisterResult {
-    data class Success(val message: String) : RegisterResult
+    /** OTP terkirim; lanjut ke layar verifikasi. */
+    data class NeedsVerification(val registrationToken: String, val email: String) : RegisterResult
+
     data class Error(val message: String) : RegisterResult
+}
+
+/** Hasil kirim ulang kode OTP. */
+sealed interface ResendResult {
+    /** Kode baru terkirim. */
+    data class Sent(val message: String) : ResendResult
+
+    /** Server masih menghitung mundur — UI boleh menyalakan hitung mundurnya. */
+    data class Cooldown(val message: String) : ResendResult
+
+    /** Kegagalan lain (jaringan, token mati). Hitung mundur TIDAK direset. */
+    data class Failed(val message: String) : ResendResult
+}
+
+/** Hasil penyelesaian onboarding Google. */
+sealed interface OnboardingResult {
+    /** Akun lama: sesi siap dipakai. */
+    data class Authenticated(val user: UserDto) : OnboardingResult
+
+    /** Akun baru: kode OTP sudah dikirim, akun dibuat setelah verifikasi. */
+    data class NeedsVerification(val registrationToken: String, val email: String) : OnboardingResult
 }
 
 /** Hasil login Google: sesi siap dipakai, atau perlu onboarding phone/password. */

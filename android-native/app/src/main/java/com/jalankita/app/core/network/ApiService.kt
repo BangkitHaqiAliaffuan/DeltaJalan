@@ -21,19 +21,36 @@ interface ApiService {
     @POST("auth/login")
     suspend fun login(@Body body: LoginRequest): LoginResponse
 
-    /** POST /api/auth/register — daftar akun warga. Response {success, message, data}. */
+    /**
+     * POST /api/auth/register — langkah 1 daftar warga: kirim OTP.
+     * Akun BELUM dibuat di sini; respons memuat `registration_token`.
+     */
     @POST("auth/register")
     suspend fun register(@Body body: RegisterRequest): RegisterResponse
+
+    /**
+     * POST /api/auth/register/verify — langkah 2: tukar kode OTP dengan sesi.
+     * Bentuk respons sama dengan login (flat `{success, token, user}`).
+     */
+    @POST("auth/register/verify")
+    suspend fun verifyRegistration(@Body body: VerifyRegistrationRequest): LoginResponse
+
+    /** POST /api/auth/register/resend — kirim ulang kode (cooldown 60 dtk). */
+    @POST("auth/register/resend")
+    suspend fun resendRegistration(@Body body: ResendRegistrationRequest): RegisterResponse
 
     /** POST /api/auth/google — tukar Firebase ID token dengan sesi/onboarding. */
     @POST("auth/google")
     suspend fun googleLogin(@Body body: GoogleLoginRequest): GoogleLoginResponse
 
-    /** POST /api/auth/google/complete — selesaikan onboarding Google. */
+    /**
+     * POST /api/auth/google/complete — selesaikan onboarding Google.
+     * Akun baru tidak langsung dibuat: respons `needs_verification` + `registration_token`.
+     */
     @POST("auth/google/complete")
     suspend fun completeGoogleOnboarding(
         @Body body: CompleteGoogleOnboardingRequest,
-    ): LoginResponse
+    ): GoogleLoginResponse
 
     /** POST /api/auth/phone — lengkapi phone untuk sesi Sanctum yang sudah ada. */
     @POST("auth/phone")

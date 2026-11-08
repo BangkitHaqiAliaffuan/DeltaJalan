@@ -69,18 +69,26 @@ data class GoogleProfileDto(
 )
 
 /**
- * Respons Google login: langsung `{token,user}` untuk warga lama yang sudah
- * punya phone, atau `{needs_onboarding,onboarding_token,profile}` untuk akun baru
- * / akun lama tanpa phone.
+ * Respons Google login / google/complete.
+ *
+ * Tiga bentuk yang mungkin:
+ *  - `{token,user}` — warga lama yang sudah lengkap (langsung masuk).
+ *  - `{needs_onboarding,onboarding_token,profile}` — akun baru / akun lama
+ *    tanpa phone; belum ada token Sanctum.
+ *  - `{needs_verification,registration_token,email}` — akun Google BARU:
+ *    nomor telepon sudah diisi, tinggal verifikasi kode OTP email.
  */
 @JsonClass(generateAdapter = true)
 data class GoogleLoginResponse(
     val success: Boolean,
     val message: String? = null,
     @Json(name = "needs_onboarding") val needsOnboarding: Boolean = false,
+    @Json(name = "needs_verification") val needsVerification: Boolean = false,
+    @Json(name = "registration_token") val registrationToken: String? = null,
     @Json(name = "is_new_user") val isNewUser: Boolean = false,
     @Json(name = "missing_fields") val missingFields: List<String>? = null,
     @Json(name = "onboarding_token") val onboardingToken: String? = null,
+    val email: String? = null,
     val profile: GoogleProfileDto? = null,
     val token: String? = null,
     val user: UserDto? = null,
@@ -106,7 +114,8 @@ data class CompletePhoneRequest(
 
 /**
  * POST /api/auth/register — body. Kontrak: AuthController.php ::register.
- * Response sukses: `{success, message, data:{id,name,email,phone,role}}` (201).
+ * Response sukses: `{success, message, needs_verification, registration_token, email}` (200)
+ * — akun belum dibuat; lihat [VerifyRegistrationRequest].
  * Response gagal 422: `{success:false, message, errors:{field:[...]}}`.
  */
 @JsonClass(generateAdapter = true)
@@ -122,18 +131,26 @@ data class RegisterRequest(
 data class RegisterResponse(
     val success: Boolean,
     val message: String? = null,
-    val data: RegisteredUserDto? = null,
+    /** True → lanjut ke layar OTP dengan [registrationToken]. */
+    @Json(name = "needs_verification") val needsVerification: Boolean = false,
+    @Json(name = "registration_token") val registrationToken: String? = null,
+    val email: String? = null,
+    @Json(name = "error_code") val errorCode: String? = null,
     /** errors: peta field → daftar pesan (validasi 422). */
     val errors: Map<String, List<String>>? = null,
 )
 
+/** POST /api/auth/register/verify — body. Kode OTP yang dikirim ke email. */
 @JsonClass(generateAdapter = true)
-data class RegisteredUserDto(
-    val id: Long,
-    val name: String,
-    val email: String?,
-    val phone: String?,
-    val role: String,
+data class VerifyRegistrationRequest(
+    @Json(name = "registration_token") val registrationToken: String,
+    val code: String,
+)
+
+/** POST /api/auth/register/resend — body. Token tidak berubah. */
+@JsonClass(generateAdapter = true)
+data class ResendRegistrationRequest(
+    @Json(name = "registration_token") val registrationToken: String,
 )
 
 @JsonClass(generateAdapter = true)
@@ -154,6 +171,8 @@ data class UserDto(
     @Json(name = "team_name") val teamName: String?,
     /** Warga lama tanpa nomor telepon wajib melengkapinya sebelum akses fitur. */
     @Json(name = "needs_phone") val needsPhone: Boolean = false,
+    /** Pendaftaran OTP selalu terverifikasi; akun lama pelaporan publik tidak. */
+    @Json(name = "email_verified") val emailVerified: Boolean = false,
 )
 
 /** GET /api/app/version — config-based, tanpa auth. */

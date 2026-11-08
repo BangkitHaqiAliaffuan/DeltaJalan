@@ -9,11 +9,15 @@ import com.google.firebase.messaging.FirebaseMessaging
 import com.jalankita.app.core.data.AuthRepository
 import com.jalankita.app.core.data.FcmRepository
 import com.jalankita.app.core.data.GoogleLoginResult
+import com.jalankita.app.core.data.OnboardingResult
+import com.jalankita.app.core.data.ResendResult
 import com.jalankita.app.core.data.UnauthorizedException
 import com.jalankita.app.core.data.UserRole
 import com.jalankita.app.core.network.GoogleProfileDto
 import com.jalankita.app.core.network.UserDto
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -29,8 +33,25 @@ sealed interface SessionState {
         val missingFields: List<String>,
     ) : SessionState
 
+    /**
+     * Pendaftaran sudah divalidasi dan kode OTP sudah dikirim ke email.
+     * Belum ada token Sanctum — akun baru lahir setelah kode dimasukkan.
+     */
+    data class NeedsOtpVerification(
+        val registrationToken: String,
+        val email: String,
+        val source: OtpSource,
+    ) : SessionState
+
     data object Unauthenticated : SessionState
 }
+
+/** Asal challenge OTP — menentukan tujuan tombol "batalkan". */
+enum class OtpSource { REGISTER, GOOGLE }
+
+// Salinan config/registration.php di backend. Kalau backend berubah, ubah di sini juga.
+private const val OTP_CODE_LENGTH = 6
+private const val OTP_RESEND_COOLDOWN_SECONDS = 60
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
@@ -67,6 +88,21 @@ class AuthViewModel @Inject constructor(
         private set
     var onboardingBusy by mutableStateOf(false)
         private set
+
+    // ── Verifikasi OTP email (daftar manual & Google) ────────────────────
+    var otpCode by mutableStateOf("")
+        private set
+    var otpError by mutableStateOf<String?>(null)
+        private set
+    var otpInfo by mutableStateOf<String?>(null)
+        private set
+    var otpBusy by mutableStateOf(false)
+        private set
+    var otpResendCooldown by mutableStateOf(0)
+        private set
+
+    /** Job hitung mundur tombol "kirim ulang" — dibatalkan saat challenge berganti. */
+    private var cooldownJob: Job? = null
 
     init {
         refreshSession()
@@ -172,24 +208,153 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             onboardingBusy = true
             try {
-                val user = auth.completeGoogleOnboarding(
-                    onboardingToken = current.onboardingToken,
-                    phone = phoneResult.normalized,
-                    password = if (current.isNewUser) onboardingPassword else null,
-                    passwordConfirmation = if (current.isNewUser) {
-                        onboardingPasswordConfirmation
-                    } else {
-                        null
-                    },
-                )
-                session = SessionState.Authenticated(user)
-                clearOnboardingFields()
-                uploadFcmToken()
+                when (
+                    val result = auth.completeGoogleOnboarding(
+                        onboardingToken = current.onboardingToken,
+                        phone = phoneResult.normalized,
+                        password = if (current.isNewUser) onboardingPassword else null,
+                        passwordConfirmation = if (current.isNewUser) {
+                            onboardingPasswordConfirmation
+                        } else {
+                            null
+                        },
+                    )
+                ) {
+                    is OnboardingResult.Authenticated -> {
+                        session = SessionState.Authenticated(result.user)
+                        clearOnboardingFields()
+                        uploadFcmToken()
+                    }
+
+                    // Akun baru: nomor telepon sudah tersimpan di challenge,
+                    // tinggal kode OTP. Belum ada token Sanctum.
+                    is OnboardingResult.NeedsVerification -> {
+                        clearOnboardingFields()
+                        startOtpSession(
+                            registrationToken = result.registrationToken,
+                            email = result.email,
+                            source = OtpSource.GOOGLE,
+                        )
+                    }
+                }
             } catch (e: Exception) {
                 onboardingError = e.message?.takeIf { it.isNotBlank() }
                     ?: "Gagal menyimpan data. Coba lagi."
             } finally {
                 onboardingBusy = false
+            }
+        }
+    }
+
+    // ── Verifikasi OTP email ─────────────────────────────────────────────
+
+    /**
+     * Masuk ke layar OTP setelah langkah 1 daftar manual berhasil.
+     * Dipanggil [RegisterScreen] lewat callback `onRegistered`.
+     */
+    fun startRegistrationOtp(registrationToken: String, email: String) {
+        startOtpSession(registrationToken, email, OtpSource.REGISTER)
+    }
+
+    private fun startOtpSession(registrationToken: String, email: String, source: OtpSource) {
+        clearOtpFields()
+        session = SessionState.NeedsOtpVerification(
+            registrationToken = registrationToken,
+            email = email,
+            source = source,
+        )
+        startCooldown()
+    }
+
+    fun onOtpCodeChange(v: String) {
+        // Hanya digit, maksimal sepanjang kode.
+        otpCode = v.filter(Char::isDigit).take(OTP_CODE_LENGTH)
+        otpError = null
+        otpInfo = null
+    }
+
+    fun verifyOtp() {
+        if (otpBusy) return
+        val current = session as? SessionState.NeedsOtpVerification ?: return
+
+        if (otpCode.length < OTP_CODE_LENGTH) {
+            otpError = "Masukkan $OTP_CODE_LENGTH digit kode verifikasi."
+            return
+        }
+
+        viewModelScope.launch {
+            otpBusy = true
+            otpError = null
+            otpInfo = null
+            try {
+                val user = auth.verifyRegistration(current.registrationToken, otpCode)
+                cooldownJob?.cancel()
+                clearOtpFields()
+                session = SessionState.Authenticated(user)
+                uploadFcmToken()
+            } catch (e: Exception) {
+                otpError = e.message?.takeIf { it.isNotBlank() }
+                    ?: "Verifikasi gagal. Coba lagi."
+            } finally {
+                otpBusy = false
+            }
+        }
+    }
+
+    fun resendOtp() {
+        if (otpBusy || otpResendCooldown > 0) return
+        val current = session as? SessionState.NeedsOtpVerification ?: return
+
+        viewModelScope.launch {
+            otpBusy = true
+            otpError = null
+            otpInfo = null
+            when (val result = auth.resendRegistrationCode(current.registrationToken)) {
+                is ResendResult.Sent -> {
+                    otpInfo = result.message
+                    otpCode = ""
+                    startCooldown()
+                }
+
+                // Server masih menghitung mundur — selaraskan UI agar tombol
+                // tidak bisa ditekan berulang.
+                is ResendResult.Cooldown -> {
+                    otpError = result.message
+                    startCooldown()
+                }
+
+                // Gagal jaringan / token mati: JANGAN nyalakan hitung mundur,
+                // user harus bisa langsung mencoba lagi.
+                is ResendResult.Failed -> otpError = result.message
+            }
+            otpBusy = false
+        }
+    }
+
+    fun cancelOtp() {
+        cooldownJob?.cancel()
+        clearOtpFields()
+        session = SessionState.Unauthenticated
+    }
+
+    private fun clearOtpFields() {
+        otpCode = ""
+        otpError = null
+        otpInfo = null
+        otpResendCooldown = 0
+    }
+
+    /** Hitung mundur tombol kirim ulang; nilai awal dari [OTP_RESEND_COOLDOWN_SECONDS]. */
+    private fun startCooldown() {
+        cooldownJob?.cancel()
+        // Nilai awal diset SINKRON, bukan di dalam coroutine: kalau tidak,
+        // ada jeda satu dispatch sebelum otpResendCooldown terisi, dan di situ
+        // otpBusy sudah false — tombol kirim ulang sempat bisa ditekan lagi.
+        otpResendCooldown = OTP_RESEND_COOLDOWN_SECONDS
+        cooldownJob = viewModelScope.launch {
+            while (otpResendCooldown > 0) {
+                delay(1_000)
+                otpResendCooldown -= 1
             }
         }
     }

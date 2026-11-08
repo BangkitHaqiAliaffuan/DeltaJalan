@@ -37,8 +37,6 @@ class RegisterViewModel @Inject constructor(
         private set
     var error by mutableStateOf<String?>(null)
         private set
-    var success by mutableStateOf<String?>(null)
-        private set
     var loading by mutableStateOf(false)
         private set
 
@@ -62,10 +60,13 @@ class RegisterViewModel @Inject constructor(
         if (r.valid) { phoneError = null; phone = r.normalized } else phoneError = r.error
     }
 
-    fun register(onSuccess: () -> Unit) {
+    /**
+     * Langkah 1 pendaftaran. [onRegistered] dipanggil dengan token verifikasi +
+     * email tujuan saat OTP terkirim — akun belum dibuat di titik ini.
+     */
+    fun register(onRegistered: (token: String, email: String) -> Unit) {
         if (loading) return
         error = null
-        success = null
 
         val nameResult = validateNamaLengkap(name)
         if (!nameResult.valid) {
@@ -103,13 +104,12 @@ class RegisterViewModel @Inject constructor(
                     passwordConfirmation = passwordConfirmation,
                 )
             ) {
-                is RegisterResult.Success -> {
-                    success = "Registrasi berhasil! Silakan login."
-                    // Bersihkan form
-                    name = ""; email = ""; phone = ""; password = ""; passwordConfirmation = ""
-                    // Beri waktu user membaca pesan sukses (2s), lalu kembali ke login.
-                    kotlinx.coroutines.delay(2000)
-                    onSuccess()
+                is RegisterResult.NeedsVerification -> {
+                    // Form SENGAJA tidak dibersihkan: bila user membatalkan
+                    // verifikasi (mis. salah ketik email), ia kembali ke form ini
+                    // dan bisa memperbaikinya tanpa mengisi ulang semuanya.
+                    // ViewModel ini activity-scoped, jadi isinya bertahan.
+                    onRegistered(res.registrationToken, res.email)
                 }
                 is RegisterResult.Error -> error = res.message
             }
