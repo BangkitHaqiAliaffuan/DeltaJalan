@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# Firebase credentials — jangan commit
+android-native/env/
+
 # opencode config — contains API keys
 opencode.json
 opencode.json.bak
@@ -34,6 +37,18 @@ Problem_20-05-2026.txt
 result.json
 map-leaflet-fix.md
 Testing/
+.superpowers/
+
+# Local test fixtures and generated image variants — not source
+Image For Testing/
+
+# Local planning / scratch documents
+android-native/PLAN-*.md
+docs/superpowers/
+
+# Local production backups and editor leftovers
+backups/
+*.bak
 
 # Logs
 *.log

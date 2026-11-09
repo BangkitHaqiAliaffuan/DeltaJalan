@@ -2,13 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\OtpVerificationMail;
 use App\Models\User;
+use App\Services\RegistrationOtpService;
+use App\Services\WargaRegistrationService;
+use App\Support\ApiError;
 use App\Support\PhoneNumber;
 use App\Support\UserPayload;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -63,7 +69,9 @@ class AuthController extends Controller
         }
 
         // ── Cari user berdasarkan email atau nomor telepon ─────────────────
-        $user = User::where('email', $login)
+        // Email dicocokkan case-insensitive: pendaftaran menyimpan huruf kecil,
+        // tapi pengguna bisa saja mengetik "Budi@…" saat login.
+        $user = User::whereRaw('LOWER(email) = ?', [mb_strtolower($login)])
             ->when($phone, fn ($q) => $q->orWhere('phone', $phone))
             ->first();
 
@@ -99,14 +107,19 @@ class AuthController extends Controller
     }
 
     /**
-     * Register warga.
+     * Langkah 1 pendaftaran warga: validasi + kirim OTP.
+     *
+     * Akun BELUM dibuat di sini. Baris users baru lahir di [verifyRegistration]
+     * setelah kode OTP benar, sehingga email yang salah ketik / bukan milik
+     * pendaftar tidak bisa mengklaim alamat tersebut (email adalah kredensial
+     * login — lihat ::login).
      */
-    public function register(Request $request): JsonResponse
+    public function register(Request $request, RegistrationOtpService $otp): JsonResponse
     {
         try {
             $validated = $request->validate([
                 'name' => ['required', 'string', 'min:2', 'max:100', 'regex:/^[A-Za-zÀ-ÖØ-öø-ÿ \'.-]+$/'],
-                'email' => ['required', 'email', 'unique:users,email'],
+                'email' => ['required', 'email'],
                 'phone' => ['required', 'string', 'regex:/^(?:\+62|62|0)8[1-9][0-9]{6,9}$/'],
                 'password' => ['required', 'string', 'min:8', 'confirmed'],
             ]);
@@ -118,11 +131,19 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $phone = $validated['phone'];
-        if (str_starts_with($phone, '+62')) {
-            $phone = '0'.substr($phone, 3);
-        } elseif (str_starts_with($phone, '62')) {
-            $phone = '0'.substr($phone, 2);
+        $phone = PhoneNumber::normalize($validated['phone']);
+
+        // ── Cek unique email case-insensitive ───────────────────────────────
+        // `unique:users,email` membandingkan persis (case-sensitive) sementara
+        // langkah verifikasi memakai LOWER(email); tanpa ini pendaftar
+        // "Budi@x.com" tetap dikirimi OTP padahal "budi@x.com" sudah terdaftar
+        // dan baru ditolak di langkah 2.
+        if (User::whereRaw('LOWER(email) = ?', [mb_strtolower($validated['email'])])->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal.',
+                'errors' => ['email' => ['Email sudah terdaftar.']],
+            ], 422);
         }
 
         // ── Cek unique nomor telepon (setelah normalisasi) ─────────────────
@@ -134,27 +155,151 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $user = User::create([
+        $challenge = $otp->start([
             'name' => $validated['name'],
-            'email' => $validated['email'],
+            // Simpan huruf kecil: email adalah kredensial login dan
+            // perbandingannya selalu case-insensitive (lihat ::login).
+            'email' => mb_strtolower($validated['email']),
             'phone' => $phone,
-            'password' => Hash::make($validated['password']),
-            'role' => 'warga',
+            // Hash di sini agar plaintext tidak pernah masuk Cache.
+            'password_hash' => Hash::make($validated['password']),
             'registration_ip' => $request->ip(),
-            'email_verified_at' => now(),
+            'firebase_uid' => null,
         ]);
+
+        return $this->sendOtpOrFail($otp, $challenge, 'Kode verifikasi telah dikirim ke email Anda.');
+    }
+
+    /**
+     * Langkah 2 pendaftaran warga: verifikasi kode OTP → buat akun → login.
+     *
+     * Dipakai bersama oleh jalur daftar manual dan jalur Google (akun baru),
+     * memakai `registration_token` yang sama.
+     */
+    public function verifyRegistration(
+        Request $request,
+        RegistrationOtpService $otp,
+        WargaRegistrationService $registrations,
+    ): JsonResponse {
+        try {
+            $validated = $request->validate([
+                'registration_token' => ['required', 'string', 'max:128'],
+                'code' => ['required', 'string', 'digits:'.config('registration.otp_length', 6)],
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
+        // Melempar ApiError::httpFail bila token mati / kode salah.
+        $payload = $otp->verify($validated['registration_token'], $validated['code']);
+
+        try {
+            $user = $registrations->create($payload, $request->ip());
+        } catch (QueryException $e) {
+            Log::warning('Pendaftaran OTP: konflik data.', ['error' => $e->getMessage()]);
+
+            return ApiError::fail(
+                'Email atau nomor telepon sudah terdaftar.',
+                422,
+                'REGISTRATION_CONFLICT',
+            );
+        } finally {
+            // Challenge dibuang SETELAH percobaan membuat user: kegagalan DB
+            // sementara tidak lagi memaksa pendaftar mengulang dari langkah 1,
+            // sementara kode tetap single-use.
+            $otp->discard($validated['registration_token']);
+        }
 
         return response()->json([
             'success' => true,
-            'message' => 'Registrasi berhasil. Silakan login.',
-            'data' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'phone' => $user->phone,
-                'role' => $user->role,
-            ],
-        ], 201);
+            'message' => 'Pendaftaran berhasil.',
+            'token' => $user->createToken('jalankita-app')->plainTextToken,
+            'user' => UserPayload::make($user),
+        ], 200);
+    }
+
+    /**
+     * Kirim ulang kode OTP untuk challenge yang sedang berjalan.
+     * Token tidak berubah — klien tetap memakai `registration_token` lamanya.
+     */
+    public function resendRegistration(Request $request, RegistrationOtpService $otp): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'registration_token' => ['required', 'string', 'max:128'],
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
+        $challenge = $otp->resend($validated['registration_token']);
+
+        return $this->sendOtpOrFail($otp, $challenge, 'Kode verifikasi baru telah dikirim ke email Anda.');
+    }
+
+    /**
+     * Kirim email OTP; bila gagal, challenge dibuang supaya tidak ada token
+     * hidup yang kodenya tidak pernah sampai ke user.
+     *
+     * @param  array{token:string,code:string,payload:array}  $challenge
+     */
+    private function sendOtpOrFail(
+        RegistrationOtpService $otp,
+        array $challenge,
+        string $successMessage,
+    ): JsonResponse {
+        $payload = $challenge['payload'];
+
+        // MAIL_MAILER=log di produksi = kegagalan senyap: Mail::send() sukses,
+        // API membalas 200, tetapi tidak ada email yang pernah terkirim dan
+        // pengguna berhenti di layar OTP. Tolak lebih awal dengan pesan jelas.
+        if (app()->environment('production') && config('mail.default') === 'log') {
+            $otp->discard($challenge['token']);
+
+            Log::error('Pendaftaran OTP: MAIL_MAILER=log di produksi — email tidak akan terkirim.');
+
+            return ApiError::fail(
+                'Layanan email belum dikonfigurasi. Hubungi administrator.',
+                503,
+                'MAIL_NOT_CONFIGURED',
+            );
+        }
+
+        try {
+            Mail::to($payload['email'])->send(new OtpVerificationMail(
+                code: $challenge['code'],
+                recipientName: (string) $payload['name'],
+                ttlMinutes: (int) config('registration.otp_ttl_minutes', 15),
+            ));
+        } catch (\Throwable $e) {
+            $otp->discard($challenge['token']);
+
+            Log::error('Pendaftaran OTP: gagal mengirim email.', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return ApiError::fail(
+                'Kode verifikasi gagal dikirim. Silakan coba lagi.',
+                503,
+                'EMAIL_SEND_FAILED',
+            );
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $successMessage,
+            'needs_verification' => true,
+            'registration_token' => $challenge['token'],
+            'email' => $payload['email'],
+        ], 200);
     }
 
     public function completePhone(Request $request): JsonResponse

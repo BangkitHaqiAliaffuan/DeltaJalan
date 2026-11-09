@@ -62,7 +62,16 @@ Route::post('/v1/reports/check-duplicate', [ReportController::class, 'checkDupli
 
 // ── Auth routes (public) ──────────────────────────────────────────────────
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
-Route::post('/auth/register', [AuthController::class, 'register']);
+
+/**
+ * Pendaftaran warga 2 langkah: kirim OTP → verifikasi.
+ * `register` kini TIDAK membuat user; baris users lahir di `register/verify`
+ * setelah kode email benar (lihat AuthController).
+ */
+Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:10,1');
+Route::post('/auth/register/verify', [AuthController::class, 'verifyRegistration'])->middleware('throttle:10,1');
+Route::post('/auth/register/resend', [AuthController::class, 'resendRegistration'])->middleware('throttle:10,1');
+
 Route::post('/auth/google', [GoogleAuthController::class, 'login'])->middleware('throttle:10,1');
 Route::post('/auth/google/complete', [GoogleAuthController::class, 'complete'])->middleware('throttle:10,1');
 Route::post('/auth/phone', [AuthController::class, 'completePhone'])->middleware(['auth:sanctum', 'throttle:10,1']);
