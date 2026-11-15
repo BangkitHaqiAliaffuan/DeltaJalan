@@ -10,11 +10,13 @@ import android.net.Uri
 import com.jalankita.app.core.data.DashboardRepository
 import com.jalankita.app.core.data.DashboardResult
 import com.jalankita.app.core.data.HistoryPage
+import com.jalankita.app.core.data.InspectionRepository
 import com.jalankita.app.core.data.ReportRepository
 import com.jalankita.app.core.data.ReportResult
 import com.jalankita.app.core.data.SurveyRepository
 import com.jalankita.app.core.data.UnauthorizedException
 import com.jalankita.app.core.network.PatrolScheduleDto
+import com.jalankita.app.core.network.InspectionAssignmentDto
 import com.jalankita.app.core.network.ProgressItemDto
 import com.jalankita.app.core.network.ReportItemDto
 import com.jalankita.app.core.network.StatsDto
@@ -40,6 +42,7 @@ class DashboardViewModel @Inject constructor(
     private val repo: DashboardRepository,
     private val surveyRepo: SurveyRepository,
     private val execRepo: ReportRepository,
+    private val inspectionRepo: InspectionRepository,
 ) : ViewModel() {
 
     var stats by mutableStateOf<StatsDto?>(null)
@@ -52,6 +55,20 @@ class DashboardViewModel @Inject constructor(
     var teamTasks by mutableStateOf<List<ReportItemDto>>(emptyList())
         private set
     var schedules by mutableStateOf<List<PatrolScheduleDto>>(emptyList())
+        private set
+
+    /**
+     * Tugas inspeksi lapangan milik petugas, maksimal tiga untuk Beranda.
+     * Dipisahkan dari [teamTasks] karena sumbernya beda: `teamTasks` berisi
+     * laporan PERBAIKAN (`/reports?team_tasks`), sedangkan ini penugasan
+     * PENGUKURAN (`/inspection-tasks`). Sebelumnya tugas ukur tidak pernah
+     * muncul di Beranda sehingga petugas bisa melewatkannya.
+     */
+    var inspectionTasks by mutableStateOf<List<InspectionAssignmentDto>>(emptyList())
+        private set
+
+    /** Jumlah total tugas inspeksi (bisa > 3) untuk label "Lihat Semua". */
+    var inspectionTasksTotal by mutableStateOf(0)
         private set
 
     var loading by mutableStateOf(true)
@@ -115,6 +132,9 @@ class DashboardViewModel @Inject constructor(
                 val recentD = async { repo.myReports(limit = 10) }
                 val tasksD = async { repo.teamTasks(limit = 3) }
                 val patrolD = async { repo.patrolSchedules(user.teamId) }
+                // Tugas ukur dimuat paralel: kegagalannya TIDAK boleh
+                // menggagalkan kartu lain, jadi hasilnya ditangani terpisah.
+                val inspectionsD = async { inspectionRepo.getTasks() }
 
                 var failed: String? = null
                 when (val r = statsD.await()) {
@@ -139,6 +159,12 @@ class DashboardViewModel @Inject constructor(
                     is DashboardResult.Success -> schedules = r.data
                     is DashboardResult.Error -> failed = r.message
                 }
+                when (val r = inspectionsD.await()) {
+                    is DashboardResult.Success -> applyInspectionTasks(r.data)
+                    // Gagal memuat tugas ukur tidak boleh menghapus kartu lama
+                    // yang mungkin masih berguna, jadi state dibiarkan apa adanya.
+                    is DashboardResult.Error -> Unit
+                }
                 // Hanya tampilkan error bila SEMUA sumber gagal (parsial tetap tampil).
                 if (stats == null && recent.isEmpty() && teamTasks.isEmpty()) {
                     errorMessage = failed
@@ -152,6 +178,42 @@ class DashboardViewModel @Inject constructor(
                 refreshing = false
             }
         }
+    }
+
+    private companion object {
+        /** Batas kartu tugas inspeksi di Beranda agar layar tidak memanjang. */
+        const val MAX_INSPECTION_CARDS = 3
+    }
+
+    /**
+     * Muat ulang HANYA kartu tugas inspeksi.
+     *
+     * Dipanggil setelah petugas mengirim hasil ukur: tanpa ini kartu di
+     * Beranda tetap menampilkan tugas yang sebenarnya sudah selesai, dan
+     * petugas bisa mengira pekerjaannya belum masuk.
+     */
+    fun refreshInspectionTasks() {
+        viewModelScope.launch {
+            try {
+                when (val r = inspectionRepo.getTasks()) {
+                    is DashboardResult.Success -> applyInspectionTasks(r.data)
+                    is DashboardResult.Error -> Unit
+                }
+            } catch (_: UnauthorizedException) {
+                sessionExpired = true
+            } catch (_: Exception) {
+                // Diamkan: kartu lama lebih berguna daripada kartu kosong.
+            }
+        }
+    }
+
+    /** Terapkan hasil muat ke state, saring yang masih perlu dikerjakan petugas. */
+    private fun applyInspectionTasks(page: com.jalankita.app.core.network.InspectionTaskPage) {
+        // `submitted` sudah menunggu supervisor, bukan urusan petugas lagi.
+        inspectionTasks = page.data.orEmpty()
+            .filter { it.status == "assigned" || it.status == "started" }
+            .take(MAX_INSPECTION_CARDS)
+        inspectionTasksTotal = page.total
     }
 
     /** Tugas aktif: status Ditugaskan/Sedang Diperbaiki, maks 3 (home.tsx:123-125). */
@@ -262,6 +324,7 @@ class DashboardViewModel @Inject constructor(
     fun refreshAfterLapor(surveyId: String) {
         loadSurveyDetail(surveyId)
         loadSurveys()
+        refreshInspectionTasks()
     }
 
     /** Muat halaman riwayat; reset=true mulai dari halaman 1 (ganti filter/cari). */

@@ -94,7 +94,7 @@ fun InspectionTaskListScreen(
 }
 
 @Composable
-private fun InspectionAssignmentCard(
+internal fun InspectionAssignmentCard(
     assignment: InspectionAssignmentDto,
     onOpenAssignment: (String) -> Unit,
 ) {

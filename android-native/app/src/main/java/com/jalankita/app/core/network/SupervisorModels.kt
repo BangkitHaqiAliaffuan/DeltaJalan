@@ -146,6 +146,13 @@ data class SupervisorReportDetail(
     @Json(name = "pci_score") val pciScore: Double? = null,
     /** true bila laporan pernah/sedang melewati inspeksi lapangan petugas. */
     @Json(name = "has_inspection") val hasInspection: Boolean = false,
+    /**
+     * Tahap inspeksi: `assigned`, `started`, `submitted`, `reviewed`, atau `none`.
+     * Turunan dari tugas inspeksi, bukan nilai `status` laporan.
+     */
+    @Json(name = "inspection_state") val inspectionState: String? = null,
+    /** Nama petugas yang mengukur, bila sudah diketahui. */
+    @Json(name = "inspector_name") val inspectorName: String? = null,
     @Json(name = "kerusakan_panjang") val kerusakanPanjang: Double? = null,
     @Json(name = "kerusakan_lebar") val kerusakanLebar: Double? = null,
     @Json(name = "image_original_url") val imageOriginalUrl: String? = null,

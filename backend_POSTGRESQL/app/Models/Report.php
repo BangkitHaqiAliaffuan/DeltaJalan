@@ -415,6 +415,15 @@ class Report extends Model
     }
 
     /**
+     * Penugasan inspeksi lapangan untuk laporan ini.
+     * Satu laporan bisa punya lebih dari satu (inspeksi ulang).
+     */
+    public function inspectionAssignments(): HasMany
+    {
+        return $this->hasMany(SurveyTaskReport::class, 'report_id');
+    }
+
+    /**
      * Relasi duplikasi — laporan ini terindikasi duplikat dari laporan lain.
      */
     public function duplicateOf(): HasOne

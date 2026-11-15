@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.jalankita.app.core.network.UserDto
+import com.jalankita.app.core.network.InspectionAssignmentDto
 import com.jalankita.app.feature.home.components.EmptyState
 import com.jalankita.app.feature.home.components.GreetingHero
 import com.jalankita.app.feature.home.components.LatestHeader
@@ -46,6 +47,7 @@ fun DashboardScreen(
     onOpenLaporanTab: () -> Unit,
     onOpenTugasTab: () -> Unit,
     onOpenDetail: (String) -> Unit,
+    onOpenInspection: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LaunchedEffect(user.id) { vm.refresh(user) }
@@ -158,6 +160,34 @@ fun DashboardScreen(
                     PatrolCompactCard(
                         schedules = vm.schedules,
                         modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
+            }
+
+            // ── Tugas Inspeksi (pengukuran) ──
+            // Ditampilkan sebelum "Tugas Perbaikan" karena inspeksi adalah
+            // langkah yang menentukan apakah perbaikan perlu dilakukan.
+            // Hanya muncul bila ada tugas; petugas tanpa tugas ukur tidak
+            // melihat seksi kosong.
+            if (vm.inspectionTasks.isNotEmpty()) {
+                item(key = "inspection-title") {
+                    SectionHeader(
+                        icon = AppIcon.Description,
+                        title = "Tugas Inspeksi",
+                        actionLabel = if (vm.inspectionTasksTotal > vm.inspectionTasks.size) {
+                            "Lihat Semua (${vm.inspectionTasksTotal})"
+                        } else {
+                            "Lihat Semua"
+                        },
+                        onAction = onOpenTugasTab,
+                        modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 24.dp),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+                items(vm.inspectionTasks, key = { "inspection-${it.id}" }) { assignment ->
+                    InspectionAssignmentCard(
+                        assignment = assignment,
+                        onOpenAssignment = { id -> onOpenInspection(id) },
                     )
                 }
             }

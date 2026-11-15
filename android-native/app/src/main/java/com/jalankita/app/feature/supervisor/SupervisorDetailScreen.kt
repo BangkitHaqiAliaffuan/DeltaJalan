@@ -272,7 +272,8 @@ private fun SupervisorDetailBody(
         item {
             TrackPill(
                 source = d.source,
-                hasInspection = d.hasInspection,
+                inspectionState = d.inspectionState,
+                inspectorName = d.inspectorName,
                 modifier = Modifier.fillMaxWidth(),
             )
         }

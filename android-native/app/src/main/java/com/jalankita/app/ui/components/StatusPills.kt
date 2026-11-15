@@ -131,43 +131,70 @@ fun SourcePill(source: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * Pill jalur laporan — membedakan tiga asal yang bermakna berbeda bagi supervisor:
+ * Pill jalur & tahap laporan — menjawab satu pertanyaan supervisor:
+ * "laporan ini sekarang ada di tangan siapa?"
  *
- *  - `Laporan Warga`   : warga melapor, dinilai tidak perlu inspeksi lapangan.
- *  - `Hasil Inspeksi`  : warga melapor, sudah diverifikasi & diukur petugas.
- *  - `Laporan Petugas` : petugas sendiri yang menemukan di lapangan.
+ *  - `Laporan Warga`        : warga melapor, tidak perlu inspeksi lapangan.
+ *  - `Menunggu Petugas Ukur`: sudah dijadwalkan, petugas belum mulai.
+ *  - `Sedang Diukur`        : petugas sudah di lokasi, hasil belum dikirim.
+ *  - `Hasil Siap Review`    : pengukuran sudah dikirim, menunggu keputusan.
+ *  - `Laporan Petugas`      : petugas sendiri yang menemukan di lapangan.
  *
- * Hanya label TAMPILAN. Nilai `status` di backend tidak berubah, sehingga filter
- * dan laporan yang sudah ada tetap konsisten.
+ * Tahap inspeksi TIDAK disimpan sebagai `status` laporan — ia turunan dari
+ * ada/tidaknya tugas inspeksi, dihitung backend (`inspection_state`). Karena
+ * itu filter status dan laporan lama tetap konsisten.
  *
  * @param source nilai mentah `source` dari API (`warga`, `telegram`, `petugas`).
- * @param hasInspection true bila laporan punya tugas inspeksi (pernah/b sedang diukur).
+ * @param inspectionState `assigned`/`started`/`submitted`/`reviewed`/`none`.
+ * @param inspectorName nama petugas bila sudah diketahui, untuk ditampilkan
+ *   sebagai keterangan di bawah label.
  */
 @Composable
-fun TrackPill(source: String?, hasInspection: Boolean, modifier: Modifier = Modifier) {
+fun TrackPill(
+    source: String?,
+    inspectionState: String?,
+    modifier: Modifier = Modifier,
+    inspectorName: String? = null,
+) {
+    if (source == null || source.isBlank()) return
+    val isPetugas = source.equals("petugas", ignoreCase = true)
+
+    // Petugas tidak pernah melewati jalur inspeksi (lihat TriageService), jadi
+    // labelnya langsung "Laporan Petugas" tanpa memedulikan state.
     val label = when {
-        source == null || source.isBlank() -> return
-        source.equals("petugas", ignoreCase = true) -> "Laporan Petugas"
-        hasInspection -> "Hasil Inspeksi"
+        isPetugas -> "Laporan Petugas"
+        inspectionState == null || inspectionState == "none" -> "Laporan Warga"
+        inspectionState == "assigned" -> "Menunggu Petugas Ukur"
+        inspectionState == "started" -> "Sedang Diukur"
+        inspectionState == "submitted" -> "Hasil Siap Review"
+        inspectionState == "reviewed" -> "Hasil Inspeksi"
+        // State tak dikenal jangan disembunyikan: lebih jujur menyebut laporan
+        // warga daripada mengaku belum pernah diinspeksi.
         else -> "Laporan Warga"
     }
 
     val (bg, fg, border) = when {
-        source.equals("petugas", ignoreCase = true) ->
-            Triple(Color(0xFFEFF6FF), Color(0xFF2563EB), Color(0xFFBFDBFE))
-        hasInspection ->
-            Triple(Color(0xFFECFDF5), Color(0xFF047857), Color(0xFFA7F3D0))
-        else ->
-            Triple(Color(0xFFF8FAFC), Color(0xFF475569), Color(0xFFE2E8F0))
+        isPetugas -> Triple(Color(0xFFEFF6FF), Color(0xFF2563EB), Color(0xFFBFDBFE))
+        inspectionState == "started" -> Triple(Color(0xFFFEF3C7), Color(0xFFB45309), Color(0xFFFDE68A))
+        inspectionState == "submitted" -> Triple(Color(0xFFECFDF5), Color(0xFF047857), Color(0xFFA7F3D0))
+        inspectionState == "reviewed" -> Triple(Color(0xFFECFDF5), Color(0xFF047857), Color(0xFFA7F3D0))
+        inspectionState == "assigned" -> Triple(Color(0xFFF1F5F9), Color(0xFF475569), Color(0xFFCBD5E1))
+        else -> Triple(Color(0xFFF8FAFC), Color(0xFF475569), Color(0xFFE2E8F0))
     }
 
-    Box(
+    Row(
         modifier = modifier
             .clip(RoundedCornerShape(999.dp))
             .background(bg)
             .border(1.dp, border, RoundedCornerShape(999.dp))
             .padding(horizontal = 10.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, color = fg, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        // Nama petugas hanya bermakna saat inspeksi sudah punya pelaksana.
+        if (!inspectorName.isNullOrBlank()) {
+            Text(" · ", color = fg.copy(alpha = 0.6f), fontSize = 10.sp)
+            Text(inspectorName, color = fg, fontSize = 10.sp, maxLines = 1)
+        }
     }
 }

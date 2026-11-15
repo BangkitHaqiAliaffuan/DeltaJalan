@@ -1,0 +1,184 @@
+<?php
+
+namespace Tests\Unit;
+
+use App\Models\InspectionResult;
+use App\Models\InspectionSession;
+use App\Models\Report;
+use App\Models\SurveyTaskReport;
+use App\Models\User;
+use App\Services\InspectionProgressService;
+use Illuminate\Database\Eloquent\Collection;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * Kontrak `InspectionProgressService`: menerjemahkan status assignment
+ * inspeksi menjadi tahap yang bisa ditampilkan supervisor, TANPA menambah
+ * nilai baru pada `reports.status`.
+ *
+ * Semua model dibangun dengan `forceFill()` + `setRelation()`, jadi tidak
+ * menyentuh database — sama seperti TriageServiceTest.
+ */
+class InspectionProgressServiceTest extends TestCase
+{
+    private InspectionProgressService $service;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->service = new InspectionProgressService;
+    }
+
+    /** Laporan dengan satu assignment berstatus tertentu. */
+    private function reportWith(string $status, ?InspectionResult $result = null, ?InspectionSession $session = null): Report
+    {
+        $assignment = (new SurveyTaskReport)->forceFill([
+            'id' => '01a1dfa0-c603-70f1-87e1-9a404fa6c49a',
+            'report_id' => 'r-1',
+            'status' => $status,
+        ]);
+
+        if ($result !== null) {
+            $assignment->setRelation('result', $result);
+        }
+        if ($session !== null) {
+            $assignment->setRelation('session', $session);
+        }
+
+        return (new Report)->forceFill(['id' => 'r-1'])
+            ->setRelation('inspectionAssignments', new Collection([$assignment]));
+    }
+
+    private function makeResult(string $inspectorName, bool $sudahDireview = false): InspectionResult
+    {
+        $r = (new InspectionResult)->forceFill(['id' => 'i-1']);
+        // `reviewed_at` diisi lewat setRawAttributes agar cast datetime tidak
+        // berjalan: cast itu memanggil connection() dan test ini sengaja tanpa
+        // database. Yang diuji hanya "null vs tidak null".
+        $r->setRawAttributes(['id' => 'i-1', 'reviewed_at' => $sudahDireview ? '2026-11-15 12:00:00' : null] + $r->getAttributes());
+        $r->setRelation('inspector', (new User)->forceFill(['name' => $inspectorName]));
+
+        return $r;
+    }
+
+    // ── Tanpa inspeksi ───────────────────────────────────────────────────
+
+    public function test_laporan_tanpa_assignment_berarti_none(): void
+    {
+        $report = (new Report)->forceFill(['id' => 'r-1'])
+            ->setRelation('inspectionAssignments', new Collection);
+
+        $this->assertSame(InspectionProgressService::NONE, $this->service->state($report));
+        $this->assertNull($this->service->inspectorName($report));
+        $this->assertFalse($this->service->payload($report)['has_inspection']);
+    }
+
+    // ── Pemetaan status assignment → tahap ───────────────────────────────
+
+    public function test_assigned_berarti_menunggu_petugas(): void
+    {
+        $report = $this->reportWith('assigned');
+
+        $this->assertSame(InspectionProgressService::ASSIGNED, $this->service->state($report));
+        $this->assertTrue($this->service->payload($report)['has_inspection']);
+    }
+
+    public function test_started_berarti_sedang_diukur(): void
+    {
+        $this->assertSame(
+            InspectionProgressService::STARTED,
+            $this->service->state($this->reportWith('started')),
+        );
+    }
+
+    public function test_submitted_berarti_menunggu_review(): void
+    {
+        $this->assertSame(
+            InspectionProgressService::SUBMITTED,
+            $this->service->state($this->reportWith('submitted', $this->makeResult('Budi'))),
+        );
+    }
+
+    public function test_sudah_direview_berarti_reviewed(): void
+    {
+        // reviewed_at terisi menandakan supervisor sudah memutuskan.
+        $report = $this->reportWith('submitted', $this->makeResult('Budi', sudahDireview: true));
+
+        $this->assertSame(InspectionProgressService::REVIEWED, $this->service->state($report));
+    }
+
+    public function test_status_assignment_tak_dikenal_tidak_dianggap_belum_diinspeksi(): void
+    {
+        // Lebih jujur menyebut "dijadwalkan" daripada menyembunyikan bahwa
+        // laporan ini pernah masuk jalur inspeksi.
+        $this->assertSame(
+            InspectionProgressService::ASSIGNED,
+            $this->service->state($this->reportWith('status-aneh-dari-masa-depan')),
+        );
+    }
+
+    // ── Siapa petugasnya ─────────────────────────────────────────────────
+
+    public function test_nama_petugas_diambil_dari_hasil_inspeksi(): void
+    {
+        $report = $this->reportWith('submitted', $this->makeResult('Budi Santoso'));
+
+        $this->assertSame('Budi Santoso', $this->service->inspectorName($report));
+    }
+
+    public function test_nama_petugas_fallback_ke_pembuka_sesi(): void
+    {
+        // Belum kirim hasil, tapi sesi sudah dibuka di lokasi.
+        $session = (new InspectionSession)->forceFill(['id' => 's-1']);
+        $session->setRelation('startedBy', (new User)->forceFill(['name' => 'Andi']));
+
+        $report = $this->reportWith('started', null, $session);
+
+        $this->assertSame('Andi', $this->service->inspectorName($report));
+    }
+
+    public function test_nama_petugas_null_saat_baru_dijadwalkan(): void
+    {
+        // Penugasan masih di tingkat tim, orangnya belum ditentukan.
+        $this->assertNull($this->service->inspectorName($this->reportWith('assigned')));
+    }
+
+    public function test_hasil_inspeksi_lebih_diutamakan_daripada_pembuka_sesi(): void
+    {
+        // Petugas pengukur bisa berbeda dari yang membuka sesi (mis. pergantian
+        // shift); nama pengukur yang benar-benar mengirim data lebih akurat.
+        $session = (new InspectionSession)->forceFill(['id' => 's-1']);
+        $session->setRelation('startedBy', (new User)->forceFill(['name' => 'Andi']));
+
+        $report = $this->reportWith('submitted', $this->makeResult('Budi'), $session);
+
+        $this->assertSame('Budi', $this->service->inspectorName($report));
+    }
+
+    // ── Inspeksi ulang ───────────────────────────────────────────────────
+
+    public function test_assignment_terbaru_yang_dipakai_saat_inspeksi_ulang(): void
+    {
+        $lama = (new SurveyTaskReport)->forceFill([
+            'id' => '01a1dea1-c0ba-710b-a34a-ea312becd286', 'report_id' => 'r-1', 'status' => 'submitted',
+        ]);
+        $lama->setRelation('result', $this->makeResult('Budi', sudahDireview: true));
+
+        $baru = (new SurveyTaskReport)->forceFill([
+            'id' => '01a1dfb0-c0ba-710b-a34a-ea312becd286', 'report_id' => 'r-1', 'status' => 'assigned',
+        ]);
+
+        $report = (new Report)->forceFill(['id' => 'r-1'])
+            ->setRelation('inspectionAssignments', new Collection([$lama, $baru]));
+
+        // Yang relevan adalah putaran yang sedang berjalan, bukan yang selesai.
+        $this->assertSame(InspectionProgressService::ASSIGNED, $this->service->state($report));
+    }
+
+    public function test_payload_selalu_memuat_tiga_kunci(): void
+    {
+        $payload = $this->service->payload($this->reportWith('assigned'));
+
+        $this->assertSame(['has_inspection', 'inspection_state', 'inspector_name'], array_keys($payload));
+    }
+}

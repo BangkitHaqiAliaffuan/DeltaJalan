@@ -798,6 +798,10 @@ class ReportController extends Controller
     {
         $user = auth()->user();
 
+        // Satu instance dipakai untuk seluruh halaman daftar: state inspeksi
+        // dihitung dari relasi yang sudah di-eager-load, bukan query per baris.
+        $inspectionProgress = app(\App\Services\InspectionProgressService::class);
+
         $query = Report::query();
 
         // Filter khusus: hanya laporan tim (tab Perbaikan)
@@ -921,8 +925,11 @@ class ReportController extends Controller
             ->with('firstPhoto')
             ->with('assignedTeam')
             ->with('duplicateOf.originalReport')
+            ->with(['inspectionAssignments' => fn ($q) => $q
+                ->with(['result.inspector', 'session.startedBy'])
+                ->orderByDesc('created_at')])
             ->get()
-            ->map(function ($report) {
+            ->map(function ($report) use ($inspectionProgress) {
                 return [
                     'id' => $report->id,
                     'report_code' => $report->report_code,
@@ -964,6 +971,9 @@ class ReportController extends Controller
                     'assignor_name' => $report->assignor_name,
                     'status_deadline' => $report->terlambat_review || $report->terlambat_resolusi ? 'terlambat' : 'tepat_waktu',
                     'pci_score' => $report->pci_score ? (float) $report->pci_score : null,
+                    // Penanda tahap inspeksi agar daftar supervisor bisa menampilkan
+                    // "menunggu petugas ukur" / "sedang diukur" tanpa membuka detail.
+                    ...$inspectionProgress->payload($report),
                     'is_duplicate' => $report->relationLoaded('duplicateOf') && $report->duplicateOf !== null,
                     'duplicate_score' => $report->relationLoaded('duplicateOf') && $report->duplicateOf ? (float) $report->duplicateOf->score : null,
                     'created_at' => $report->created_at?->toIso8601String(),
@@ -1024,9 +1034,10 @@ class ReportController extends Controller
             'system_notes' => $report->system_notes,
             'ai_raw_output' => Report::trimAiRawOutput($report->ai_raw_output),
             'pci_score' => $report->pci_score ? (float) $report->pci_score : null,
-            // Penanda jalur untuk badge UI supervisor: laporan pernah/sedang melewati
-            // inspeksi lapangan. Aditif — klien lama mengabaikannya.
-            'has_inspection' => \App\Models\SurveyTaskReport::where('report_id', $report->id)->exists(),
+            // Penanda jalur inspeksi untuk badge UI supervisor. `inspection_state`
+            // membedakan "baru dijadwalkan", "sedang diukur", dan "menunggu
+            // review" — tanpa menambah nilai pada `reports.status`.
+            ...app(\App\Services\InspectionProgressService::class)->payload($report),
             'image_original_url' => $report->image_original_url,
             'image_result_url' => $report->image_result_url,
             'after_photo_url' => $report->after_photo_url,

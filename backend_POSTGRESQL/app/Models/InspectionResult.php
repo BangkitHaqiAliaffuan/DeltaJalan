@@ -18,6 +18,18 @@ class InspectionResult extends Model
         return $this->belongsTo(SurveyTaskReport::class, 'survey_task_report_id');
     }
 
+    /** Petugas yang mengirim hasil pengukuran ini. */
+    public function inspector()
+    {
+        return $this->belongsTo(User::class, 'inspector_id');
+    }
+
+    /** Supervisor yang memutuskan hasil ini (null selama belum direview). */
+    public function reviewer()
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
     public function photos()
     {
         return $this->hasMany(InspectionPhoto::class);

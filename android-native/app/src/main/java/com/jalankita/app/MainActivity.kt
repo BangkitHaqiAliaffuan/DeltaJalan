@@ -603,6 +603,9 @@ private fun MainScaffold(
                 inspectionAssignmentId = null
                 inspectionSessionId = null
                 inspectionVm.load(force = true)
+                // Kartu tugas inspeksi di Beranda harus ikut diperbarui,
+                // kalau tidak tugas yang baru selesai masih terlihat menunggu.
+                dashboardVm.refreshInspectionTasks()
                 onNavigate(MainScreen.TUGAS)
             },
         )
@@ -616,6 +619,7 @@ private fun MainScaffold(
                 inspectionAssignmentId = null
                 inspectionSessionId = null
                 inspectionVm.load(force = true)
+                dashboardVm.refreshInspectionTasks()
                 onNavigate(MainScreen.TUGAS)
             },
         )
@@ -703,6 +707,12 @@ private fun MainScaffold(
                         onOpenLaporanTab = { goTab(PetugasTab.LAPORAN) },
                         onOpenTugasTab = { goTab(PetugasTab.TUGAS) },
                         onOpenDetail = ::openDetail,
+                        // Kartu tugas inspeksi di Beranda membuka detail
+                        // pengukuran, bukan detail laporan biasa.
+                        onOpenInspection = { id ->
+                            inspectionAssignmentId = id
+                            onNavigate(MainScreen.INSPECTION_DETAIL)
+                        },
                         modifier = Modifier.padding(inner),
                     )
                     MainScreen.TUGAS -> TugasScreen(
