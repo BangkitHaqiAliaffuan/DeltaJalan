@@ -371,6 +371,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/inspection-tasks/{assignment}', [NativeInspectionController::class, 'show']);
     Route::post('/inspection-tasks/{assignment}/start', [NativeInspectionController::class, 'start']);
     Route::post('/inspection-tasks/{assignment}/submit', [NativeInspectionController::class, 'submit']);
+    // Batalkan antrean inspeksi (mis. auto-queue salah menilai). Hanya untuk
+    // assignment yang belum dimulai petugas.
+    Route::delete('/inspection-tasks/{assignment}', [NativeInspectionController::class, 'cancel']);
     Route::post('/inspection-sessions/{session}/discovered-reports', [NativeInspectionController::class, 'discovered']);
     Route::get('/inspection-results/pending', [NativeInspectionController::class, 'pending']);
     Route::post('/inspection-results/{result}/review', [NativeInspectionController::class, 'review']);

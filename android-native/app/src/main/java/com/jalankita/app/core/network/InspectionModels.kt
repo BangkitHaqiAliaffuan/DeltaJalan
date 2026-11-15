@@ -219,6 +219,10 @@ data class InspectionResultDto(
     val result: String? = null,
     val condition: String? = null,
     val notes: String? = null,
+    // Dimensi hasil ukur petugas (meter). Null = tidak diukur.
+    @Json(name = "kerusakan_panjang") val kerusakanPanjang: Double? = null,
+    @Json(name = "kerusakan_lebar") val kerusakanLebar: Double? = null,
+    @Json(name = "kerusakan_kedalaman") val kerusakanKedalaman: Double? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
     @Json(name = "reviewed_by") val reviewedBy: Long? = null,

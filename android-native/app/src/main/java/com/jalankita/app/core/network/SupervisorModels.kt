@@ -144,6 +144,8 @@ data class SupervisorReportDetail(
     @Json(name = "system_notes") val systemNotes: String? = null,
     val priority: String? = null,
     @Json(name = "pci_score") val pciScore: Double? = null,
+    /** true bila laporan pernah/sedang melewati inspeksi lapangan petugas. */
+    @Json(name = "has_inspection") val hasInspection: Boolean = false,
     @Json(name = "kerusakan_panjang") val kerusakanPanjang: Double? = null,
     @Json(name = "kerusakan_lebar") val kerusakanLebar: Double? = null,
     @Json(name = "image_original_url") val imageOriginalUrl: String? = null,

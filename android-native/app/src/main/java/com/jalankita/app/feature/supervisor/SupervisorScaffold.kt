@@ -250,6 +250,13 @@ fun SupervisorScaffold(
                     patrolSessionId = taskId
                     onNavigate(SupervisorScreen.PATROL_SESSION)
                 },
+                // Layar ini tidak lagi menjadi jalan buntu: supervisor bisa masuk
+                // sesi patroli & mengantrekan laporan inspeksi langsung dari sini.
+                onOpenSession = { taskId ->
+                    patrolSessionId = taskId
+                    onNavigate(SupervisorScreen.PATROL_SESSION)
+                },
+                onQueueInspection = { taskId -> queueTaskId = taskId },
             )
             SnackbarHost(
                 hostState = snackbar,

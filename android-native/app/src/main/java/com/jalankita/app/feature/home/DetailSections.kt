@@ -40,6 +40,7 @@ import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.jalankita.app.core.network.PetugasAfterPhotoDto
 import com.jalankita.app.core.network.PetugasDuplicateOfDto
+import com.jalankita.app.core.util.MapLauncher
 import com.jalankita.app.core.network.PetugasPhotoDto
 import com.jalankita.app.core.network.PetugasStatusHistoryDto
 import com.jalankita.app.core.network.ReportItemDto
@@ -636,7 +637,7 @@ fun PetugasStatusTimeline(history: List<PetugasStatusHistoryDto>) {
 // ── Lokasi + Google Maps ────────────────────────────────────────────────────
 
 @Composable
-fun PetugasLokasiCard(lat: Double, lng: Double, fullAddress: String?) {
+fun PetugasLokasiCard(lat: Double, lng: Double, fullAddress: String?, roadName: String? = null) {
     val context = LocalContext.current
     Column(
         modifier = Modifier
@@ -668,12 +669,9 @@ fun PetugasLokasiCard(lat: Double, lng: Double, fullAddress: String?) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable {
-                    val url = "https://www.google.com/maps?q=$lat,$lng"
-                    runCatching {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
-                    }
-                }
+                // Satu sumber kebenaran: geo: → aplikasi peta pilihan pengguna,
+                // fallback web. Lihat core/util/MapLauncher.kt.
+                .clickable { MapLauncher.open(context, lat, lng, label = roadName) }
                 .padding(12.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,

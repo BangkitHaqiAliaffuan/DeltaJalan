@@ -60,16 +60,23 @@ data class PatrolSchedule(
     @Json(name = "updated_at") val updatedAt: String? = null,
 )
 
-/** Tim di dalam jadwal — `{id, name, description, surveyTasks[]?}` (surveyTasks di detail). */
+/** Tim di dalam jadwal — `{id, name, description, survey_tasks[]?}` (survey_tasks di detail). */
 @JsonClass(generateAdapter = true)
 data class PatrolTeamRef(
     val id: String? = null,
     val name: String? = null,
     val description: String? = null,
-    @Json(name = "surveyTasks") val surveyTasks: List<PatrolTask>? = null,
+    /**
+     * WAJIB `survey_tasks` (snake_case): backend memakai atribut relasi apa
+     * adanya (`team.surveyTasks` di-serialize Laravel menjadi `survey_tasks`).
+     * Sebelumnya di sini tertulis `surveyTasks`, sehingga Moshi tidak pernah
+     * menemukan key → null → daftar sesi patroli kosong dan tombol
+     * "Antrekan laporan untuk inspeksi" tak pernah tampil.
+     */
+    @Json(name = "survey_tasks") val surveyTasks: List<PatrolTask>? = null,
 )
 
-/** Satu task/shift tertanggal — elemen `team.surveyTasks`. */
+/** Satu task/shift tertanggal — elemen `team.survey_tasks`. */
 @JsonClass(generateAdapter = true)
 data class PatrolTask(
     val id: String,

@@ -193,7 +193,30 @@ class NativeInspectionController extends Controller
         sort($reportIds, SORT_STRING);
         $fingerprint = hash('sha256', $task->id.'|'.implode(',', $reportIds));
         $key = $v['idempotency_key'] ?? 'queue:'.$fingerprint;
-        $queued = DB::transaction(function () use ($session, $task, $reportIds, $fingerprint, $key, $user) {
+        $queued = $this->queueReportIds($task, $reportIds, $user->id, $session, $key, $fingerprint);
+
+        return response()->json(['data' => $queued->fresh()->load('assignments')], 201);
+    }
+
+    /**
+     * Inti pengantrean laporan ke sesi inspeksi — dipakai jalur HTTP (`queue()`)
+     * DAN jalur otomatis (`ReportTriageHook`).
+     *
+     * `$actorId` diberikan EKSPLISIT, bukan dibaca dari `request()`:
+     * pada auto-queue tidak ada request supervisor, dan memanggil `request()`
+     * di dalam transaksi berisiko memakai konteks yang salah.
+     */
+    private function queueReportIds(
+        SurveyTask $task,
+        array $reportIds,
+        int $actorId,
+        ?InspectionSession $session = null,
+        ?string $key = null,
+        ?string $fingerprint = null,
+    ): InspectionSession {
+        $key ??= 'queue:'.($fingerprint ?? hash('sha256', $task->id.'|'.implode(',', $reportIds)));
+
+        return DB::transaction(function () use ($session, $task, $reportIds, $fingerprint, $key, $actorId) {
             if ($session) {
                 $current = InspectionSession::whereKey($session->id)->lockForUpdate()->firstOrFail();
             } else {
@@ -205,7 +228,7 @@ class NativeInspectionController extends Controller
                     'survey_task_id' => $task->id,
                     'patrol_schedule_id' => $task->patrol_schedule_id,
                     'team_id' => $task->team_id,
-                    'started_by' => $user->id,
+                    'started_by' => $actorId,
                     'schedule_type' => 'report_inspection',
                     'status' => 'active',
                     'started_at' => now(),
@@ -250,8 +273,73 @@ class NativeInspectionController extends Controller
 
             return $current;
         });
+    }
 
-        return response()->json(['data' => $queued->fresh()->load('assignments')], 201);
+    /**
+     * Titik masuk untuk auto-queue dari luar controller (ReportTriageHook).
+     *
+     * Tidak melakukan pemeriksaan role: pemanggil sudah memutuskan berdasarkan
+     * triase. Pengaman tetap ada di level data — `queueReportIds()` menolak
+     * bila laporan sudah punya assignment aktif (409).
+     */
+    public function enqueueForReport(SurveyTask $task, Report $report, int $actorId): void
+    {
+        $this->queueReportIds($task, [$report->id], $actorId);
+    }
+
+    /**
+     * Batalkan antrean inspeksi untuk satu laporan (T2.4).
+     *
+     * Dipakai ketika auto-queue salah menilai — mis. lubang kecil yang
+     * terhitung besar. Hanya boleh untuk assignment yang BELUM dikerjakan
+     * petugas; menghapus tugas yang sedang berjalan berarti menghapus bukti.
+     *
+     * Efek: assignment dihapus, sesi ikut dihapus BILA tidak menyisakan
+     * assignment lain, dan laporan kembali ke `Menunggu Review` agar muncul
+     * lagi di daftar kandidat supervisor.
+     */
+    public function cancel(Request $request, SurveyTaskReport $assignment): JsonResponse
+    {
+        $user = $request->user();
+        if (! in_array($user->role, ['supervisor', 'admin'], true) || ! $this->supervisorScope($request, $assignment)) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        if ($assignment->status !== 'assigned') {
+            return response()->json([
+                'message' => 'Tugas sudah dimulai atau selesai; tidak dapat dibatalkan.',
+                'status' => $assignment->status,
+            ], 422);
+        }
+
+        $reportId = $assignment->report_id;
+        $sessionId = $assignment->inspection_session_id;
+
+        DB::transaction(function () use ($assignment, $sessionId, $reportId) {
+            $assignment->delete();
+
+            // Sesi hanya dibuang bila tidak ada tugas lain yang tersisa.
+            $tersisa = SurveyTaskReport::where('inspection_session_id', $sessionId)->exists();
+            if (! $tersisa) {
+                InspectionSession::whereKey($sessionId)->delete();
+            }
+
+            // Kembalikan status agar laporan muncul lagi di kandidat supervisor.
+            // Memakai model (bukan mass update) supaya ReportObserver menulis
+            // status_log.
+            $report = Report::find($reportId);
+            if ($report && in_array($report->status, ['Ditugaskan', 'Ditinjau'], true)) {
+                $report->update(['status' => 'Menunggu Review']);
+            }
+        });
+
+        Log::info('DeltaJalan: antrean inspeksi dibatalkan supervisor.', [
+            'assignment_id' => $assignment->id,
+            'report_id' => $reportId,
+            'cancelled_by' => $user->name,
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Antrean inspeksi dibatalkan.']);
     }
 
     public function start(Request $request, SurveyTaskReport $assignment): JsonResponse
@@ -279,11 +367,26 @@ class NativeInspectionController extends Controller
         }
         $v = $request->validate([
             'idempotency_key' => 'required|string|max:120', 'condition' => 'nullable|string|max:40', 'notes' => 'nullable|string|max:5000',
+            // Dimensi hasil ukur petugas (meter). Opsional: petugas tanpa meteran
+            // tidak boleh dipaksa mengarang angka.
+            'kerusakan_panjang' => 'nullable|numeric|min:0.01|max:100',
+            'kerusakan_lebar' => 'nullable|numeric|min:0.01|max:100',
+            'kerusakan_kedalaman' => 'nullable|numeric|min:0.01|max:100',
             'latitude' => 'nullable|numeric', 'longitude' => 'nullable|numeric', 'photos' => 'required|array|min:1', 'photos.*' => 'required|image|max:5120',
         ]);
         $files = $request->file('photos');
         [$lat, $lng, $metadata, $hashes] = $this->validateFiles($files, $v['latitude'] ?? null, $v['longitude'] ?? null);
-        $fingerprint = hash('sha256', json_encode(['assignment' => $assignment->id, 'condition' => $v['condition'] ?? null, 'notes' => $v['notes'] ?? null, 'lat' => $lat, 'lng' => $lng, 'photos' => $hashes], JSON_THROW_ON_ERROR));
+        // Dimensi WAJIB ikut fingerprint. Tanpa ini, submit ulang dengan dimensi
+        // berbeda dianggap "payload sama" dan pengukuran baru hilang diam-diam.
+        $fingerprint = hash('sha256', json_encode([
+            'assignment' => $assignment->id, 'condition' => $v['condition'] ?? null, 'notes' => $v['notes'] ?? null,
+            'dimensi' => [
+                $this->dim($v['kerusakan_panjang'] ?? null),
+                $this->dim($v['kerusakan_lebar'] ?? null),
+                $this->dim($v['kerusakan_kedalaman'] ?? null),
+            ],
+            'lat' => $lat, 'lng' => $lng, 'photos' => $hashes,
+        ], JSON_THROW_ON_ERROR));
         $result = DB::transaction(function () use ($request, $assignment, $v, $files, $lat, $lng, $metadata, $fingerprint) {
             $a = SurveyTaskReport::whereKey($assignment->id)->lockForUpdate()->firstOrFail();
             $existing = InspectionResult::where('inspector_id', $request->user()->id)->where('idempotency_key', $v['idempotency_key'])->lockForUpdate()->first();
@@ -300,6 +403,9 @@ class NativeInspectionController extends Controller
             $result = InspectionResult::create([
                 'survey_task_report_id' => $a->id, 'report_id' => $a->report_id, 'inspector_id' => $request->user()->id, 'result' => 'submitted',
                 'condition' => $v['condition'] ?? null, 'notes' => $v['notes'] ?? null, 'latitude' => $lat, 'longitude' => $lng,
+                'kerusakan_panjang' => $this->dim($v['kerusakan_panjang'] ?? null),
+                'kerusakan_lebar' => $this->dim($v['kerusakan_lebar'] ?? null),
+                'kerusakan_kedalaman' => $this->dim($v['kerusakan_kedalaman'] ?? null),
                 'idempotency_key' => $v['idempotency_key'], 'request_fingerprint' => $fingerprint,
             ]);
             foreach ($files as $i => $photo) {
@@ -495,5 +601,26 @@ class NativeInspectionController extends Controller
         });
 
         return response()->json(['data' => $updated]);
+    }
+
+    /**
+     * Normalisasi satu nilai dimensi (meter) untuk fingerprint & penyimpanan.
+     *
+     * Dua alasan perlu dinormalisasi:
+     *  1. Klien bisa mengirim `1.5`, `"1.5"`, atau `"1.50"` untuk angka yang sama.
+     *     Tanpa normalisasi, fingerprint berbeda → server menolak submit ulang
+     *     dengan 409 padahal isinya identik.
+     *  2. Nilai kosong / 0 dibuang menjadi `null`, BUKAN 0. Dimensi 0 meter
+     *     berarti "tidak diukur", bukan "tidak ada kerusakan".
+     */
+    private function dim(mixed $value): ?float
+    {
+        if ($value === null || $value === '' || ! is_numeric($value)) {
+            return null;
+        }
+
+        $float = round((float) $value, 2);
+
+        return $float > 0 ? $float : null;
     }
 }

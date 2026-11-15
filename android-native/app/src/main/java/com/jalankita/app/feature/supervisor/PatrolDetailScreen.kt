@@ -41,7 +41,10 @@ import androidx.compose.ui.unit.sp
 import com.jalankita.app.core.network.PatrolSchedule
 import com.jalankita.app.core.network.PatrolTask
 import com.jalankita.app.feature.home.components.SkeletonCard
+import com.jalankita.app.feature.home.components.formatDateShort
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.BrandPrimaryButton
+import com.jalankita.app.ui.components.BrandSecondaryButton
 import com.jalankita.app.ui.components.DetailErrorState
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.BrandBlueLight
@@ -66,6 +69,10 @@ fun PatrolDetailScreen(
     vm: PatrolViewModel,
     onBack: () -> Unit,
     onOpenTask: (String) -> Unit = {},
+    /** Buka sesi patroli (halaman rincian sesi: laporan + antrean inspeksi). */
+    onOpenSession: (String) -> Unit = {},
+    /** Langsung buka dialog "Antrekan laporan untuk inspeksi" untuk task ini. */
+    onQueueInspection: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     LaunchedEffect(scheduleId) { if (scheduleId.isNotBlank()) vm.loadDetail(scheduleId) }
@@ -96,7 +103,12 @@ fun PatrolDetailScreen(
                 onBack = onBack,
             )
 
-            else -> PatrolDetailBody(vm.detail!!, onOpenTask = onOpenTask)
+            else -> PatrolDetailBody(
+                schedule = vm.detail!!,
+                onOpenTask = onOpenTask,
+                onOpenSession = onOpenSession,
+                onQueueInspection = onQueueInspection,
+            )
         }
     }
 }
@@ -105,9 +117,27 @@ fun PatrolDetailScreen(
 private fun PatrolDetailBody(
     schedule: PatrolSchedule,
     onOpenTask: (String) -> Unit,
+    onOpenSession: (String) -> Unit,
+    onQueueInspection: ((String) -> Unit)?,
 ) {
     val tasks = schedule.team?.surveyTasks.orEmpty()
     val tasksByDate = remember(tasks) { tasks.filter { it.tanggalPatroli != null }.associateBy { it.tanggalPatroli!! } }
+    // Sesi yang bisa dipakai mengantrekan laporan: task `aktif` hari ini atau
+    // yang terjadwal berikutnya. Sebelumnya tombol antrean hanya hidup di
+    // PatrolSessionScreen, padahal layar itu tidak bisa dibuka dari sini —
+    // akibatnya tombol "Antrekan laporan untuk inspeksi" tak pernah terjangkau.
+    val activeTask = remember(tasks) {
+        val today = LocalDate.now()
+        tasks
+            .filter { it.status == "aktif" }
+            .sortedWith(
+                compareBy(
+                    { taskDate(it)?.isBefore(today) ?: true },
+                    { taskDate(it) ?: LocalDate.MAX },
+                ),
+            )
+            .firstOrNull()
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
@@ -173,6 +203,80 @@ private fun PatrolDetailBody(
             }
         }
 
+        // ── Sesi patroli aktif + antrean inspeksi ──
+        // Ditaruh SEBELUM kalender agar supervisor langsung melihat titik masuk
+        // alur inspeksi (Skenario 1 plan-komprehensif) tanpa menebak sel tanggal.
+        //
+        // Kartu tetap dirender walau `activeTask == null` (mis. seluruh shift
+        // sudah lewat) — tanpa ini layar kembali jadi jalan buntu sunyi dan
+        // supervisor menyangka fitur antrean tidak ada sama sekali.
+        if (tasks.isNotEmpty() || activeTask != null) {
+            item {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White)
+                        .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp))
+                        .padding(16.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(AppIcon.Assignment, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Sesi Patroli Aktif",
+                            color = TextDark, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (activeTask != null) Color(0xFFECFDF5) else Color(0xFFFEF3C7))
+                                .padding(horizontal = 8.dp, vertical = 2.dp),
+                        ) {
+                            Text(
+                                if (activeTask != null) "AKTIF" else "${tasks.size} SHIFT",
+                                color = if (activeTask != null) SuccessGreen else Color(0xFFB45309),
+                                fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    if (activeTask != null) {
+                        Text(
+                            buildString {
+                                taskDate(activeTask)?.let { append(formatDateShort(it.toString())) }
+                                activeTask.kecamatan?.let { if (isNotEmpty()) append(" · "); append("Kec. $it") }
+                                append(" · ${activeTask.reportsCount} laporan")
+                            },
+                            color = TextMuted, fontSize = 12.sp,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        if (onQueueInspection != null) {
+                            BrandPrimaryButton(
+                                "Antrekan laporan untuk inspeksi",
+                                onClick = { onQueueInspection(activeTask.id) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        BrandSecondaryButton(
+                            "Buka Detail Sesi",
+                            onClick = { onOpenSession(activeTask.id) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    } else {
+                        Text(
+                            "Semua shift jadwal ini sudah lewat. Gunakan tombol Generate "
+                                + "untuk membuat shift baru.",
+                            color = TextMuted, fontSize = 12.sp,
+                        )
+                    }
+                }
+            }
+        }
+
         // Kalender
         item {
             PatrolCalendar(
@@ -183,6 +287,26 @@ private fun PatrolDetailBody(
             )
         }
     }
+}
+
+/**
+ * Tanggal patroli sebagai [LocalDate] (WIB), atau null bila kosong/tak terbaca.
+ * Backend mengirim `tanggal_patroli` sebagai `2026-11-14T17:00:00.000000Z`
+ * (UTC), sedangkan tanggal kalender yang dipakai UI adalah WIB — 14 Nov 17:00Z
+ * = 15 Nov 00:00 WIB. Perbandingan string mentah akan bergeser satu hari.
+ *
+ * Fallback ke 10 karakter pertama tetap dipakai bila offset zona tak terbaca,
+ * supaya data lama tidak hilang dari tampilan hanya karena parsing gagal.
+ */
+private fun taskDate(task: PatrolTask): LocalDate? {
+    val raw = task.tanggalPatroli?.takeIf { it.isNotBlank() } ?: return null
+    return runCatching {
+        java.time.OffsetDateTime.parse(raw)
+            .atZoneSameInstant(java.time.ZoneId.of("Asia/Jakarta"))
+            .toLocalDate()
+    }.recoverCatching {
+        LocalDate.parse(raw.take(10))
+    }.getOrNull()
 }
 
 @Composable

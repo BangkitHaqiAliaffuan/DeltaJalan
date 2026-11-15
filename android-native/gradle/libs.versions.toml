@@ -57,6 +57,8 @@ core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "core" }
 androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidxTestRunner" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }
 androidx-test-rules = { group = "androidx.test", name = "rules", version.ref = "androidxTestRules" }
+# Unit test JVM biasa (app/src/test) — penjaga kontrak JSON, tidak butuh perangkat.
+junit = { group = "junit", name = "junit", version = "4.13.2" }
 desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 
 [plugins]

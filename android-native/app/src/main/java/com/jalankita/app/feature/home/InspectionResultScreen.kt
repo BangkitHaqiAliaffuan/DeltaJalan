@@ -37,6 +37,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -172,6 +174,46 @@ fun InspectionResultScreen(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
+
+        // ── Dimensi hasil ukur (meter) ─────────────────────────────────────
+        // Opsional dengan sengaja: petugas yang tidak membawa meteran lebih
+        // baik mengosongkan daripada mengarang angka. Nilai kosong ditampilkan
+        // sebagai "tidak diukur" di layar review supervisor.
+        Text(
+            "Dimensi Kerusakan (meter, opsional)",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = TextDark,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = vm.kerusakanPanjang,
+                onValueChange = { vm.kerusakanPanjang = it },
+                label = { Text("Panjang") },
+                placeholder = { Text("0.0") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+            )
+            OutlinedTextField(
+                value = vm.kerusakanLebar,
+                onValueChange = { vm.kerusakanLebar = it },
+                label = { Text("Lebar") },
+                placeholder = { Text("0.0") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+            )
+            OutlinedTextField(
+                value = vm.kerusakanKedalaman,
+                onValueChange = { vm.kerusakanKedalaman = it },
+                label = { Text("Kedalaman") },
+                placeholder = { Text("0.0") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+            )
+        }
 
         // Field catatan pemeriksaan
         OutlinedTextField(

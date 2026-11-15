@@ -87,6 +87,11 @@ class InspectionUploadWorker(
                             idempotencyKey = item.idempotencyKey,
                             condition = item.condition,
                             notes = item.notes,
+                            // Dimensi ikut dikirim ulang; tanpa ini hasil ukur
+                            // petugas yang dibuat saat offline akan hilang.
+                            kerusakanPanjang = item.kerusakanPanjang,
+                            kerusakanLebar = item.kerusakanLebar,
+                            kerusakanKedalaman = item.kerusakanKedalaman,
                             latitude = item.latitude,
                             longitude = item.longitude,
                             photos = files,

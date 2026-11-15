@@ -26,6 +26,23 @@
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
+    <!--
+      Package visibility (Android 11 / API 30+): tanpa deklarasi ini
+      `Intent.resolveActivity()` untuk skema `geo:` mengembalikan null walau
+      aplikasi peta TERPASANG, sehingga MapLauncher jatuh ke browser padahal
+      navigasi native tersedia. Lihat core/util/MapLauncher.kt.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" android:host="www.google.com" />
+        </intent>
+    </queries>
+
     <application
         android:name=".DeltaJalanApplication"
         android:allowBackup="false"

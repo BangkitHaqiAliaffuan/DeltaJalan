@@ -132,6 +132,9 @@ dependencies {
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.rules)
+
+    // Unit test JVM (app/src/test) — penjaga kontrak JSON, tanpa perangkat.
+    testImplementation(libs.junit)
 }
 
 /**

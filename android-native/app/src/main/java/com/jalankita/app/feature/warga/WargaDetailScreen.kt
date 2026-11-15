@@ -49,6 +49,7 @@ import kotlinx.coroutines.launch
 import com.jalankita.app.core.network.TimelineDto
 import com.jalankita.app.core.network.WargaDetailReport
 import com.jalankita.app.core.util.ImageUrl
+import com.jalankita.app.core.util.MapLauncher
 import com.jalankita.app.feature.home.components.SectionHeader
 import com.jalankita.app.feature.home.components.SkeletonCard
 import com.jalankita.app.feature.home.components.StatusBadge
@@ -234,21 +235,14 @@ private fun WargaDetailBody(
                 if (dims.isNotEmpty()) DetailRow("Dimensi", dims)
                 val lat = report.latitude
                 val lng = report.longitude
-                if (lat != null && lng != null) {
-                    DetailRow("Koordinat", "$lat, $lng")
+                if (MapLauncher.isValidCoordinate(lat, lng)) {
+                    DetailRow("Koordinat", MapLauncher.coordinateText(lat!!, lng!!))
                     Text(
                         text = "Buka di Google Maps →",
                         fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                         color = Color(0xFF1E40AF),
                         modifier = Modifier.clickable {
-                            context.startActivity(
-                                Intent(
-                                    Intent.ACTION_VIEW,
-                                    Uri.parse(
-                                        "https://www.google.com/maps/search/?api=1&query=$lat,$lng",
-                                    ),
-                                ),
-                            )
+                            MapLauncher.open(context, lat, lng, label = report.roadName)
                         },
                     )
                 }

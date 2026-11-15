@@ -8,6 +8,7 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.HttpException
 import java.io.File
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -18,6 +19,16 @@ class InspectionRepository @Inject constructor(
 ) {
     private val textMedia = "text/plain".toMediaType()
     private val imageMedia = "image/jpeg".toMediaType()
+
+    /**
+     * Body multipart untuk satu angka desimal.
+     *
+     * Wajib memakai [Locale.ROOT]: pada HP berbahasa Indonesia, `toString()`
+     * menghasilkan koma desimal ("1,5"), dan server akan menolaknya sebagai
+     * bukan angka. Format 2 desimal juga menjaga determinisme nilai yang ikut
+     * dihitung server sebagai kunci idempotensi.
+     */
+    private fun Double.toPlainBody() = String.format(Locale.ROOT, "%.2f", this).toRequestBody(textMedia)
 
     suspend fun getTasks(date: String? = null): DashboardResult<InspectionTaskPage> = runInspection {
         api.inspectionTasks(date = date?.takeIf { it.isNotBlank() }).data ?: throw Exception("Tugas inspeksi tidak tersedia.")
@@ -33,7 +44,7 @@ class InspectionRepository @Inject constructor(
 
     suspend fun submitResult(id: String, request: InspectionSubmitRequest): DashboardResult<InspectionResultDto> = runInspection {
         require(request.photos.isNotEmpty()) { "Pilih minimal 1 foto inspeksi." }
-        api.submitInspection(id, request.idempotencyKey.toRequestBody(textMedia), request.condition?.toRequestBody(textMedia), request.notes?.toRequestBody(textMedia), request.latitude?.toString()?.toRequestBody(textMedia), request.longitude?.toString()?.toRequestBody(textMedia), request.photos.map { it.asPart("photos[]") }).data
+        api.submitInspection(id, request.idempotencyKey.toRequestBody(textMedia), request.condition?.toRequestBody(textMedia), request.notes?.toRequestBody(textMedia), request.kerusakanPanjang?.toPlainBody(), request.kerusakanLebar?.toPlainBody(), request.kerusakanKedalaman?.toPlainBody(), request.latitude?.toString()?.toRequestBody(textMedia), request.longitude?.toString()?.toRequestBody(textMedia), request.photos.map { it.asPart("photos[]") }).data
             ?: throw Exception("Hasil inspeksi tidak tersedia.")
     }
 
@@ -118,6 +129,11 @@ data class InspectionSubmitRequest(
     val idempotencyKey: String,
     val condition: String? = null,
     val notes: String? = null,
+    // Dimensi hasil ukur petugas (meter). Opsional: petugas tanpa meteran
+    // tidak dipaksa mengarang angka — null berarti "tidak diukur".
+    val kerusakanPanjang: Double? = null,
+    val kerusakanLebar: Double? = null,
+    val kerusakanKedalaman: Double? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
     val photos: List<File>,

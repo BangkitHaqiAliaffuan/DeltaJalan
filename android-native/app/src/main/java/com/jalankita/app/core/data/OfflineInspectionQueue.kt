@@ -27,6 +27,11 @@ data class PendingInspectionResult(
     val sessionId: String?,
     val condition: String?,
     val notes: String?,
+    // Dimensi hasil ukur petugas (meter), ikut disimpan agar tidak hilang saat
+    // submit dilakukan offline lalu dikirim ulang oleh worker.
+    val kerusakanPanjang: Double? = null,
+    val kerusakanLebar: Double? = null,
+    val kerusakanKedalaman: Double? = null,
     val roadName: String? = null,
     val district: String? = null,
     val discovered: Boolean = false,

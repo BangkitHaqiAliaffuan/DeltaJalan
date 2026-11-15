@@ -170,6 +170,13 @@ fun NativeInspectionReviewScreen(
                     }
 
                     Text("Kondisi teknis: ${selected?.condition ?: "-"}", color = TextDark, fontSize = 13.sp)
+                    // Dimensi hasil ukur petugas. Sengaja menampilkan "tidak diukur"
+                    // alih-alih 0 — angka nol akan disalahartikan sebagai hasil ukur.
+                    Text(
+                        "Dimensi: ${dimensionText(selected)}",
+                        color = TextDark,
+                        fontSize = 13.sp,
+                    )
                     Text("Catatan petugas: ${selected?.notes ?: "-"}", color = TextDark, fontSize = 13.sp)
 
                     Spacer(Modifier.height(4.dp))
@@ -306,6 +313,7 @@ private fun InspectionReviewCard(
         }
 
         Text("Kondisi: ${result.condition ?: "-"}", color = TextDark, fontSize = 12.sp)
+        Text("Dimensi: ${dimensionText(result)}", color = TextMuted, fontSize = 12.sp)
         result.notes?.takeIf { it.isNotBlank() }?.let {
             Text("Catatan petugas: \"$it\"", color = TextMuted, fontSize = 12.sp, maxLines = 2)
         }
@@ -320,3 +328,26 @@ private fun InspectionReviewCard(
         }
     }
 }
+
+/**
+ * Teks dimensi hasil ukur petugas: `1.50 × 0.80 × 0.15 m`.
+ *
+ * Nilai yang tidak diisi ditampilkan sebagai "tidak diukur", BUKAN "0".
+ * Alasannya: 0 berarti "tidak ada kerusakan", sedangkan kosong berarti
+ * "petugas tidak membawa meteran" — dua hal berbeda yang tidak boleh
+ * dicampur dalam keputusan perbaikan.
+ */
+private fun dimensionText(result: InspectionResultDto?): String {
+    if (result == null) return "tidak diukur"
+
+    val bagian = listOfNotNull(
+        result.kerusakanPanjang?.let { "P ${fmtDim(it)}" },
+        result.kerusakanLebar?.let { "L ${fmtDim(it)}" },
+        result.kerusakanKedalaman?.let { "K ${fmtDim(it)}" },
+    )
+
+    return if (bagian.isEmpty()) "tidak diukur" else bagian.joinToString(" × ") + " m"
+}
+
+private fun fmtDim(value: Double): String =
+    if (value % 1.0 == 0.0) value.toInt().toString() else String.format(java.util.Locale.ROOT, "%.2f", value)

@@ -1024,6 +1024,9 @@ class ReportController extends Controller
             'system_notes' => $report->system_notes,
             'ai_raw_output' => Report::trimAiRawOutput($report->ai_raw_output),
             'pci_score' => $report->pci_score ? (float) $report->pci_score : null,
+            // Penanda jalur untuk badge UI supervisor: laporan pernah/sedang melewati
+            // inspeksi lapangan. Aditif — klien lama mengabaikannya.
+            'has_inspection' => \App\Models\SurveyTaskReport::where('report_id', $report->id)->exists(),
             'image_original_url' => $report->image_original_url,
             'image_result_url' => $report->image_result_url,
             'after_photo_url' => $report->after_photo_url,
@@ -2437,6 +2440,26 @@ class ReportController extends Controller
      */
     public function approveAndAssign(Request $request, string $id): JsonResponse
     {
+        // Validasi eksplisit: tanpa ini, salah nama field (mis. `team_id` alih-alih
+        // `assigned_team_id`) GAGAL SENYAP — sistem jatuh ke auto-resolve per
+        // kecamatan dan tim pilihan supervisor hilang tanpa pesan error.
+        // `priority` dibatasi ke PRIORITY_VALUES agar nilai asing tidak diam-diam
+        // dibuang oleh logika di bawah.
+        $validated = $request->validate([
+            'assigned_team_id' => 'nullable|exists:teams,id',
+            'priority' => 'nullable|in:'.implode(',', Report::PRIORITY_VALUES),
+        ]);
+
+        // Bantu integrasi: tangkap pemakaian nama field lama secara terang-terangan
+        // daripada membiarkannya lolos lalu tim pilihan supervisor diabaikan.
+        if ($request->filled('team_id') && ! $request->filled('assigned_team_id')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Field "team_id" tidak dikenal. Gunakan "assigned_team_id".',
+                'error_code' => 'INVALID_TEAM_FIELD',
+            ], 422);
+        }
+
         $report = Report::find($id);
         if (! $report) {
             return response()->json(['success' => false, 'message' => 'Laporan tidak ditemukan.'], 404);
@@ -2456,15 +2479,12 @@ class ReportController extends Controller
             ], 422);
         }
 
-        $priority = $request->input('priority');
-        if ($priority && ! in_array($priority, Report::PRIORITY_VALUES, true)) {
-            $priority = null;
-        }
+        $priority = $validated['priority'] ?? null;
         $finalPriority = $priority ?? $report->priority;
         $now = now();
 
         // Step 1: Resolve tim — auto by district atau manual dari request
-        $assignedTeamId = $request->input('assigned_team_id');
+        $assignedTeamId = $validated['assigned_team_id'] ?? null;
         if (! $assignedTeamId) {
             $assignedTeamId = Uptd::resolveTeamIdByDistrict($report->district);
         }

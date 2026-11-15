@@ -285,6 +285,7 @@ private fun DetailBody(
                     lat = report.latitude,
                     lng = report.longitude,
                     fullAddress = report.fullAddress,
+                    roadName = report.roadName,
                 )
             }
         }

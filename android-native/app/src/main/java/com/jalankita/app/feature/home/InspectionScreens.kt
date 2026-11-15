@@ -38,7 +38,9 @@ import androidx.compose.ui.unit.sp
 import com.jalankita.app.core.network.InspectionAssignmentDto
 import com.jalankita.app.core.network.UserDto
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.BadgeRow
 import com.jalankita.app.ui.components.BrandPrimaryButton
+import com.jalankita.app.ui.components.LokasiCard
 import com.jalankita.app.ui.components.ReportThumbnail
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.ErrorRed
@@ -262,6 +264,14 @@ fun InspectionAssignmentDetailScreen(
                         }
                     }
 
+                    // Baris badge (severity + status + sumber) — komponen bersama yang
+                    // juga dipakai layar supervisor, supaya kedua layar seragam.
+                    BadgeRow(
+                        severity = report?.overallSeverity ?: report?.aiSeverity,
+                        status = report?.status,
+                        source = report?.source,
+                    )
+
                     // Bukti Laporan Warga
                     Column(
                         modifier = Modifier
@@ -330,6 +340,19 @@ fun InspectionAssignmentDetailScreen(
                     }
 
                     Spacer(Modifier.height(8.dp))
+
+                    // ── Lokasi: titik yang bisa diklik → buka aplikasi peta ──
+                    // Petugas harus menemukan kerusakan fisik di lapangan; nama jalan +
+                    // kecamatan saja tidak cukup untuk jalan panjang dengan banyak titik.
+                    // Kartu ini memberi koordinat presisi, peta mini ber-pin, dan tombol
+                    // navigasi langsung (geo: → aplikasi peta pilihan pengguna).
+                    LokasiCard(
+                        latitude = report?.latitude,
+                        longitude = report?.longitude,
+                        roadName = report?.roadName,
+                        district = report?.district,
+                        mapLabel = "Titik inspeksi",
+                    )
 
                     // Tombol Aksi Petugas
                     when (item.status) {

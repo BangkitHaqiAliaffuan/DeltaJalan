@@ -43,6 +43,19 @@ class InspectionResultViewModel @Inject constructor(
         private set
     var condition by mutableStateOf("")
     var notes by mutableStateOf("")
+
+    // ── Dimensi hasil ukur petugas (meter) ────────────────────────────────
+    // Disimpan sebagai String karena berasal dari keyboard. Sengaja OPSIONAL:
+    // petugas tanpa meteran tidak boleh dipaksa mengarang angka.
+    var kerusakanPanjang by mutableStateOf("")
+    var kerusakanLebar by mutableStateOf("")
+    var kerusakanKedalaman by mutableStateOf("")
+
+    /** Dimensi siap kirim; string kosong / nol / bukan angka menjadi null. */
+    private fun dimension(raw: String): Double? {
+        val v = raw.trim().replace(',', '.').toDoubleOrNull() ?: return null
+        return if (v > 0) v else null
+    }
     var roadName by mutableStateOf("")
     var district by mutableStateOf("")
     var error by mutableStateOf<String?>(null)
@@ -80,6 +93,9 @@ class InspectionResultViewModel @Inject constructor(
         evidence = emptyList()
         condition = ""
         notes = ""
+        kerusakanPanjang = ""
+        kerusakanLebar = ""
+        kerusakanKedalaman = ""
         roadName = ""
         district = ""
         error = null
@@ -196,6 +212,9 @@ class InspectionResultViewModel @Inject constructor(
                         idempotencyKey = key,
                         condition = condition.trim().ifBlank { null },
                         notes = notes.trim(),
+                        kerusakanPanjang = dimension(kerusakanPanjang),
+                        kerusakanLebar = dimension(kerusakanLebar),
+                        kerusakanKedalaman = dimension(kerusakanKedalaman),
                         latitude = first.latitude,
                         longitude = first.longitude,
                         photos = files,
@@ -211,6 +230,9 @@ class InspectionResultViewModel @Inject constructor(
                     sessionId = sessionId,
                     condition = condition.trim().ifBlank { null },
                     notes = notes.trim(),
+                    kerusakanPanjang = dimension(kerusakanPanjang),
+                    kerusakanLebar = dimension(kerusakanLebar),
+                    kerusakanKedalaman = dimension(kerusakanKedalaman),
                     latitude = first.latitude,
                     longitude = first.longitude,
                     photoPaths = files.map(File::getAbsolutePath),

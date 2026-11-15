@@ -55,11 +55,14 @@ import com.jalankita.app.feature.home.components.formatDateShort
 import com.jalankita.app.feature.home.components.formatDistance
 import com.jalankita.app.feature.home.components.haversineDistance
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.BadgeRow
+import com.jalankita.app.ui.components.TrackPill
 import com.jalankita.app.ui.components.BeforeAfterSlider
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandSecondaryButton
 import com.jalankita.app.ui.components.DetailErrorState
 import com.jalankita.app.ui.components.InfoBox
+import com.jalankita.app.ui.components.LokasiCard
 import com.jalankita.app.ui.components.WarningBox
 import com.jalankita.app.feature.home.components.SkeletonCard
 import com.jalankita.app.ui.theme.BrandBlue
@@ -261,11 +264,36 @@ private fun SupervisorDetailBody(
         }
 
         // ── Baris badges ──
-        item { BadgeRow(d) }
+        item { BadgeRow(severity = d.effectiveSeverity, status = d.status, source = d.source) }
+
+        // ── Jalur laporan (label tampilan saja, status backend tidak berubah) ──
+        // Membantu supervisor membedakan laporan warga yang belum diverifikasi
+        // dari yang sudah diukur petugas di lapangan.
+        item {
+            TrackPill(
+                source = d.source,
+                hasInspection = d.hasInspection,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
 
         // ── PCI ──
         if (d.pciScore != null) {
             item { PciCard(d.pciScore, modifier = Modifier.fillMaxWidth()) }
+        }
+
+        // ── Perlu inspeksi tetapi belum ada jadwal patroli ──
+        // Laporan seperti ini TIDAK boleh tenggelam di daftar: ia menunggu
+        // tindakan manual supervisor (menyusun jadwal patroli).
+        if (d.systemNotes?.contains(PERLU_INSPEKSI_MARKER) == true) {
+            item {
+                WarningBox(
+                    "Laporan ini perlu inspeksi lapangan, tetapi belum ada jadwal " +
+                        "patroli untuk kecamatan ini. Susun jadwal patroli agar petugas " +
+                        "dapat melakukan pengukuran.",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
 
         // ── Alasan Ditolak ──
@@ -304,7 +332,16 @@ private fun SupervisorDetailBody(
 
         // ── Lokasi (koord + alamat + tombol Google Maps) ──
         if (d.latitude != null && d.longitude != null) {
-            item { LokasiCard(d) }
+            item {
+                LokasiCard(
+                    latitude = d.latitude,
+                    longitude = d.longitude,
+                    address = d.fullAddress,
+                    roadName = d.roadName,
+                    district = d.district,
+                    mapLabel = "Lokasi laporan",
+                )
+            }
         }
 
         // ── Duplikasi ──
@@ -507,83 +544,6 @@ private fun RatingCard(rating: Int, comment: String?) {
     }
 }
 
-/** Baris badges: severity pill + status pill + sumber + deadline. Port detail-report.tsx:937-967. */
-@Composable
-private fun BadgeRow(d: SupervisorReportDetail) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        d.effectiveSeverity?.let { sev ->
-            SeverityPill(sev)
-        }
-        StatusPill(d.status)
-        d.source?.takeIf { it != "petugas" }?.let { src ->
-            SourcePill(src)
-        }
-    }
-}
-
-@Composable
-private fun SeverityPill(severity: String) {
-    val (bg, fg) = when {
-        severity.contains("Berat", true) -> ErrorRed to Color.White
-        severity.contains("Sedang", true) -> Color(0xFFFFF7ED) to Color(0xFFF97316)
-        severity.contains("Ringan", true) -> Color(0xFFFFFBEB) to Color(0xFFF59E0B)
-        severity.contains("Baik", true) -> Color(0xFFE8F5E9) to Color(0xFF2E7D32)
-        else -> Color(0xFFF8FAFC) to Color(0xFF64748B)
-    }
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(bg)
-            .padding(horizontal = 12.dp, vertical = 4.dp),
-    ) {
-        Text(severity.uppercase(Locale.US), color = fg, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-private fun StatusPill(status: String?) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(Color.White)
-            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(999.dp))
-            .padding(horizontal = 12.dp, vertical = 4.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(com.jalankita.app.feature.home.components.statusDotColor(status)),
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(displayStatus(status), color = Color(0xFF475569), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-        }
-    }
-}
-
-@Composable
-private fun SourcePill(source: String) {
-    val (bg, fg, border) = when (source) {
-        "warga" -> Triple(Color(0xFFFAF5FF), Color(0xFF7C3AED), Color(0xFFE9D5FF))
-        "telegram" -> Triple(Color(0xFFF0F9FF), Color(0xFF0284C7), Color(0xFFBAE6FD))
-        else -> Triple(Color(0xFFEFF6FF), Color(0xFF2563EB), Color(0xFFBFDBFE))
-    }
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(bg)
-            .border(1.dp, border, RoundedCornerShape(999.dp))
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-    ) {
-        Text(source.replaceFirstChar { it.uppercase() }, color = fg, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
 /** Info jalan grid 2 kolom — port detail-report.tsx:983-1021. */
 @Composable
 private fun InfoJalanCard(d: SupervisorReportDetail) {
@@ -669,63 +629,6 @@ private fun TimelineCardSupervisor(history: List<StatusHistoryDto>) {
                     h.notes?.takeIf { it.isNotBlank() }?.let { Text(it, color = Color(0xFF475569), fontSize = 11.sp) }
                 }
             }
-        }
-    }
-}
-
-/** Lokasi + koordinat + tombol Google Maps — port detail-report.tsx:1026-1064 (tanpa mini-map). */
-@Composable
-private fun LokasiCard(d: SupervisorReportDetail) {
-    val lat = d.latitude ?: return
-    val lng = d.longitude ?: return
-    val context = androidx.compose.ui.platform.LocalContext.current
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color.White)
-            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp)),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("Lokasi", color = TextDark, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "${String.format(Locale.US, "%.6f", lat)}, ${String.format(Locale.US, "%.6f", lng)}",
-                color = TextMuted,
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-            )
-            d.fullAddress?.let {
-                Spacer(Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.Top) {
-                    Icon(AppIcon.Map, contentDescription = null, tint = TextMuted, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(it, color = Color(0xFF475569), fontSize = 12.sp)
-                }
-            }
-        }
-        HorizontalDivider(color = Color(0xFFE2E8F0))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable {
-                    val url = "https://www.google.com/maps?q=$lat,$lng"
-                    runCatching {
-                        context.startActivity(
-                            android.content.Intent(
-                                android.content.Intent.ACTION_VIEW,
-                                android.net.Uri.parse(url),
-                            ),
-                        )
-                    }
-                }
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(AppIcon.Map, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(14.dp))
-            Spacer(Modifier.width(6.dp))
-            Text("Buka di Google Maps", color = BrandBlue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -886,3 +789,10 @@ private fun SectionTitle(text: String) {
 }
 
 private fun fmt1(v: Double): String = String.format(Locale.US, "%.1f", v)
+
+/**
+ * Penanda di `system_notes` yang ditulis backend ketika laporan perlu inspeksi
+ * tetapi belum ada jadwal patroli yang cocok (ReportTriageHook).
+ * Nilainya harus sama persis dengan konstanta di backend.
+ */
+private const val PERLU_INSPEKSI_MARKER = "[PERLU INSPEKSI]"

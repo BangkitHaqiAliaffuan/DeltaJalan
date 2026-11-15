@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\DuplicateCheckService;
 use App\Services\GeographicService;
 use App\Services\PciService;
+use App\Services\ReportTriageHook;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -1338,6 +1339,22 @@ class WargaReportController extends Controller
                 $report->pci_score = $pci;
                 $report->pci_calculated_at = now();
                 $report->saveQuietly();
+            }
+
+            // ── Triase otomatis ──────────────────────────────────────────
+            // Dipasang SETELAH PCI dihitung (TriageService membutuhkannya) dan
+            // di luar transaksi pembuatan laporan. Kegagalan triase TIDAK boleh
+            // menggagalkan laporan warga — laporan yang sudah tersimpan harus
+            // tetap ada, jauh lebih buruk kehilangan laporan daripada kehilangan
+            // antrean inspeksi.
+            try {
+                app(ReportTriageHook::class)->handle($report);
+            } catch (\Throwable $e) {
+                Log::warning('DeltaJalan: triase otomatis gagal.', [
+                    'report_id' => $report->id,
+                    'report_code' => $report->report_code,
+                    'error' => $e->getMessage(),
+                ]);
             }
 
             $primary = $processedPhotos[0];
