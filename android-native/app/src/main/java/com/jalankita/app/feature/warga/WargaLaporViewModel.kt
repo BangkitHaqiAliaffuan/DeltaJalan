@@ -22,6 +22,7 @@ import com.jalankita.app.core.network.SidoarjoBounds
 import com.jalankita.app.core.network.WargaSubmitData
 import com.jalankita.app.core.network.toWarning
 import com.jalankita.app.core.util.ExifValidator
+import com.jalankita.app.core.util.GeocodeStage
 import com.jalankita.app.core.util.ImageCompressor
 import com.jalankita.app.core.util.ReverseGeocoder
 import com.jalankita.app.feature.lapor.FraudAlert
@@ -29,11 +30,15 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import javax.inject.Inject
 
 /** Maks foto per laporan warga — kontrak: store() 'images' max:3. */
 const val WARGA_MAX_PHOTOS = 3
+
+/** Batas tunggu reverse geocoding sebelum form dianggap gagal terisi otomatis. */
+private const val GEOCODE_TIMEOUT_MS = 12_000L
 
 /** Satu foto tervalidasi siap submit. */
 data class WargaPhoto(
@@ -67,9 +72,11 @@ class WargaLaporViewModel @Inject constructor(
     var fraudAlert by mutableStateOf<FraudAlert?>(null)
         private set
 
-    /** true saat reverse geocoding nama jalan sedang berjalan. */
-    var geocoding by mutableStateOf(false)
+    /** Tahap reverse geocoding GPS foto utama → jalan/kecamatan/alamat. */
+    var geocodeStage by mutableStateOf(GeocodeStage.IDLE)
         private set
+    /** Turunan untuk pemanggil lama: true saat geocoding berjalan. */
+    val geocoding: Boolean get() = geocodeStage == GeocodeStage.LOADING
     /** true bila nama jalan terisi dari GPS (dari address.road) → field dikunci. */
     var roadNameLocked by mutableStateOf(false)
         private set
@@ -146,6 +153,9 @@ class WargaLaporViewModel @Inject constructor(
     fun removePhoto(index: Int) {
         photos = photos.filterIndexed { i, _ -> i != index }
         duplicateWarning = null
+        // Tanpa foto tidak ada lagi lokasi foto — jangan biarkan status
+        // "terisi dari GPS" menyesatkan. Nama jalan yang sudah diisi dibiarkan.
+        if (photos.isEmpty()) geocodeStage = GeocodeStage.IDLE
         runDuplicateCheck()
     }
 
@@ -200,7 +210,7 @@ class WargaLaporViewModel @Inject constructor(
                     skippedCount++
                     continue
                 }
-                val compressed = ImageCompressor.compressToFile(
+                val compressed = ImageCompressor.compressToFileWithExif(
                     context, uri, lat = la, lng = ln,
                 )
                 if (compressed == null) {
@@ -211,7 +221,22 @@ class WargaLaporViewModel @Inject constructor(
                     skippedCount++
                     continue
                 }
-                photos = photos + WargaPhoto(compressed, uri, la, ln)
+                // Server menolak foto tanpa tanggal EXIF (PHOTO_NO_EXIF_DATE).
+                // Kompresi membuang EXIF — bila tulis ulang gagal, foto pasti
+                // ditolak; tolak lebih awal dengan pesan yang jelas.
+                if (!compressed.hasDate) {
+                    if (photos.isEmpty()) {
+                        fraudAlert = FraudAlert(
+                            "Tanggal Foto Tidak Terbaca",
+                            "Tanggal foto tidak dapat dibaca setelah diproses. Ambil ulang foto " +
+                                "dengan kamera (jangan ambil ulang dari galeri) lalu coba lagi.",
+                        )
+                        return@launch
+                    }
+                    skippedCount++
+                    continue
+                }
+                photos = photos + WargaPhoto(compressed.file, uri, la, ln)
             }
             // Setelah foto pertama tervalidasi, reverse geocoding GPS-nya untuk
             // auto-isi nama jalan + kecamatan + alamat lengkap (replikasi frontend:
@@ -250,9 +275,16 @@ class WargaLaporViewModel @Inject constructor(
     private suspend fun reverseGeocodePrimary() {
         val lat = formLat ?: return
         val lng = formLng ?: return
-        geocoding = true
+        geocodeStage = GeocodeStage.LOADING
         try {
-            val res = geocoder.reverseGeocode(lat, lng)
+            // Rantai 5-tier reverse geocoder bisa lambat (Nominatim → LocationIQ
+            // → OSRM → Overpass → Wilayah-id). Batasi agar form tidak menunggu
+            // tanpa akhir; lewat batas → FAILED dan user mengisi manual.
+            val res = withTimeoutOrNull(GEOCODE_TIMEOUT_MS) { geocoder.reverseGeocode(lat, lng) }
+            if (res == null) {
+                geocodeStage = GeocodeStage.FAILED
+                return
+            }
             if (res.namaJalan.isNotBlank()) {
                 roadName = res.namaJalan
                 roadNameLocked = res.roadFound
@@ -263,10 +295,12 @@ class WargaLaporViewModel @Inject constructor(
             if (res.fullAddress != null && fullAddress.isBlank()) {
                 fullAddress = res.fullAddress
             }
+            geocodeStage = if (
+                roadName.isNotBlank() || district.isNotBlank() || fullAddress.isNotBlank()
+            ) GeocodeStage.DONE else GeocodeStage.FAILED
         } catch (_: Exception) {
             // biarkan form kosong — user isi manual
-        } finally {
-            geocoding = false
+            geocodeStage = GeocodeStage.FAILED
         }
     }
 
@@ -361,8 +395,7 @@ class WargaLaporViewModel @Inject constructor(
                                 fullAddress = fullAddress,
                                 photoPaths = photos.map { it.file.absolutePath },
                             )
-                            offlineQueue.enqueue(pending)
-                            queuedOffline = true
+                            queuedOffline = queueOffline(pending)
                         } else {
                             error = res.message
                         }
@@ -387,14 +420,28 @@ class WargaLaporViewModel @Inject constructor(
                         fullAddress = fullAddress,
                         photoPaths = photos.map { it.file.absolutePath },
                     )
-                    offlineQueue.enqueue(pending)
-                    queuedOffline = true
+                    queuedOffline = queueOffline(pending)
                 } else {
                     error = e.message
                 }
             } finally {
                 busy = false
             }
+        }
+    }
+
+    /**
+     * Simpan ke antrian offline. Kegagalan tulis TIDAK boleh melempar keluar
+     * dari coroutine (akan mematikan app) — tampilkan sebagai `error`.
+     * @return true bila laporan benar-benar tersimpan dan akan disinkronkan.
+     */
+    private suspend fun queueOffline(pending: PendingWargaReport): Boolean {
+        return try {
+            offlineQueue.enqueue(pending)
+            true
+        } catch (e: Exception) {
+            error = e.message ?: "Laporan gagal disimpan di perangkat. Coba lagi."
+            false
         }
     }
 
@@ -406,7 +453,7 @@ class WargaLaporViewModel @Inject constructor(
         catatan = ""; fullAddress = ""
         error = null; savedReport = null; serverWarnings = emptyList()
         fraudAlert = null
-        geocoding = false; roadNameLocked = false
+        geocodeStage = GeocodeStage.IDLE; roadNameLocked = false
         duplicateWarning = null; duplicateChecking = false
         roadSuggestions = emptyList(); roadSearchLoading = false
         queuedOffline = false

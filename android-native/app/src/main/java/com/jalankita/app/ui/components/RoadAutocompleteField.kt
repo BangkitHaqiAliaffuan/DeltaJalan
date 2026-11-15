@@ -53,11 +53,7 @@ fun RoadAutocompleteField(
         )
         if (loading) {
             Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(color = BrandBlue, strokeWidth = 2.dp, modifier = Modifier.size(13.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Mencari nama jalan…", color = TextMuted, fontSize = 11.sp)
-            }
+            InlineLoading("Mencari nama jalan…")
         }
         if (suggestions.isNotEmpty()) {
             Spacer(Modifier.height(6.dp))

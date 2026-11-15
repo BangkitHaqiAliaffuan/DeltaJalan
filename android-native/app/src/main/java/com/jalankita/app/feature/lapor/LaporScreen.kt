@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -40,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.jalankita.app.core.network.MAX_PETUGAS_PHOTOS
 import com.jalankita.app.core.network.SurveyTask
+import com.jalankita.app.core.util.GeocodeStage
 import com.jalankita.app.feature.home.components.EmptyState
 import com.jalankita.app.feature.home.components.formatDateShort
 import com.jalankita.app.feature.lapor.components.FraudModal
@@ -47,7 +49,10 @@ import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandSecondaryButton
 import com.jalankita.app.ui.components.ErrorBox
+import com.jalankita.app.ui.components.InlineLoading
 import com.jalankita.app.ui.components.PatrolContextBanner
+import com.jalankita.app.ui.components.WarningBox
+import com.jalankita.app.ui.map.PhotoLocationMapCard
 import com.jalankita.app.ui.rememberGalleryPickerLauncher
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.DeltaJalanTypography
@@ -97,7 +102,7 @@ fun LaporScreen(
         if (vm.stage == LaporStage.RESULT && vm.batchId != null) onAnalyzed()
     }
 
-    Column(modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier.fillMaxSize().statusBarsPadding().padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
@@ -183,6 +188,28 @@ fun LaporScreen(
                     "Maksimal $MAX_PETUGAS_PHOTOS foto tercapai.",
                     color = TextMuted, fontSize = 12.sp,
                 )
+            }
+
+            // Lokasi kerusakan dari EXIF foto utama — marker MapLibre (terlihat
+            // SEBELUM langkah analisis; geocoding & analisis berjalan di layar ini).
+            vm.photos.firstOrNull()?.let { primary ->
+                PhotoLocationMapCard(
+                    latitude = primary.latitude,
+                    longitude = primary.longitude,
+                )
+            }
+            // Status reverse geocoding nama jalan/kecamatan (foto → GPS → autoplete).
+            when (vm.geocodeStage) {
+                GeocodeStage.LOADING -> {
+                    InlineLoading("Mengisi nama jalan & kecamatan dari lokasi foto…")
+                }
+                GeocodeStage.FAILED -> {
+                    WarningBox(
+                        "Nama jalan tidak terdeteksi dari lokasi foto. " +
+                            "Isi manual di langkah berikutnya.",
+                    )
+                }
+                else -> Unit
             }
 
             if (vm.photos.isNotEmpty()) {

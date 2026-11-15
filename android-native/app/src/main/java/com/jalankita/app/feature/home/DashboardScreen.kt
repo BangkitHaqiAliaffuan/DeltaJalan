@@ -24,11 +24,13 @@ import com.jalankita.app.feature.home.components.LatestHeader
 import com.jalankita.app.feature.home.components.PatrolCompactCard
 import com.jalankita.app.feature.home.components.QuickActions
 import com.jalankita.app.feature.home.components.RecentEmptyCard
-import com.jalankita.app.feature.home.components.ReportCard
 import com.jalankita.app.feature.home.components.SectionHeader
 import com.jalankita.app.feature.home.components.SkeletonCard
 import com.jalankita.app.feature.home.components.StatCard
+import com.jalankita.app.feature.home.components.StatErrorCard
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.PrefetchThumbnails
+import com.jalankita.app.ui.components.report.ReportCard
 
 /**
  * Beranda petugas — port src/routes/home.tsx (mode mobile).
@@ -54,6 +56,9 @@ fun DashboardScreen(
             vm.refresh(user)
         }
     }
+
+    // Panaskan thumbnail kartu "Laporan Terbaru" agar tidak kosong saat di-scroll.
+    PrefetchThumbnails(vm.latestFive.map { it.displayImageUrl })
 
     val ptrState = rememberPullToRefreshState()
     PullToRefreshBox(
@@ -83,7 +88,16 @@ fun DashboardScreen(
             }
             if (vm.loading && vm.stats == null) {
                 items(4) { SkeletonCard(Modifier.padding(horizontal = 16.dp)) }
+            } else if (vm.stats == null) {
+                item(key = "overview-error") {
+                    StatErrorCard(
+                        message = vm.statsError,
+                        onRetry = { vm.refresh(user, force = true) },
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
             } else {
+                val s = vm.stats!!
                 item(key = "overview-row1") {
                     Row(
                         modifier = Modifier.padding(horizontal = 16.dp),
@@ -92,14 +106,14 @@ fun DashboardScreen(
                         StatCard(
                             icon = AppIcon.Warning,
                             label = "Rusak Berat",
-                            value = vm.stats?.rusakBerat ?: 0,
+                            value = s.rusakBerat,
                             color = Color(0xFFDC2626),
                             modifier = Modifier.weight(1f),
                         )
                         StatCard(
                             icon = AppIcon.CheckCircle,
                             label = "Selesai Diperbaiki",
-                            value = vm.stats?.selesai ?: 0,
+                            value = s.selesai,
                             color = Color(0xFF059669),
                             modifier = Modifier.weight(1f),
                         )
@@ -114,15 +128,14 @@ fun DashboardScreen(
                         StatCard(
                             icon = AppIcon.PendingActions,
                             label = "Sedang Diproses",
-                            value = (vm.stats?.menungguReview ?: 0) +
-                                (vm.stats?.sedangDiperbaiki ?: 0),
+                            value = s.menungguReview + s.sedangDiperbaiki,
                             color = Color(0xFFD97706),
                             modifier = Modifier.weight(1f),
                         )
                         StatCard(
                             icon = AppIcon.Assignment,
                             label = "Ditugaskan",
-                            value = vm.stats?.ditugaskan ?: 0,
+                            value = s.ditugaskan,
                             color = Color(0xFF1E40AF),
                             modifier = Modifier.weight(1f),
                         )
@@ -200,7 +213,7 @@ fun DashboardScreen(
 
             item(key = "recent-title") {
                 LatestHeader(
-                    total = vm.stats?.total ?: 0,
+                    total = vm.stats?.myTotal ?: 0,
                     count = minOf(vm.latestFive.size, 5),
                     onSeeAll = onOpenLaporanTab,
                     modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 24.dp),

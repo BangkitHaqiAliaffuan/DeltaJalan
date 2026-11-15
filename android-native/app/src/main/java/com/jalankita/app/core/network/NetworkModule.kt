@@ -11,6 +11,7 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
+import java.util.concurrent.TimeUnit
 import javax.inject.Named
 import javax.inject.Singleton
 
@@ -34,6 +35,15 @@ object NetworkModule {
         OkHttpClient.Builder()
             .addInterceptor(authInterceptor)
             .addInterceptor(HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BASIC))
+            // Timeout eksplisit. Default OkHttp hanya mengikat timeout per
+            // socket (connect/read/write 10 dtk) tapi callTimeout = 0 (tanpa
+            // batas total) — server yang mengirim byte trickle bisa
+            // menggantung coroutine selamanya dan membuat UI macet di status
+            // "memuat". Batas total memastikan permintaan selalu selesai.
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .callTimeout(60, TimeUnit.SECONDS)
             .build()
 
     /**

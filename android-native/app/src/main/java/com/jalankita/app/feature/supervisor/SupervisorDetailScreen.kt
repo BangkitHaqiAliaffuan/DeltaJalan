@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -57,7 +58,7 @@ import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.BeforeAfterSlider
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandSecondaryButton
-import com.jalankita.app.ui.components.ErrorBox
+import com.jalankita.app.ui.components.DetailErrorState
 import com.jalankita.app.ui.components.InfoBox
 import com.jalankita.app.ui.components.WarningBox
 import com.jalankita.app.feature.home.components.SkeletonCard
@@ -99,6 +100,7 @@ fun SupervisorDetailScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color.White)
+                .statusBarsPadding()
                 .padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -116,19 +118,19 @@ fun SupervisorDetailScreen(
         }
         HorizontalDivider(color = DividerLine, thickness = 1.dp)
 
+        // Skeleton selama `detail == null && detailError == null` — termasuk frame
+        // pertama sebelum pemuatan dimulai. Kotak error hanya untuk kegagalan nyata.
         when {
-            vm.detailLoading && vm.detail == null -> LazyColumn(
+            vm.detail == null && vm.detailError == null -> LazyColumn(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) { items(4) { SkeletonCard() } }
 
-            vm.detail == null -> LazyColumn(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                item { ErrorBox("Laporan tidak dapat dimuat.", modifier = Modifier.fillMaxWidth()) }
-                item {
-                    Spacer(Modifier.height(12.dp))
-                    BrandSecondaryButton("Kembali", onClick = onBack, modifier = Modifier.fillMaxWidth())
-                }
-            }
+            vm.detail == null -> DetailErrorState(
+                message = vm.detailError ?: "Laporan tidak dapat dimuat.",
+                onRetry = { vm.loadDetail(reportId) },
+                onBack = onBack,
+            )
 
             else -> SupervisorDetailBody(
                 d = vm.detail!!,

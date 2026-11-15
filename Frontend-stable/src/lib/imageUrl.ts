@@ -36,8 +36,9 @@ export function resolveImageUrl(url: string | null | undefined): string | null {
   } catch {
     const apiOrigin = getApiOrigin();
     if (apiOrigin) {
-      const sep = url.startsWith("/") ? "" : "/";
-      return `${apiOrigin}${sep}${url}`;
+      const clean = url.replace(/^\/+/, "");
+      const normalized = clean.startsWith("storage/") ? clean : `storage/${clean}`;
+      return `${apiOrigin}/${normalized}`;
     }
     return url;
   }

@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Construction
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
@@ -92,4 +94,6 @@ object AppIcon {
     val Lock: ImageVector = Icons.Filled.Lock                          // lock (kecamatan terkunci dari sesi)
     val Add: ImageVector = Icons.Filled.Add                              // add (CTA plus FAB upload)
     val SwapHoriz: ImageVector = Icons.Filled.SwapHoriz                  // swap_horiz (slider sebelum/sesudah)
+    val Close: ImageVector = Icons.Filled.Close
+    val Refresh: ImageVector = Icons.Filled.Refresh
 }

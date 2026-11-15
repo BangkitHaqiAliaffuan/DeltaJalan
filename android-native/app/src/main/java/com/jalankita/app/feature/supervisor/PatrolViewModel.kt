@@ -68,6 +68,9 @@ class PatrolViewModel @Inject constructor(
         private set
     var detailLoading by mutableStateOf(false)
         private set
+    /** Pesan gagal muat detail — null selama memuat/berhasil (bukan state awal error). */
+    var detailError by mutableStateOf<String?>(null)
+        private set
 
     // ── Preview ────────────────────────────────────────────────────────────
     var preview by mutableStateOf<PatrolPreview?>(null)
@@ -123,27 +126,34 @@ class PatrolViewModel @Inject constructor(
         }
     }
 
-    /** Muat detail jadwal (kalender + surveyTasks). */
+    /**
+     * Muat detail jadwal (kalender + surveyTasks).
+     * State di-set SEBELUM launch agar frame pertama tidak jatuh ke cabang error.
+     */
     fun loadDetail(id: String) {
+        detail = null
+        detailError = null
+        detailLoading = true
         viewModelScope.launch {
-            detail = null
-            detailLoading = true
             try {
                 when (val r = repo.detail(id)) {
                     is DashboardResult.Success -> detail = r.data
-                    is DashboardResult.Error -> errorMessage = r.message
+                    is DashboardResult.Error -> detailError = r.message
                 }
             } catch (_: UnauthorizedException) {
                 sessionExpired = true
             } catch (e: Exception) {
-                errorMessage = e.message
+                detailError = e.message ?: "Jadwal tidak dapat dimuat."
             } finally {
                 detailLoading = false
             }
         }
     }
 
-    fun clearDetail() { detail = null }
+    fun clearDetail() {
+        detail = null
+        detailError = null
+    }
 
     /** Preview estimasi shift (endpoint GET). Diam-diam diabaikan bila gagal. */
     fun loadPreview(form: PatrolFormState) {

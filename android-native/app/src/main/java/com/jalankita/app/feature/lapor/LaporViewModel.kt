@@ -28,6 +28,7 @@ import com.jalankita.app.core.network.SidoarjoBounds
 import com.jalankita.app.core.network.SurveyTask
 import com.jalankita.app.core.network.toWarning
 import com.jalankita.app.core.util.ExifValidator
+import com.jalankita.app.core.util.GeocodeStage
 import com.jalankita.app.core.util.ImageCompressor
 import com.jalankita.app.core.util.PatrolRotation
 import com.jalankita.app.core.util.ReverseGeocoder
@@ -35,11 +36,15 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
+
+/** Batas tunggu reverse geocoding sebelum form dianggap gagal terisi otomatis. */
+private const val GEOCODE_TIMEOUT_MS = 12_000L
 
 /** Tahapan alur lapor (state machine). SELECT = pilih tugas patroli hari ini. */
 enum class LaporStage { SELECT, PICK, VALIDATED, ANALYZING, RESULT, SUBMITTING }
@@ -187,9 +192,11 @@ class LaporViewModel @Inject constructor(
     var district by mutableStateOf("")
     var catatan by mutableStateOf("")
 
-    /** true saat reverse geocoding GPS → auto-isi nama jalan/kecamatan (indikator loading). */
-    var geocoding by mutableStateOf(false)
+    /** Tahap reverse geocoding GPS → auto-isi nama jalan/kecamatan. */
+    var geocodeStage by mutableStateOf(GeocodeStage.IDLE)
         private set
+    /** Turunan untuk pemanggil lama: true saat geocoding berjalan. */
+    val geocoding: Boolean get() = geocodeStage == GeocodeStage.LOADING
     /** true bila `roadName` diisi geocoder dari address.road yang sah (boleh dikunci). */
     var roadNameLocked by mutableStateOf(false)
         private set
@@ -290,6 +297,7 @@ class LaporViewModel @Inject constructor(
         viewModelScope.launch {
             val room = MAX_PETUGAS_PHOTOS - photos.size
             var added = 0
+            var skipped = 0
             for (uri in uris.take(room)) {
                 val valResult = ExifValidator.validate(context, uri, requireGps = true, checkDate = checkDate)
 
@@ -305,7 +313,8 @@ class LaporViewModel @Inject constructor(
                         fraudAlert = FraudAlert(valResult.title, valResult.message)
                         return@launch
                     }
-                    continue // foto tambahan gagal → lewati
+                    skipped++ // foto tambahan gagal → lewati
+                    continue
                 }
 
                 val la = lat
@@ -319,19 +328,44 @@ class LaporViewModel @Inject constructor(
                         )
                         return@launch
                     }
+                    skipped++
                     continue
                 }
 
-                val compressed = ImageCompressor.compressToFile(context, uri, lat = la, lng = ln)
+                val compressed = ImageCompressor.compressToFileWithExif(
+                    context, uri, lat = la, lng = ln,
+                )
                 if (compressed == null) {
                     if (photos.isEmpty() && added == 0) {
                         error = "Gagal memproses foto. Coba lagi."
                         return@launch
                     }
+                    skipped++
                     continue
                 }
-                photos.add(PetugasPhoto(compressed, uri, la, ln))
+                // Tanggal EXIF wajib ada di file yang diterima server
+                // (PHOTO_NO_EXIF_DATE). Kompresi membuang EXIF; bila tulis
+                // ulang gagal, foto pasti ditolak server — tolak lebih awal
+                // dengan pesan yang bisa dimengerti petugas.
+                if (!compressed.hasDate) {
+                    if (photos.isEmpty() && added == 0) {
+                        fraudAlert = FraudAlert(
+                            "Tanggal Foto Tidak Terbaca",
+                            "Tanggal foto tidak dapat dibaca setelah diproses. Ambil ulang foto " +
+                                "dengan kamera (jangan ambil ulang dari galeri) lalu coba lagi.",
+                        )
+                        return@launch
+                    }
+                    skipped++
+                    continue
+                }
+                photos.add(PetugasPhoto(compressed.file, uri, la, ln))
                 added++
+            }
+            // Foto tambahan yang dilewati tidak boleh hilang diam-diam —
+            // petugas perlu tahu ada foto yang tidak ikut terkirim.
+            if (skipped > 0) {
+                error = "$skipped foto dilewati karena tidak lolos validasi atau gagal diproses."
             }
             if (added > 0) {
                 stage = LaporStage.VALIDATED
@@ -366,7 +400,10 @@ class LaporViewModel @Inject constructor(
     /** Hapus satu foto (batal pilih). */
     fun removePhoto(index: Int) {
         if (index in photos.indices) photos.removeAt(index)
-        if (photos.isEmpty()) stage = if (surveyTaskId == null) LaporStage.SELECT else LaporStage.PICK
+        if (photos.isEmpty()) {
+            stage = if (surveyTaskId == null) LaporStage.SELECT else LaporStage.PICK
+            geocodeStage = GeocodeStage.IDLE
+        }
         batchId = null
         analyzeResult = emptyList()
         duplicateWarning = null
@@ -380,10 +417,15 @@ class LaporViewModel @Inject constructor(
      * Best-effort: kegagalan tidak mengganggu alur.
      */
     suspend fun reverseGeocodePrimary(lat: Double, lng: Double) {
-        if (geocoding) return
-        geocoding = true
+        if (geocodeStage == GeocodeStage.LOADING) return
+        geocodeStage = GeocodeStage.LOADING
         try {
-            val res = geocoder.reverseGeocode(lat, lng)
+            // Rantai 5-tier bisa lambat; batasi agar form tidak menggantung.
+            val res = withTimeoutOrNull(GEOCODE_TIMEOUT_MS) { geocoder.reverseGeocode(lat, lng) }
+            if (res == null) {
+                geocodeStage = GeocodeStage.FAILED
+                return
+            }
             if (res.namaJalan.isNotBlank() && roadName.isBlank()) {
                 roadName = res.namaJalan
                 roadNameLocked = res.roadFound
@@ -391,10 +433,14 @@ class LaporViewModel @Inject constructor(
             if (res.kecamatan != null && district.isBlank()) {
                 district = res.kecamatan
             }
+            geocodeStage = if (roadName.isNotBlank() || district.isNotBlank()) {
+                GeocodeStage.DONE
+            } else {
+                GeocodeStage.FAILED
+            }
         } catch (_: Exception) {
             // biarkan form apa adanya — user isi manual
-        } finally {
-            geocoding = false
+            geocodeStage = GeocodeStage.FAILED
         }
     }
 
@@ -542,7 +588,7 @@ class LaporViewModel @Inject constructor(
         analyzeResult = emptyList(); totalDetections = 0; overallSeverity = null
         roadName = ""; district = ""; catatan = ""
         error = null; savedReport = null; fraudAlert = null
-        geocoding = false; roadNameLocked = false
+        geocodeStage = GeocodeStage.IDLE; roadNameLocked = false
         duplicateWarning = null; duplicateChecking = false
         roadSuggestions = emptyList(); roadSearchLoading = false
         surveyTaskId = null

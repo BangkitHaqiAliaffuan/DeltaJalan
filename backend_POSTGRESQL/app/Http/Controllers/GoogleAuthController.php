@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Contracts\FirebaseTokenVerifier;
 use App\Models\User;
+use App\Services\WargaRegistrationService;
+use App\Support\ApiError;
 use App\Support\PhoneNumber;
 use App\Support\UserPayload;
 use App\Support\VerifiedFirebaseUser;
+use App\Support\WargaAccountGuard;
 use Illuminate\Database\QueryException;
-use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -69,7 +71,12 @@ class GoogleAuthController extends Controller
         }
 
         if (! $user->firebase_uid) {
-            $user->forceFill(['firebase_uid' => $identity->uid])->save();
+            $user->forceFill([
+                'firebase_uid' => $identity->uid,
+                // Email sudah diverifikasi Google — tandai agar UI tidak
+                // menawarkan verifikasi yang sebenarnya sudah selesai.
+                'email_verified_at' => $user->email_verified_at ?? now(),
+            ])->save();
         }
 
         if (blank($user->phone)) {
@@ -79,7 +86,7 @@ class GoogleAuthController extends Controller
         return $this->tokenResponse($user, 'Login berhasil.');
     }
 
-    public function complete(Request $request): JsonResponse
+    public function complete(Request $request, WargaRegistrationService $registrations): JsonResponse
     {
         $validated = $request->validate([
             'onboarding_token' => ['required', 'string', 'max:128'],
@@ -107,60 +114,63 @@ class GoogleAuthController extends Controller
         $phoneQuery = User::where('phone', $phone);
         if ($userId) {
             $phoneQuery->whereKeyNot($userId);
+        } elseif ($isNewUser && ! empty($payload['firebase_uid'])) {
+            // Request `complete` ganda (respons pertama hilang di jaringan):
+            // nomor yang sama milik akun yang baru saja dibuat untuk UID ini
+            // bukan konflik — WargaRegistrationService akan mengembalikan akun
+            // itu. Jangan sertakan baris ber-firebase_uid NULL.
+            $uid = (string) $payload['firebase_uid'];
+            $phoneQuery->where(function ($query) use ($uid) {
+                $query->whereNull('firebase_uid')->orWhere('firebase_uid', '!=', $uid);
+            });
         }
 
         if ($phoneQuery->exists()) {
             return $this->fail('Nomor telepon sudah terdaftar.', 422, 'PHONE_TAKEN');
         }
 
-        try {
-            $user = DB::transaction(function () use ($payload, $phone, $request) {
-                $uid = (string) $payload['firebase_uid'];
-
-                if (! empty($payload['user_id'])) {
-                    $user = User::whereKey($payload['user_id'])->lockForUpdate()->first();
-
-                    if (! $user) {
-                        throw $this->httpFail('Akun tidak ditemukan.', 409, 'ACCOUNT_CONFLICT');
-                    }
-
-                    $this->assertWargaCanContinue($user, $uid);
-                    $this->applyOnboardingFields($user, $phone, $uid);
-
-                    return $user->fresh();
-                }
-
-                // Idempotensi: request bisa saja sukses di server tetapi response
-                // jaringan hilang. Jangan buat baris kedua untuk UID yang sama.
-                $existing = User::where('firebase_uid', $uid)->lockForUpdate()->first();
-                if ($existing) {
-                    $this->assertWargaCanContinue($existing, $uid);
-                    $this->applyOnboardingFields($existing, $phone, $uid);
-
-                    return $existing->fresh();
-                }
-
-                $emailUser = User::whereRaw('LOWER(email) = ?', [$payload['email']])
-                    ->lockForUpdate()
-                    ->first();
-
-                if ($emailUser) {
-                    $this->assertWargaCanContinue($emailUser, $uid);
-                    $this->applyOnboardingFields($emailUser, $phone, $uid);
-
-                    return $emailUser->fresh();
-                }
-
-                return User::create([
+        // ── Akun baru: dibuat langsung di sini ──────────────────────────────
+        // Email sudah dibuktikan Google: `login()` menolak token dengan
+        // `email_verified != true` sebelum onboarding_token diterbitkan, dan
+        // email diambil dari token (bukan diketik pengguna). OTP email karena
+        // itu tidak menambah keamanan — hanya menambah titik gagal (SMTP mati
+        // = pendaftaran Google ikut mati) dan satu langkah bagi pengguna.
+        if ($isNewUser) {
+            try {
+                $user = $registrations->create([
                     'name' => $this->safeName((string) ($payload['name'] ?? ''), (string) $payload['email']),
                     'email' => (string) $payload['email'],
                     'phone' => $phone,
-                    'password' => Hash::make((string) $request->input('password')),
-                    'role' => 'warga',
-                    'firebase_uid' => $uid,
+                    'password_hash' => Hash::make((string) $request->input('password')),
                     'registration_ip' => $request->ip(),
-                    'email_verified_at' => now(),
-                ]);
+                    'firebase_uid' => (string) $payload['firebase_uid'],
+                ], $request->ip());
+            } catch (QueryException $e) {
+                Log::warning('Google onboarding: konflik data.', ['error' => $e->getMessage()]);
+
+                return $this->fail('Email atau nomor telepon sudah terdaftar.', 422, 'ONBOARDING_CONFLICT');
+            }
+
+            Cache::forget($cacheKey);
+
+            return $this->tokenResponse($user, 'Pendaftaran berhasil.');
+        }
+
+        // ── Akun lama yang cuma kurang nomor telepon: tetap tanpa OTP ───────
+        try {
+            $user = DB::transaction(function () use ($payload, $phone): User {
+                $uid = (string) $payload['firebase_uid'];
+
+                $user = User::whereKey($payload['user_id'])->lockForUpdate()->first();
+
+                if (! $user) {
+                    throw ApiError::httpFail('Akun tidak ditemukan.', 409, 'ACCOUNT_CONFLICT');
+                }
+
+                WargaAccountGuard::assertCanContinue($user, $uid);
+                WargaAccountGuard::applyOnboarding($user, $phone, $uid);
+
+                return $user->fresh();
             });
         } catch (QueryException $e) {
             Log::warning('Google onboarding: konflik data.', ['error' => $e->getMessage()]);
@@ -218,33 +228,6 @@ class GoogleAuthController extends Controller
         ], 200);
     }
 
-    private function assertWargaCanContinue(User $user, string $uid): void
-    {
-        if ($user->role !== 'warga') {
-            throw $this->httpFail('Akun Google hanya dapat digunakan untuk akun warga.', 403, 'GOOGLE_WARGA_ONLY');
-        }
-
-        if ($user->banned_at) {
-            throw $this->httpFail('Akun telah dinonaktifkan. Hubungi administrator.', 403, 'ACCOUNT_BANNED');
-        }
-
-        if ($user->firebase_uid && $user->firebase_uid !== $uid) {
-            throw $this->httpFail('Akun ini sudah terhubung dengan akun Google lain.', 409, 'FIREBASE_UID_CONFLICT');
-        }
-    }
-
-    private function applyOnboardingFields(User $user, string $phone, string $uid): void
-    {
-        if (filled($user->phone) && $user->phone !== $phone) {
-            throw $this->httpFail('Nomor telepon akun sudah terisi.', 409, 'PHONE_ALREADY_SET');
-        }
-
-        $user->forceFill([
-            'phone' => $user->phone ?: $phone,
-            'firebase_uid' => $user->firebase_uid ?: $uid,
-        ])->save();
-    }
-
     private function safeName(string $name, string $email): string
     {
         $name = preg_replace('/[\x00-\x1F\x7F]/u', '', $name) ?? '';
@@ -263,21 +246,9 @@ class GoogleAuthController extends Controller
         return 'google_onboarding:'.hash('sha256', $token);
     }
 
-    private function httpFail(string $message, int $status, string $code): HttpResponseException
-    {
-        return new HttpResponseException(response()->json([
-            'success' => false,
-            'message' => $message,
-            'error_code' => $code,
-        ], $status));
-    }
-
+    /** Kontrak error bersama {@see ApiError} — `{success:false, message, error_code}`. */
     private function fail(string $message, int $status, string $code): JsonResponse
     {
-        return response()->json([
-            'success' => false,
-            'message' => $message,
-            'error_code' => $code,
-        ], $status);
+        return ApiError::fail($message, $status, $code);
     }
 }

@@ -30,6 +30,7 @@ class PatrolSchedule extends Model
         'jam_mulai',
         'jam_selesai',
         'created_by',
+        'schedule_type',
     ];
 
     protected $casts = [

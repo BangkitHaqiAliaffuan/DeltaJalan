@@ -6,8 +6,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -23,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jalankita.app.core.network.PatrolScheduleDto
@@ -42,12 +45,12 @@ fun QuickActions(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier.fillMaxWidth(),
+        // IntrinsicSize.Min: tinggi baris = kartu tertinggi; fillMaxHeight menyamakan sisanya.
+        modifier = modifier.fillMaxWidth().height(IntrinsicSize.Min),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         val shape = RoundedCornerShape(8.dp)
-        // Tinggi minimum eksplisit & sama di kedua kartu agar selalu sejajar.
-        val cardSize = Modifier.weight(1f).heightIn(min = 76.dp)
+        val cardSize = Modifier.weight(1f).fillMaxHeight().heightIn(min = 76.dp)
         Row(
             modifier = cardSize
                 .clip(shape)
@@ -59,11 +62,11 @@ fun QuickActions(
             Icon(AppIcon.UploadPhoto, contentDescription = null, tint = Color.White,
                 modifier = Modifier.size(28.dp))
             Spacer(Modifier.width(12.dp))
-            Column {
+            Column(Modifier.weight(1f)) {
                 Text("Upload Laporan", color = Color.White, fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold)
+                    fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("Ambil foto & analisis", color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp)
+                    fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         Row(
@@ -78,10 +81,11 @@ fun QuickActions(
             Icon(AppIcon.Description, contentDescription = null, tint = BrandBlue,
                 modifier = Modifier.size(28.dp))
             Spacer(Modifier.width(12.dp))
-            Column {
+            Column(Modifier.weight(1f)) {
                 Text("Laporan Saya", color = TextDark, fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold)
-                Text("Lihat riwayat", color = TextMuted, fontSize = 12.sp)
+                    fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("Lihat riwayat", color = TextMuted, fontSize = 12.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

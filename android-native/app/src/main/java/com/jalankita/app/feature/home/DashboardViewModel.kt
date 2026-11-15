@@ -44,6 +44,9 @@ class DashboardViewModel @Inject constructor(
 
     var stats by mutableStateOf<StatsDto?>(null)
         private set
+    /** Pesan gagal muat statistik — ditampilkan sebagai retry, bukan angka 0 palsu. */
+    var statsError by mutableStateOf<String?>(null)
+        private set
     var recent by mutableStateOf<List<ReportItemDto>>(emptyList())
         private set
     var teamTasks by mutableStateOf<List<ReportItemDto>>(emptyList())
@@ -83,6 +86,9 @@ class DashboardViewModel @Inject constructor(
         private set
     var detailLoading by mutableStateOf(false)
         private set
+    /** Pesan gagal muat detail — null selama memuat/berhasil (bukan state awal error). */
+    var detailError by mutableStateOf<String?>(null)
+        private set
 
     // ── Peta (tab PETA petugas) ────────────────────────────────────────────
     var mapReports by mutableStateOf<List<com.jalankita.app.core.network.MapReportDto>>(emptyList())
@@ -112,8 +118,14 @@ class DashboardViewModel @Inject constructor(
 
                 var failed: String? = null
                 when (val r = statsD.await()) {
-                    is DashboardResult.Success -> stats = r.data
-                    is DashboardResult.Error -> failed = r.message
+                    is DashboardResult.Success -> {
+                        stats = r.data
+                        statsError = null
+                    }
+                    is DashboardResult.Error -> {
+                        statsError = r.message
+                        failed = r.message
+                    }
                 }
                 when (val r = recentD.await()) {
                     is DashboardResult.Success -> recent = r.data
@@ -190,6 +202,9 @@ class DashboardViewModel @Inject constructor(
         private set
     var surveyDetailLoading by mutableStateOf(false)
         private set
+    /** Pesan gagal muat sesi patroli — null selama memuat/berhasil. */
+    var surveyDetailError by mutableStateOf<String?>(null)
+        private set
 
     /** Muat daftar sesi patroli tim. */
     fun loadSurveys() {
@@ -211,27 +226,34 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    /** Muat detail sesi patroli (untuk layar detail + refresh setelah lapor). */
+    /**
+     * Muat detail sesi patroli (untuk layar detail + refresh setelah lapor).
+     * State di-set SEBELUM launch agar frame pertama tidak jatuh ke cabang error.
+     */
     fun loadSurveyDetail(id: String) {
+        surveyDetail = null
+        surveyDetailError = null
+        surveyDetailLoading = true
         viewModelScope.launch {
-            surveyDetail = null
-            surveyDetailLoading = true
             try {
                 when (val r = surveyRepo.detail(id)) {
                     is DashboardResult.Success -> surveyDetail = r.data
-                    is DashboardResult.Error -> errorMessage = r.message
+                    is DashboardResult.Error -> surveyDetailError = r.message
                 }
             } catch (_: UnauthorizedException) {
                 sessionExpired = true
             } catch (e: Exception) {
-                errorMessage = e.message
+                surveyDetailError = e.message ?: "Sesi patroli tidak dapat dimuat."
             } finally {
                 surveyDetailLoading = false
             }
         }
     }
 
-    fun clearSurveyDetail() { surveyDetail = null }
+    fun clearSurveyDetail() {
+        surveyDetail = null
+        surveyDetailError = null
+    }
 
     /**
      * Segarkan sesi + daftar setelah laporan baru (padanan invalidateQueries web):
@@ -292,29 +314,36 @@ class DashboardViewModel @Inject constructor(
 
     fun submitHistoryQuery() = loadHistory(reset = true)
 
-    /** Muat detail satu laporan untuk layar read-only. */
+    /**
+     * Muat detail satu laporan untuk layar read-only.
+     *
+     * State di-set SEBELUM `launch` agar frame pertama komposisi sudah berstatus
+     * memuat (tanpa ini layar sempat menampilkan "Gagal memuat detail" satu frame).
+     */
     fun loadDetail(id: String) {
+        detail = null
+        detailError = null
+        detailLoading = true
         viewModelScope.launch {
-            detail = null
-            detailLoading = true
             try {
                 when (val r = repo.detail(id)) {
                     is DashboardResult.Success -> detail = r.data
-                    is DashboardResult.Error -> {
-                        errorMessage = r.message
-                    }
+                    is DashboardResult.Error -> detailError = r.message
                 }
             } catch (_: UnauthorizedException) {
                 sessionExpired = true
             } catch (e: Exception) {
-                errorMessage = e.message
+                detailError = e.message ?: "Gagal memuat detail."
             } finally {
                 detailLoading = false
             }
         }
     }
 
-    fun clearDetail() { detail = null }
+    fun clearDetail() {
+        detail = null
+        detailError = null
+    }
 
     // ── Eksekusi lapangan (Mulai / Progress / Selesai / Edit / Hapus) ───────
     // Pola error mengikuti ReportRepository.parseError: pesan server tampil
@@ -351,6 +380,13 @@ class DashboardViewModel @Inject constructor(
     /** Muat ulang kartu Beranda (teamTasks limit 3 + recent) setelah mutasi. */
     private fun refreshHomeLists() {
         viewModelScope.launch {
+            when (val r = repo.stats()) {
+                is DashboardResult.Success -> {
+                    stats = r.data
+                    statsError = null
+                }
+                is DashboardResult.Error -> Unit
+            }
             when (val r = repo.teamTasks(limit = 3)) {
                 is DashboardResult.Success -> teamTasks = r.data
                 is DashboardResult.Error -> Unit

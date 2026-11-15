@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -43,11 +44,11 @@ import com.jalankita.app.ui.components.BrandBackground
 import com.jalankita.app.ui.components.BrandCard
 import com.jalankita.app.ui.components.BrandFooter
 import com.jalankita.app.ui.components.BrandPrimaryButton
-import com.jalankita.app.ui.components.BrandSecondaryButton
 import com.jalankita.app.ui.components.BrandTextField
 import com.jalankita.app.ui.components.CardHeader
 import com.jalankita.app.ui.components.ErrorBox
 import com.jalankita.app.ui.components.FieldLabel
+import com.jalankita.app.ui.components.GoogleSignInButton
 import com.jalankita.app.ui.components.PasswordToggle
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.DeltaJalanTypography
@@ -85,6 +86,7 @@ fun LoginScreen(
         Column(
             Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .padding(16.dp)
                 .graphicsLayer {
                     alpha = anim
@@ -170,10 +172,9 @@ fun LoginScreen(
                         HorizontalDivider(Modifier.weight(1f), color = BrandBlue.copy(alpha = 0.18f))
                     }
 
-                    BrandSecondaryButton(
-                        text = if (vm.googleBusy) "Menghubungkan..." else "Lanjutkan dengan Google",
-                        icon = AppIcon.Person,
-                        enabled = !vm.loginBusy && !vm.googleBusy,
+                    GoogleSignInButton(
+                        loading = vm.googleBusy,
+                        enabled = !vm.loginBusy,
                         onClick = {
                             if (activity == null) {
                                 vm.onGoogleError("Google Sign-In tidak tersedia di perangkat ini.")

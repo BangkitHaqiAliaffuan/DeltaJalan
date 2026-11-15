@@ -25,6 +25,22 @@ object ImageCompressor {
     private const val JPEG_QUALITY = 85
 
     /**
+     * Hasil kompresi beserta status penulisan EXIF.
+     *
+     * `hasGps`/`hasDate` sengaja DILETAKSON, bukan diasumsikan: kompresi
+     * membuang seluruh EXIF dan penulisan ulang bisa gagal diam-diam.
+     *
+     * Kontrak server: tanggal EXIF **wajib** (tanpa itu → `PHOTO_NO_EXIF_DATE`),
+     * sedangkan GPS boleh kosong karena server memakai fallback koordinat form.
+     * Karena itu pemanggil wajib memeriksa [hasDate]; [hasGps] hanya diagnostik.
+     */
+    data class CompressResult(
+        val file: File,
+        val hasGps: Boolean,
+        val hasDate: Boolean,
+    )
+
+    /**
      * Baca Uri → Bitmap (downsample) → rotasi sesuai EXIF → simpan JPEG ke cache,
      * lalu **tulis GPS EXIF** ke hasil kompres.
      *
@@ -48,7 +64,20 @@ object ImageCompressor {
         lat: Double? = null,
         lng: Double? = null,
         outName: String? = null,
-    ): File? {
+    ): File? = compressToFileWithExif(context, uri, lat, lng, outName)?.file
+
+    /**
+     * Sama seperti [compressToFile], tetapi melaporkan status EXIF hasil tulis
+     * supaya pemanggil bisa gagal DULU dengan pesan jelas alih-alih mengirim
+     * file yang pasti ditolak server.
+     */
+    fun compressToFileWithExif(
+        context: Context,
+        uri: Uri,
+        lat: Double? = null,
+        lng: Double? = null,
+        outName: String? = null,
+    ): CompressResult? {
         return try {
             val bitmap = decodeSampled(context, uri) ?: return null
             val rotated = applyExifRotation(context, uri, bitmap)
@@ -63,9 +92,14 @@ object ImageCompressor {
             rotated.recycle()
 
             // Kompresi membuang EXIF → tulis ulang GPS agar server bisa verifikasi.
-            writeGpsExif(context, uri, out, lat, lng)
-            out
+            val outcome = writeGpsExif(context, uri, out, lat, lng)
+            CompressResult(
+                file = out,
+                hasGps = outcome.hasGps,
+                hasDate = outcome.hasDate,
+            )
         } catch (e: Exception) {
+            Log.w(TAG, "compressToFileWithExif gagal: ${e.message}")
             null
         }
     }
@@ -153,6 +187,14 @@ object ImageCompressor {
     }
 
     /**
+     * Status penulisan EXIF ke file JPEG [dest].
+     *
+     * @param hasGps koordinat GPS berhasil ditulis.
+     * @param hasDate tag tanggal foto berhasil ditulis (wajib untuk server).
+     */
+    private data class ExifOutcome(val hasGps: Boolean, val hasDate: Boolean)
+
+    /**
      * Tulis tag GPS ke file JPEG [dest].
      *
      * Urutan:
@@ -165,21 +207,23 @@ object ImageCompressor {
      * memvalidasi ulang usia foto dari file yang diterima; tanpa tag ini foto
      * utama selalu 422 PHOTO_NO_EXIF_DATE.
      *
-     * Best-effort: kegagalan tidak menggagalkan upload.
+     * Mengembalikan status nyata apa yang berhasil ditulis, supaya pemanggil
+     * bisa menolak lebih awal dengan pesan yang jelas (bukan diam-diam
+     * bergantung pada penolakan server dengan error_code yang membingungkan).
      */
     private fun writeGpsExif(
         context: Context, srcUri: Uri, dest: File, lat: Double?, lng: Double?,
-    ) {
-        try {
+    ): ExifOutcome {
+        return try {
             val target = ExifInterface(dest)
 
             // Jalur utama: koordinat hasil validasi (sudah melewati rantai 4-attempt).
             if (lat != null && lng != null && !(lat == 0.0 && lng == 0.0)) {
                 target.setLatLong(lat, lng)
-                copyDateTags(context, srcUri, target)
+                val dateCopied = copyDateTags(context, srcUri, target)
                 target.saveAttributes()
                 Log.d(TAG, "EXIF GPS ditulis dari koordinat validasi: $lat,$lng")
-                return
+                return ExifOutcome(hasGps = true, hasDate = dateCopied > 0)
             }
 
             // Fallback: baca sumber lewat setRequireOriginal (butuh ACCESS_MEDIA_LOCATION),
@@ -187,14 +231,15 @@ object ImageCompressor {
             val raw = openSourceRawGps(context, srcUri)
             if (raw != null && !(raw.first == 0.0 && raw.second == 0.0)) {
                 target.setLatLong(raw.first, raw.second)
-                copyDateTags(context, srcUri, target)
+                val dateCopied = copyDateTags(context, srcUri, target)
                 target.saveAttributes()
                 Log.d(TAG, "EXIF GPS disalin (raw parser) ke hasil kompres: $raw")
-                return
+                return ExifOutcome(hasGps = true, hasDate = dateCopied > 0)
             }
 
             // Fallback terakhir: salin atribut mentah GPS bila ada.
-            val source = openSourceExif(context, srcUri) ?: return
+            val source = openSourceExif(context, srcUri)
+                ?: return ExifOutcome(hasGps = false, hasDate = false)
             val copied = GPS_TAGS.count { tag ->
                 val v = source.getAttribute(tag) ?: return@count false
                 target.setAttribute(tag, v)
@@ -209,8 +254,13 @@ object ImageCompressor {
                 target.saveAttributes()
                 Log.d(TAG, "EXIF GPS (raw attrs) disalin: $copied tag, tanggal: $dateCopied tag")
             }
+            ExifOutcome(
+                hasGps = copied >= GPS_TAGS.size / 2,
+                hasDate = dateCopied > 0,
+            )
         } catch (e: Exception) {
             Log.w(TAG, "Gagal tulis EXIF GPS ke file kompres: ${e.message}")
+            ExifOutcome(hasGps = false, hasDate = false)
         }
     }
 
@@ -268,17 +318,26 @@ object ImageCompressor {
     )
 
     /**
-     * Salin tag tanggal dari sumber ke [target]. Best-effort: gagal diam-diam.
-     * Dipanggil di semua jalur tulis EXIF agar tanggal foto tidak hilang saat kompres.
+     * Salin tag tanggal dari sumber ke [target].
+     *
+     * @return jumlah tag tanggal yang berhasil disalin (0 = tidak ada yang
+     *   tersalin → file hasil kompres akan ditolak server dengan
+     *   `PHOTO_NO_EXIF_DATE`).
      */
-    private fun copyDateTags(context: Context, srcUri: Uri, target: ExifInterface) {
-        try {
-            val source = openSourceExif(context, srcUri) ?: return
+    private fun copyDateTags(context: Context, srcUri: Uri, target: ExifInterface): Int {
+        return try {
+            val source = openSourceExif(context, srcUri) ?: return 0
+            var copied = 0
             DATE_TAGS.forEach { tag ->
-                source.getAttribute(tag)?.let { target.setAttribute(tag, it) }
+                source.getAttribute(tag)?.let {
+                    target.setAttribute(tag, it)
+                    copied++
+                }
             }
+            copied
         } catch (e: Exception) {
             Log.w(TAG, "Gagal salin EXIF tanggal: ${e.message}")
+            0
         }
     }
 }

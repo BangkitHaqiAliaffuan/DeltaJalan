@@ -2022,14 +2022,25 @@ class ReportController extends Controller
     {
         $user = auth()->user();
 
-        $cacheKey = 'stats_'.($user->role ?? 'guest').'_'.($user->id ?? '0');
+        // v2: scope petugas diperluas ke tim (lihat komentar di bawah) — key baru
+        // agar cache lama (yang hanya menghitung laporan pribadi) tidak dipakai.
+        $cacheKey = 'stats_v2_'.($user->role ?? 'guest').'_'.($user->id ?? '0');
         $cacheTTL = 60; // seconds
 
         $stats = Cache::remember($cacheKey, $cacheTTL, function () use ($user) {
             $query = Report::query();
 
             if ($user->role === 'petugas') {
-                $query->where('user_id', $user->id);
+                // Sama dengan scope GET /reports: laporan sendiri ATAU laporan
+                // yang ditugaskan ke tim petugas. Tanpa ini kartu Overview hanya
+                // menghitung laporan buatan petugas sendiri dan selalu 0.
+                $query->where(function ($q) use ($user) {
+                    $q->where('user_id', $user->id);
+                    if ($user->team_id) {
+                        $q->orWhere('assigned_team_id', $user->team_id);
+                    }
+                });
+                $query->whereNotIn('status', ['Diedit']);
             }
 
             if ($user->role === 'supervisor') {
@@ -2047,9 +2058,9 @@ class ReportController extends Controller
                 SUM(CASE WHEN status = 'Ditugaskan' THEN 1 ELSE 0 END) as ditugaskan,
                 SUM(CASE WHEN status = 'Sedang Diperbaiki' THEN 1 ELSE 0 END) as sedang_diperbaiki,
                 SUM(CASE WHEN status = 'Selesai' THEN 1 ELSE 0 END) as selesai,
-                SUM(CASE WHEN overall_severity::text = 'Rusak Berat' OR LOWER(ai_severity) = 'berat' THEN 1 ELSE 0 END) as rusak_berat,
-                SUM(CASE WHEN overall_severity::text = 'Rusak Sedang' OR LOWER(ai_severity) = 'sedang' THEN 1 ELSE 0 END) as rusak_sedang,
-                SUM(CASE WHEN overall_severity::text = 'Rusak Ringan' OR LOWER(ai_severity) = 'ringan' THEN 1 ELSE 0 END) as rusak_ringan
+                SUM(CASE WHEN CAST(overall_severity AS TEXT) = 'Rusak Berat' OR LOWER(ai_severity) = 'berat' THEN 1 ELSE 0 END) as rusak_berat,
+                SUM(CASE WHEN CAST(overall_severity AS TEXT) = 'Rusak Sedang' OR LOWER(ai_severity) = 'sedang' THEN 1 ELSE 0 END) as rusak_sedang,
+                SUM(CASE WHEN CAST(overall_severity AS TEXT) = 'Rusak Ringan' OR LOWER(ai_severity) = 'ringan' THEN 1 ELSE 0 END) as rusak_ringan
             ")->first();
 
             // Monthly trend — last 6 months
@@ -2063,16 +2074,21 @@ class ReportController extends Controller
                 SUM(CASE WHEN status = 'Sedang Diperbaiki' THEN 1 ELSE 0 END) as sedang_diperbaiki,
                 SUM(CASE WHEN status = 'Selesai' THEN 1 ELSE 0 END) as selesai,
                 SUM(CASE
-                    WHEN overall_severity::text = 'Rusak Berat' OR LOWER(ai_severity) = 'berat' THEN 1
+                    WHEN CAST(overall_severity AS TEXT) = 'Rusak Berat' OR LOWER(ai_severity) = 'berat' THEN 1
                     ELSE 0
                 END) as rusak_berat
             ")
                 ->where('created_at', '>=', $sixMonthsAgo);
 
             if ($user->role === 'petugas') {
-                $monthlyQuery->where('reporter_name', $user->name);
-                $monthlyQuery->when($user->team_id, fn ($q) => $q->where('assigned_team_id', $user->team_id))
-                    ->unless($user->team_id, fn ($q) => $q->whereRaw('1 = 0'));
+                // Harus sama dengan scope agregat di atas agar angka kartu dan
+                // grafik tren tidak saling bertentangan.
+                $monthlyQuery->where(function ($q) use ($user) {
+                    $q->where('user_id', $user->id);
+                    if ($user->team_id) {
+                        $q->orWhere('assigned_team_id', $user->team_id);
+                    }
+                })->whereNotIn('status', ['Diedit']);
             }
 
             if ($user->role === 'supervisor') {
@@ -2101,8 +2117,15 @@ class ReportController extends Controller
                 ];
             }
 
+            // Total laporan pribadi (dipakai header "Laporan Terbaru" yang
+            // menampilkan myReports saja). Untuk role non-petugas = total biasa.
+            $myTotal = $user->role === 'petugas'
+                ? Report::where('user_id', $user->id)->whereNotIn('status', ['Diedit'])->count()
+                : (int) $agg->total;
+
             return [
                 'total' => (int) $agg->total,
+                'my_total' => (int) $myTotal,
                 'menunggu_review' => (int) $agg->menunggu_review,
 
                 'disetujui' => (int) $agg->disetujui,

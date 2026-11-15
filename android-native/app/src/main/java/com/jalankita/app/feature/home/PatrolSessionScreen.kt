@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -43,7 +44,7 @@ import com.jalankita.app.feature.home.components.formatDateShort
 import com.jalankita.app.feature.home.components.statusDotColor
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.BrandPrimaryButton
-import com.jalankita.app.ui.components.ErrorBox
+import com.jalankita.app.ui.components.DetailErrorState
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.SuccessGreen
 import com.jalankita.app.ui.theme.TextDark
@@ -63,13 +64,15 @@ fun PatrolSessionScreen(
     onTambahLaporan: (surveyId: String, roadName: String?, kecamatan: String?) -> Unit,
     onOpenReport: (String) -> Unit,
     modifier: Modifier = Modifier,
+    /** Khusus supervisor: buka dialog antrean inspeksi untuk task ini. */
+    onQueueInspection: (() -> Unit)? = null,
 ) {
     LaunchedEffect(taskId) { if (taskId.isNotBlank()) vm.loadSurveyDetail(taskId) }
 
     Column(modifier = modifier.fillMaxWidth()) {
         // Top bar
         Row(
-            modifier = Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().background(Color.White).statusBarsPadding().padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(AppIcon.ArrowBack, contentDescription = "Kembali", tint = BrandBlue, modifier = Modifier.size(24.dp).clickable(onClick = onBack))
@@ -78,22 +81,28 @@ fun PatrolSessionScreen(
         }
         HorizontalDivider(color = Color(0xFFD0DAE8), thickness = 1.dp)
 
+        // Skeleton selama `task == null && surveyDetailError == null` — termasuk
+        // frame pertama. Kotak error hanya untuk kegagalan nyata.
         val task = vm.surveyDetail
+        val detailError = vm.surveyDetailError
         when {
-            vm.surveyDetailLoading && task == null -> LazyColumn(
+            task == null && detailError == null -> LazyColumn(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) { items(3) { SkeletonCard() } }
 
-            task == null -> LazyColumn(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                item { ErrorBox("Sesi patroli tidak dapat dimuat.", modifier = Modifier.fillMaxWidth()) }
-            }
+            task == null -> DetailErrorState(
+                message = detailError ?: "Sesi patroli tidak dapat dimuat.",
+                onRetry = { vm.loadSurveyDetail(taskId) },
+                onBack = onBack,
+            )
 
             else -> PatrolSessionBody(
                 task = task,
                 user = user,
                 onTambahLaporan = { onTambahLaporan(task.id, task.roadName, task.kecamatan) },
                 onOpenReport = onOpenReport,
+                onQueueInspection = onQueueInspection,
             )
         }
     }
@@ -105,6 +114,7 @@ private fun PatrolSessionBody(
     user: UserDto,
     onTambahLaporan: () -> Unit,
     onOpenReport: (String) -> Unit,
+    onQueueInspection: (() -> Unit)? = null,
 ) {
     val reports = task.reports.orEmpty()
     val isPetugas = user.role == UserRole.PETUGAS
@@ -182,6 +192,35 @@ private fun PatrolSessionBody(
                     onClick = onTambahLaporan,
                     modifier = Modifier.fillMaxWidth(),
                 )
+            }
+        }
+
+        // ── Antrean inspeksi (hanya supervisor, sesi aktif) ──
+        // Laporan yang diantrekan di sini menjadi tugas petugas pada menu Tugas,
+        // jadi supervisor tidak perlu memilah laporan satu per satu di lapangan.
+        if (onQueueInspection != null && task.status == "aktif") {
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White)
+                        .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp))
+                        .padding(16.dp),
+                ) {
+                    Text("Antrean inspeksi", color = TextDark, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Pilih laporan menunggu review untuk diverifikasi petugas di lapangan.",
+                        color = TextMuted, fontSize = 12.sp,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    BrandPrimaryButton(
+                        "Antrekan laporan untuk inspeksi",
+                        onClick = onQueueInspection,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
 

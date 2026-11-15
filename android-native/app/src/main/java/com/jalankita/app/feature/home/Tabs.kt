@@ -44,9 +44,10 @@ import com.jalankita.app.core.network.UserDto
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.feature.home.components.EmptyState
 import com.jalankita.app.feature.home.components.PatrolCompactCard
-import com.jalankita.app.feature.home.components.ReportCard
+import com.jalankita.app.ui.components.report.ReportCard
 import com.jalankita.app.feature.home.components.SectionHeader
 import com.jalankita.app.feature.home.components.SkeletonCard
+import com.jalankita.app.feature.home.ReportCardActions
 import com.jalankita.app.feature.home.components.formatDateShort
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.SuccessGreen
@@ -58,7 +59,9 @@ import com.jalankita.app.ui.theme.TextMuted
 fun TugasScreen(
     user: UserDto,
     vm: DashboardViewModel,
+    inspectionVm: InspectionViewModel,
     onOpenDetail: (String) -> Unit,
+    onOpenInspection: (String) -> Unit,
     onOpenSession: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -72,6 +75,18 @@ fun TugasScreen(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        item(key = "inspection-h") {
+            SectionHeader(icon = AppIcon.CheckCircle, title = "Inspeksi Laporan")
+        }
+        item(key = "inspection-list") {
+            InspectionTaskListScreen(
+                user = user,
+                vm = inspectionVm,
+                onOpenAssignment = onOpenInspection,
+                showTitle = false,
+                modifier = Modifier.fillMaxWidth().height(260.dp),
+            )
+        }
         item(key = "patrol-h") {
             SectionHeader(icon = AppIcon.CalendarMonth, title = "Jadwal Patroli Tim")
         }

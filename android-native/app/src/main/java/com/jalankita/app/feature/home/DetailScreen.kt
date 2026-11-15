@@ -17,8 +17,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
@@ -50,6 +52,7 @@ import com.jalankita.app.core.network.ProgressItemDto
 import com.jalankita.app.core.network.ReportItemDto
 import com.jalankita.app.core.network.UserDto
 import com.jalankita.app.core.util.ImageUrl
+import com.jalankita.app.feature.home.components.SkeletonCard
 import com.jalankita.app.feature.home.components.formatDateShort
 import com.jalankita.app.ui.rememberGalleryPickerLauncher
 import com.jalankita.app.ui.components.AppIcon
@@ -57,6 +60,7 @@ import com.jalankita.app.ui.components.BeforeAfterSlider
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandSecondaryButton
 import com.jalankita.app.ui.components.BrandTextField
+import com.jalankita.app.ui.components.DetailErrorState
 import com.jalankita.app.ui.components.ErrorBox
 import com.jalankita.app.ui.components.FieldLabel
 import com.jalankita.app.ui.components.SuccessBox
@@ -103,8 +107,9 @@ fun DetailScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
                 .background(Color.White)
+                .statusBarsPadding()
+                .height(56.dp)
                 .padding(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -117,19 +122,30 @@ fun DetailScreen(
             }
             Text("Detail Laporan", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark)
         }
-        if (vm.detailLoading && vm.detail == null) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = BrandBlue)
+        // Skeleton selama `detail == null && detailError == null` — termasuk frame
+        // pertama sebelum pemuatan dimulai. Error hanya untuk kegagalan nyata.
+        val report = vm.detail
+        val detailError = vm.detailError
+        when {
+            report == null && detailError == null -> LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(4) { SkeletonCard() }
             }
-        } else {
-            val report = vm.detail
-            if (report == null) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Gagal memuat detail.", color = TextMuted)
-                }
-            } else {
-                DetailBody(report = report, user = user, vm = vm, onBack = onBack)
-            }
+
+            report == null -> DetailErrorState(
+                message = detailError ?: "Gagal memuat detail.",
+                onRetry = { vm.loadDetail(reportId) },
+                onBack = {
+                    vm.clearDetail()
+                    vm.clearProgress()
+                    onBack()
+                },
+            )
+
+            else -> DetailBody(report = report, user = user, vm = vm, onBack = onBack)
         }
     }
 }

@@ -11,8 +11,9 @@ import com.squareup.moshi.JsonClass
 
 /**
  * Satu item GET /api/warga/reports.
- * Kontrak: WargaReportController.php:297-322. Catatan: TANPA image_original_url
- * dan TANPA lat/lng (hanya first_photo_url).
+ * Kontrak: WargaReportController.php:297-323. Catatan: TANPA image_original_url
+ * dan TANPA lat/lng. `image_result_url` (gambar hasil AI, ±100–160 KB) dipakai
+ * lebih dulu agar thumbnail tidak mengunduh foto original 2–3 MB.
  */
 @JsonClass(generateAdapter = true)
 data class WargaReportDto(
@@ -26,15 +27,21 @@ data class WargaReportDto(
     val status: String? = null,
     val source: String? = null,
     @Json(name = "first_photo_url") val firstPhotoUrl: String? = null,
+    @Json(name = "image_result_url") val imageResultUrl: String? = null,
     @Json(name = "created_at") val createdAt: String? = null,
     @Json(name = "progress_updates_count") val progressUpdatesCount: Int = 0,
     @Json(name = "kerusakan_panjang") val kerusakanPanjang: Double? = null,
     @Json(name = "kerusakan_lebar") val kerusakanLebar: Double? = null,
+    @Json(name = "deadline_review") val deadlineReview: String? = null,
+    @Json(name = "deadline_resolusi") val deadlineResolusi: String? = null,
+    @Json(name = "status_deadline") val statusDeadline: String? = null,
+    @Json(name = "estimasi_hari") val estimasiHari: Int? = null,
     @Json(name = "terlambat_review") val terlambatReview: Boolean = false,
     @Json(name = "terlambat_resolusi") val terlambatResolusi: Boolean = false,
     @Json(name = "pci_score") val pciScore: Double? = null,
 ) {
-    val displayImageUrl: String? get() = firstPhotoUrl
+    /** Thumbnail: gambar hasil AI bila ada, jika tidak foto pertama (fallback server lama). */
+    val displayImageUrl: String? get() = imageResultUrl ?: firstPhotoUrl
     val effectiveSeverity: String? get() = overallSeverity ?: aiSeverity
 }
 

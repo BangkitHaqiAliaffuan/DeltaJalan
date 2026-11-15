@@ -1,6 +1,7 @@
 package com.jalankita.app.core.worker
 
 import android.content.Context
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
@@ -24,6 +25,8 @@ object LocationTracking {
                     .setRequiresBatteryNotLow(true)
                     .build(),
             )
+            // Worker mengembalikan Result.retry() saat jaringan/server bermasalah.
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .addTag(WORK_NAME)
             .build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(

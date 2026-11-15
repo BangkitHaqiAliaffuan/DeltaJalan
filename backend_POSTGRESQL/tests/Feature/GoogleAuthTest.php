@@ -6,7 +6,9 @@ use App\Contracts\FirebaseTokenVerifier;
 use App\Models\User;
 use App\Support\VerifiedFirebaseUser;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Kreait\Firebase\Exception\Auth\FailedToVerifyToken;
 use Laravel\Sanctum\Sanctum;
@@ -58,7 +60,11 @@ class GoogleAuthTest extends TestCase
         ]);
     }
 
-    public function test_complete_google_membuat_user_dengan_phone_dan_password(): void
+    /**
+     * Jalur Google tidak memakai OTP: klaim `email_verified` Firebase sudah
+     * membuktikan kepemilikan email, jadi akun dibuat langsung di `complete`.
+     */
+    public function test_complete_google_membuat_user_dan_langsung_login(): void
     {
         $this->fakeGoogle();
 
@@ -82,6 +88,7 @@ class GoogleAuthTest extends TestCase
             ->assertJsonPath('user.role', 'warga')
             ->assertJsonPath('user.phone', '081234567890')
             ->assertJsonPath('user.needs_phone', false)
+            ->assertJsonPath('user.email_verified', true)
             ->assertJsonStructure(['token', 'user' => ['id', 'name', 'email']]);
 
         $user = User::where('email', 'warga.google@example.com')->firstOrFail();
@@ -89,6 +96,7 @@ class GoogleAuthTest extends TestCase
         $this->assertSame('081234567890', $user->phone);
         $this->assertSame('firebase-uid-1', $user->firebase_uid);
         $this->assertSame('Warga Google', $user->name);
+        $this->assertNotNull($user->email_verified_at, 'Email Google sudah terverifikasi.');
         $this->assertTrue(Hash::check('rahasia123', $user->password));
 
         // Akun Google yang punya password tetap bisa login lewat email + password.
@@ -99,6 +107,37 @@ class GoogleAuthTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath('user.role', 'warga')
             ->assertJsonStructure(['token']);
+    }
+
+    public function test_complete_google_tidak_menduplikasi_akun_dengan_uid_sama(): void
+    {
+        $existing = User::factory()->create([
+            'role' => 'warga',
+            'email' => 'warga.google@example.com',
+            'phone' => '081234567890',
+            'firebase_uid' => 'firebase-uid-1',
+        ]);
+
+        // Simulasikan onboarding_token yang masih hidup (mis. dua request
+        // `complete` beruntun karena respons pertama hilang di jaringan).
+        $token = Str::random(64);
+        Cache::put('google_onboarding:'.hash('sha256', $token), [
+            'firebase_uid' => 'firebase-uid-1',
+            'email' => 'warga.google@example.com',
+            'name' => 'Warga Google',
+            'user_id' => null,
+            'is_new_user' => true,
+        ], now()->addMinutes(15));
+
+        $this->postJson('/api/auth/google/complete', [
+            'onboarding_token' => $token,
+            'phone' => '081234567890',
+            'password' => 'rahasia123',
+            'password_confirmation' => 'rahasia123',
+        ])->assertOk()
+            ->assertJsonPath('user.id', $existing->id);
+
+        $this->assertSame(1, User::where('firebase_uid', 'firebase-uid-1')->count());
     }
 
     public function test_complete_google_tanpa_password_ditolak(): void
@@ -149,14 +188,22 @@ class GoogleAuthTest extends TestCase
         ])->assertStatus(422)
             ->assertJsonPath('error_code', 'PHONE_TAKEN');
 
-        // Token onboarding masih bisa dipakai setelah user memperbaiki nomor.
+        // Token onboarding masih bisa dipakai setelah user memperbaiki nomor;
+        // akun langsung dibuat karena email sudah diverifikasi Google.
         $this->postJson('/api/auth/google/complete', [
             'onboarding_token' => $token,
             'phone' => '082222222222',
             'password' => 'rahasia123',
             'password_confirmation' => 'rahasia123',
         ])->assertOk()
-            ->assertJsonPath('user.phone', '082222222222');
+            ->assertJsonPath('needs_onboarding', false)
+            ->assertJsonPath('user.phone', '082222222222')
+            ->assertJsonStructure(['token']);
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'warga.google@example.com',
+            'phone' => '082222222222',
+        ]);
     }
 
     public function test_onboarding_token_kedaluwarsa_ditolak(): void

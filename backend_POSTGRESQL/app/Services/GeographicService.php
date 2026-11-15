@@ -38,6 +38,20 @@ class GeographicService
         return null;
     }
 
+    /**
+     * Batas wilayah Kabupaten Sidoarjo.
+     *
+     * Nilai ini WAJIB sama dengan `SidoarjoBounds` di aplikasi Android
+     * (`android-native/.../core/network/Models.kt`) dan
+     * `ReportController::isInSidoarjo()`, supaya foto yang lolos validasi
+     * klien tidak tiba-tiba ditolak server (dan sebaliknya).
+     */
+    public static function isInSidoarjo(float $lat, float $lng): bool
+    {
+        return $lat >= -7.65 && $lat <= -7.25
+            && $lng >= 112.50 && $lng <= 112.95;
+    }
+
     public function haversineDistance(float $lat1, float $lng1, float $lat2, float $lng2): float
     {
         $lat1Rad = deg2rad($lat1);

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -58,7 +59,7 @@ import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.BeforeAfterSlider
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandTextField
-import com.jalankita.app.ui.components.ErrorBox
+import com.jalankita.app.ui.components.DetailErrorState
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.DividerLine
 import com.jalankita.app.ui.theme.PillShape
@@ -85,8 +86,9 @@ fun WargaDetailScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
                 .background(Color.White)
+                .statusBarsPadding()
+                .height(56.dp)
                 .padding(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -131,38 +133,30 @@ fun WargaDetailScreen(
                 }
             }
         }
-        if (vm.detailLoading && vm.detail == null) {
-            LazyColumn(
+        // Skeleton selama `detail == null && detailError == null` — termasuk frame
+        // pertama sebelum pemuatan dimulai. Kotak error hanya untuk kegagalan nyata.
+        val report = vm.detail?.report
+        val detailError = vm.detailError
+        when {
+            report == null && detailError == null -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(4) { SkeletonCard() }
             }
-        } else {
-            val data = vm.detail
-            if (data?.report == null) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    ErrorBox("Gagal memuat detail laporan.")
-                    Spacer(Modifier.height(12.dp))
-                    BrandPrimaryButton(
-                        text = "Coba Lagi",
-                        onClick = { vm.loadDetail(reportId) },
-                    )
-                }
-            } else {
-                WargaDetailBody(
-                    report = data.report,
-                    timeline = data.timeline.orEmpty(),
-                    ratingBusy = vm.ratingBusy,
-                    onRate = { stars, comment -> vm.submitRating(reportId, stars, comment) },
-                )
-            }
+
+            report == null -> DetailErrorState(
+                message = detailError ?: "Gagal memuat detail laporan.",
+                onRetry = { vm.loadDetail(reportId) },
+            )
+
+            else -> WargaDetailBody(
+                report = report,
+                timeline = vm.detail?.timeline.orEmpty(),
+                ratingBusy = vm.ratingBusy,
+                onRate = { stars, comment -> vm.submitRating(reportId, stars, comment) },
+            )
         }
     }
 }

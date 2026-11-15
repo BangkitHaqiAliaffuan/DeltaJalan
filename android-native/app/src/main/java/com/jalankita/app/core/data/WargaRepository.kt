@@ -16,6 +16,7 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.HttpException
 import java.io.File
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -114,7 +115,9 @@ class WargaRepository @Inject constructor(
     /**
      * POST /api/warga/reports — multipart maks 3 foto.
      * TANPA captcha_token dan TANPA field AI (server auto-AI).
-     * @throws WargaSubmitException bila 422 (bawa error_code + existing_report).
+     * @throws WargaSubmitException bila 4xx validasi (bawa error_code + existing_report).
+     * @throws UnauthorizedException bila 401 (sesi mati).
+     * @throws IOException bila 408/429/5xx — kegagalan sementara, aman di-retry.
      */
     suspend fun submit(
         reporterName: String,
@@ -160,7 +163,15 @@ class WargaRepository @Inject constructor(
             throw e
         } catch (e: HttpException) {
             if (e.code() == 401) throw UnauthorizedException()
-            // 422 validasi membawa envelope {message, error_code, errors,
+            // 408/429/5xx = kegagalan SEMENTARA (server sibuk/down). Lemparkan
+            // IOException, bukan WargaSubmitException: pemanggil (worker
+            // offline) memakai tipe exception untuk memutuskan retry vs buang.
+            // Kalau dibungkus error validasi, laporan warga terhapus dari
+            // antrian hanya karena server sedang bermasalah.
+            if (e.code() >= 500 || e.code() == 408 || e.code() == 429) {
+                throw IOException("Server sedang bermasalah (${e.code()}). Coba lagi nanti.")
+            }
+            // 4xx validasi membawa envelope {message, error_code, errors,
             // existing_report} di body — parse agar diagnosis spesifik
             // (KOORDINAT_DILUAR_WILAYAH, PHOTO_TOO_OLD, DUPLICATE_IMAGE, ...)
             // sampai ke UI, bukan pesan generik.

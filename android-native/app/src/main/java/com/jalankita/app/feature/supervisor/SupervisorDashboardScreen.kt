@@ -39,9 +39,6 @@ import com.jalankita.app.core.network.ReportItemDto
 import com.jalankita.app.core.network.TeamStatsDto
 import com.jalankita.app.feature.home.components.SectionHeader
 import com.jalankita.app.feature.home.components.StatCard
-import com.jalankita.app.feature.supervisor.components.CardAction
-import com.jalankita.app.feature.supervisor.components.CardActionVariant
-import com.jalankita.app.feature.supervisor.components.SupervisorReportCard
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandSecondaryButton
@@ -49,6 +46,11 @@ import com.jalankita.app.ui.components.ErrorBox
 import com.jalankita.app.ui.components.SuccessBox
 import com.jalankita.app.ui.components.WarningBox
 import com.jalankita.app.ui.components.InfoBox
+import com.jalankita.app.ui.components.PrefetchThumbnails
+import com.jalankita.app.ui.components.report.CardAction
+import com.jalankita.app.ui.components.report.CardActionButton
+import com.jalankita.app.ui.components.report.CardActionVariant
+import com.jalankita.app.ui.components.report.ReportCard
 import com.jalankita.app.feature.home.components.EmptyState
 import com.jalankita.app.feature.home.components.SkeletonCard
 import com.jalankita.app.ui.theme.BrandBlue
@@ -76,6 +78,7 @@ fun SupervisorDashboardScreen(
 ) {
     LaunchedEffect(Unit) { vm.loadDashboard() }
     LaunchedEffect(Unit) { if (vm.reports.isEmpty()) vm.loadReports(reset = true) }
+    PrefetchThumbnails(vm.reports.map { it.displayImageUrl })
     var expandedUptd by remember { mutableStateOf<String?>(null) }
     var deleteTarget by remember { mutableStateOf<String?>(null) }
     var showExportDialog by remember { mutableStateOf(false) }
@@ -266,11 +269,11 @@ fun SupervisorDashboardScreen(
                         ) { onOpenDetail(r.id) },
                     )
                 }
-                SupervisorReportCard(
+                ReportCard(
                     report = r,
                     onClick = { onOpenDetail(r.id) },
                     showDeadline = true,
-                    actions = actions,
+                    actions = { actions.forEach { CardActionButton(it) } },
                 )
                 Spacer(Modifier.height(4.dp))
             }

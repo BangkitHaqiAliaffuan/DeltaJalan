@@ -20,6 +20,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -73,15 +75,20 @@ fun SupervisorScaffold(
     onDeepLinkConsumed: () -> Unit = {},
 ) {
     val vm: SupervisorViewModel = viewModel()
+    val inspectionReviewVm: InspectionReviewViewModel = viewModel()
+    val inspectionQueueVm: InspectionQueueViewModel = viewModel()
     val patrolVm: PatrolViewModel = viewModel()
     val dashboardVm: DashboardViewModel = viewModel()
     var detailId by remember { mutableStateOf<String?>(null) }
     var patrolId by remember { mutableStateOf<String?>(null) }
     var patrolSessionId by remember { mutableStateOf<String?>(null) }
+    // Task yang sedang dibuka dialog antrean inspeksinya (null = dialog tertutup).
+    var queueTaskId by remember { mutableStateOf<String?>(null) }
     var returnTab by remember { mutableStateOf(SupervisorScreen.BERANDA) }
     // Layar Notifikasi dipakai bersama (endpoint per-user, tanpa sekat role).
     val notifVm: NotifViewModel = viewModel()
     var notifReturn by remember { mutableStateOf(SupervisorScreen.BERANDA) }
+    var reviewTab by remember { mutableStateOf(0) }
     val snackbar = remember { SnackbarHostState() }
 
     fun openDetail(id: String) {
@@ -121,6 +128,24 @@ fun SupervisorScaffold(
 
     LaunchedEffect(vm.sessionExpired) {
         if (vm.sessionExpired) authVm.refreshSession()
+    }
+    LaunchedEffect(inspectionReviewVm.sessionExpired) {
+        if (inspectionReviewVm.sessionExpired) authVm.refreshSession()
+    }
+    LaunchedEffect(inspectionReviewVm.error) {
+        inspectionReviewVm.error?.let { snackbar.showSnackbar(it); inspectionReviewVm.consumeError() }
+    }
+    LaunchedEffect(inspectionReviewVm.message) {
+        inspectionReviewVm.message?.let { snackbar.showSnackbar(it); inspectionReviewVm.consumeMessage() }
+    }
+    LaunchedEffect(inspectionQueueVm.sessionExpired) {
+        if (inspectionQueueVm.sessionExpired) authVm.refreshSession()
+    }
+    LaunchedEffect(inspectionQueueVm.error) {
+        inspectionQueueVm.error?.let { snackbar.showSnackbar(it); inspectionQueueVm.consumeError() }
+    }
+    LaunchedEffect(inspectionQueueVm.message) {
+        inspectionQueueVm.message?.let { snackbar.showSnackbar(it); inspectionQueueVm.consumeMessage() }
     }
     // 401 dari endpoint notifikasi → sesi mati → kembali ke login.
     LaunchedEffect(notifVm.sessionExpired) {
@@ -241,6 +266,7 @@ fun SupervisorScaffold(
                 onBack = { onNavigate(SupervisorScreen.PATROL_DETAIL) },
                 onTambahLaporan = { _, _, _ -> },
                 onOpenReport = { reportId -> openDetail(reportId) },
+                onQueueInspection = { queueTaskId = patrolSessionId },
             )
             SnackbarHost(
                 hostState = snackbar,
@@ -297,11 +323,48 @@ fun SupervisorScaffold(
                         onOpenPatrol = { onNavigate(SupervisorScreen.PATROL) },
                         modifier = Modifier.padding(inner),
                     )
-                    SupervisorScreen.REVIEW -> SupervisorReviewScreen(
-                        vm = vm,
-                        onOpenDetail = ::openDetail,
-                        modifier = Modifier.padding(inner),
-                    )
+                    SupervisorScreen.REVIEW -> Column(Modifier.padding(inner).fillMaxSize()) {
+                        TabRow(
+                            selectedTabIndex = reviewTab,
+                            containerColor = Color.White,
+                            contentColor = BrandBlue,
+                        ) {
+                            Tab(
+                                selected = reviewTab == 0,
+                                onClick = { reviewTab = 0 },
+                                text = {
+                                    Text(
+                                        "Laporan Warga (${vm.reports.size})",
+                                        fontSize = 13.sp,
+                                        fontWeight = if (reviewTab == 0) FontWeight.Bold else FontWeight.Normal,
+                                    )
+                                },
+                            )
+                            Tab(
+                                selected = reviewTab == 1,
+                                onClick = { reviewTab = 1 },
+                                text = {
+                                    Text(
+                                        "Hasil Inspeksi (${inspectionReviewVm.results.size})",
+                                        fontSize = 13.sp,
+                                        fontWeight = if (reviewTab == 1) FontWeight.Bold else FontWeight.Normal,
+                                    )
+                                },
+                            )
+                        }
+                        if (reviewTab == 0) {
+                            SupervisorReviewScreen(
+                                vm = vm,
+                                onOpenDetail = ::openDetail,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else {
+                            NativeInspectionReviewScreen(
+                                vm = inspectionReviewVm,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
                     SupervisorScreen.PETA -> SupervisorPetaScreen(
                         vm = vm,
                         onOpenDetail = ::openDetail,
@@ -329,6 +392,17 @@ fun SupervisorScaffold(
                 }
             }
         }
+    }
+
+    // Dialog antrean inspeksi dirender di luar `when (screen)` agar tetap hidup
+    // saat layar berganti (mis. setelah sukses, kembali ke detail patroli).
+    val queueTask = queueTaskId
+    if (queueTask != null) {
+        InspectionQueueSheet(
+            taskId = queueTask,
+            vm = inspectionQueueVm,
+            onDismiss = { queueTaskId = null },
+        )
     }
 }
 

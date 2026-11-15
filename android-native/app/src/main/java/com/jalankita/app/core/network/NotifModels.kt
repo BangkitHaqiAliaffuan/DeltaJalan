@@ -19,6 +19,8 @@ data class NotifDataDto(
     val message: String? = null,
     @Json(name = "report_id") val reportId: String? = null,
     @Json(name = "report_code") val reportCode: String? = null,
+    @Json(name = "assignment_id") val assignmentId: String? = null,
+    @Json(name = "survey_task_id") val surveyTaskId: String? = null,
     @Json(name = "actor_name") val actorName: String? = null,
     @Json(name = "actor_role") val actorRole: String? = null,
 )

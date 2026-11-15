@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -49,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.jalankita.app.core.network.UserDto
+import com.jalankita.app.core.util.GeocodeStage
 import com.jalankita.app.feature.lapor.components.FraudModal
 import com.jalankita.app.feature.lapor.components.KecamatanDropdown
 import com.jalankita.app.ui.components.AppIcon
@@ -58,10 +60,11 @@ import com.jalankita.app.ui.components.BrandTextField
 import com.jalankita.app.ui.components.DuplicateWarningCard
 import com.jalankita.app.ui.components.ErrorBox
 import com.jalankita.app.ui.components.FieldLabel
-import com.jalankita.app.ui.components.InfoBox
+import com.jalankita.app.ui.components.InlineLoading
 import com.jalankita.app.ui.components.RoadAutocompleteField
 import com.jalankita.app.ui.components.SuccessBox
 import com.jalankita.app.ui.components.WarningBox
+import com.jalankita.app.ui.map.PhotoLocationMapCard
 import com.jalankita.app.ui.rememberGalleryPickerLauncher
 import com.jalankita.app.ui.theme.BorderInput
 import com.jalankita.app.ui.theme.BrandBlue
@@ -131,6 +134,7 @@ fun WargaLaporScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Brush.horizontalGradient(listOf(BrandBlue, BrandBlueLight)))
+                .statusBarsPadding()
                 .padding(horizontal = 4.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -239,6 +243,23 @@ fun WargaLaporScreen(
                 }
             }
 
+            // Lokasi kerusakan dari EXIF foto utama — marker MapLibre.
+            laporVm.photos.firstOrNull()?.let { primary ->
+                item(key = "photo-map") {
+                    PhotoLocationMapCard(
+                        latitude = primary.lat,
+                        longitude = primary.lng,
+                    )
+                }
+            }
+            // Status geocoding juga di dekat peta (field Nama Jalan jauh di bawah
+            // fold — user perlu melihat loading tanpa harus scroll).
+            if (laporVm.geocodeStage == GeocodeStage.LOADING) {
+                item(key = "geo-loading-near-map") {
+                    InlineLoading("Mengisi nama jalan & alamat dari lokasi foto…")
+                }
+            }
+
             laporVm.duplicateWarning?.let { w ->
                 item(key = "dup-warning") {
                     DuplicateWarningCard(
@@ -261,24 +282,36 @@ fun WargaLaporScreen(
                     onValueChange = { laporVm.onRoadQueryChange(it) },
                     suggestions = if (laporVm.roadNameLocked) emptyList() else laporVm.roadSuggestions,
                     loading = laporVm.roadSearchLoading,
-                    enabled = !laporVm.roadNameLocked,
+                    // Nonaktif selama geocoding agar auto-fill tidak menimpa ketikan.
+                    enabled = !laporVm.roadNameLocked &&
+                        laporVm.geocodeStage != GeocodeStage.LOADING,
                     onPick = { laporVm.pickRoadSuggestion(it) },
                     placeholder = "cth. Jl. Raya Porong",
                 )
-                if (laporVm.geocoding) {
-                    Spacer(Modifier.height(4.dp))
-                    InfoBox(text = "Mengidentifikasi nama jalan dari lokasi foto…")
-                } else if (laporVm.roadNameLocked) {
-                    Spacer(Modifier.height(4.dp))
-                    SuccessBox(
-                        text = "Terisi otomatis dari GPS foto. Ubah hanya bila tidak sesuai.",
-                    )
+                when {
+                    laporVm.geocodeStage == GeocodeStage.LOADING -> {
+                        Spacer(Modifier.height(4.dp))
+                        InlineLoading("Mengisi nama jalan & alamat dari lokasi foto…")
+                    }
+                    laporVm.geocodeStage == GeocodeStage.FAILED -> {
+                        Spacer(Modifier.height(4.dp))
+                        WarningBox(
+                            text = "Lokasi foto tidak dikenali. Isi nama jalan dan alamat manual.",
+                        )
+                    }
+                    laporVm.roadNameLocked -> {
+                        Spacer(Modifier.height(4.dp))
+                        SuccessBox(
+                            text = "Terisi otomatis dari GPS foto. Ubah hanya bila tidak sesuai.",
+                        )
+                    }
                 }
                 Spacer(Modifier.height(12.dp))
                 FieldLabel("Kecamatan *")
                 KecamatanDropdown(
                     selected = laporVm.district,
                     onSelect = { laporVm.district = it },
+                    enabled = laporVm.geocodeStage != GeocodeStage.LOADING,
                 )
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -311,8 +344,21 @@ fun WargaLaporScreen(
                 Spacer(Modifier.height(12.dp))
                 FieldLabel("Alamat lengkap (opsional)")
                 BrandTextField(
-                    value = laporVm.fullAddress, onValueChange = { laporVm.fullAddress = it },
+                    value = laporVm.fullAddress,
+                    onValueChange = { laporVm.fullAddress = it },
                     placeholder = "Patokan / alamat detail…",
+                    enabled = laporVm.geocodeStage != GeocodeStage.LOADING,
+                    trailingContent = if (laporVm.geocodeStage == GeocodeStage.LOADING) {
+                        {
+                            CircularProgressIndicator(
+                                color = BrandBlue,
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    } else {
+                        null
+                    },
                 )
             }
 

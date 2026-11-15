@@ -128,18 +128,7 @@ fun PciInlineBadge(score: Double?, modifier: Modifier = Modifier) {
     }
 }
 
-/** Baris PCI kartu: ikon road + "PCI n — label" warna pciColor (ReportCard.tsx:288-295). */
-@Composable
-fun CardPciRow(score: Double?) {
-    if (score == null) return
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(AppIcon.Construction, contentDescription = null, tint = TextMuted, modifier = Modifier.size(14.dp))
-        Spacer(Modifier.width(6.dp))
-        Text(
-            text = "PCI ${pciText(score, 0)} — ${pciConditionLabel(score)}",
-            color = pciColor(score),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
-    }
-}
+/**
+ * Baris PCI kartu (`CardPciRow`) pindah ke `ui/components/report/ReportCardParts.kt`
+ * saat kartu laporan disatukan (PR-4 PLAN-kartu-thumbnail-detail-tinggi.md).
+ */

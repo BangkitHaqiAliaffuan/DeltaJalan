@@ -4,6 +4,7 @@ use App\Http\Controllers\AIController;
 use App\Http\Controllers\ApkDownloadController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\GoogleAuthController;
+use App\Http\Controllers\NativeInspectionController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PatrolScheduleController;
 use App\Http\Controllers\PciController;
@@ -361,6 +362,18 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Settings ────────────────────────────────────────────────────────────
     Route::get('/settings', [SettingController::class, 'index']);
     Route::put('/settings', [SettingController::class, 'update']);
+
+    // ── Native report inspection workflow ───────────────────────────────────
+    Route::get('/inspection-tasks', [NativeInspectionController::class, 'index']);
+    Route::get('/inspection-queues/candidates', [NativeInspectionController::class, 'candidates']);
+    Route::post('/inspection-queues', [NativeInspectionController::class, 'queue']);
+    Route::post('/inspection-sessions/{session}/queue', [NativeInspectionController::class, 'queue']);
+    Route::get('/inspection-tasks/{assignment}', [NativeInspectionController::class, 'show']);
+    Route::post('/inspection-tasks/{assignment}/start', [NativeInspectionController::class, 'start']);
+    Route::post('/inspection-tasks/{assignment}/submit', [NativeInspectionController::class, 'submit']);
+    Route::post('/inspection-sessions/{session}/discovered-reports', [NativeInspectionController::class, 'discovered']);
+    Route::get('/inspection-results/pending', [NativeInspectionController::class, 'pending']);
+    Route::post('/inspection-results/{result}/review', [NativeInspectionController::class, 'review']);
 
     // ── Survey Tasks (Ruas Jalan) ────────────────────────────────────────────
     Route::get('/survei', [SurveyTaskController::class, 'index']);

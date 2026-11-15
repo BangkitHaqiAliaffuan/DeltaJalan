@@ -105,6 +105,28 @@ export interface RegisterResult {
   success: boolean;
   message: string;
   errors?: Record<string, string[]>;
+  /** true = OTP sudah dikirim, akun BELUM dibuat. */
+  needsVerification?: boolean;
+  /** Wajib dikirim balik ke /auth/register/verify bersama kode OTP. */
+  registrationToken?: string;
+  email?: string;
+  /** Kode error API (`OTP_EXPIRED`, `MAIL_NOT_CONFIGURED`, …). */
+  errorCode?: string;
+}
+
+export interface VerifyRegistrationResult {
+  success: boolean;
+  message: string;
+  user?: User;
+  token?: string;
+  errors?: Record<string, string[]>;
+  errorCode?: string;
+}
+
+function readErrorCode(body: unknown): string | undefined {
+  if (!body || typeof body !== "object") return undefined;
+  const code = (body as Record<string, unknown>).error_code;
+  return typeof code === "string" ? code : undefined;
 }
 
 export async function registerUser(data: RegisterData): Promise<RegisterResult> {
@@ -121,9 +143,81 @@ export async function registerUser(data: RegisterData): Promise<RegisterResult> 
         success: false,
         message: result.message ?? "Registrasi gagal. Silakan coba lagi.",
         errors: result.errors,
+        errorCode: readErrorCode(result),
       };
     }
-    return { success: true, message: result.message };
+    return {
+      success: true,
+      message: result.message,
+      needsVerification: result.needs_verification === true,
+      registrationToken: result.registration_token,
+      email: result.email,
+    };
+  } catch {
+    return { success: false, message: "Tidak dapat terhubung ke server." };
+  }
+}
+
+/**
+ * Selesaikan pendaftaran: tukar kode OTP dengan akun + token Sanctum.
+ * Respons sukses berbentuk sama dengan login (`{token, user}`).
+ */
+export async function verifyRegistration(
+  registrationToken: string,
+  code: string,
+): Promise<VerifyRegistrationResult> {
+  try {
+    const { apiFetch } = await import("@/lib/api");
+    const res = await apiFetch("/api/auth/register/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ registration_token: registrationToken, code }),
+    });
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      return {
+        success: false,
+        message: result.message ?? "Verifikasi gagal. Silakan coba lagi.",
+        errors: result.errors,
+        errorCode: readErrorCode(result),
+      };
+    }
+    return {
+      success: true,
+      message: result.message,
+      user: result.user as User,
+      token: result.token as string,
+    };
+  } catch {
+    return { success: false, message: "Tidak dapat terhubung ke server." };
+  }
+}
+
+/** Kirim ulang kode OTP; `registrationToken` tidak berubah. */
+export async function resendRegistration(registrationToken: string): Promise<RegisterResult> {
+  try {
+    const { apiFetch } = await import("@/lib/api");
+    const res = await apiFetch("/api/auth/register/resend", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ registration_token: registrationToken }),
+    });
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      return {
+        success: false,
+        message: result.message ?? "Gagal mengirim ulang kode.",
+        errors: result.errors,
+        errorCode: readErrorCode(result),
+      };
+    }
+    return {
+      success: true,
+      message: result.message,
+      needsVerification: result.needs_verification === true,
+      registrationToken: result.registration_token ?? registrationToken,
+      email: result.email,
+    };
   } catch {
     return { success: false, message: "Tidak dapat terhubung ke server." };
   }

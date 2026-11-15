@@ -297,6 +297,62 @@ interface ApiService {
         @Body body: UpdateReportRequest,
     ): ApiEnvelope<UpdateReportData>
 
+    // ── Native report inspection workflow ─────────────────────────────────
+    @GET("inspection-tasks")
+    suspend fun inspectionTasks(
+        @Query("date") date: String? = null,
+        @Query("per_page") perPage: Int = 20,
+    ): InspectionTaskListResponse
+
+    @POST("inspection-queues")
+    suspend fun queueInspection(@Body body: InspectionQueueRequest): InspectionSessionResponse
+
+    @GET("inspection-queues/candidates")
+    suspend fun inspectionQueueCandidates(
+        @Query("limit") limit: Int = 30,
+        @Query("page") page: Int = 1,
+    ): InspectionQueueCandidatesResponse
+
+    @POST("inspection-sessions/{session}/queue")
+    suspend fun queueInspectionInSession(@Path("session") sessionId: String, @Body body: InspectionQueueRequest): InspectionSessionResponse
+
+    @GET("inspection-tasks/{assignment}")
+    suspend fun inspectionTaskDetail(@Path("assignment") assignmentId: String): InspectionAssignmentResponse
+
+    @POST("inspection-tasks/{assignment}/start")
+    suspend fun startInspection(@Path("assignment") assignmentId: String): InspectionAssignmentActionResponse
+
+    @Multipart
+    @POST("inspection-tasks/{assignment}/submit")
+    suspend fun submitInspection(
+        @Path("assignment") assignmentId: String,
+        @Part("idempotency_key") idempotencyKey: RequestBody,
+        @Part("condition") condition: RequestBody? = null,
+        @Part("notes") notes: RequestBody? = null,
+        @Part("latitude") latitude: RequestBody? = null,
+        @Part("longitude") longitude: RequestBody? = null,
+        @Part photos: List<MultipartBody.Part>,
+    ): InspectionResultResponse
+
+    @Multipart
+    @POST("inspection-sessions/{session}/discovered-reports")
+    suspend fun submitDiscoveredInspection(
+        @Path("session") sessionId: String,
+        @Part("idempotency_key") idempotencyKey: RequestBody,
+        @Part("road_name") roadName: RequestBody,
+        @Part("district") district: RequestBody,
+        @Part("latitude") latitude: RequestBody? = null,
+        @Part("longitude") longitude: RequestBody? = null,
+        @Part("description") description: RequestBody? = null,
+        @Part photo: MultipartBody.Part,
+    ): InspectionResultResponse
+
+    @GET("inspection-results/pending")
+    suspend fun pendingInspectionResults(): InspectionPendingResponse
+
+    @POST("inspection-results/{result}/review")
+    suspend fun reviewInspection(@Path("result") resultId: String, @Body body: InspectionReviewRequest): InspectionReviewResponse
+
     // ── Sesi/task patroli (petugas) — cek rutin ────────────────────────────
     // Kontrak: SurveyTaskController. GET /survei otomatis di-scope team_id petugas.
 

@@ -18,6 +18,11 @@
     <!-- Android 10+: tanpa izin ini, tag EXIF GPS DIHAPUS dari stream content://. -->
     <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Worker pelacakan lokasi dipromosikan jadi foreground service agar tidak
+         dibunuh OEM saat background dan pengguna melihat tracking aktif.
+         FOREGROUND_SERVICE_LOCATION wajib sejak Android 14 (API 34). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
@@ -59,6 +64,16 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Worker panjang (tracking lokasi) dijalankan WorkManager lewat
+             SystemForegroundService. Sejak Android 14 (targetSdk 34+) tipe
+             service WAJIB dideklarasikan; tanpa ini setForeground() melempar
+             MissingForegroundServiceTypeException. tools:node="merge" agar
+             entri dari manifest WorkManager digabung, bukan diganti. -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="location"
+            tools:node="merge" />
 
         <!-- Push Fase 1: terima notifikasi + rotasi token saat sesi aktif -->
         <service

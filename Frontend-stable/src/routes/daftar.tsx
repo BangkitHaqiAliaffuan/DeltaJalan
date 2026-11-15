@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Icon } from "@/components/jk/Icon";
 import { useState, useRef, useEffect } from "react";
-import { registerUser } from "@/lib/auth";
+import { registerUser, resendRegistration, saveAuth, verifyRegistration } from "@/lib/auth";
 import { validateIndonesianPhone, validateNamaLengkap } from "@/lib/validators";
 
 export const Route = createFileRoute("/daftar")({
@@ -52,6 +52,25 @@ function RegisterPage() {
   const [success, setSuccess] = useState("");
   const navigate = useNavigate();
 
+  // ── Langkah verifikasi OTP ──────────────────────────────────────────
+  // Pendaftaran manual tidak langsung membuat akun: server mengirim kode 6
+  // digit dan baris `users` baru lahir setelah kode itu diverifikasi.
+  const [step, setStep] = useState<"form" | "otp">("form");
+  const [registrationToken, setRegistrationToken] = useState("");
+  const [pendingEmail, setPendingEmail] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpError, setOtpError] = useState("");
+  const [otpNotice, setOtpNotice] = useState("");
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const timer = setTimeout(() => setResendIn((v) => Math.max(0, v - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [resendIn]);
+
   async function handleRegister() {
     if (loading) return;
     setError("");
@@ -89,9 +108,20 @@ function RegisterPage() {
         password_confirmation: passwordConfirmation,
       });
 
-      if (result.success) {
-        setSuccess("Registrasi berhasil! Silakan login.");
-        setTimeout(() => navigate({ to: "/masuk" }), 2000);
+      if (result.success && result.needsVerification && result.registrationToken) {
+        // Akun BELUM dibuat. Jangan pernah bilang "berhasil" sebelum kode
+        // diverifikasi — kita hanya berpindah ke langkah OTP.
+        setRegistrationToken(result.registrationToken);
+        setPendingEmail(result.email ?? email);
+        setOtpCode("");
+        setOtpError("");
+        setOtpNotice(result.message || `Kode verifikasi telah dikirim ke ${result.email ?? email}.`);
+        setResendIn(60);
+        setStep("otp");
+      } else if (result.success) {
+        // Server versi lama yang langsung membuat akun.
+        setSuccess(result.message);
+        setTimeout(() => navigate({ to: "/masuk" }), 1500);
       } else {
         if (result.errors) {
           const firstError = Object.values(result.errors).flat()[0];
@@ -104,6 +134,67 @@ function RegisterPage() {
       setError("Tidak dapat terhubung ke server.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleVerify() {
+    if (otpLoading) return;
+    setOtpError("");
+    setOtpNotice("");
+
+    if (!/^\d{6}$/.test(otpCode)) {
+      setOtpError("Masukkan 6 digit kode verifikasi.");
+      return;
+    }
+
+    setOtpLoading(true);
+
+    try {
+      const result = await verifyRegistration(registrationToken, otpCode);
+
+      if (result.success && result.user && result.token) {
+        // Sama seperti login: langsung masuk tanpa kembali ke /masuk.
+        // Jalur ini hanya membuat akun warga.
+        saveAuth(result.user, result.token);
+        navigate({ to: "/warga" });
+        return;
+      }
+
+      setOtpError(result.message);
+
+      if (result.errorCode === "OTP_EXPIRED" || result.errorCode === "OTP_ATTEMPTS_EXCEEDED") {
+        // Challenge sudah mati; satu-satunya jalan adalah daftar ulang.
+        setStep("form");
+        setError(`${result.message} Silakan daftar ulang.`);
+      }
+    } catch {
+      setOtpError("Tidak dapat terhubung ke server.");
+    } finally {
+      setOtpLoading(false);
+    }
+  }
+
+  async function handleResend() {
+    if (resending || resendIn > 0) return;
+    setOtpError("");
+    setOtpNotice("");
+    setResending(true);
+
+    try {
+      const result = await resendRegistration(registrationToken);
+
+      if (result.success) {
+        if (result.registrationToken) setRegistrationToken(result.registrationToken);
+        setOtpNotice(result.message || `Kode baru telah dikirim ke ${pendingEmail}.`);
+        setResendIn(60);
+      } else {
+        setOtpError(result.message);
+        if (result.errorCode === "OTP_RESEND_COOLDOWN") setResendIn(60);
+      }
+    } catch {
+      setOtpError("Tidak dapat terhubung ke server.");
+    } finally {
+      setResending(false);
     }
   }
 
@@ -166,10 +257,12 @@ function RegisterPage() {
                   <img src="/icons/logo.png" alt="DeltaJalan" className="w-10 h-10" />
                 </div>
                 <h1 className="font-headline-lg text-headline-lg font-extrabold bg-gradient-to-r from-[#1e40af] to-[#2e68d8] bg-clip-text text-transparent tracking-tight">
-                  Daftar Akun
+                  {step === "otp" ? "Verifikasi Email" : "Daftar Akun"}
                 </h1>
                 <p className="text-center mt-2 font-body-sm text-body-sm text-[#475569] max-w-[280px] leading-relaxed">
-                  Buat akun untuk melaporkan kerusakan jalan
+                  {step === "otp"
+                    ? `Masukkan kode 6 digit yang dikirim ke ${pendingEmail}`
+                    : "Buat akun untuk melaporkan kerusakan jalan"}
                 </p>
               </div>
 
@@ -199,7 +292,26 @@ function RegisterPage() {
                   </div>
                 )}
 
-                <form
+                {otpNotice && (
+                  <div className="mb-4 flex items-start gap-2.5 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+                    <Icon name="mail" className="text-[#1e40af] !text-[18px] shrink-0 mt-0.5" />
+                    <p className="font-body-sm text-body-sm text-[#1e3a8a] leading-relaxed">
+                      {otpNotice}
+                    </p>
+                  </div>
+                )}
+
+                {otpError && (
+                  <div className="mb-4 flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                    <Icon name="error" className="text-[#E11D48] !text-[18px] shrink-0 mt-0.5" />
+                    <p className="font-body-sm text-body-sm text-[#E11D48] leading-relaxed">
+                      {otpError}
+                    </p>
+                  </div>
+                )}
+
+                {step === "form" ? (
+                  <form
                   className="flex flex-col gap-4"
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -354,7 +466,91 @@ function RegisterPage() {
                       </>
                     )}
                   </button>
-                </form>
+                  </form>
+                ) : (
+                  <form
+                    className="flex flex-col gap-4"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleVerify();
+                    }}
+                  >
+                    <div className="flex flex-col gap-1.5">
+                      <label
+                        htmlFor="otp-code"
+                        className="font-label-md text-label-md font-semibold text-[#0F172A]"
+                      >
+                        Kode Verifikasi
+                      </label>
+                      <input
+                        id="otp-code"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        pattern="[0-9]{6}"
+                        maxLength={6}
+                        value={otpCode}
+                        onChange={(e) =>
+                          setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+                        }
+                        placeholder="______"
+                        autoFocus
+                        required
+                        className="w-full h-14 px-4 border border-[#c4c5d5] rounded-lg font-headline-md text-headline-md text-center tracking-[0.5em] text-[#0F172A] placeholder:text-[#c4c5d5] bg-white focus:outline-none focus:ring-2 focus:ring-[#1e40af]/20 focus:border-[#1e40af] transition-all duration-200"
+                      />
+                      <p className="text-[11px] text-[#64748B] flex items-center gap-1">
+                        <Icon name="info" className="!text-[12px]" />
+                        Kode berlaku 15 menit sejak dikirim.
+                      </p>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={otpLoading || otpCode.length !== 6}
+                      className="w-full h-11 bg-gradient-to-r from-[#1e40af] to-[#2e68d8] text-white rounded-lg font-label-md text-label-md font-semibold flex items-center justify-center gap-2 mt-1 hover:shadow-lg hover:shadow-[#1e40af]/25 active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+                    >
+                      {otpLoading ? (
+                        <>
+                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Memverifikasi...
+                        </>
+                      ) : (
+                        <>
+                          <Icon name="verified" className="!text-[20px]" />
+                          Verifikasi &amp; Masuk
+                        </>
+                      )}
+                    </button>
+
+                    <div className="flex flex-col items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={handleResend}
+                        disabled={resending || resendIn > 0}
+                        className="font-label-sm text-label-sm text-[#1e40af] hover:text-[#2e68d8] font-semibold transition-colors disabled:text-[#94A3B8] disabled:cursor-not-allowed"
+                      >
+                        {resending
+                          ? "Mengirim..."
+                          : resendIn > 0
+                            ? `Kirim ulang kode (${resendIn} dtk)`
+                            : "Kirim ulang kode"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStep("form");
+                          setError("");
+                          setOtpError("");
+                          setOtpNotice("");
+                          setOtpCode("");
+                        }}
+                        className="font-label-sm text-label-sm text-[#64748B] hover:text-[#475569] transition-colors"
+                      >
+                        Salah email? Ubah data pendaftaran
+                      </button>
+                    </div>
+                  </form>
+                )}
 
                 <div className="flex flex-col items-center gap-2 mt-5">
                   <Link

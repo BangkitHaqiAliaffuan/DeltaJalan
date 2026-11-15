@@ -464,7 +464,7 @@ function HomePage() {
               {recent.length > 0 && (
                 <div className="px-4 py-3 border-t border-[#E2E8F0] bg-[#F8FAFC]">
                   <p className="text-[12px] font-medium text-[#475569]">
-                    Menampilkan {Math.min(recent.length, 5)} dari {stats?.total ?? 0} laporan
+                    Menampilkan {Math.min(recent.length, 5)} dari {stats?.my_total ?? 0} laporan
                   </p>
                 </div>
               )}

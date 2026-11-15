@@ -9,167 +9,57 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WargaRouteImport } from './routes/warga'
-import { Route as UploadRouteImport } from './routes/upload'
-import { Route as TugasSurveiRouteImport } from './routes/tugas-survei'
-import { Route as TugasSayaRouteImport } from './routes/tugas-saya'
-import { Route as SupervisorRouteImport } from './routes/supervisor'
-import { Route as StatsRouteImport } from './routes/stats'
-import { Route as ReviewRouteImport } from './routes/review'
-import { Route as ReportsRouteImport } from './routes/reports'
-import { Route as PetugasEksekusiRouteImport } from './routes/petugas-eksekusi'
-import { Route as NotificationsRouteImport } from './routes/notifications'
-import { Route as MyReportsRouteImport } from './routes/my-reports'
-import { Route as MasukRouteImport } from './routes/masuk'
-import { Route as MapRouteImport } from './routes/map'
-import { Route as LoginPetugasRouteImport } from './routes/login-petugas'
-import { Route as LaporRouteImport } from './routes/lapor'
-import { Route as LacakRouteImport } from './routes/lacak'
-import { Route as HomeRouteImport } from './routes/home'
-import { Route as EditReportRouteImport } from './routes/edit-report'
-import { Route as DetailSurveiRouteImport } from './routes/detail-survei'
-import { Route as DetailReportRouteImport } from './routes/detail-report'
-import { Route as DetailPatroliRouteImport } from './routes/detail-patroli'
-import { Route as DaftarRouteImport } from './routes/daftar'
-import { Route as CompleteReportRouteImport } from './routes/complete-report'
-import { Route as AiResultRouteImport } from './routes/ai-result'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as WargaIndexRouteImport } from './routes/warga/index'
-import { Route as SupervisorIndexRouteImport } from './routes/supervisor/index'
+import { Route as AiResultRouteImport } from './routes/ai-result'
+import { Route as CompleteReportRouteImport } from './routes/complete-report'
+import { Route as DaftarRouteImport } from './routes/daftar'
+import { Route as DetailPatroliRouteImport } from './routes/detail-patroli'
+import { Route as DetailReportRouteImport } from './routes/detail-report'
+import { Route as DetailSurveiRouteImport } from './routes/detail-survei'
+import { Route as EditReportRouteImport } from './routes/edit-report'
+import { Route as HomeRouteImport } from './routes/home'
+import { Route as LacakRouteImport } from './routes/lacak'
+import { Route as LaporRouteImport } from './routes/lapor'
+import { Route as LoginPetugasRouteImport } from './routes/login-petugas'
+import { Route as MapRouteImport } from './routes/map'
+import { Route as MasukRouteImport } from './routes/masuk'
+import { Route as MyReportsRouteImport } from './routes/my-reports'
+import { Route as NotificationsRouteImport } from './routes/notifications'
+import { Route as PetugasEksekusiRouteImport } from './routes/petugas-eksekusi'
+import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as ReviewRouteImport } from './routes/review'
+import { Route as StatsRouteImport } from './routes/stats'
+import { Route as SupervisorRouteImport } from './routes/supervisor'
+import { Route as TugasSayaRouteImport } from './routes/tugas-saya'
+import { Route as TugasSurveiRouteImport } from './routes/tugas-survei'
+import { Route as UploadRouteImport } from './routes/upload'
+import { Route as WargaRouteImport } from './routes/warga'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
-import { Route as WargaPetaRouteImport } from './routes/warga/peta'
-import { Route as WargaLaporanRouteImport } from './routes/warga/laporan'
-import { Route as WargaLaporRouteImport } from './routes/warga/lapor'
-import { Route as SupervisorReviewRouteImport } from './routes/supervisor/review'
-import { Route as SupervisorPatrolScheduleRouteImport } from './routes/supervisor/patrol-schedule'
-import { Route as LaporanReportCodeRouteImport } from './routes/laporan.$reportCode'
-import { Route as AdminUsersRouteImport } from './routes/admin/users'
-import { Route as AdminTeamsRouteImport } from './routes/admin/teams'
-import { Route as AdminReportsRouteImport } from './routes/admin/reports'
-import { Route as AdminPciRouteImport } from './routes/admin/pci'
-import { Route as AdminLoginRouteImport } from './routes/admin/login'
-import { Route as AdminExportRouteImport } from './routes/admin/export'
-import { Route as AdminDashboardRouteImport } from './routes/admin/dashboard'
-import { Route as AdminConfigRouteImport } from './routes/admin/config'
 import { Route as AdminActivityRouteImport } from './routes/admin/activity'
-import { Route as WargaLaporanIndexRouteImport } from './routes/warga/laporan/index'
+import { Route as AdminConfigRouteImport } from './routes/admin/config'
+import { Route as AdminDashboardRouteImport } from './routes/admin/dashboard'
+import { Route as AdminExportRouteImport } from './routes/admin/export'
+import { Route as AdminLoginRouteImport } from './routes/admin/login'
+import { Route as AdminPciRouteImport } from './routes/admin/pci'
+import { Route as AdminReportsRouteImport } from './routes/admin/reports'
+import { Route as AdminTeamsRouteImport } from './routes/admin/teams'
+import { Route as AdminUsersRouteImport } from './routes/admin/users'
+import { Route as LaporanReportCodeRouteImport } from './routes/laporan.$reportCode'
+import { Route as SupervisorIndexRouteImport } from './routes/supervisor/index'
+import { Route as SupervisorPatrolScheduleRouteImport } from './routes/supervisor/patrol-schedule'
+import { Route as SupervisorReviewRouteImport } from './routes/supervisor/review'
+import { Route as WargaIndexRouteImport } from './routes/warga/index'
+import { Route as WargaLaporRouteImport } from './routes/warga/lapor'
+import { Route as WargaLaporanRouteImport } from './routes/warga/laporan'
+import { Route as WargaPetaRouteImport } from './routes/warga/peta'
 import { Route as SupervisorPatrolScheduleIndexRouteImport } from './routes/supervisor/patrol-schedule/index'
-import { Route as WargaLaporanIdRouteImport } from './routes/warga/laporan/$id'
 import { Route as SupervisorPatrolScheduleDetailRouteImport } from './routes/supervisor/patrol-schedule.detail'
+import { Route as WargaLaporanIndexRouteImport } from './routes/warga/laporan/index'
+import { Route as WargaLaporanIdRouteImport } from './routes/warga/laporan/$id'
 
-const WargaRoute = WargaRouteImport.update({
-  id: '/warga',
-  path: '/warga',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const UploadRoute = UploadRouteImport.update({
-  id: '/upload',
-  path: '/upload',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TugasSurveiRoute = TugasSurveiRouteImport.update({
-  id: '/tugas-survei',
-  path: '/tugas-survei',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TugasSayaRoute = TugasSayaRouteImport.update({
-  id: '/tugas-saya',
-  path: '/tugas-saya',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SupervisorRoute = SupervisorRouteImport.update({
-  id: '/supervisor',
-  path: '/supervisor',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const StatsRoute = StatsRouteImport.update({
-  id: '/stats',
-  path: '/stats',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ReviewRoute = ReviewRouteImport.update({
-  id: '/review',
-  path: '/review',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ReportsRoute = ReportsRouteImport.update({
-  id: '/reports',
-  path: '/reports',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PetugasEksekusiRoute = PetugasEksekusiRouteImport.update({
-  id: '/petugas-eksekusi',
-  path: '/petugas-eksekusi',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const NotificationsRoute = NotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MyReportsRoute = MyReportsRouteImport.update({
-  id: '/my-reports',
-  path: '/my-reports',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MasukRoute = MasukRouteImport.update({
-  id: '/masuk',
-  path: '/masuk',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MapRoute = MapRouteImport.update({
-  id: '/map',
-  path: '/map',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginPetugasRoute = LoginPetugasRouteImport.update({
-  id: '/login-petugas',
-  path: '/login-petugas',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LaporRoute = LaporRouteImport.update({
-  id: '/lapor',
-  path: '/lapor',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LacakRoute = LacakRouteImport.update({
-  id: '/lacak',
-  path: '/lacak',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HomeRoute = HomeRouteImport.update({
-  id: '/home',
-  path: '/home',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EditReportRoute = EditReportRouteImport.update({
-  id: '/edit-report',
-  path: '/edit-report',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DetailSurveiRoute = DetailSurveiRouteImport.update({
-  id: '/detail-survei',
-  path: '/detail-survei',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DetailReportRoute = DetailReportRouteImport.update({
-  id: '/detail-report',
-  path: '/detail-report',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DetailPatroliRoute = DetailPatroliRouteImport.update({
-  id: '/detail-patroli',
-  path: '/detail-patroli',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DaftarRoute = DaftarRouteImport.update({
-  id: '/daftar',
-  path: '/daftar',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CompleteReportRoute = CompleteReportRouteImport.update({
-  id: '/complete-report',
-  path: '/complete-report',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AiResultRoute = AiResultRouteImport.update({
@@ -177,44 +67,179 @@ const AiResultRoute = AiResultRouteImport.update({
   path: '/ai-result',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const CompleteReportRoute = CompleteReportRouteImport.update({
+  id: '/complete-report',
+  path: '/complete-report',
   getParentRoute: () => rootRouteImport,
 } as any)
-const WargaIndexRoute = WargaIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => WargaRoute,
+const DaftarRoute = DaftarRouteImport.update({
+  id: '/daftar',
+  path: '/daftar',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const SupervisorIndexRoute = SupervisorIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => SupervisorRoute,
+const DetailPatroliRoute = DetailPatroliRouteImport.update({
+  id: '/detail-patroli',
+  path: '/detail-patroli',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DetailReportRoute = DetailReportRouteImport.update({
+  id: '/detail-report',
+  path: '/detail-report',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DetailSurveiRoute = DetailSurveiRouteImport.update({
+  id: '/detail-survei',
+  path: '/detail-survei',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EditReportRoute = EditReportRouteImport.update({
+  id: '/edit-report',
+  path: '/edit-report',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HomeRoute = HomeRouteImport.update({
+  id: '/home',
+  path: '/home',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LacakRoute = LacakRouteImport.update({
+  id: '/lacak',
+  path: '/lacak',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LaporRoute = LaporRouteImport.update({
+  id: '/lapor',
+  path: '/lapor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginPetugasRoute = LoginPetugasRouteImport.update({
+  id: '/login-petugas',
+  path: '/login-petugas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MapRoute = MapRouteImport.update({
+  id: '/map',
+  path: '/map',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MasukRoute = MasukRouteImport.update({
+  id: '/masuk',
+  path: '/masuk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyReportsRoute = MyReportsRouteImport.update({
+  id: '/my-reports',
+  path: '/my-reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PetugasEksekusiRoute = PetugasEksekusiRouteImport.update({
+  id: '/petugas-eksekusi',
+  path: '/petugas-eksekusi',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReviewRoute = ReviewRouteImport.update({
+  id: '/review',
+  path: '/review',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StatsRoute = StatsRouteImport.update({
+  id: '/stats',
+  path: '/stats',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SupervisorRoute = SupervisorRouteImport.update({
+  id: '/supervisor',
+  path: '/supervisor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TugasSayaRoute = TugasSayaRouteImport.update({
+  id: '/tugas-saya',
+  path: '/tugas-saya',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TugasSurveiRoute = TugasSurveiRouteImport.update({
+  id: '/tugas-survei',
+  path: '/tugas-survei',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UploadRoute = UploadRouteImport.update({
+  id: '/upload',
+  path: '/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WargaRoute = WargaRouteImport.update({
+  id: '/warga',
+  path: '/warga',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/admin/',
   path: '/admin/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const WargaPetaRoute = WargaPetaRouteImport.update({
-  id: '/peta',
-  path: '/peta',
-  getParentRoute: () => WargaRoute,
+const AdminActivityRoute = AdminActivityRouteImport.update({
+  id: '/admin/activity',
+  path: '/admin/activity',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const WargaLaporanRoute = WargaLaporanRouteImport.update({
-  id: '/laporan',
-  path: '/laporan',
-  getParentRoute: () => WargaRoute,
+const AdminConfigRoute = AdminConfigRouteImport.update({
+  id: '/admin/config',
+  path: '/admin/config',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const WargaLaporRoute = WargaLaporRouteImport.update({
-  id: '/lapor',
-  path: '/lapor',
-  getParentRoute: () => WargaRoute,
+const AdminDashboardRoute = AdminDashboardRouteImport.update({
+  id: '/admin/dashboard',
+  path: '/admin/dashboard',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const SupervisorReviewRoute = SupervisorReviewRouteImport.update({
-  id: '/review',
-  path: '/review',
+const AdminExportRoute = AdminExportRouteImport.update({
+  id: '/admin/export',
+  path: '/admin/export',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/admin/login',
+  path: '/admin/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminPciRoute = AdminPciRouteImport.update({
+  id: '/admin/pci',
+  path: '/admin/pci',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminReportsRoute = AdminReportsRouteImport.update({
+  id: '/admin/reports',
+  path: '/admin/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminTeamsRoute = AdminTeamsRouteImport.update({
+  id: '/admin/teams',
+  path: '/admin/teams',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/admin/users',
+  path: '/admin/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LaporanReportCodeRoute = LaporanReportCodeRouteImport.update({
+  id: '/laporan/$reportCode',
+  path: '/laporan/$reportCode',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SupervisorIndexRoute = SupervisorIndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => SupervisorRoute,
 } as any)
 const SupervisorPatrolScheduleRoute =
@@ -223,60 +248,30 @@ const SupervisorPatrolScheduleRoute =
     path: '/patrol-schedule',
     getParentRoute: () => SupervisorRoute,
   } as any)
-const LaporanReportCodeRoute = LaporanReportCodeRouteImport.update({
-  id: '/laporan/$reportCode',
-  path: '/laporan/$reportCode',
-  getParentRoute: () => rootRouteImport,
+const SupervisorReviewRoute = SupervisorReviewRouteImport.update({
+  id: '/review',
+  path: '/review',
+  getParentRoute: () => SupervisorRoute,
 } as any)
-const AdminUsersRoute = AdminUsersRouteImport.update({
-  id: '/admin/users',
-  path: '/admin/users',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminTeamsRoute = AdminTeamsRouteImport.update({
-  id: '/admin/teams',
-  path: '/admin/teams',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminReportsRoute = AdminReportsRouteImport.update({
-  id: '/admin/reports',
-  path: '/admin/reports',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminPciRoute = AdminPciRouteImport.update({
-  id: '/admin/pci',
-  path: '/admin/pci',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminLoginRoute = AdminLoginRouteImport.update({
-  id: '/admin/login',
-  path: '/admin/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminExportRoute = AdminExportRouteImport.update({
-  id: '/admin/export',
-  path: '/admin/export',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminDashboardRoute = AdminDashboardRouteImport.update({
-  id: '/admin/dashboard',
-  path: '/admin/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminConfigRoute = AdminConfigRouteImport.update({
-  id: '/admin/config',
-  path: '/admin/config',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminActivityRoute = AdminActivityRouteImport.update({
-  id: '/admin/activity',
-  path: '/admin/activity',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const WargaLaporanIndexRoute = WargaLaporanIndexRouteImport.update({
+const WargaIndexRoute = WargaIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => WargaLaporanRoute,
+  getParentRoute: () => WargaRoute,
+} as any)
+const WargaLaporRoute = WargaLaporRouteImport.update({
+  id: '/lapor',
+  path: '/lapor',
+  getParentRoute: () => WargaRoute,
+} as any)
+const WargaLaporanRoute = WargaLaporanRouteImport.update({
+  id: '/laporan',
+  path: '/laporan',
+  getParentRoute: () => WargaRoute,
+} as any)
+const WargaPetaRoute = WargaPetaRouteImport.update({
+  id: '/peta',
+  path: '/peta',
+  getParentRoute: () => WargaRoute,
 } as any)
 const SupervisorPatrolScheduleIndexRoute =
   SupervisorPatrolScheduleIndexRouteImport.update({
@@ -284,17 +279,22 @@ const SupervisorPatrolScheduleIndexRoute =
     path: '/',
     getParentRoute: () => SupervisorPatrolScheduleRoute,
   } as any)
-const WargaLaporanIdRoute = WargaLaporanIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => WargaLaporanRoute,
-} as any)
 const SupervisorPatrolScheduleDetailRoute =
   SupervisorPatrolScheduleDetailRouteImport.update({
     id: '/detail',
     path: '/detail',
     getParentRoute: () => SupervisorPatrolScheduleRoute,
   } as any)
+const WargaLaporanIndexRoute = WargaLaporanIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => WargaLaporanRoute,
+} as any)
+const WargaLaporanIdRoute = WargaLaporanIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => WargaLaporanRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -627,165 +627,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/warga': {
-      id: '/warga'
-      path: '/warga'
-      fullPath: '/warga'
-      preLoaderRoute: typeof WargaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/upload': {
-      id: '/upload'
-      path: '/upload'
-      fullPath: '/upload'
-      preLoaderRoute: typeof UploadRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/tugas-survei': {
-      id: '/tugas-survei'
-      path: '/tugas-survei'
-      fullPath: '/tugas-survei'
-      preLoaderRoute: typeof TugasSurveiRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/tugas-saya': {
-      id: '/tugas-saya'
-      path: '/tugas-saya'
-      fullPath: '/tugas-saya'
-      preLoaderRoute: typeof TugasSayaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/supervisor': {
-      id: '/supervisor'
-      path: '/supervisor'
-      fullPath: '/supervisor'
-      preLoaderRoute: typeof SupervisorRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/stats': {
-      id: '/stats'
-      path: '/stats'
-      fullPath: '/stats'
-      preLoaderRoute: typeof StatsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/review': {
-      id: '/review'
-      path: '/review'
-      fullPath: '/review'
-      preLoaderRoute: typeof ReviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reports': {
-      id: '/reports'
-      path: '/reports'
-      fullPath: '/reports'
-      preLoaderRoute: typeof ReportsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/petugas-eksekusi': {
-      id: '/petugas-eksekusi'
-      path: '/petugas-eksekusi'
-      fullPath: '/petugas-eksekusi'
-      preLoaderRoute: typeof PetugasEksekusiRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/notifications': {
-      id: '/notifications'
-      path: '/notifications'
-      fullPath: '/notifications'
-      preLoaderRoute: typeof NotificationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/my-reports': {
-      id: '/my-reports'
-      path: '/my-reports'
-      fullPath: '/my-reports'
-      preLoaderRoute: typeof MyReportsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/masuk': {
-      id: '/masuk'
-      path: '/masuk'
-      fullPath: '/masuk'
-      preLoaderRoute: typeof MasukRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/map': {
-      id: '/map'
-      path: '/map'
-      fullPath: '/map'
-      preLoaderRoute: typeof MapRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login-petugas': {
-      id: '/login-petugas'
-      path: '/login-petugas'
-      fullPath: '/login-petugas'
-      preLoaderRoute: typeof LoginPetugasRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/lapor': {
-      id: '/lapor'
-      path: '/lapor'
-      fullPath: '/lapor'
-      preLoaderRoute: typeof LaporRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/lacak': {
-      id: '/lacak'
-      path: '/lacak'
-      fullPath: '/lacak'
-      preLoaderRoute: typeof LacakRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/home': {
-      id: '/home'
-      path: '/home'
-      fullPath: '/home'
-      preLoaderRoute: typeof HomeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/edit-report': {
-      id: '/edit-report'
-      path: '/edit-report'
-      fullPath: '/edit-report'
-      preLoaderRoute: typeof EditReportRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/detail-survei': {
-      id: '/detail-survei'
-      path: '/detail-survei'
-      fullPath: '/detail-survei'
-      preLoaderRoute: typeof DetailSurveiRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/detail-report': {
-      id: '/detail-report'
-      path: '/detail-report'
-      fullPath: '/detail-report'
-      preLoaderRoute: typeof DetailReportRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/detail-patroli': {
-      id: '/detail-patroli'
-      path: '/detail-patroli'
-      fullPath: '/detail-patroli'
-      preLoaderRoute: typeof DetailPatroliRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/daftar': {
-      id: '/daftar'
-      path: '/daftar'
-      fullPath: '/daftar'
-      preLoaderRoute: typeof DaftarRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/complete-report': {
-      id: '/complete-report'
-      path: '/complete-report'
-      fullPath: '/complete-report'
-      preLoaderRoute: typeof CompleteReportRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ai-result': {
@@ -795,130 +641,172 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AiResultRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/complete-report': {
+      id: '/complete-report'
+      path: '/complete-report'
+      fullPath: '/complete-report'
+      preLoaderRoute: typeof CompleteReportRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/warga/': {
-      id: '/warga/'
-      path: '/'
-      fullPath: '/warga/'
-      preLoaderRoute: typeof WargaIndexRouteImport
-      parentRoute: typeof WargaRoute
+    '/daftar': {
+      id: '/daftar'
+      path: '/daftar'
+      fullPath: '/daftar'
+      preLoaderRoute: typeof DaftarRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/supervisor/': {
-      id: '/supervisor/'
-      path: '/'
-      fullPath: '/supervisor/'
-      preLoaderRoute: typeof SupervisorIndexRouteImport
-      parentRoute: typeof SupervisorRoute
+    '/detail-patroli': {
+      id: '/detail-patroli'
+      path: '/detail-patroli'
+      fullPath: '/detail-patroli'
+      preLoaderRoute: typeof DetailPatroliRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/detail-report': {
+      id: '/detail-report'
+      path: '/detail-report'
+      fullPath: '/detail-report'
+      preLoaderRoute: typeof DetailReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/detail-survei': {
+      id: '/detail-survei'
+      path: '/detail-survei'
+      fullPath: '/detail-survei'
+      preLoaderRoute: typeof DetailSurveiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/edit-report': {
+      id: '/edit-report'
+      path: '/edit-report'
+      fullPath: '/edit-report'
+      preLoaderRoute: typeof EditReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/home': {
+      id: '/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof HomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lacak': {
+      id: '/lacak'
+      path: '/lacak'
+      fullPath: '/lacak'
+      preLoaderRoute: typeof LacakRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lapor': {
+      id: '/lapor'
+      path: '/lapor'
+      fullPath: '/lapor'
+      preLoaderRoute: typeof LaporRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login-petugas': {
+      id: '/login-petugas'
+      path: '/login-petugas'
+      fullPath: '/login-petugas'
+      preLoaderRoute: typeof LoginPetugasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/map': {
+      id: '/map'
+      path: '/map'
+      fullPath: '/map'
+      preLoaderRoute: typeof MapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/masuk': {
+      id: '/masuk'
+      path: '/masuk'
+      fullPath: '/masuk'
+      preLoaderRoute: typeof MasukRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-reports': {
+      id: '/my-reports'
+      path: '/my-reports'
+      fullPath: '/my-reports'
+      preLoaderRoute: typeof MyReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/petugas-eksekusi': {
+      id: '/petugas-eksekusi'
+      path: '/petugas-eksekusi'
+      fullPath: '/petugas-eksekusi'
+      preLoaderRoute: typeof PetugasEksekusiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/review': {
+      id: '/review'
+      path: '/review'
+      fullPath: '/review'
+      preLoaderRoute: typeof ReviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/stats': {
+      id: '/stats'
+      path: '/stats'
+      fullPath: '/stats'
+      preLoaderRoute: typeof StatsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/supervisor': {
+      id: '/supervisor'
+      path: '/supervisor'
+      fullPath: '/supervisor'
+      preLoaderRoute: typeof SupervisorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tugas-saya': {
+      id: '/tugas-saya'
+      path: '/tugas-saya'
+      fullPath: '/tugas-saya'
+      preLoaderRoute: typeof TugasSayaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tugas-survei': {
+      id: '/tugas-survei'
+      path: '/tugas-survei'
+      fullPath: '/tugas-survei'
+      preLoaderRoute: typeof TugasSurveiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/upload': {
+      id: '/upload'
+      path: '/upload'
+      fullPath: '/upload'
+      preLoaderRoute: typeof UploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/warga': {
+      id: '/warga'
+      path: '/warga'
+      fullPath: '/warga'
+      preLoaderRoute: typeof WargaRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/admin/': {
       id: '/admin/'
       path: '/admin'
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/warga/peta': {
-      id: '/warga/peta'
-      path: '/peta'
-      fullPath: '/warga/peta'
-      preLoaderRoute: typeof WargaPetaRouteImport
-      parentRoute: typeof WargaRoute
-    }
-    '/warga/laporan': {
-      id: '/warga/laporan'
-      path: '/laporan'
-      fullPath: '/warga/laporan'
-      preLoaderRoute: typeof WargaLaporanRouteImport
-      parentRoute: typeof WargaRoute
-    }
-    '/warga/lapor': {
-      id: '/warga/lapor'
-      path: '/lapor'
-      fullPath: '/warga/lapor'
-      preLoaderRoute: typeof WargaLaporRouteImport
-      parentRoute: typeof WargaRoute
-    }
-    '/supervisor/review': {
-      id: '/supervisor/review'
-      path: '/review'
-      fullPath: '/supervisor/review'
-      preLoaderRoute: typeof SupervisorReviewRouteImport
-      parentRoute: typeof SupervisorRoute
-    }
-    '/supervisor/patrol-schedule': {
-      id: '/supervisor/patrol-schedule'
-      path: '/patrol-schedule'
-      fullPath: '/supervisor/patrol-schedule'
-      preLoaderRoute: typeof SupervisorPatrolScheduleRouteImport
-      parentRoute: typeof SupervisorRoute
-    }
-    '/laporan/$reportCode': {
-      id: '/laporan/$reportCode'
-      path: '/laporan/$reportCode'
-      fullPath: '/laporan/$reportCode'
-      preLoaderRoute: typeof LaporanReportCodeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin/users': {
-      id: '/admin/users'
-      path: '/admin/users'
-      fullPath: '/admin/users'
-      preLoaderRoute: typeof AdminUsersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin/teams': {
-      id: '/admin/teams'
-      path: '/admin/teams'
-      fullPath: '/admin/teams'
-      preLoaderRoute: typeof AdminTeamsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin/reports': {
-      id: '/admin/reports'
-      path: '/admin/reports'
-      fullPath: '/admin/reports'
-      preLoaderRoute: typeof AdminReportsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin/pci': {
-      id: '/admin/pci'
-      path: '/admin/pci'
-      fullPath: '/admin/pci'
-      preLoaderRoute: typeof AdminPciRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin/login': {
-      id: '/admin/login'
-      path: '/admin/login'
-      fullPath: '/admin/login'
-      preLoaderRoute: typeof AdminLoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin/export': {
-      id: '/admin/export'
-      path: '/admin/export'
-      fullPath: '/admin/export'
-      preLoaderRoute: typeof AdminExportRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin/dashboard': {
-      id: '/admin/dashboard'
-      path: '/admin/dashboard'
-      fullPath: '/admin/dashboard'
-      preLoaderRoute: typeof AdminDashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin/config': {
-      id: '/admin/config'
-      path: '/admin/config'
-      fullPath: '/admin/config'
-      preLoaderRoute: typeof AdminConfigRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/activity': {
@@ -928,12 +816,117 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminActivityRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/warga/laporan/': {
-      id: '/warga/laporan/'
+    '/admin/config': {
+      id: '/admin/config'
+      path: '/admin/config'
+      fullPath: '/admin/config'
+      preLoaderRoute: typeof AdminConfigRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/dashboard': {
+      id: '/admin/dashboard'
+      path: '/admin/dashboard'
+      fullPath: '/admin/dashboard'
+      preLoaderRoute: typeof AdminDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/export': {
+      id: '/admin/export'
+      path: '/admin/export'
+      fullPath: '/admin/export'
+      preLoaderRoute: typeof AdminExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/login': {
+      id: '/admin/login'
+      path: '/admin/login'
+      fullPath: '/admin/login'
+      preLoaderRoute: typeof AdminLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/pci': {
+      id: '/admin/pci'
+      path: '/admin/pci'
+      fullPath: '/admin/pci'
+      preLoaderRoute: typeof AdminPciRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/reports': {
+      id: '/admin/reports'
+      path: '/admin/reports'
+      fullPath: '/admin/reports'
+      preLoaderRoute: typeof AdminReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/teams': {
+      id: '/admin/teams'
+      path: '/admin/teams'
+      fullPath: '/admin/teams'
+      preLoaderRoute: typeof AdminTeamsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/users': {
+      id: '/admin/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/laporan/$reportCode': {
+      id: '/laporan/$reportCode'
+      path: '/laporan/$reportCode'
+      fullPath: '/laporan/$reportCode'
+      preLoaderRoute: typeof LaporanReportCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/supervisor/': {
+      id: '/supervisor/'
       path: '/'
-      fullPath: '/warga/laporan/'
-      preLoaderRoute: typeof WargaLaporanIndexRouteImport
-      parentRoute: typeof WargaLaporanRoute
+      fullPath: '/supervisor/'
+      preLoaderRoute: typeof SupervisorIndexRouteImport
+      parentRoute: typeof SupervisorRoute
+    }
+    '/supervisor/patrol-schedule': {
+      id: '/supervisor/patrol-schedule'
+      path: '/patrol-schedule'
+      fullPath: '/supervisor/patrol-schedule'
+      preLoaderRoute: typeof SupervisorPatrolScheduleRouteImport
+      parentRoute: typeof SupervisorRoute
+    }
+    '/supervisor/review': {
+      id: '/supervisor/review'
+      path: '/review'
+      fullPath: '/supervisor/review'
+      preLoaderRoute: typeof SupervisorReviewRouteImport
+      parentRoute: typeof SupervisorRoute
+    }
+    '/warga/': {
+      id: '/warga/'
+      path: '/'
+      fullPath: '/warga/'
+      preLoaderRoute: typeof WargaIndexRouteImport
+      parentRoute: typeof WargaRoute
+    }
+    '/warga/lapor': {
+      id: '/warga/lapor'
+      path: '/lapor'
+      fullPath: '/warga/lapor'
+      preLoaderRoute: typeof WargaLaporRouteImport
+      parentRoute: typeof WargaRoute
+    }
+    '/warga/laporan': {
+      id: '/warga/laporan'
+      path: '/laporan'
+      fullPath: '/warga/laporan'
+      preLoaderRoute: typeof WargaLaporanRouteImport
+      parentRoute: typeof WargaRoute
+    }
+    '/warga/peta': {
+      id: '/warga/peta'
+      path: '/peta'
+      fullPath: '/warga/peta'
+      preLoaderRoute: typeof WargaPetaRouteImport
+      parentRoute: typeof WargaRoute
     }
     '/supervisor/patrol-schedule/': {
       id: '/supervisor/patrol-schedule/'
@@ -942,19 +935,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SupervisorPatrolScheduleIndexRouteImport
       parentRoute: typeof SupervisorPatrolScheduleRoute
     }
-    '/warga/laporan/$id': {
-      id: '/warga/laporan/$id'
-      path: '/$id'
-      fullPath: '/warga/laporan/$id'
-      preLoaderRoute: typeof WargaLaporanIdRouteImport
-      parentRoute: typeof WargaLaporanRoute
-    }
     '/supervisor/patrol-schedule/detail': {
       id: '/supervisor/patrol-schedule/detail'
       path: '/detail'
       fullPath: '/supervisor/patrol-schedule/detail'
       preLoaderRoute: typeof SupervisorPatrolScheduleDetailRouteImport
       parentRoute: typeof SupervisorPatrolScheduleRoute
+    }
+    '/warga/laporan/': {
+      id: '/warga/laporan/'
+      path: '/'
+      fullPath: '/warga/laporan/'
+      preLoaderRoute: typeof WargaLaporanIndexRouteImport
+      parentRoute: typeof WargaLaporanRoute
+    }
+    '/warga/laporan/$id': {
+      id: '/warga/laporan/$id'
+      path: '/$id'
+      fullPath: '/warga/laporan/$id'
+      preLoaderRoute: typeof WargaLaporanIdRouteImport
+      parentRoute: typeof WargaLaporanRoute
     }
   }
 }

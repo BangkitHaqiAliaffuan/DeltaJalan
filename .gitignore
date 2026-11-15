@@ -31,6 +31,9 @@ Frontend-stable/android/
 # Editor settings
 .vscode/
 
+# Claude Code personal permissions — keep local allowlist out of git
+.claude/settings.local.json
+
 # Root transient files
 mumu_screen*.png
 Problem_20-05-2026.txt

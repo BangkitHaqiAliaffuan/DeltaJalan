@@ -27,6 +27,7 @@ class SurveyTask extends Model
         'tanggal_patroli',
         'alasan_tugas',
         'selesai_at',
+        'patrol_schedule_id',
     ];
 
     protected $casts = [
@@ -44,5 +45,15 @@ class SurveyTask extends Model
     public function team(): BelongsTo
     {
         return $this->belongsTo(Team::class, 'team_id');
+    }
+
+    public function patrolSchedule(): BelongsTo
+    {
+        return $this->belongsTo(PatrolSchedule::class, 'patrol_schedule_id');
+    }
+
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(SurveyTaskReport::class, 'survey_task_id');
     }
 }

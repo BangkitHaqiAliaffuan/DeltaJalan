@@ -53,6 +53,11 @@ import com.jalankita.app.feature.auth.RegisterScreen
 import com.jalankita.app.feature.auth.SessionState
 import com.jalankita.app.feature.home.DashboardScreen
 import com.jalankita.app.feature.home.DashboardViewModel
+import com.jalankita.app.feature.home.DiscoveredReportScreen
+import com.jalankita.app.feature.home.InspectionAssignmentDetailScreen
+import com.jalankita.app.feature.home.InspectionResultScreen
+import com.jalankita.app.feature.home.InspectionResultViewModel
+import com.jalankita.app.feature.home.InspectionViewModel
 import com.jalankita.app.feature.home.DetailScreen
 import com.jalankita.app.feature.home.PatrolSessionScreen
 import com.jalankita.app.feature.home.PetugasPetaScreen
@@ -121,6 +126,13 @@ class MainActivity : ComponentActivity() {
         return id
     }
 
+    /** Ambil + hapus extra assignment_id untuk deep link inspeksi petugas. */
+    fun takeAssignmentIdExtra(): String? {
+        val id = intent?.getStringExtra("assignment_id")?.takeIf { it.isNotBlank() }
+        if (id != null) intent?.removeExtra("assignment_id")
+        return id
+    }
+
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val channel = NotificationChannel(
@@ -139,7 +151,7 @@ private enum class AuthScreen { LOGIN, REGISTER }
 
 /** Layar setelah login (dashboard + tab + alur lapor). */
 private enum class MainScreen {
-    BERANDA, TUGAS, PETA, LAPORAN, PROFIL, DETAIL, LAPOR, AI_RESULT, PATROL_SESSION,
+    BERANDA, TUGAS, PETA, LAPORAN, PROFIL, DETAIL, INSPECTION_DETAIL, INSPECTION_RESULT, INSPECTION_DISCOVERED, LAPOR, AI_RESULT, PATROL_SESSION,
     NOTIFIKASI,
 }
 
@@ -188,11 +200,14 @@ private fun Root(vm: AuthViewModel = viewModel()) {
 
     // G4: tap notif FCM (cold start via onCreate intent / warm via onNewIntent).
     var pendingReportId by remember { mutableStateOf<String?>(null) }
+    var pendingAssignmentId by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(activity?.deepLinkNonce) {
         activity?.takeReportIdExtra()?.let { pendingReportId = it }
+        activity?.takeAssignmentIdExtra()?.let { pendingAssignmentId = it }
     }
     fun consumeDeepLink() {
         pendingReportId = null
+        pendingAssignmentId = null
     }
 
     var authScreen by remember { mutableStateOf(AuthScreen.LOGIN) }
@@ -328,6 +343,7 @@ private fun Root(vm: AuthViewModel = viewModel()) {
                             mainScreen = mainScreen,
                             onNavigate = { mainScreen = it },
                             deepLinkReportId = pendingReportId,
+                            deepLinkAssignmentId = pendingAssignmentId,
                             onDeepLinkConsumed = ::consumeDeepLink,
                         )
                     }
@@ -358,6 +374,7 @@ private fun MainScaffold(
     mainScreen: MainScreen,
     onNavigate: (MainScreen) -> Unit,
     deepLinkReportId: String? = null,
+    deepLinkAssignmentId: String? = null,
     onDeepLinkConsumed: () -> Unit = {},
 ) {
     // Fase 3: izin lokasi + jadwalkan tracking GPS (hanya sesi petugas —
@@ -368,7 +385,13 @@ private fun MainScaffold(
         LocationTracking.start(trackingContext)
     }
     val dashboardVm: DashboardViewModel = viewModel()
+    val inspectionVm: InspectionViewModel = viewModel()
+    val inspectionResultVm: InspectionResultViewModel = viewModel()
     var detailId by remember { mutableStateOf<String?>(null) }
+    var inspectionAssignmentId by remember { mutableStateOf<String?>(null) }
+    // Sesi aktif untuk temuan lapangan: diambil dari assignment yang sedang dibuka,
+    // bukan ditebak dari id assignment (assignment != session).
+    var inspectionSessionId by remember { mutableStateOf<String?>(null) }
     var surveyId by remember { mutableStateOf<String?>(null) }
     var returnTab by remember { mutableStateOf(MainScreen.BERANDA) }
     // Layar Notifikasi dipakai bersama (endpoint per-user, tanpa sekat role).
@@ -401,6 +424,15 @@ private fun MainScaffold(
         }
     }
 
+    // Tap notifikasi inspeksi → buka detail tugas inspeksi
+    LaunchedEffect(deepLinkAssignmentId) {
+        if (deepLinkAssignmentId != null) {
+            inspectionAssignmentId = deepLinkAssignmentId
+            onNavigate(MainScreen.INSPECTION_DETAIL)
+            onDeepLinkConsumed()
+        }
+    }
+
     fun goTab(tab: PetugasTab) {
         detailId = null
         surveyId = null
@@ -415,6 +447,12 @@ private fun MainScaffold(
     // Tanpa ini, token dicabut saat lapor membuat petugas macet di layar Lapor.
     LaunchedEffect(laporVm.sessionExpired) {
         if (laporVm.sessionExpired) authVm.refreshSession()
+    }
+    LaunchedEffect(inspectionVm.sessionExpired) {
+        if (inspectionVm.sessionExpired) authVm.refreshSession()
+    }
+    LaunchedEffect(inspectionResultVm.sessionExpired) {
+        if (inspectionResultVm.sessionExpired) authVm.refreshSession()
     }
     // Error non-401 → snackbar (web menelan error; native menampilkannya).
     LaunchedEffect(dashboardVm.errorMessage) {
@@ -465,6 +503,18 @@ private fun MainScaffold(
     androidx.activity.compose.BackHandler(enabled = mainScreen == MainScreen.DETAIL) {
         detailId = null
         onNavigate(returnTab)
+    }
+    androidx.activity.compose.BackHandler(enabled = mainScreen == MainScreen.INSPECTION_DETAIL) {
+        inspectionAssignmentId = null
+        inspectionSessionId = null
+        onNavigate(MainScreen.TUGAS)
+    }
+    // Tanpa handler ini, back sistem di form hasil/temuan langsung keluar aplikasi.
+    androidx.activity.compose.BackHandler(enabled = mainScreen == MainScreen.INSPECTION_RESULT) {
+        onNavigate(MainScreen.INSPECTION_DETAIL)
+    }
+    androidx.activity.compose.BackHandler(enabled = mainScreen == MainScreen.INSPECTION_DISCOVERED) {
+        onNavigate(MainScreen.INSPECTION_DETAIL)
     }
     androidx.activity.compose.BackHandler(enabled = mainScreen == MainScreen.PATROL_SESSION) {
         surveyId = null
@@ -526,6 +576,49 @@ private fun MainScaffold(
         )
         // DETAIL di luar Scaffold tab → perlu SnackbarHost sendiri agar
         // actionSuccess/actionError dari layar detail ikut terlihat.
+        MainScreen.INSPECTION_DETAIL -> InspectionAssignmentDetailScreen(
+            vm = inspectionVm,
+            assignmentId = inspectionAssignmentId.orEmpty(),
+            onBack = {
+                inspectionAssignmentId = null
+                inspectionSessionId = null
+                onNavigate(MainScreen.TUGAS)
+            },
+            onStartInspection = {
+                onNavigate(MainScreen.INSPECTION_RESULT)
+            },
+            onOpenDiscovered = { sessionId ->
+                inspectionSessionId = sessionId
+                onNavigate(MainScreen.INSPECTION_DISCOVERED)
+            },
+        )
+        MainScreen.INSPECTION_RESULT -> InspectionResultScreen(
+            vm = inspectionResultVm,
+            assignmentId = inspectionAssignmentId.orEmpty(),
+            onBack = { onNavigate(MainScreen.INSPECTION_DETAIL) },
+            sessionId = inspectionVm.detail?.session?.id,
+            onSubmitted = {
+                inspectionResultVm.clearSubmitted()
+                inspectionResultVm.resetDraft()
+                inspectionAssignmentId = null
+                inspectionSessionId = null
+                inspectionVm.load(force = true)
+                onNavigate(MainScreen.TUGAS)
+            },
+        )
+        MainScreen.INSPECTION_DISCOVERED -> DiscoveredReportScreen(
+            vm = inspectionResultVm,
+            sessionId = inspectionSessionId.orEmpty(),
+            onBack = { onNavigate(MainScreen.INSPECTION_DETAIL) },
+            onSubmitted = {
+                inspectionResultVm.clearSubmitted()
+                inspectionResultVm.resetDraft()
+                inspectionAssignmentId = null
+                inspectionSessionId = null
+                inspectionVm.load(force = true)
+                onNavigate(MainScreen.TUGAS)
+            },
+        )
         MainScreen.DETAIL -> {
             Box(Modifier.fillMaxSize()) {
                 DetailScreen(
@@ -615,7 +708,12 @@ private fun MainScaffold(
                     MainScreen.TUGAS -> TugasScreen(
                         user = user,
                         vm = dashboardVm,
+                        inspectionVm = inspectionVm,
                         onOpenDetail = ::openDetail,
+                        onOpenInspection = { id ->
+                            inspectionAssignmentId = id
+                            onNavigate(MainScreen.INSPECTION_DETAIL)
+                        },
                         onOpenSession = { sid ->
                             surveyId = sid
                             onNavigate(MainScreen.PATROL_SESSION)

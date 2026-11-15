@@ -6,7 +6,10 @@ import android.graphics.Paint
 import android.os.Bundle
 import android.util.Log
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +25,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -29,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,8 +51,10 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.jalankita.app.BuildConfig
+import com.jalankita.app.core.network.KECAMATAN_SIDOARJO
 import com.jalankita.app.core.network.MapReportDto
 import com.jalankita.app.core.network.MarkerKind
+import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.TextDark
 import com.jalankita.app.ui.theme.TextMuted
@@ -156,11 +165,43 @@ fun ReportMapScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     var selected by remember { mutableStateOf<MapReportDto?>(null) }
     var selectedKecamatan by remember { mutableStateOf<SelectedKecamatanInfo?>(null) }
+
+    // ── Filter ringkas (marker) ──────────────────────────────────────────
+    // Disimpan saveable agar bertahan saat pindah tab (layar di-dispose).
+    var filterOpen by rememberSaveable(sourceId) { mutableStateOf(false) }
+    var severityCsv by rememberSaveable(sourceId) { mutableStateOf("") }
+    var statusFilterName by rememberSaveable(sourceId) {
+        mutableStateOf(MapStatusFilter.SEMUA.name)
+    }
+    // Kecamatan: "" = semua (dropdown di panel filter).
+    var districtFilterName by rememberSaveable(sourceId) { mutableStateOf("") }
+    val districtFilter = remember(districtFilterName) {
+        districtFilterName.takeIf { it.isNotBlank() }
+    }
+    val statusFilter = MapStatusFilter.valueOf(statusFilterName)
+    val severities = remember(severityCsv) {
+        severityCsv.split(',')
+            .mapNotNull { name -> MarkerKind.entries.firstOrNull { it.name == name } }
+            .toSet()
+    }
+    val filteredReports = remember(reports, severities, statusFilter, districtFilter) {
+        reports.filter { r ->
+            (severities.isEmpty() || r.markerKind in severities) &&
+                statusFilter.matches(r.status) &&
+                (districtFilter == null ||
+                    r.district?.trim().equals(districtFilter, ignoreCase = true))
+        }
+    }
+    // Kartu terpilih bisa jadi sudah tersembunyi → tutup saat filter berubah.
+    LaunchedEffect(severities, statusFilter, districtFilter) {
+        selected = null
+        selectedKecamatan = null
+    }
     // Lookup terbaru untuk listener klik (dipasang sekali).
-    val latestReports by rememberUpdatedState(reports)
-    // Koleksi fitur dihitung ulang hanya saat reports berubah.
-    val features = remember(reports) {
-        FeatureCollection.fromFeatures(reports.mapNotNull { it.toFeature() })
+    val latestReports by rememberUpdatedState(filteredReports)
+    // Koleksi fitur dihitung ulang hanya saat daftar terfilter berubah.
+    val features = remember(filteredReports) {
+        FeatureCollection.fromFeatures(filteredReports.mapNotNull { it.toFeature() })
     }
     // Gunakan array holder biasa (bukan State) agar assignment TIDAK memicu recompose/DisposableEffect restart.
     // MapView dibuat sekali di AndroidView factory; lifecycle di-forward oleh DisposableEffect.
@@ -477,10 +518,26 @@ fun ReportMapScreen(
                 .background(Color.White.copy(alpha = 0.95f))
                 .padding(horizontal = 14.dp, vertical = 10.dp),
         ) {
-            Text(
-                text = if (loading && reports.isEmpty()) "Memuat peta…" else totalLabel,
-                fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextDark,
-            )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = when {
+                        loading && reports.isEmpty() -> "Memuat peta…"
+                        severities.isNotEmpty() || statusFilter != MapStatusFilter.SEMUA ||
+                            districtFilter != null ->
+                            "${filteredReports.size} dari ${reports.size} laporan"
+                        else -> totalLabel
+                    },
+                    fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextDark,
+                    modifier = Modifier.weight(1f),
+                )
+                MapFilterPill(
+                    activeCount = severities.size +
+                        (if (statusFilter != MapStatusFilter.SEMUA) 1 else 0) +
+                        (if (districtFilter != null) 1 else 0),
+                    expanded = filterOpen,
+                    onClick = { filterOpen = !filterOpen },
+                )
+            }
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 LegendDot(MarkerKind.BERAT, "Berat")
@@ -498,16 +555,65 @@ fun ReportMapScreen(
                 }
             }
             Text(
-                text = "Warna wilayah & marker: tingkat keparahan jalan • Ketuk wilayah untuk rekap",
+                text = "Warna wilayah & marker: tingkat keparahan jalan",
                 fontSize = 10.5.sp,
                 color = TextMuted,
                 modifier = Modifier.padding(top = 4.dp),
             )
+            if (filterOpen) {
+                Spacer(Modifier.height(8.dp))
+                MapFilterPanel(
+                    severities = severities,
+                    statusFilter = statusFilter,
+                    district = districtFilter,
+                    onToggleSeverity = { kind ->
+                        severityCsv = severities.toggle(kind).joinToString(",") { it.name }
+                    },
+                    onStatusChange = { filter -> statusFilterName = filter.name },
+                    onDistrictChange = { districtFilterName = it },
+                    onReset = {
+                        severityCsv = ""
+                        statusFilterName = MapStatusFilter.SEMUA.name
+                        districtFilterName = ""
+                    },
+                )
+            }
         }
 
         if (loading && reports.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
+            }
+        }
+
+        // Filter tidak menyisakan marker apa pun → beri jalan keluar, bukan peta kosong.
+        if (!loading && reports.isNotEmpty() && filteredReports.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 24.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.95f))
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "Tidak ada laporan yang cocok dengan filter",
+                        fontSize = 12.sp, color = TextMuted,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Reset filter",
+                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        color = BrandBlue,
+                        modifier = Modifier.clickable {
+                            severityCsv = ""
+                            statusFilterName = MapStatusFilter.SEMUA.name
+                            districtFilterName = ""
+                        },
+                    )
+                }
             }
         }
 
@@ -519,7 +625,8 @@ fun ReportMapScreen(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 110.dp)
+                    // Geser turun saat panel filter terbuka agar tidak tertimpa.
+                    .padding(top = if (filterOpen) 232.dp else 110.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color.White)
                     .padding(14.dp),
@@ -536,19 +643,6 @@ fun ReportMapScreen(
                 }
             }
         }
-
-        // Atribusi sumber basemap — wajib kebijakan OSM/CARTO.
-        Text(
-            text = "© OpenStreetMap · © CARTO",
-            fontSize = 10.sp,
-            color = TextMuted,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 12.dp, bottom = 12.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(Color.White.copy(alpha = 0.8f))
-                .padding(horizontal = 6.dp, vertical = 2.dp),
-        )
 
         // Kartu Detail Laporan Kerusakan
         selected?.let { report ->
@@ -635,6 +729,252 @@ fun ReportMapScreen(
                 }
             }
         }
+    }
+}
+
+/** Filter status laporan peta — semantik teks status backend. */
+private enum class MapStatusFilter(val label: String) {
+    SEMUA("Semua"),
+    AKTIF("Aktif"),
+    SELESAI("Selesai"),
+    DITOLAK("Ditolak");
+
+    fun matches(status: String?): Boolean {
+        val s = status?.lowercase().orEmpty()
+        return when (this) {
+            SEMUA -> true
+            // Sama dengan definisi "aktif" pada rekap poligon kecamatan.
+            AKTIF -> !s.contains("selesai") && !s.contains("ditolak")
+            SELESAI -> s.contains("selesai")
+            DITOLAK -> s.contains("ditolak")
+        }
+    }
+}
+
+private fun Set<MarkerKind>.toggle(kind: MarkerKind): Set<MarkerKind> =
+    if (contains(kind)) this - kind else this + kind
+
+private fun MarkerKind.label(): String = when (this) {
+    MarkerKind.BERAT -> "Berat"
+    MarkerKind.SEDANG -> "Sedang"
+    MarkerKind.RINGAN -> "Ringan"
+    MarkerKind.LAIN -> "Lainnya"
+}
+
+/** Pil pembuka panel filter + badge jumlah filter aktif. */
+@Composable
+private fun MapFilterPill(activeCount: Int, expanded: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(BrandBlue.copy(alpha = 0.10f))
+            .clickable { onClick() }
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            if (expanded) "Tutup" else "Filter",
+            color = BrandBlue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+        )
+        if (activeCount > 0) {
+            Spacer(Modifier.width(4.dp))
+            Box(
+                Modifier.size(14.dp).clip(CircleShape).background(BrandBlue),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "$activeCount", color = Color.White, fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+    }
+}
+
+/** Panel filter ringkas: tingkat keparahan (multi) + status (single) + kecamatan (dropdown). */
+@Composable
+private fun MapFilterPanel(
+    severities: Set<MarkerKind>,
+    statusFilter: MapStatusFilter,
+    district: String?,
+    onToggleSeverity: (MarkerKind) -> Unit,
+    onStatusChange: (MapStatusFilter) -> Unit,
+    onDistrictChange: (String) -> Unit,
+    onReset: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Tingkat", fontSize = 10.5.sp, color = TextMuted, modifier = Modifier.width(42.dp))
+            Row(
+                Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MarkerKind.entries.forEach { kind ->
+                    MapFilterChip(
+                        text = kind.label(),
+                        selected = kind in severities,
+                        accent = Color(kind.color),
+                        onClick = { onToggleSeverity(kind) },
+                    )
+                }
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Status", fontSize = 10.5.sp, color = TextMuted, modifier = Modifier.width(42.dp))
+            Row(
+                Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MapStatusFilter.entries.forEach { filter ->
+                    MapFilterChip(
+                        text = filter.label,
+                        selected = statusFilter == filter,
+                        accent = BrandBlue,
+                        onClick = { onStatusChange(filter) },
+                    )
+                }
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Kecamatan", fontSize = 10.5.sp, color = TextMuted, modifier = Modifier.width(42.dp))
+            MapKecamatanDropdown(
+                selected = district.orEmpty(),
+                onSelect = { name -> onDistrictChange(name) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Filter memengaruhi marker; rekap wilayah tetap seluruh laporan aktif.",
+                fontSize = 9.5.sp, color = TextMuted, modifier = Modifier.weight(1f),
+            )
+            Text(
+                "Reset",
+                fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = BrandBlue,
+                modifier = Modifier.clickable { onReset() },
+            )
+        }
+    }
+}
+
+/**
+ * Dropdown kecamatan ringkas khusus panel filter (beda dari form lapor yang
+ * 44dp/16sp). JANGAN pakai LazyColumn di dalam [DropdownMenu] — menu M3 sudah
+ * scrollable internal; lazy bersarang diukur dengan height tak-terhingga →
+ * IllegalStateException (crash) saat dibuka (lihat KecamatanDropdown.kt:82).
+ */
+@Composable
+private fun MapKecamatanDropdown(
+    selected: String,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier) {
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(50))
+                .background(if (selected.isBlank()) Color(0xFFF1F5F9) else BrandBlue.copy(alpha = 0.14f))
+                .border(
+                    1.dp,
+                    if (selected.isBlank()) Color(0xFFE2E8F0) else BrandBlue,
+                    RoundedCornerShape(50),
+                )
+                .clickable { expanded = true }
+                .padding(horizontal = 9.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = selected.ifBlank { "Semua Kecamatan" },
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (selected.isBlank()) TextMuted else BrandBlue,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                AppIcon.ChevronDown,
+                contentDescription = "Pilih kecamatan",
+                tint = if (selected.isBlank()) TextMuted else BrandBlue,
+                modifier = Modifier.size(13.dp),
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color.White),
+        ) {
+            DropdownMenuItem(
+                text = { Text("Semua Kecamatan", fontSize = 13.sp, color = BrandBlue) },
+                onClick = {
+                    onSelect("")
+                    expanded = false
+                },
+            )
+            KECAMATAN_SIDOARJO.forEach { kec ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            kec,
+                            fontSize = 13.sp,
+                            color = if (kec.equals(selected, ignoreCase = true)) BrandBlue else TextDark,
+                        )
+                    },
+                    onClick = {
+                        onSelect(kec)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MapFilterChip(
+    text: String,
+    selected: Boolean,
+    accent: Color,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (selected) accent.copy(alpha = 0.14f) else Color(0xFFF1F5F9))
+            .border(
+                1.dp,
+                if (selected) accent else Color(0xFFE2E8F0),
+                RoundedCornerShape(50),
+            )
+            .clickable { onClick() }
+            .padding(horizontal = 9.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (selected) {
+            Box(Modifier.size(6.dp).clip(CircleShape).background(accent))
+            Spacer(Modifier.width(4.dp))
+        }
+        Text(
+            text,
+            fontSize = 10.5.sp,
+            color = if (selected) accent else TextMuted,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+        )
     }
 }
 

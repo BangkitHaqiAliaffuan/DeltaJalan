@@ -5,6 +5,8 @@ import androidx.work.ListenableWorker
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import com.jalankita.app.core.data.OfflineReportQueue
+import com.jalankita.app.core.data.OfflineInspectionQueue
+import com.jalankita.app.core.data.InspectionRepository
 import com.jalankita.app.core.data.TokenStore
 import com.jalankita.app.core.data.WargaRepository
 import com.jalankita.app.core.network.ApiService
@@ -23,6 +25,8 @@ interface LocationWorkerEntryPoint {
     fun tokenStore(): TokenStore
     fun offlineQueue(): OfflineReportQueue
     fun wargaRepo(): WargaRepository
+    fun offlineInspectionQueue(): OfflineInspectionQueue
+    fun inspectionRepository(): InspectionRepository
 }
 
 /**
@@ -48,6 +52,9 @@ class LocationWorkerFactory(
             }
             ReportUploadWorker::class.java.name -> {
                 ReportUploadWorker(appContext, workerParameters, entry.offlineQueue(), entry.wargaRepo())
+            }
+            InspectionUploadWorker::class.java.name -> {
+                InspectionUploadWorker(appContext, workerParameters, entry.offlineInspectionQueue(), entry.inspectionRepository())
             }
             else -> null
         }

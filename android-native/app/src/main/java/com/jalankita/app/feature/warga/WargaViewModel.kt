@@ -71,6 +71,9 @@ class WargaViewModel @Inject constructor(
         private set
     var detailLoading by mutableStateOf(false)
         private set
+    /** Pesan gagal muat detail — null selama memuat/berhasil (bukan state awal error). */
+    var detailError by mutableStateOf<String?>(null)
+        private set
     var ratingBusy by mutableStateOf(false)
         private set
     var ratingDone by mutableStateOf(false)
@@ -212,28 +215,37 @@ class WargaViewModel @Inject constructor(
         }
     }
 
-    /** Detail + timeline. */
+    /**
+     * Detail + timeline.
+     *
+     * State di-set SEBELUM `launch` agar frame pertama komposisi sudah berstatus
+     * memuat (tanpa ini layar sempat menampilkan kotak error satu frame).
+     */
     fun loadDetail(id: String) {
+        detail = null
+        detailError = null
+        ratingDone = false
+        detailLoading = true
         viewModelScope.launch {
-            detail = null
-            ratingDone = false
-            detailLoading = true
             try {
                 when (val r = repo.detail(id)) {
                     is DashboardResult.Success -> detail = r.data
-                    is DashboardResult.Error -> errorMessage = r.message
+                    is DashboardResult.Error -> detailError = r.message
                 }
             } catch (_: UnauthorizedException) {
                 sessionExpired = true
             } catch (e: Exception) {
-                errorMessage = e.message
+                detailError = e.message ?: "Gagal memuat detail laporan."
             } finally {
                 detailLoading = false
             }
         }
     }
 
-    fun clearDetail() { detail = null }
+    fun clearDetail() {
+        detail = null
+        detailError = null
+    }
 
     /** Rating 1-5 + komentar (hanya Selesai & sekali — server 422 bila tidak). */
     fun submitRating(id: String, rating: Int, comment: String) {

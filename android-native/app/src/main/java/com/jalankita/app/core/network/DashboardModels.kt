@@ -13,6 +13,8 @@ import com.squareup.moshi.JsonClass
 @JsonClass(generateAdapter = true)
 data class StatsDto(
     val total: Int = 0,
+    /** Total laporan milik user sendiri (petugas) — header "Laporan Terbaru". */
+    @Json(name = "my_total") val myTotal: Int = 0,
     @Json(name = "menunggu_review") val menungguReview: Int = 0,
     @Json(name = "hasil_ai") val hasilAi: Int = 0,
     val disetujui: Int = 0,

@@ -49,9 +49,9 @@ import com.jalankita.app.feature.home.components.formatDateShort
 import com.jalankita.app.feature.home.components.formatDistance
 import com.jalankita.app.feature.home.components.haversineDistance
 import com.jalankita.app.feature.home.components.statusDotColor
-import com.jalankita.app.feature.supervisor.components.CardDeadlineRow
+import com.jalankita.app.ui.components.report.CardDeadlineRow
 import com.jalankita.app.feature.supervisor.components.PciCard
-import com.jalankita.app.feature.supervisor.components.cardDeadline
+import com.jalankita.app.ui.components.report.cardDeadline
 import com.jalankita.app.feature.supervisor.components.extractRejectReason
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.theme.BrandBlue

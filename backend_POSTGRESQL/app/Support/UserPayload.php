@@ -28,6 +28,10 @@ final class UserPayload
             'team_id' => $user->team_id,
             'team_name' => $user->team?->name,
             'needs_phone' => blank($user->phone),
+            // Pendaftaran warga lewat OTP selalu terverifikasi; akun lama dari
+            // pelaporan publik (email sintetis) tidak. Klien bisa memakainya
+            // untuk menawarkan verifikasi tanpa mengunci fitur.
+            'email_verified' => ! is_null($user->email_verified_at),
         ];
     }
 }

@@ -87,6 +87,9 @@ class SupervisorViewModel @Inject constructor(
         private set
     var detailLoading by mutableStateOf(false)
         private set
+    /** Pesan gagal muat detail — null selama memuat/berhasil (bukan state awal error). */
+    var detailError by mutableStateOf<String?>(null)
+        private set
 
     // ── Aksi ───────────────────────────────────────────────────────────────
     var actionBusy by mutableStateOf(false)
@@ -313,9 +316,11 @@ class SupervisorViewModel @Inject constructor(
      * setelahnya bila status berubah agar timeline terbaru.
      */
     fun loadDetail(id: String) {
+        // State di-set SEBELUM launch agar frame pertama tidak jatuh ke cabang error.
+        detail = null
+        detailError = null
+        detailLoading = true
         viewModelScope.launch {
-            detail = null
-            detailLoading = true
             try {
                 when (val r = repo.detail(id)) {
                     is DashboardResult.Success -> {
@@ -332,19 +337,22 @@ class SupervisorViewModel @Inject constructor(
                             }
                         }
                     }
-                    is DashboardResult.Error -> errorMessage = r.message
+                    is DashboardResult.Error -> detailError = r.message
                 }
             } catch (_: UnauthorizedException) {
                 sessionExpired = true
             } catch (e: Exception) {
-                errorMessage = e.message
+                detailError = e.message ?: "Laporan tidak dapat dimuat."
             } finally {
                 detailLoading = false
             }
         }
     }
 
-    fun clearDetail() { detail = null }
+    fun clearDetail() {
+        detail = null
+        detailError = null
+    }
 
     // ── Aksi triase ────────────────────────────────────────────────────────
 

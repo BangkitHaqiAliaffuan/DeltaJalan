@@ -28,7 +28,8 @@ object ImageUrl {
             return url
         }
         if (apiOrigin.isBlank()) return url
-        val sep = if (url.startsWith("/")) "" else "/"
-        return "$apiOrigin$sep$url"
+        val clean = url.trimStart('/')
+        val normalized = if (clean.startsWith("storage/")) clean else "storage/$clean"
+        return "$apiOrigin/$normalized"
     }
 }

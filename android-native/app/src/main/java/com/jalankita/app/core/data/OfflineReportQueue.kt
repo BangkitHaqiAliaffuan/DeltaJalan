@@ -1,6 +1,8 @@
 package com.jalankita.app.core.data
 
 import android.content.Context
+import android.util.Log
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
@@ -14,7 +16,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -40,13 +44,18 @@ class OfflineReportQueue @Inject constructor(
     private val moshi: Moshi,
 ) {
     private val queueFile = File(context.filesDir, "pending_warga_reports.json")
+    private val TAG = "OfflineReportQueue"
     private val listType = Types.newParameterizedType(List::class.java, PendingWargaReport::class.java)
     private val adapter by lazy { moshi.adapter<List<PendingWargaReport>>(listType) }
 
     suspend fun enqueue(report: PendingWargaReport) = withContext(Dispatchers.IO) {
         val current = list().toMutableList()
         current.add(report)
-        save(current)
+        // Jangan klaim "tersimpan offline" bila penulisan gagal (disk penuh/
+        // izin): lempar agar UI memberi tahu pengguna, bukan menelan diam-diam.
+        if (!save(current)) {
+            throw IOException("Laporan gagal disimpan di perangkat. Coba lagi.")
+        }
         scheduleSync()
     }
 
@@ -56,20 +65,36 @@ class OfflineReportQueue @Inject constructor(
             val json = queueFile.readText()
             adapter.fromJson(json).orEmpty()
         } catch (_: Exception) {
+            // Berkas antrian korup: JANGAN diam-diam dianggap kosong —
+            // save() berikutnya akan menimpa dan menghapus laporan tertahan.
+            // Simpan sebagai .corrupt agar data tidak hilang tanpa jejak.
+            runCatching {
+                val backup = File(context.filesDir, "pending_warga_reports.corrupt.json")
+                backup.delete()
+                queueFile.renameTo(backup)
+            }
             emptyList()
         }
     }
 
     suspend fun remove(id: String) = withContext(Dispatchers.IO) {
         val current = list().filterNot { it.id == id }
-        save(current)
+        if (!save(current)) {
+            // Item sudah terkirim; kegagalan tulis hanya berarti antrian perlu
+            // dibersihkan lagi — beri jejak di log, jangan gagalkan worker.
+            Log.w(TAG, "Gagal menulis antrian setelah menghapus $id.")
+        }
     }
 
-    private fun save(items: List<PendingWargaReport>) {
-        try {
+    /** @return true bila antrian berhasil ditulis ke disk. */
+    private fun save(items: List<PendingWargaReport>): Boolean {
+        return try {
             val json = adapter.toJson(items)
             queueFile.writeText(json)
-        } catch (_: Exception) {
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Gagal menyimpan antrian laporan offline: ${e.message}")
+            false
         }
     }
 
@@ -78,8 +103,12 @@ class OfflineReportQueue @Inject constructor(
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
 
+        // Backoff eksponensial: worker mengembalikan Result.retry() saat
+        // upload gagal karena jaringan/server, sehingga WorkManager mencoba
+        // lagi bertahap (30s → 1m → 2m → …, maks 5 jam) alih-alih laporan hilang.
         val uploadWork = OneTimeWorkRequestBuilder<ReportUploadWorker>()
             .setConstraints(constraints)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .build()
 
         WorkManager.getInstance(context).enqueueUniqueWork(

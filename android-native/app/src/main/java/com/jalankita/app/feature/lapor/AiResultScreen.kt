@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.jalankita.app.core.network.DetectionDto
+import com.jalankita.app.core.util.GeocodeStage
 import com.jalankita.app.feature.lapor.components.KecamatanDropdown
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.BrandPrimaryButton
@@ -45,9 +47,12 @@ import com.jalankita.app.ui.components.BrandTextField
 import com.jalankita.app.ui.components.DuplicateWarningCard
 import com.jalankita.app.ui.components.ErrorBox
 import com.jalankita.app.ui.components.FieldLabel
+import com.jalankita.app.ui.components.InlineLoading
 import com.jalankita.app.ui.components.PatrolContextBanner
 import com.jalankita.app.ui.components.RoadAutocompleteField
 import com.jalankita.app.ui.components.SuccessBox
+import com.jalankita.app.ui.components.WarningBox
+import com.jalankita.app.ui.map.PhotoLocationMapCard
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.DeltaJalanTypography
 import com.jalankita.app.ui.theme.SuccessGreen
@@ -72,7 +77,7 @@ fun AiResultScreen(
     val saved = vm.savedReport
     if (saved != null) {
         Column(
-            modifier.fillMaxSize().padding(24.dp),
+            modifier.fillMaxSize().statusBarsPadding().padding(24.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -95,7 +100,7 @@ fun AiResultScreen(
         return
     }
 
-    Column(modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier.fillMaxSize().statusBarsPadding().padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier.size(40.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = .9f))
@@ -199,21 +204,35 @@ fun AiResultScreen(
                 }
             }
 
+            // Lokasi kerusakan dari EXIF foto utama — marker MapLibre.
+            vm.photos.firstOrNull()?.let { primary ->
+                PhotoLocationMapCard(
+                    latitude = primary.latitude,
+                    longitude = primary.longitude,
+                )
+            }
+
             // ── Form laporan (header) ──
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     FieldLabel("Nama Jalan")
-                    if (vm.geocoding) {
-                        Spacer(Modifier.size(8.dp))
-                        CircularProgressIndicator(color = BrandBlue, strokeWidth = 2.dp, modifier = Modifier.size(13.dp))
-                        Spacer(Modifier.size(5.dp))
-                        Text("Mencari nama jalan…", color = TextMuted, fontSize = 11.sp)
-                    } else if (vm.roadNameLocked) {
-                        Spacer(Modifier.size(6.dp))
-                        Text("Dari GPS", color = BrandBlue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                    } else if (vm.surveyTaskId != null) {
-                        Spacer(Modifier.size(6.dp))
-                        Text("Dari sesi patroli", color = BrandBlue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    when {
+                        vm.geocodeStage == GeocodeStage.LOADING -> {
+                            Spacer(Modifier.size(8.dp))
+                            InlineLoading("Mencari nama jalan…")
+                        }
+                        vm.geocodeStage == GeocodeStage.FAILED -> {
+                            Spacer(Modifier.size(6.dp))
+                            Text("Isi manual", color = Color(0xFFB45309), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        vm.roadNameLocked -> {
+                            Spacer(Modifier.size(6.dp))
+                            Text("Dari GPS", color = BrandBlue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        vm.surveyTaskId != null -> {
+                            Spacer(Modifier.size(6.dp))
+                            Text("Dari sesi patroli", color = BrandBlue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 }
                 RoadAutocompleteField(
@@ -221,10 +240,15 @@ fun AiResultScreen(
                     onValueChange = { vm.onRoadQueryChange(it) },
                     suggestions = if (vm.surveyTaskId != null || vm.roadNameLocked) emptyList() else vm.roadSuggestions,
                     loading = vm.roadSearchLoading,
-                    enabled = !vm.busy && vm.surveyTaskId == null,
+                    // Nonaktif selama geocoding agar auto-fill tidak menimpa ketikan.
+                    enabled = !vm.busy && vm.surveyTaskId == null &&
+                        vm.geocodeStage != GeocodeStage.LOADING,
                     onPick = { vm.pickRoadSuggestion(it) },
                     placeholder = "cth: Jl. Raya Sidoarjo",
                 )
+                if (vm.geocodeStage == GeocodeStage.FAILED) {
+                    WarningBox("Lokasi foto tidak dikenali. Isi nama jalan dan kecamatan manual.")
+                }
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -238,7 +262,7 @@ fun AiResultScreen(
                 KecamatanDropdown(
                     selected = vm.district,
                     onSelect = { vm.district = it },
-                    enabled = !vm.busy,
+                    enabled = !vm.busy && vm.geocodeStage != GeocodeStage.LOADING,
                     locked = vm.surveyTaskId != null,
                 )
             }

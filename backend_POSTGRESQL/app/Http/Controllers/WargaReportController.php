@@ -306,6 +306,7 @@ class WargaReportController extends Controller
                 'status' => $r->status,
                 'source' => $r->source,
                 'first_photo_url' => $r->first_photo_url,
+                'image_result_url' => $r->image_result_url,
                 'created_at' => $r->created_at?->toIso8601String(),
                 'estimasi_hari' => $r->estimasi_hari,
                 'progress_updates_count' => (int) $r->progress_updates_count,

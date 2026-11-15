@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -41,13 +42,16 @@ import com.jalankita.app.core.network.PatrolSchedule
 import com.jalankita.app.core.network.PatrolTask
 import com.jalankita.app.feature.home.components.SkeletonCard
 import com.jalankita.app.ui.components.AppIcon
-import com.jalankita.app.ui.components.BrandSecondaryButton
-import com.jalankita.app.ui.components.ErrorBox
+import com.jalankita.app.ui.components.DetailErrorState
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.BrandBlueLight
 import com.jalankita.app.ui.theme.SuccessGreen
 import com.jalankita.app.ui.theme.TextDark
 import com.jalankita.app.ui.theme.TextMuted
+import com.jalankita.app.ui.util.buildCalendarWeeks
+import com.jalankita.app.ui.util.namaBulan
+import com.jalankita.app.ui.util.quandoDayName
+import com.jalankita.app.ui.util.startOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -69,7 +73,7 @@ fun PatrolDetailScreen(
     Column(modifier = modifier.fillMaxWidth()) {
         // Top bar
         Row(
-            modifier = Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 12.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().background(Color.White).statusBarsPadding().padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(AppIcon.ArrowBack, contentDescription = "Kembali", tint = BrandBlue, modifier = Modifier.size(24.dp).clickable(onClick = onBack))
@@ -78,19 +82,19 @@ fun PatrolDetailScreen(
         }
         HorizontalDivider(color = Color(0xFFD0DAE8), thickness = 1.dp)
 
+        // Skeleton selama `detail == null && detailError == null` — termasuk frame
+        // pertama sebelum pemuatan dimulai. Kotak error hanya untuk kegagalan nyata.
         when {
-            vm.detailLoading && vm.detail == null -> LazyColumn(
+            vm.detail == null && vm.detailError == null -> LazyColumn(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) { items(3) { SkeletonCard() } }
 
-            vm.detail == null -> LazyColumn(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                item { ErrorBox("Jadwal tidak dapat dimuat.", modifier = Modifier.fillMaxWidth()) }
-                item {
-                    Spacer(Modifier.height(12.dp))
-                    BrandSecondaryButton("Kembali", onClick = onBack, modifier = Modifier.fillMaxWidth())
-                }
-            }
+            vm.detail == null -> DetailErrorState(
+                message = vm.detailError ?: "Jadwal tidak dapat dimuat.",
+                onRetry = { vm.loadDetail(scheduleId) },
+                onBack = onBack,
+            )
 
             else -> PatrolDetailBody(vm.detail!!, onOpenTask = onOpenTask)
         }
@@ -361,8 +365,8 @@ private fun LegendItem(bg: Color, border: Color, label: String) {
 }
 
 // ── Logika kalender (port isPatrolDay + patrolDayMap web) ──────────────────
-
-private val DAY_NAMES = listOf("Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu")
+// Helper grid/nama bulan/hari ada di `ui/util/CalendarUtils.kt` (dipakai juga
+// kalender jadwal tim di tab Tugas).
 
 /** Peta tanggal→kecamatan patroli untuk rentang jadwal (kecamatan diputar bergilir). */
 private fun buildPatrolDateMap(schedule: PatrolSchedule): Map<String, String> {
@@ -401,29 +405,6 @@ private fun isPatrolDay(date: LocalDate, schedule: PatrolSchedule): Boolean {
         else -> true
     }
 }
-
-private fun startOfWeek(d: LocalDate): LocalDate = d.minusDays((d.dayOfWeek.value % 7).toLong())
-
-private fun quandoDayName(d: LocalDate): String =
-    when (d.dayOfWeek.value) {
-        1 -> "Senin"; 2 -> "Selasa"; 3 -> "Rabu"; 4 -> "Kamis"; 5 -> "Jumat"; 6 -> "Sabtu"; else -> "Minggu"
-    }
-
-/** Grid minggu (Senin..Minggu) untuk bulan tsb; null = sel kosong. */
-private fun buildCalendarWeeks(ym: YearMonth): List<List<Int?>> {
-    val first = ym.atDay(1)
-    // offset Senin-berbasis: 1(Sen)=0 … 7(Min)=6
-    val offset = (first.dayOfWeek.value + 6) % 7
-    val total = ym.lengthOfMonth()
-    val cells = mutableListOf<Int?>()
-    repeat(offset) { cells.add(null) }
-    (1..total).forEach { cells.add(it) }
-    while (cells.size % 7 != 0) cells.add(null)
-    return cells.chunked(7)
-}
-
-private fun namaBulan(m: Int): String =
-    listOf("Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember")[m - 1]
 
 private fun jenisTugasLabel(v: String?): String = when (v) {
     "tindak_lanjut" -> "Tindak lanjut"

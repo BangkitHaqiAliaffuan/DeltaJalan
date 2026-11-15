@@ -31,11 +31,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jalankita.app.core.network.toReportItem
 import com.jalankita.app.feature.home.components.EmptyState
 import com.jalankita.app.feature.home.components.SkeletonCard
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandTextField
+import com.jalankita.app.ui.components.PrefetchThumbnails
+import com.jalankita.app.ui.components.report.CardAction
+import com.jalankita.app.ui.components.report.CardActionButton
+import com.jalankita.app.ui.components.report.CardActionVariant
+import com.jalankita.app.ui.components.report.ReportCard
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.ContainerLow
 import com.jalankita.app.ui.theme.PillShape
@@ -61,6 +67,8 @@ fun WargaRiwayatScreen(
     LaunchedEffect(Unit) {
         if (vm.history.isEmpty() && !vm.historyLoading) vm.loadHistory(reset = true)
     }
+    PrefetchThumbnails(vm.history.map { it.displayImageUrl })
+
     val ptr = rememberPullToRefreshState()
     var confirmDeleteId by remember { mutableStateOf<String?>(null) }
     var confirmDeleteCode by remember { mutableStateOf<String?>(null) }
@@ -145,14 +153,25 @@ fun WargaRiwayatScreen(
                         items(3) { SkeletonCard(Modifier.padding(horizontal = 0.dp)) }
                     }
                     items(vm.history, key = { "whist-${it.id}" }) { report ->
-                        WargaReportCard(
-                            report = report,
+                        val deletable = report.status == "Menunggu Review" || report.status == "Ditinjau"
+                        ReportCard(
+                            report = report.toReportItem(),
                             onClick = { onOpenDetail(report.id) },
-                            // Hapus draft sendiri (cermin web: Menunggu Review/Ditinjau).
-                            onDelete = if (report.status == "Menunggu Review" || report.status == "Ditinjau") {
+                            // Layar warga: semua laporannya ber-source "warga".
+                            showSourceBadge = false,
+                            rejectedNote = "Laporan ditolak",
+                            actions = if (deletable) {
                                 {
-                                    confirmDeleteId = report.id
-                                    confirmDeleteCode = report.reportCode
+                                    CardActionButton(
+                                        CardAction(
+                                            label = "Hapus",
+                                            icon = AppIcon.Delete,
+                                            variant = CardActionVariant.DESTRUCTIVE,
+                                        ) {
+                                            confirmDeleteId = report.id
+                                            confirmDeleteCode = report.reportCode
+                                        },
+                                    )
                                 }
                             } else null,
                         )

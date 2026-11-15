@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jalankita.app.core.network.UserDto
+import com.jalankita.app.core.network.toReportItem
 import com.jalankita.app.feature.home.components.EmptyState
 import com.jalankita.app.feature.home.components.GreetingHero
 import com.jalankita.app.feature.home.components.SectionHeader
@@ -39,6 +40,8 @@ import com.jalankita.app.feature.home.components.SkeletonCard
 import com.jalankita.app.feature.home.components.StatCard
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.BrandPrimaryButton
+import com.jalankita.app.ui.components.PrefetchThumbnails
+import com.jalankita.app.ui.components.report.ReportCard
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.ErrorRed
 import com.jalankita.app.ui.theme.SuccessGreen
@@ -66,6 +69,8 @@ fun WargaDashboardScreen(
             vm.refreshDashboard(user)
         }
     }
+
+    PrefetchThumbnails(vm.recent.map { it.displayImageUrl })
 
     val ptr = rememberPullToRefreshState()
     PullToRefreshBox(
@@ -181,10 +186,14 @@ fun WargaDashboardScreen(
                 }
             } else {
                 items(vm.recent, key = { "wrecent-${it.id}" }) { report ->
-                    WargaReportCard(
-                        report = report,
+                    ReportCard(
+                        report = report.toReportItem(),
                         onClick = { onOpenDetail(report.id) },
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                        // Beranda warga: ringkas (tanpa grid/PCI/aksi) sesuai keputusan P4.
+                        compact = true,
+                        showSourceBadge = false,
+                        rejectedNote = "Laporan ditolak",
                     )
                 }
             }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -45,7 +46,6 @@ import com.jalankita.app.ui.components.FieldErrorDetail
 import com.jalankita.app.ui.components.FieldHint
 import com.jalankita.app.ui.components.FieldLabel
 import com.jalankita.app.ui.components.PasswordToggle
-import com.jalankita.app.ui.components.SuccessBox
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.DeltaJalanTypography
 
@@ -68,6 +68,7 @@ import com.jalankita.app.ui.theme.DeltaJalanTypography
 @Composable
 fun RegisterScreen(
     onNavigateLogin: () -> Unit,
+    onRegistered: (token: String, email: String) -> Unit,
     modifier: Modifier = Modifier,
     vm: RegisterViewModel = viewModel(),
 ) {
@@ -84,6 +85,7 @@ fun RegisterScreen(
         Box(
             Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .padding(16.dp),
         ) {
             // CATATAN: frontend (daftar.tsx L149 `{!isNative && ...}`) sengaja TIDAK
@@ -124,7 +126,6 @@ fun RegisterScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
                         vm.error?.let { ErrorBox(it) }
-                        vm.success?.let { SuccessBox(it) }
 
                         // Nama Lengkap
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -226,7 +227,7 @@ fun RegisterScreen(
                             icon = AppIcon.PersonAdd,
                             loading = vm.loading,
                             loadingText = "Mendaftarkan...",
-                            onClick = { vm.register(onSuccess = onNavigateLogin) },
+                            onClick = { vm.register(onRegistered = onRegistered) },
                         )
 
                         // Link "Sudah punya akun? Masuk"

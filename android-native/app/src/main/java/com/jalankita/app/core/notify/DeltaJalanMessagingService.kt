@@ -48,6 +48,8 @@ class DeltaJalanMessagingService : FirebaseMessagingService() {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             message.data["report_id"]?.let { putExtra("report_id", it) }
+            message.data["assignment_id"]?.let { putExtra("assignment_id", it) }
+            message.data["survey_task_id"]?.let { putExtra("survey_task_id", it) }
         }
         val pending = PendingIntent.getActivity(
             this, 0, intent,
