@@ -20,7 +20,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -83,42 +86,55 @@ fun PatrolListScreen(
 
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp),
+        contentPadding = PaddingValues(bottom = 24.dp),
     ) {
-        // ── Hero ──
+        // ── Header Ringkas: Judul & Tombol Jadwal Baru ──
         item {
-            Column(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Brush.horizontalGradient(listOf(BrandBlue, BrandBlueLight)))
-                    .padding(20.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Jadwal Patroli Rutin", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(2.dp))
-                        Text("Atur pola patroli rutin tim satgas", color = Color(0xFFBFDBFE), fontSize = 13.sp)
-                    }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color.White.copy(alpha = 0.15f))
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                    ) {
-                        Text("SUPERVISOR", color = Color(0xFFBFDBFE), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Daftar Jadwal Patroli",
+                        color = TextDark,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "Pola patroli rutin tim satgas",
+                        color = TextMuted,
+                        fontSize = 12.sp,
+                    )
                 }
-            }
-        }
-
-        item {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Daftar Jadwal Patroli", color = TextDark, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    BrandPrimaryButton("+ Jadwal Baru", onClick = {
+                Spacer(Modifier.width(12.dp))
+                Button(
+                    onClick = {
                         editId = null
                         modal = PatrolModal.CREATE
-                    })
+                    },
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = BrandBlue,
+                        contentColor = Color.White,
+                    ),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                ) {
+                    Icon(
+                        AppIcon.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "Jadwal Baru",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
                 }
             }
         }
@@ -128,14 +144,17 @@ fun PatrolListScreen(
                 SkeletonCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).height(180.dp))
             }
             vm.schedules.isEmpty() -> item {
-                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
                     EmptyState(
                         icon = AppIcon.CalendarMonth,
                         title = "Belum ada jadwal patroli rutin",
-                        subtitle = "Buat jadwal pertama untuk mengatur pola patroli tim.",
+                        subtitle = "Tekan \"Jadwal Baru\" di atas untuk mengatur pola patroli tim.",
                     )
-                    Spacer(Modifier.height(12.dp))
-                    BrandPrimaryButton("Buat Jadwal Baru", onClick = { modal = PatrolModal.CREATE }, modifier = Modifier.fillMaxWidth())
                 }
             }
             else -> items(vm.schedules, key = { it.id }) { s ->
