@@ -116,18 +116,44 @@ class TriageServiceTest extends TestCase
     }
 
     /**
-     * Batas tepat 56 memakai perbandingan `<`, bukan `<=`.
+     * Batas tepat 50 memakai perbandingan `<`, bukan `<=`.
      * Dikunci sebagai test agar tidak ada yang "merapikan" jadi <= nanti.
+     *
+     * Ambang diturunkan dari 56 (batas bawah "Rusak Sedang") ke 50 atas
+     * keputusan pemilik produk: 56 dianggap terlalu banyak memicu inspeksi.
+     * PCI 50 kini berada di TENGAH kategori "Rusak Berat" (41-55), jadi
+     * laporan bisa berlabel "Rusak Berat" tanpa diinspeksi — konsekuensi
+     * yang sudah diketahui dan diterima.
      */
     public function test_pci_tepat_pada_ambang_tidak_diinspeksi(): void
     {
         $report = $this->report([
             'source' => 'warga',
             'overall_severity' => 'Rusak Sedang',
-            'pci_score' => 56.0,
+            'pci_score' => 50.0,
         ]);
 
         $this->assertFalse($this->triage->needsInspection($report));
+    }
+
+    /**
+     * Zona yang perilakunya BERUBAH: PCI 50-55 dulu diinspeksi, sekarang tidak.
+     * Bila konstanta tidak sengaja dikembalikan ke 56, test ini yang gagal.
+     */
+    public function test_pci_52_dan_55_tidak_lagi_diinspeksi(): void
+    {
+        foreach ([52.0, 55.0, 55.99] as $pci) {
+            $report = $this->report([
+                'source' => 'warga',
+                'overall_severity' => 'Rusak Sedang',
+                'pci_score' => $pci,
+            ]);
+
+            $this->assertFalse(
+                $this->triage->needsInspection($report),
+                "PCI {$pci} seharusnya TIDAK diinspeksi setelah ambang turun ke 50.",
+            );
+        }
     }
 
     public function test_pci_sedikit_di_bawah_ambang_diinspeksi(): void
@@ -135,7 +161,7 @@ class TriageServiceTest extends TestCase
         $report = $this->report([
             'source' => 'warga',
             'overall_severity' => 'Rusak Sedang',
-            'pci_score' => 55.99,
+            'pci_score' => 49.99,
         ]);
 
         $this->assertTrue($this->triage->needsInspection($report));
@@ -143,7 +169,7 @@ class TriageServiceTest extends TestCase
 
     /**
      * REGRESI PENTING: `pci_score` ber-cast `decimal:2` di model Report,
-     * sehingga Eloquent mengembalikan STRING "55.50" — bukan float.
+     * sehingga Eloquent mengembalikan STRING "49.50" — bukan float.
      * Bila perbandingan tidak dikonversi, hasilnya bisa salah tanpa error.
      */
     public function test_pci_berupa_string_tetap_dibandingkan_dengan_benar(): void
@@ -151,7 +177,7 @@ class TriageServiceTest extends TestCase
         $rendah = $this->report([
             'source' => 'warga',
             'overall_severity' => 'Rusak Sedang',
-            'pci_score' => '55.50',
+            'pci_score' => '49.50',
         ]);
         $tinggi = $this->report([
             'source' => 'warga',

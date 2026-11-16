@@ -35,7 +35,7 @@ class TriageService
      * membuat perubahan kosmetik pada kategori PCI ikut mengubah alur kerja
      * lapangan secara diam-diam.
      */
-    public const PCI_INSPECTION_THRESHOLD = 56.0;
+    public const PCI_INSPECTION_THRESHOLD = 50.0;
 
     /** Dipakai konsisten oleh UI, log, dan test. */
     public const SEVERITY_BERAT = 'Rusak Berat';
@@ -47,7 +47,7 @@ class TriageService
      *  1. Laporan petugas  → TIDAK pernah inspeksi (petugas sudah di lokasi).
      *  2. Severity "Rusak Berat" → SELALU inspeksi, apa pun PCI-nya.
      *  3. PCI NULL         → inspeksi (jangan menebak; arah aman).
-     *  4. PCI < 56         → inspeksi. Tepat 56 TIDAK (pakai `<`, bukan `<=`).
+     *  4. PCI < 50         → inspeksi. Tepat 50 TIDAK (pakai `<`, bukan `<=`).
      *  5. Selain itu       → langsung review supervisor.
      */
     public function needsInspection(Report $report): bool

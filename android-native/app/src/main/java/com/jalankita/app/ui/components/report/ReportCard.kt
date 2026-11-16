@@ -33,6 +33,7 @@ import com.jalankita.app.feature.home.components.formatDateRelative
 import com.jalankita.app.feature.home.components.monospace
 import com.jalankita.app.feature.home.components.statusDotColor
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.inspectionLabel
 import com.jalankita.app.ui.components.ReportThumbnail
 import com.jalankita.app.ui.theme.TextDark
 
@@ -161,21 +162,58 @@ fun ReportCard(
             }
             Spacer(Modifier.height(6.dp))
 
-            // ── Dot status ──
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(statusDotColor(report.status)),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    displayStatus(report.status),
-                    color = SLATE_600,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
+            // ── Baris status ──
+            // Laporan yang sedang diinspeksi menampilkan TAHAP INSPEKSI, bukan
+            // statusnya. Tanpa ini laporan yang sedang diukur tampil sebagai
+            // "Ditugaskan" saja, sehingga supervisor tidak bisa membedakannya
+            // dari laporan yang sedang diperbaiki.
+            //
+            // Label inspeksi MENGGANTIKAN status (bukan ditampilkan berdampingan)
+            // agar tidak muncul dua keterangan yang tampak bertentangan.
+            val inspeksi = inspectionLabel(report.source, report.inspectionState, report.inspectorName)
+            if (inspeksi != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(inspeksi.background)
+                            .border(1.dp, inspeksi.border, RoundedCornerShape(999.dp))
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            inspeksi.text,
+                            color = inspeksi.foreground,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    if (inspeksi.inspectorName != null) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            inspeksi.inspectorName,
+                            color = SLATE_500,
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(statusDotColor(report.status)),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        displayStatus(report.status),
+                        color = SLATE_600,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
             }
 
             // ── Khusus Ditolak (tidak di mode ringkas) ──

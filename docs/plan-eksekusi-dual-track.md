@@ -16,7 +16,7 @@
 | 1 | Sumber dimensi hasil inspeksi | **Opsi A** — kolom baru di `inspection_results`, tidak menimpa data warga |
 | 2 | Pemicu "perlu inspeksi" | **Opsi B** — sistem **otomatis** mengantrekan, supervisor dapat membatalkan |
 | 3 | Label jalur | **Tampilan saja** — `STATUS_VALUES` tidak diubah |
-| 4 | Ambang parah | `overall_severity == 'Rusak Berat'` **ATAU** `pci_score < 56` |
+| 4 | Ambang parah | `overall_severity == 'Rusak Berat'` **ATAU** `pci_score < 50` |
 | 5 | Laporan petugas | **Tidak pernah** auto-inspeksi (petugas sudah di lapangan) |
 | 6 | PCI bias jarak | **Dikesampingkan** (kesepakatan pengguna); risiko ditangani oleh inspeksi wajib |
 
@@ -66,7 +66,7 @@ use App\Models\Report;
 class TriageService
 {
     /** Batas bawah "Rusak Sedang" pada PciService::CONDITION_MAP. */
-    public const PCI_INSPECTION_THRESHOLD = 56.0;
+    public const PCI_INSPECTION_THRESHOLD = 50.0;
 
     /**
      * Apakah laporan perlu diverifikasi lapangan sebelum dieksekusi.
@@ -124,7 +124,7 @@ class TriageService
 | Sedang PCI cukup | `'Rusak Sedang'`, `pci=60` | `false` |
 | **PCI null** | `'Rusak Sedang'`, `pci=null` | `true` (fallback aman) |
 | **Petugas** | `source='petugas'`, `'Rusak Berat'` | `false` (keputusan #5) |
-| Batas tepat | `pci=56.0` | `false` (`<` bukan `<=`) |
+| Batas tepat | `pci=50.0` | `false` (`<` bukan `<=`) |
 
 **Kriteria terima:**
 ```bash

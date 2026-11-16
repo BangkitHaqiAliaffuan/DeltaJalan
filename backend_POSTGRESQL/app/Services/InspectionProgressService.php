@@ -76,15 +76,17 @@ class InspectionProgressService
     }
 
     /**
-     * Nama petugas yang mengerjakan inspeksi, bila sudah diketahui.
+     * Nama petugas yang mengerjakan inspeksi.
      *
-     * Sumbernya berjenjang karena data muncul bertahap:
-     *  1. `inspector_id` pada hasil inspeksi — paling akurat, petugas yang
-     *     benar-benar mengirim pengukuran.
-     *  2. `started_by` pada sesi — petugas yang membuka sesi di lokasi,
-     *     tersedia sebelum hasil dikirim.
-     *  3. `null` — baru dijadwalkan; nama petugas belum bisa diketahui
-     *     karena penugasan masih di tingkat tim, bukan orang.
+     * Sumbernya berjenjang sesuai kapan data tersedia:
+     *  1. `inspection_results.inspector_id` — petugas yang mengirim pengukuran.
+     *  2. `survey_task_reports.inspector_id` — petugas yang menekan "Mulai",
+     *     tersedia sejak tahap `started` sebelum hasil dikirim.
+     *  3. `null` — assignment hasil auto-queue: penugasan masih di tingkat tim.
+     *
+     * SENGAJA TIDAK memakai `session.started_by`: kolom itu berisi SUPERVISOR
+     * yang membuat sesi patroli, bukan petugas yang mengukur. Memakainya akan
+     * menampilkan nama orang yang salah pada label "Sedang Diinspeksi".
      */
     public function inspectorName(Report $report): ?string
     {
@@ -97,11 +99,10 @@ class InspectionProgressService
         // Relasi diperiksa dengan `relationLoaded()` supaya tidak ada lazy
         // query saat pemanggil sudah menyediakan datanya.
         $result = $assignment->relationLoaded('result') ? $assignment->result : null;
-        $session = $assignment->relationLoaded('session') ? $assignment->session : null;
 
         $inspector = ($result !== null && $result->relationLoaded('inspector')) ? $result->inspector : null;
-        if ($inspector === null && $session !== null && $session->relationLoaded('startedBy')) {
-            $inspector = $session->startedBy;
+        if ($inspector === null && $assignment->relationLoaded('inspector')) {
+            $inspector = $assignment->inspector;
         }
 
         return $inspector?->name;
@@ -143,7 +144,7 @@ class InspectionProgressService
             return $report->inspectionAssignments->sortByDesc('id')->first();
         }
 
-        return SurveyTaskReport::with(['result.inspector', 'session.startedBy'])
+        return SurveyTaskReport::with(['result.inspector', 'inspector'])
             ->where('report_id', $report->id)
             ->orderByDesc('id')
             ->first();

@@ -126,15 +126,37 @@ class InspectionProgressServiceTest extends TestCase
         $this->assertSame('Budi Santoso', $this->service->inspectorName($report));
     }
 
-    public function test_nama_petugas_fallback_ke_pembuka_sesi(): void
+    public function test_nama_petugas_diambil_dari_assignment_saat_belum_submit(): void
     {
-        // Belum kirim hasil, tapi sesi sudah dibuka di lokasi.
+        // Petugas sudah menekan "Mulai"; hasil belum dikirim.
+        // Sumbernya `survey_task_reports.inspector_id`, BUKAN session.started_by
+        // (kolom itu berisi supervisor pembuat sesi patroli).
+        $assignment = (new SurveyTaskReport)->forceFill([
+            'id' => '01a1dfa0-c603-70f1-87e1-9a404fa6c49a',
+            'report_id' => 'r-1',
+            'status' => 'started',
+        ]);
+        $assignment->setRelation('inspector', (new User)->forceFill(['name' => 'Andi']));
+
+        $report = (new Report)->forceFill(['id' => 'r-1'])
+            ->setRelation('inspectionAssignments', new Collection([$assignment]));
+
+        $this->assertSame('Andi', $this->service->inspectorName($report));
+    }
+
+    /**
+     * REGRESI: `inspection_sessions.started_by` berisi SUPERVISOR yang membuat
+     * sesi patroli, bukan petugas yang mengukur. Memakainya sebagai sumber nama
+     * akan menampilkan orang yang salah pada label "Sedang Diinspeksi".
+     */
+    public function test_pembuka_sesi_tidak_dipakai_sebagai_nama_petugas(): void
+    {
         $session = (new InspectionSession)->forceFill(['id' => 's-1']);
-        $session->setRelation('startedBy', (new User)->forceFill(['name' => 'Andi']));
+        $session->setRelation('startedBy', (new User)->forceFill(['name' => 'Supervisor Salah']));
 
         $report = $this->reportWith('started', null, $session);
 
-        $this->assertSame('Andi', $this->service->inspectorName($report));
+        $this->assertNull($this->service->inspectorName($report));
     }
 
     public function test_nama_petugas_null_saat_baru_dijadwalkan(): void
@@ -143,14 +165,20 @@ class InspectionProgressServiceTest extends TestCase
         $this->assertNull($this->service->inspectorName($this->reportWith('assigned')));
     }
 
-    public function test_hasil_inspeksi_lebih_diutamakan_daripada_pembuka_sesi(): void
+    public function test_hasil_inspeksi_lebih_diutamakan_daripada_pelaksana_awal(): void
     {
-        // Petugas pengukur bisa berbeda dari yang membuka sesi (mis. pergantian
-        // shift); nama pengukur yang benar-benar mengirim data lebih akurat.
-        $session = (new InspectionSession)->forceFill(['id' => 's-1']);
-        $session->setRelation('startedBy', (new User)->forceFill(['name' => 'Andi']));
+        // Bisa terjadi pergantian petugas: yang menekan "Mulai" berbeda dari
+        // yang mengirim hasil. Nama pengirim data lebih akurat.
+        $assignment = (new SurveyTaskReport)->forceFill([
+            'id' => '01a1dfa0-c603-70f1-87e1-9a404fa6c49a',
+            'report_id' => 'r-1',
+            'status' => 'submitted',
+        ]);
+        $assignment->setRelation('inspector', (new User)->forceFill(['name' => 'Andi']));
+        $assignment->setRelation('result', $this->makeResult('Budi'));
 
-        $report = $this->reportWith('submitted', $this->makeResult('Budi'), $session);
+        $report = (new Report)->forceFill(['id' => 'r-1'])
+            ->setRelation('inspectionAssignments', new Collection([$assignment]));
 
         $this->assertSame('Budi', $this->service->inspectorName($report));
     }

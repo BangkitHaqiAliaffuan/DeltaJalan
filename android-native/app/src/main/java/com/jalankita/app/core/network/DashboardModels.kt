@@ -73,6 +73,12 @@ data class ReportItemDto(
     @Json(name = "progress_updates_count") val progressUpdatesCount: Int = 0,
     @Json(name = "deadline_review") val deadlineReview: String? = null,
     @Json(name = "deadline_resolusi") val deadlineResolusi: String? = null,
+    // ── Tahap inspeksi lapangan (dihitung backend, bukan `status`) ──
+    /** `assigned`/`started`/`submitted`/`reviewed`, atau null bila bukan laporan inspeksi. */
+    @Json(name = "inspection_state") val inspectionState: String? = null,
+    @Json(name = "has_inspection") val hasInspection: Boolean = false,
+    /** Petugas yang mengukur; null selama penugasan masih di tingkat tim. */
+    @Json(name = "inspector_name") val inspectorName: String? = null,
     @Json(name = "terlambat_review") val terlambatReview: Boolean = false,
     @Json(name = "terlambat_resolusi") val terlambatResolusi: Boolean = false,
     @Json(name = "status_deadline") val statusDeadline: String? = null,

@@ -24,6 +24,7 @@ use App\Notifications\TeamAssignedNotification;
 use App\Notifications\TriageUpdatedNotification;
 use App\Services\DuplicateCheckService;
 use App\Services\GeographicService;
+use App\Services\InspectionProgressService;
 use App\Services\PciService;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
@@ -800,7 +801,7 @@ class ReportController extends Controller
 
         // Satu instance dipakai untuk seluruh halaman daftar: state inspeksi
         // dihitung dari relasi yang sudah di-eager-load, bukan query per baris.
-        $inspectionProgress = app(\App\Services\InspectionProgressService::class);
+        $inspectionProgress = app(InspectionProgressService::class);
 
         $query = Report::query();
 
@@ -926,8 +927,11 @@ class ReportController extends Controller
             ->with('assignedTeam')
             ->with('duplicateOf.originalReport')
             ->with(['inspectionAssignments' => fn ($q) => $q
-                ->with(['result.inspector', 'session.startedBy'])
-                ->orderByDesc('created_at')])
+                // `inspector` = petugas yang mengukur (kolom baru).
+                // `session.startedBy` SENGAJA tidak dipakai: isinya supervisor
+                // pembuat sesi, bukan pelaksana pengukuran.
+                ->with(['result.inspector', 'inspector'])
+                ->orderByDesc('id')])
             ->get()
             ->map(function ($report) use ($inspectionProgress) {
                 return [
@@ -1037,7 +1041,7 @@ class ReportController extends Controller
             // Penanda jalur inspeksi untuk badge UI supervisor. `inspection_state`
             // membedakan "baru dijadwalkan", "sedang diukur", dan "menunggu
             // review" — tanpa menambah nilai pada `reports.status`.
-            ...app(\App\Services\InspectionProgressService::class)->payload($report),
+            ...app(InspectionProgressService::class)->payload($report),
             'image_original_url' => $report->image_original_url,
             'image_result_url' => $report->image_result_url,
             'after_photo_url' => $report->after_photo_url,

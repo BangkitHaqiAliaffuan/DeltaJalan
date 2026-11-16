@@ -9,7 +9,7 @@ class SurveyTaskReport extends Model
 {
     use HasUuids;
 
-    protected $fillable = ['survey_task_id', 'inspection_session_id', 'report_id', 'team_id', 'status', 'assigned_at', 'started_at', 'submitted_at'];
+    protected $fillable = ['survey_task_id', 'inspection_session_id', 'report_id', 'team_id', 'status', 'inspector_id', 'assigned_at', 'started_at', 'submitted_at'];
 
     protected $casts = ['assigned_at' => 'datetime', 'started_at' => 'datetime', 'submitted_at' => 'datetime'];
 
@@ -21,6 +21,17 @@ class SurveyTaskReport extends Model
     public function report()
     {
         return $this->belongsTo(Report::class);
+    }
+
+    /**
+     * Petugas yang mengerjakan pengukuran ini.
+     *
+     * Berbeda dari `session.startedBy` (supervisor pembuat sesi patroli).
+     * Terisi saat petugas menekan "Mulai" atau mengirim hasil.
+     */
+    public function inspector()
+    {
+        return $this->belongsTo(User::class, 'inspector_id');
     }
 
     public function result()

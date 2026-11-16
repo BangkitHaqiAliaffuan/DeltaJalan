@@ -136,8 +136,11 @@ fun SourcePill(source: String, modifier: Modifier = Modifier) {
  *
  *  - `Laporan Warga`        : warga melapor, tidak perlu inspeksi lapangan.
  *  - `Menunggu Petugas Ukur`: sudah dijadwalkan, petugas belum mulai.
- *  - `Sedang Diukur`        : petugas sudah di lokasi, hasil belum dikirim.
+ *  - `Sedang Diinspeksi`    : petugas sudah di lokasi, hasil belum dikirim.
  *  - `Hasil Siap Review`    : pengukuran sudah dikirim, menunggu keputusan.
+ *  - `Sudah Diinspeksi`     : supervisor sudah memutuskan.
+ *
+ * Istilah di atas didefinisikan di `InspectionLabel.kt`, bukan di sini.
  *  - `Laporan Petugas`      : petugas sendiri yang menemukan di lapangan.
  *
  * Tahap inspeksi TIDAK disimpan sebagai `status` laporan — ia turunan dari
@@ -156,30 +159,32 @@ fun TrackPill(
     modifier: Modifier = Modifier,
     inspectorName: String? = null,
 ) {
-    if (source == null || source.isBlank()) return
-    val isPetugas = source.equals("petugas", ignoreCase = true)
+    // Label disusun oleh `inspectionLabel()` — sumber yang sama dengan kartu
+    // laporan, agar chip dan kartu tidak pernah berbeda istilah.
+    val petugas = source?.equals("petugas", ignoreCase = true) == true
+    val inspeksi = inspectionLabel(source, inspectionState, inspectorName)
 
-    // Petugas tidak pernah melewati jalur inspeksi (lihat TriageService), jadi
-    // labelnya langsung "Laporan Petugas" tanpa memedulikan state.
-    val label = when {
-        isPetugas -> "Laporan Petugas"
-        inspectionState == null || inspectionState == "none" -> "Laporan Warga"
-        inspectionState == "assigned" -> "Menunggu Petugas Ukur"
-        inspectionState == "started" -> "Sedang Diukur"
-        inspectionState == "submitted" -> "Hasil Siap Review"
-        inspectionState == "reviewed" -> "Hasil Inspeksi"
-        // State tak dikenal jangan disembunyikan: lebih jujur menyebut laporan
-        // warga daripada mengaku belum pernah diinspeksi.
-        else -> "Laporan Warga"
-    }
-
-    val (bg, fg, border) = when {
-        isPetugas -> Triple(Color(0xFFEFF6FF), Color(0xFF2563EB), Color(0xFFBFDBFE))
-        inspectionState == "started" -> Triple(Color(0xFFFEF3C7), Color(0xFFB45309), Color(0xFFFDE68A))
-        inspectionState == "submitted" -> Triple(Color(0xFFECFDF5), Color(0xFF047857), Color(0xFFA7F3D0))
-        inspectionState == "reviewed" -> Triple(Color(0xFFECFDF5), Color(0xFF047857), Color(0xFFA7F3D0))
-        inspectionState == "assigned" -> Triple(Color(0xFFF1F5F9), Color(0xFF475569), Color(0xFFCBD5E1))
-        else -> Triple(Color(0xFFF8FAFC), Color(0xFF475569), Color(0xFFE2E8F0))
+    val label: String
+    val bg: Color
+    val fg: Color
+    val border: Color
+    if (inspeksi != null) {
+        label = inspeksi.text
+        bg = inspeksi.background
+        fg = inspeksi.foreground
+        border = inspeksi.border
+    } else if (petugas) {
+        label = "Laporan Petugas"
+        bg = Color(0xFFEFF6FF)
+        fg = Color(0xFF2563EB)
+        border = Color(0xFFBFDBFE)
+    } else if (source.isNullOrBlank()) {
+        return
+    } else {
+        label = "Laporan Warga"
+        bg = Color(0xFFF8FAFC)
+        fg = Color(0xFF475569)
+        border = Color(0xFFE2E8F0)
     }
 
     Row(
@@ -192,9 +197,9 @@ fun TrackPill(
     ) {
         Text(label, color = fg, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         // Nama petugas hanya bermakna saat inspeksi sudah punya pelaksana.
-        if (!inspectorName.isNullOrBlank()) {
+        if (inspeksi?.inspectorName != null) {
             Text(" · ", color = fg.copy(alpha = 0.6f), fontSize = 10.sp)
-            Text(inspectorName, color = fg, fontSize = 10.sp, maxLines = 1)
+            Text(inspeksi.inspectorName, color = fg, fontSize = 10.sp, maxLines = 1)
         }
     }
 }

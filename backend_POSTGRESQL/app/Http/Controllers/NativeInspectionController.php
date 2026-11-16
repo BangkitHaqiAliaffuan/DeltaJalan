@@ -347,12 +347,22 @@ class NativeInspectionController extends Controller
         if (($response = $this->petugas($request, $assignment)) !== null) {
             return $response;
         }
-        $updated = DB::transaction(function () use ($assignment) {
+        $inspectorId = $request->user()->id;
+        $updated = DB::transaction(function () use ($assignment, $inspectorId) {
             $a = SurveyTaskReport::whereKey($assignment->id)->lockForUpdate()->firstOrFail();
             if (! in_array($a->status, ['assigned', 'started'], true)) {
                 abort(422, 'Assignment tidak dapat dimulai.');
             }
-            $a->update(['status' => 'started', 'started_at' => $a->started_at ?: now()]);
+            // Catat SIAPA yang mengerjakan. Tanpa ini supervisor hanya bisa
+            // menebak dari `session.started_by`, yang berisi supervisor
+            // pembuat sesi patroli — bukan petugas yang mengukur.
+            // Saat sudah `started`, petugas pertama dipertahankan agar klik
+            // ulang tidak mengubah riwayat pelaksana.
+            $a->update([
+                'status' => 'started',
+                'started_at' => $a->started_at ?: now(),
+                'inspector_id' => $a->inspector_id ?: $inspectorId,
+            ]);
 
             return $a;
         });
@@ -412,7 +422,13 @@ class NativeInspectionController extends Controller
                 $gps = $metadata[$i]['gps'];
                 $result->photos()->create(['path' => $photo->store('inspection', 'public'), 'sha256' => hash_file('sha256', $photo->getRealPath()), 'sort_order' => $i, 'latitude' => $gps['lat'] ?? $lat, 'longitude' => $gps['lng'] ?? $lng, 'taken_at' => $metadata[$i]['taken_at']]);
             }
-            $a->update(['status' => 'submitted', 'submitted_at' => now()]);
+            $a->update([
+                'status' => 'submitted',
+                'submitted_at' => now(),
+                // Jalur submit tanpa "Mulai" tetap harus mencatat pelaksananya,
+                // supaya nama petugas tidak kosong di label supervisor.
+                'inspector_id' => $a->inspector_id ?: $request->user()->id,
+            ]);
             Report::whereKey($a->report_id)->update(['status' => 'Ditinjau']);
 
             return $result->load('photos');
