@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Contracts\FirebaseTokenVerifier;
 use App\Models\User;
+use App\Services\SanctumTokenService;
 use App\Services\WargaRegistrationService;
 use App\Support\ApiError;
 use App\Support\PhoneNumber;
@@ -24,7 +25,7 @@ class GoogleAuthController extends Controller
 {
     private const ONBOARDING_TTL_MINUTES = 15;
 
-    public function login(Request $request, FirebaseTokenVerifier $verifier): JsonResponse
+    public function login(Request $request, FirebaseTokenVerifier $verifier, SanctumTokenService $tokens): JsonResponse
     {
         $validated = $request->validate([
             'firebase_token' => ['required', 'string', 'max:4096'],
@@ -83,10 +84,10 @@ class GoogleAuthController extends Controller
             return $this->onboardingResponse($identity, $user);
         }
 
-        return $this->tokenResponse($user, 'Login berhasil.');
+        return $this->tokenResponse($user, 'Login berhasil.', $tokens);
     }
 
-    public function complete(Request $request, WargaRegistrationService $registrations): JsonResponse
+    public function complete(Request $request, WargaRegistrationService $registrations, SanctumTokenService $tokens): JsonResponse
     {
         $validated = $request->validate([
             'onboarding_token' => ['required', 'string', 'max:128'],
@@ -153,7 +154,7 @@ class GoogleAuthController extends Controller
 
             Cache::forget($cacheKey);
 
-            return $this->tokenResponse($user, 'Pendaftaran berhasil.');
+            return $this->tokenResponse($user, 'Pendaftaran berhasil.', $tokens);
         }
 
         // ── Akun lama yang cuma kurang nomor telepon: tetap tanpa OTP ───────
@@ -180,7 +181,7 @@ class GoogleAuthController extends Controller
 
         Cache::forget($cacheKey);
 
-        return $this->tokenResponse($user, 'Pendaftaran berhasil.');
+        return $this->tokenResponse($user, 'Pendaftaran berhasil.', $tokens);
     }
 
     private function onboardingResponse(VerifiedFirebaseUser $identity, ?User $user): JsonResponse
@@ -215,9 +216,9 @@ class GoogleAuthController extends Controller
         ], 200);
     }
 
-    private function tokenResponse(User $user, string $message): JsonResponse
+    private function tokenResponse(User $user, string $message, SanctumTokenService $tokens): JsonResponse
     {
-        $token = $user->createToken('jalankita-app')->plainTextToken;
+        $token = $tokens->issue($user);
 
         return response()->json([
             'success' => true,

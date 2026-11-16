@@ -449,9 +449,11 @@ class WargaReportController extends Controller
                             'image_result_url' => $p->image_result_url,
                             'photo_taken_at' => $p->photo_taken_at?->toIso8601String(),
                             'created_at' => $p->created_at?->toIso8601String(),
-                            'mobileclip_score' => $p->mobileclip_score ? (float) $p->mobileclip_score : null,
-                            'mobileclip_label' => $p->mobileclip_label,
-                            'quality_scores' => $p->quality_scores,
+                            // `mobileclip_score`, `mobileclip_label`, dan
+                            // `quality_scores` SENGAJA tidak dikirim ke klien publik:
+                            // tidak satu pun halaman publik memakainya, dan nilainya
+                            // membocorkan cara kerja penyaringan AI — penyerang bisa
+                            // menyetel foto agar lolos sementara tetap terlihat wajar.
                         ];
                     }),
                     'after_photos' => $report->afterPhotos->map(fn ($ap) => [
@@ -597,9 +599,11 @@ class WargaReportController extends Controller
                             'image_result_url' => $p->image_result_url,
                             'photo_taken_at' => $p->photo_taken_at?->toIso8601String(),
                             'created_at' => $p->created_at?->toIso8601String(),
-                            'mobileclip_score' => $p->mobileclip_score ? (float) $p->mobileclip_score : null,
-                            'mobileclip_label' => $p->mobileclip_label,
-                            'quality_scores' => $p->quality_scores,
+                            // `mobileclip_score`, `mobileclip_label`, dan
+                            // `quality_scores` SENGAJA tidak dikirim ke klien publik:
+                            // tidak satu pun halaman publik memakainya, dan nilainya
+                            // membocorkan cara kerja penyaringan AI — penyerang bisa
+                            // menyetel foto agar lolos sementara tetap terlihat wajar.
                         ];
                     }),
                     'after_photos' => $report->afterPhotos->map(fn ($ap) => [

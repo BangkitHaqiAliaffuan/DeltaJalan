@@ -29,9 +29,18 @@ class EnsureCorsHeaders
         'https://delta-jalan.vercel.app',
     ];
 
-    /** Regex patterns for dynamic origins. */
+    /**
+     * Regex pola origin dinamis.
+     *
+     * Wildcard `*.vercel.app` SENGAJA TIDAK dipakai di sini. Pola itu
+     * mengizinkan siapa pun yang bisa membuat deployment di Vercel untuk
+     * memanggil API ini dari browser korban, karena origin-nya memang benar
+     * `*.vercel.app`. Domain resmi sudah ada di STATIC_ORIGINS.
+     *
+     * Pola ngrok tetap dipertahankan: itu alat pengembangan lokal milik
+     * tim sendiri, dan URL-nya tidak bisa ditebak orang lain.
+     */
     private const ORIGIN_PATTERNS = [
-        '#^https?://[a-z0-9-]+\.vercel\.app$#',
         '#^https?://[a-z0-9-]+\.ngrok-free\.(app|dev)$#',
         '#^capacitor://localhost$#',
     ];

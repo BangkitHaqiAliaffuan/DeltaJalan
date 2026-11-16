@@ -494,9 +494,10 @@ interface ApiService {
     suspend fun wargaMapData(): ApiEnvelope<WargaMapData>
 
     // ── Supervisor (role:supervisor/admin) ─────────────────────────────────
-    // ATURAN KERAS: endpoint triase di bawah sebagian TIDAK dijaga role di
-    // server (approve/tolak/confirm-ai/reopen). Guard wajib di client —
-    // lihat SupervisorRepository + komentar per metode.
+    // Endpoint triase di bawah kini DIJAGA role di server
+    // (`role:supervisor,admin` pada routes/api.php). Server menolak 403 bila
+    // dipanggil petugas/warga. Guard di client tetap dipertahankan sebagai
+    // lapisan pertama agar UI tidak menampilkan tombol yang pasti gagal.
 
     /**
      * GET /api/reports — daftar triase supervisor.
@@ -552,7 +553,7 @@ interface ApiService {
     suspend fun mulaiReview(@Path("id") id: String): ApiEnvelope<StatusPayload?>
 
     /**
-     * POST /api/reports/{id}/approve — TANPA cek role di server.
+     * POST /api/reports/{id}/approve — server membatasi role:supervisor,admin.
      * HANYA untuk `source == petugas` (langsung Ditugaskan ke tim pelapor).
      * `source in [warga, telegram]` → pakai approve-and-assign.
      */
@@ -573,8 +574,8 @@ interface ApiService {
     ): TriageActionResponse
 
     /**
-     * POST /api/reports/{id}/tolak — TANPA cek role. Status harus
-     * Menunggu Review/Ditinjau; `alasan` wajib ≤100, `catatan` ≤500.
+     * POST /api/reports/{id}/tolak — dibatasi role:supervisor,admin. Status
+     * harus Menunggu Review/Ditinjau; `alasan` wajib ≤100, `catatan` ≤500.
      */
     @POST("reports/{id}/tolak")
     suspend fun tolakReport(
@@ -584,8 +585,9 @@ interface ApiService {
 
     /**
      * POST /api/reports/{id}/confirm-ai — status harus `Hasil AI`.
-     * TANPA cek role DAN tanpa cek source → guard client wajib memastikan
-     * hanya dipanggil untuk `source in [warga, telegram]`.
+     * Server membatasi role:supervisor,admin, tapi TIDAK memeriksa `source` →
+     * guard client wajib memastikan hanya dipanggil untuk
+     * `source in [warga, telegram]`.
      * 422 tanpa `needs_team` bila tim tak terpetakan (tak ada retry manual).
      */
     @POST("reports/{id}/confirm-ai")

@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Mail\OtpVerificationMail;
 use App\Models\User;
+use App\Services\LoginThrottleService;
 use App\Services\RegistrationOtpService;
+use App\Services\SanctumTokenService;
 use App\Services\WargaRegistrationService;
 use App\Support\ApiError;
 use App\Support\PhoneNumber;
@@ -40,7 +42,7 @@ class AuthController extends Controller
      * dan mengembalikan data user beserta role-nya.
      * Frontend akan redirect ke halaman yang sesuai berdasarkan role.
      */
-    public function login(Request $request): JsonResponse
+    public function login(Request $request, LoginThrottleService $throttle, SanctumTokenService $tokens): JsonResponse
     {
         // ── Validasi input ────────────────────────────────────────────────
         try {
@@ -54,6 +56,20 @@ class AuthController extends Controller
                 'message' => 'Format email atau password tidak valid.',
                 'errors' => $e->errors(),
             ], 422);
+        }
+
+        // ── Kunci sementara per akun ──────────────────────────────────────
+        // `throttle:10,1` pada route hanya membatasi per IP; penyerang dengan
+        // banyak IP tetap bisa menebak password satu akun tanpa batas.
+        // Pemeriksaan ini dilakukan SEBELUM query database agar serangan
+        // tidak membebani DB.
+        $identifier = (string) $request->email;
+        if ($throttle->isLocked($identifier)) {
+            return response()->json([
+                'success' => false,
+                'message' => $throttle->message($identifier),
+                'error_code' => 'TOO_MANY_ATTEMPTS',
+            ], 429);
         }
 
         // ── Normalisasi nomor telepon (sama seperti di register) ──────────
@@ -78,6 +94,11 @@ class AuthController extends Controller
         // ── Verifikasi password ───────────────────────────────────────────
         // Gunakan Hash::check() untuk membandingkan password plain dengan hash bcrypt
         if (! $user || ! $user->password || ! Hash::check($request->password, $user->password)) {
+            // Dihitung per email yang DIMASUKKAN, bukan per user yang ditemukan:
+            // kalau hanya user yang ada yang dihitung, penyerang bisa membedakan
+            // email terdaftar dari yang tidak lewat ada/tidaknya penguncian.
+            $throttle->recordFailure($identifier);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Email atau kata sandi salah.',
@@ -92,10 +113,14 @@ class AuthController extends Controller
             ], 403);
         }
 
+        // Login berhasil → bersihkan riwayat kegagalan akun ini, supaya
+        // salah ketik sebelumnya tidak memperpendek jatah percobaan berikutnya.
+        $throttle->clear($identifier);
+
         // ── Buat token Sanctum ────────────────────────────────────────────
-        // Token ini akan dikirim ke frontend dan disimpan di localStorage
-        // Nama token: 'jalankita-app' untuk identifikasi
-        $token = $user->createToken('jalankita-app')->plainTextToken;
+        // Lewat service agar token punya masa berlaku (`expires_at`).
+        // Pemanggilan `createToken()` langsung akan menghasilkan token abadi.
+        $token = $tokens->issue($user);
 
         // ── Return response ───────────────────────────────────────────────
         return response()->json([
@@ -180,6 +205,7 @@ class AuthController extends Controller
         Request $request,
         RegistrationOtpService $otp,
         WargaRegistrationService $registrations,
+        SanctumTokenService $tokens,
     ): JsonResponse {
         try {
             $validated = $request->validate([
@@ -217,7 +243,7 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Pendaftaran berhasil.',
-            'token' => $user->createToken('jalankita-app')->plainTextToken,
+            'token' => $tokens->issue($user),
             'user' => UserPayload::make($user),
         ], 200);
     }

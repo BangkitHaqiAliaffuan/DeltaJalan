@@ -83,7 +83,11 @@ Route::get('/auth/me', [AuthController::class, 'me'])->middleware('auth:sanctum'
  * POST /api/reports/track
  * Lacak laporan secara publik menggunakan kode laporan (tidak perlu login).
  */
-Route::post('/reports/track', [WargaReportController::class, 'track'])->middleware('throttle:10,1');
+// Kode laporan berurutan (LP-2026-00001, 00002, …) sehingga mudah ditebak.
+// Batas lama 10/menit = 14.400 percobaan/hari — cukup untuk menyapu seluruh
+// ruang kode dalam beberapa hari. 6/menit tetap nyaman bagi pengguna asli
+// yang mengetik kode satu-dua kali, tapi memotong penyapuan otomatis.
+Route::post('/reports/track', [WargaReportController::class, 'track'])->middleware('throttle:6,1');
 
 // ── Public Warga Reports (no auth) ─────────────────────────────────────
 Route::post('/public/reports', [WargaReportController::class, 'storePublic'])
@@ -106,8 +110,10 @@ Route::get('/v1/reports/remaining', [WargaReportController::class, 'checkRemaini
  * Detail laporan publik berdasarkan kode laporan — untuk fitur Share Laporan.
  * Tidak expose data sensitif (lat/lng/nama/phone).
  */
+// Halaman Share Laporan. Batas lama 30/menit = 43.200/hari; dengan kode
+// berurutan, seluruh ruang LP-{tahun}-XXXXX bisa disapu dalam ~2 hari.
 Route::get('/v1/public/reports/{reportCode}', [WargaReportController::class, 'publicShow'])
-    ->middleware('throttle:30,1');
+    ->middleware('throttle:10,1');
 
 /**
  * GET /api/public/download-apk
@@ -198,7 +204,7 @@ Route::middleware('auth:sanctum')->group(function () {
      * POST /api/reports/{id}/approve
      * Supervisor menyetujui laporan.
      */
-    Route::post('/reports/{id}/approve', [ReportController::class, 'approve']);
+    Route::post('/reports/{id}/approve', [ReportController::class, 'approve'])->middleware('role:supervisor,admin');
 
     /**
      * POST /api/reports/{id}/analyze-ai
@@ -210,25 +216,25 @@ Route::middleware('auth:sanctum')->group(function () {
      * POST /api/reports/{id}/confirm-ai
      * Supervisor mengonfirmasi hasil AI dan menugaskan tim satgas.
      */
-    Route::post('/reports/{id}/confirm-ai', [ReportController::class, 'confirmAiResult']);
+    Route::post('/reports/{id}/confirm-ai', [ReportController::class, 'confirmAiResult'])->middleware('role:supervisor,admin');
 
     /**
      * POST /api/reports/{id}/approve-and-assign
      * Supervisor menyetujui laporan warga/telegram + AI analysis + auto-assign tim dalam satu langkah.
      */
-    Route::post('/reports/{id}/approve-and-assign', [ReportController::class, 'approveAndAssign']);
+    Route::post('/reports/{id}/approve-and-assign', [ReportController::class, 'approveAndAssign'])->middleware('role:supervisor,admin');
 
     /**
      * POST /api/reports/{id}/tolak
      * Supervisor menolak laporan dengan alasan.
      */
-    Route::post('/reports/{id}/tolak', [ReportController::class, 'tolak']);
+    Route::post('/reports/{id}/tolak', [ReportController::class, 'tolak'])->middleware('role:supervisor,admin');
 
     /**
      * POST /api/reports/{id}/disposisi
      * Supervisor mendisposisi laporan untuk pengerjaan.
      */
-    Route::post('/reports/{id}/disposisi', [ReportController::class, 'disposisi']);
+    Route::post('/reports/{id}/disposisi', [ReportController::class, 'disposisi'])->middleware('role:supervisor,admin');
 
     /**
      * POST /api/reports/{id}/mulai

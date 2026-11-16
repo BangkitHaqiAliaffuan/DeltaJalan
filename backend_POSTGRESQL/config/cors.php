@@ -53,8 +53,17 @@ return [
         'https://delta-jalan.vercel.app',
     ])),
 
+    // ── Pola origin dinamis ───────────────────────────────────────────────
+    // Wildcard `*.vercel.app` SENGAJA TIDAK dipakai. Pola itu mengizinkan
+    // SIAPA PUN yang bisa deploy ke Vercel untuk memanggil API ini dari
+    // browser korban, dan karena origin-nya benar-benar `*.vercel.app`,
+    // permintaan itu lolos. Domain resmi dicantumkan eksplisit di
+    // `allowed_origins` di atas.
+    //
+    // `capacitor://localhost` tetap diperlukan oleh aplikasi Capacitor lama;
+    // build native sekarang memakai `androidScheme: http` → `http://localhost`
+    // yang sudah tercantum eksplisit.
     'allowed_origins_patterns' => [
-        '#^https?://[a-z0-9-]+\.vercel\.app$#',
         '#^capacitor://localhost$#',
     ],
 
