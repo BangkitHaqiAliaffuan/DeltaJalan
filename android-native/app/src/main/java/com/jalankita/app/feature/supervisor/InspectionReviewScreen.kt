@@ -177,6 +177,19 @@ fun NativeInspectionReviewScreen(
                         color = TextDark,
                         fontSize = 13.sp,
                     )
+                    // Karakteristik lokasi. Kepadatan lalu lintas menentukan
+                    // prioritas setelah `accept` disetujui, jadi supervisor
+                    // perlu melihatnya SEBELUM memutuskan.
+                    Text(
+                        "Perkerasan: ${labelPerkerasan(selected?.jenisPerkerasan)}",
+                        color = TextDark,
+                        fontSize = 13.sp,
+                    )
+                    Text(
+                        "Kepadatan lalu lintas: ${labelKepadatan(selected?.kepadatanLaluLintas)}",
+                        color = TextDark,
+                        fontSize = 13.sp,
+                    )
                     Text("Catatan petugas: ${selected?.notes ?: "-"}", color = TextDark, fontSize = 13.sp)
 
                     Spacer(Modifier.height(4.dp))
@@ -351,3 +364,23 @@ private fun dimensionText(result: InspectionResultDto?): String {
 
 private fun fmtDim(value: Double): String =
     if (value % 1.0 == 0.0) value.toInt().toString() else String.format(java.util.Locale.ROOT, "%.2f", value)
+
+/** Label jenis perkerasan untuk ditampilkan; kosong → "belum dicatat". */
+private fun labelPerkerasan(nilai: String?): String = when (nilai) {
+    "aspal" -> "Aspal"
+    "beton" -> "Beton"
+    "paving" -> "Paving Block"
+    "kerikil_tanah" -> "Kerikil / Tanah"
+    else -> "belum dicatat"
+}
+
+/**
+ * Label kepadatan lalu lintas, sekaligus memberi tahu supervisor prioritas
+ * apa yang akan diterapkan saat `accept` — supaya keputusan tidak mengejutkan.
+ */
+private fun labelKepadatan(nilai: String?): String = when (nilai) {
+    "sepi" -> "Sepi (prioritas Rendah)"
+    "sedang" -> "Sedang (prioritas Sedang)"
+    "padat" -> "Padat (prioritas Tinggi)"
+    else -> "belum dicatat (prioritas tidak berubah)"
+}

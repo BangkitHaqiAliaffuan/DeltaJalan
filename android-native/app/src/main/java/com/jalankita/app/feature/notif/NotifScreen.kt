@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -45,6 +44,7 @@ import com.jalankita.app.core.network.NotifItemDto
 import com.jalankita.app.feature.home.components.EmptyState
 import com.jalankita.app.feature.home.components.SkeletonCard
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.safeContentPadding
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.ContainerLow
@@ -105,7 +105,7 @@ fun NotifScreen(
     val ptr = rememberPullToRefreshState()
     var confirmDelete by remember { mutableStateOf(false) }
 
-    Column(modifier = modifier.fillMaxSize().statusBarsPadding()) {
+    Column(modifier = modifier.fillMaxSize().safeContentPadding()) {
         // Header — judul + aksi (cermin PageLayout title + right actions web).
         Row(
             modifier = Modifier

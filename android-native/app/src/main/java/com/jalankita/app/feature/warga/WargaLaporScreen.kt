@@ -54,6 +54,7 @@ import com.jalankita.app.core.util.GeocodeStage
 import com.jalankita.app.feature.lapor.components.FraudModal
 import com.jalankita.app.feature.lapor.components.KecamatanDropdown
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.safeContentPaddingValues
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandSecondaryButton
 import com.jalankita.app.ui.components.BrandTextField
@@ -166,7 +167,7 @@ fun WargaLaporScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(ScreenBg),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = safeContentPaddingValues(),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item(key = "photos") {

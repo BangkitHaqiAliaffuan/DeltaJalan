@@ -223,6 +223,10 @@ data class InspectionResultDto(
     @Json(name = "kerusakan_panjang") val kerusakanPanjang: Double? = null,
     @Json(name = "kerusakan_lebar") val kerusakanLebar: Double? = null,
     @Json(name = "kerusakan_kedalaman") val kerusakanKedalaman: Double? = null,
+    // Karakteristik lokasi. Null = petugas belum mencatat.
+    // `aspal|beton|paving|kerikil_tanah` dan `sepi|sedang|padat`.
+    @Json(name = "jenis_perkerasan") val jenisPerkerasan: String? = null,
+    @Json(name = "kepadatan_lalu_lintas") val kepadatanLaluLintas: String? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
     @Json(name = "reviewed_by") val reviewedBy: Long? = null,

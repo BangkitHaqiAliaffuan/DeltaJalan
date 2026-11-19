@@ -32,6 +32,9 @@ data class PendingInspectionResult(
     val kerusakanPanjang: Double? = null,
     val kerusakanLebar: Double? = null,
     val kerusakanKedalaman: Double? = null,
+    // Karakteristik lokasi ikut disimpan, kalau tidak akan hilang saat submit offline.
+    val jenisPerkerasan: String? = null,
+    val kepadatanLaluLintas: String? = null,
     val roadName: String? = null,
     val district: String? = null,
     val discovered: Boolean = false,

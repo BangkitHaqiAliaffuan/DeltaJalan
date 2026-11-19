@@ -43,6 +43,7 @@ import com.jalankita.app.core.network.PatrolTask
 import com.jalankita.app.feature.home.components.SkeletonCard
 import com.jalankita.app.feature.home.components.formatDateShort
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.safeContentPaddingValues
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandSecondaryButton
 import com.jalankita.app.ui.components.DetailErrorState
@@ -141,7 +142,7 @@ private fun PatrolDetailBody(
 
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp),
+        contentPadding = safeContentPaddingValues(horizontal = 0.dp, vertical = 24.dp),
     ) {
         // Hero
         item {

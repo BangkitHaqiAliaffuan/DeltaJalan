@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -42,6 +41,7 @@ import com.jalankita.app.core.network.DetectionDto
 import com.jalankita.app.core.util.GeocodeStage
 import com.jalankita.app.feature.lapor.components.KecamatanDropdown
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.safeContentPadding
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandTextField
 import com.jalankita.app.ui.components.DuplicateWarningCard
@@ -77,7 +77,7 @@ fun AiResultScreen(
     val saved = vm.savedReport
     if (saved != null) {
         Column(
-            modifier.fillMaxSize().statusBarsPadding().padding(24.dp),
+            modifier.fillMaxSize().safeContentPadding().padding(24.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -100,7 +100,7 @@ fun AiResultScreen(
         return
     }
 
-    Column(modifier.fillMaxSize().statusBarsPadding().padding(16.dp)) {
+    Column(modifier.fillMaxSize().safeContentPadding().padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier.size(40.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = .9f))

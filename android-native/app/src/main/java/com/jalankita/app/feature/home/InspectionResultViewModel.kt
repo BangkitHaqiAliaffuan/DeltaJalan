@@ -51,6 +51,12 @@ class InspectionResultViewModel @Inject constructor(
     var kerusakanLebar by mutableStateOf("")
     var kerusakanKedalaman by mutableStateOf("")
 
+    // ── Karakteristik lokasi (opsional) ───────────────────────────────────
+    // Pilihan tetap, bukan teks bebas: nilainya dipakai untuk menentukan
+    // material perbaikan dan prioritas penanganan.
+    var jenisPerkerasan by mutableStateOf<String?>(null)
+    var kepadatanLaluLintas by mutableStateOf<String?>(null)
+
     /** Dimensi siap kirim; string kosong / nol / bukan angka menjadi null. */
     private fun dimension(raw: String): Double? {
         val v = raw.trim().replace(',', '.').toDoubleOrNull() ?: return null
@@ -59,6 +65,18 @@ class InspectionResultViewModel @Inject constructor(
     var roadName by mutableStateOf("")
     var district by mutableStateOf("")
     var error by mutableStateOf<String?>(null)
+        private set
+
+    /**
+     * Galat khusus VALIDASI FOTO (kedaluwarsa, GPS hilang, di luar Sidoarjo).
+     *
+     * Dipisah dari [error] karena tempat tampilnya berbeda: pesan ini harus
+     * muncul tepat di bawah komponen "Foto Bukti Lapangan", bukan di dasar
+     * layar dekat tombol kirim. Dulu keduanya berbagi [error], sehingga petugas
+     * yang fotonya kedaluwarsa tidak melihat alasannya — pesannya berada jauh
+     * di bawah area gulir dan tampak seperti tombol yang rusak.
+     */
+    var photoError by mutableStateOf<String?>(null)
         private set
     var loading by mutableStateOf(false)
         private set
@@ -96,9 +114,12 @@ class InspectionResultViewModel @Inject constructor(
         kerusakanPanjang = ""
         kerusakanLebar = ""
         kerusakanKedalaman = ""
+        jenisPerkerasan = null
+        kepadatanLaluLintas = null
         roadName = ""
         district = ""
         error = null
+        photoError = null
         submitted = null
         draftIdempotencyKey = null
         draftOwnerId = null
@@ -113,6 +134,7 @@ class InspectionResultViewModel @Inject constructor(
     fun addPhotos(context: Context, uris: List<Uri>, discovered: Boolean = false) {
         if (loading) return
         error = null
+        photoError = null
         viewModelScope.launch {
             val room = if (discovered) 1 else MAX_INSPECTION_PHOTOS - evidence.size
             val next = evidence.toMutableList()
@@ -121,22 +143,24 @@ class InspectionResultViewModel @Inject constructor(
                 val lat = validated.lat
                 val lng = validated.lng
                 if (!validated.isValid || lat == null || lng == null) {
-                    error = validated.message.ifBlank { "Foto inspeksi harus memiliki EXIF tanggal dan GPS." }
+                    // Ditaruh di photoError, bukan error: alasannya harus terbaca
+                    // tepat di bawah komponen foto (mis. "foto kedaluwarsa").
+                    photoError = validated.message.ifBlank { "Foto inspeksi harus memiliki EXIF tanggal dan GPS." }
                     continue
                 }
                 if (!SidoarjoBounds.contains(lat, lng)) {
-                    error = "Lokasi foto berada di luar wilayah Kabupaten Sidoarjo."
+                    photoError = "Lokasi foto berada di luar wilayah Kabupaten Sidoarjo."
                     continue
                 }
                 val compressed = ImageCompressor.compressToFileWithExif(context, uri, lat, lng)
                 if (compressed == null) {
-                    error = "Foto tidak dapat diproses. Silakan pilih foto lain."
+                    photoError = "Foto tidak dapat diproses. Silakan pilih foto lain."
                     continue
                 }
                 // Server memvalidasi ulang tanggal dari file yang diterima; gagal di
                 // sini jauh lebih jelas daripada 422 setelah upload.
                 if (!compressed.hasDate) {
-                    error = "Metadata tanggal foto hilang saat diproses. Gunakan foto asli dari kamera perangkat."
+                    photoError = "Metadata tanggal foto hilang saat diproses. Gunakan foto asli dari kamera perangkat."
                     compressed.file.delete()
                     continue
                 }
@@ -146,12 +170,19 @@ class InspectionResultViewModel @Inject constructor(
         }
     }
 
+    fun clearPhotoError() { photoError = null }
+
     fun removePhoto(index: Int) {
         if (index in evidence.indices) evidence = evidence.toMutableList().also { it.removeAt(index) }
     }
 
     fun submit(assignmentId: String, sessionId: String? = null) {
         if (!isValid) { error = "Tambahkan foto inspeksi dan catatan hasil pemeriksaan."; return }
+        // `send()` memakai `evidence.first()` tanpa cek kosong. Guard di atas sudah
+        // menjamin tidak kosong, tapi Draft yang ter-reset alur navigasi bisa lolos
+        // dengan evidence kosong → NoSuchElementException (crash, bukan pesan galat).
+        if (evidence.isEmpty()) { error = "Foto bukti hilang, silakan pilih ulang."; return }
+        if (loading) return
         send(assignmentId, sessionId)
     }
 
@@ -215,6 +246,8 @@ class InspectionResultViewModel @Inject constructor(
                         kerusakanPanjang = dimension(kerusakanPanjang),
                         kerusakanLebar = dimension(kerusakanLebar),
                         kerusakanKedalaman = dimension(kerusakanKedalaman),
+                        jenisPerkerasan = jenisPerkerasan,
+                        kepadatanLaluLintas = kepadatanLaluLintas,
                         latitude = first.latitude,
                         longitude = first.longitude,
                         photos = files,
@@ -233,6 +266,8 @@ class InspectionResultViewModel @Inject constructor(
                     kerusakanPanjang = dimension(kerusakanPanjang),
                     kerusakanLebar = dimension(kerusakanLebar),
                     kerusakanKedalaman = dimension(kerusakanKedalaman),
+                    jenisPerkerasan = jenisPerkerasan,
+                    kepadatanLaluLintas = kepadatanLaluLintas,
                     latitude = first.latitude,
                     longitude = first.longitude,
                     photoPaths = files.map(File::getAbsolutePath),

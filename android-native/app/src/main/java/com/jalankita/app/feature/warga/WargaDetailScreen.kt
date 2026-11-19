@@ -57,6 +57,7 @@ import com.jalankita.app.feature.home.components.formatDateShort
 import com.jalankita.app.feature.home.components.monospace
 import com.jalankita.app.feature.home.components.statusLabel
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.safeContentPaddingValues
 import com.jalankita.app.ui.components.BeforeAfterSlider
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandTextField
@@ -141,7 +142,7 @@ fun WargaDetailScreen(
         when {
             report == null && detailError == null -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = safeContentPaddingValues(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(4) { SkeletonCard() }
@@ -177,7 +178,7 @@ private fun WargaDetailBody(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = safeContentPaddingValues(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         val hasAiPhoto = report.imageResultUrl != null

@@ -40,6 +40,7 @@ import com.jalankita.app.core.network.UserDto
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.BadgeRow
 import com.jalankita.app.ui.components.BrandPrimaryButton
+import com.jalankita.app.ui.components.safeContentPadding
 import com.jalankita.app.ui.components.LokasiCard
 import com.jalankita.app.ui.components.ReportThumbnail
 import com.jalankita.app.ui.theme.BrandBlue
@@ -176,10 +177,13 @@ fun InspectionAssignmentDetailScreen(
         }
     }
 
+    // Full-screen di luar Scaffold → wajib inset sistem agar tombol Kembali tidak
+    // tertimpa status bar dan konten paling bawah tidak tertutup gesture bar.
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(Color(0xFFF8FAFC))
+            .safeContentPadding()
             .padding(16.dp),
     ) {
         // Top bar

@@ -44,7 +44,7 @@ class InspectionRepository @Inject constructor(
 
     suspend fun submitResult(id: String, request: InspectionSubmitRequest): DashboardResult<InspectionResultDto> = runInspection {
         require(request.photos.isNotEmpty()) { "Pilih minimal 1 foto inspeksi." }
-        api.submitInspection(id, request.idempotencyKey.toRequestBody(textMedia), request.condition?.toRequestBody(textMedia), request.notes?.toRequestBody(textMedia), request.kerusakanPanjang?.toPlainBody(), request.kerusakanLebar?.toPlainBody(), request.kerusakanKedalaman?.toPlainBody(), request.latitude?.toString()?.toRequestBody(textMedia), request.longitude?.toString()?.toRequestBody(textMedia), request.photos.map { it.asPart("photos[]") }).data
+        api.submitInspection(id, request.idempotencyKey.toRequestBody(textMedia), request.condition?.toRequestBody(textMedia), request.notes?.toRequestBody(textMedia), request.kerusakanPanjang?.toPlainBody(), request.kerusakanLebar?.toPlainBody(), request.kerusakanKedalaman?.toPlainBody(), request.jenisPerkerasan?.toRequestBody(textMedia), request.kepadatanLaluLintas?.toRequestBody(textMedia), request.latitude?.toString()?.toRequestBody(textMedia), request.longitude?.toString()?.toRequestBody(textMedia), request.photos.map { it.asPart("photos[]") }).data
             ?: throw Exception("Hasil inspeksi tidak tersedia.")
     }
 
@@ -134,6 +134,10 @@ data class InspectionSubmitRequest(
     val kerusakanPanjang: Double? = null,
     val kerusakanLebar: Double? = null,
     val kerusakanKedalaman: Double? = null,
+    // Karakteristik lokasi. Null = petugas belum mencatat; server menyimpannya
+    // kosong dan prioritas laporan tidak berubah.
+    val jenisPerkerasan: String? = null,
+    val kepadatanLaluLintas: String? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
     val photos: List<File>,

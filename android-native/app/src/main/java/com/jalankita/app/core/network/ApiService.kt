@@ -332,6 +332,8 @@ interface ApiService {
         @Part("kerusakan_panjang") kerusakanPanjang: RequestBody? = null,
         @Part("kerusakan_lebar") kerusakanLebar: RequestBody? = null,
         @Part("kerusakan_kedalaman") kerusakanKedalaman: RequestBody? = null,
+        @Part("jenis_perkerasan") jenisPerkerasan: RequestBody? = null,
+        @Part("kepadatan_lalu_lintas") kepadatanLaluLintas: RequestBody? = null,
         @Part("latitude") latitude: RequestBody? = null,
         @Part("longitude") longitude: RequestBody? = null,
         @Part photos: List<MultipartBody.Part>,

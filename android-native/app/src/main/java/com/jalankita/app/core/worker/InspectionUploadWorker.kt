@@ -92,6 +92,8 @@ class InspectionUploadWorker(
                             kerusakanPanjang = item.kerusakanPanjang,
                             kerusakanLebar = item.kerusakanLebar,
                             kerusakanKedalaman = item.kerusakanKedalaman,
+                            jenisPerkerasan = item.jenisPerkerasan,
+                            kepadatanLaluLintas = item.kepadatanLaluLintas,
                             latitude = item.latitude,
                             longitude = item.longitude,
                             photos = files,

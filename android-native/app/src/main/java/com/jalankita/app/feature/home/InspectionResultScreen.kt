@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -44,7 +45,9 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.BrandPrimaryButton
+import com.jalankita.app.ui.components.safeContentPadding
 import com.jalankita.app.ui.rememberGalleryPickerLauncher
+import com.jalankita.app.ui.theme.BorderInput
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.ErrorRed
 import com.jalankita.app.ui.theme.TextDark
@@ -82,14 +85,32 @@ fun InspectionResultScreen(
     LaunchedEffect(assignmentId) { vm.prepare(assignmentId) }
     LaunchedEffect(vm.submitted) { if (vm.submitted != null) onSubmitted() }
 
-    Column(
+    // Tata letak: konten form DIGULIR, tombol Kirim MENEMPEL di bawah.
+    //
+    // Memakai Box + tombol `align(BottomCenter)`, BUKAN Column bersarang
+    // `weight(1f)`. Column bersarang terbukti meluap: pada perangkat 720x1448
+    // isi kolom butuh 1486px, sehingga tombol 44dp terpotong menjadi 39px dan
+    // labelnya terbelah di tepi bawah layar (diukur dengan uiautomator dump).
+    // Dengan Box, tombol diukur memakai constraint longgar sehingga selalu
+    // mendapat 44dp penuh, dan area gulir menyisihkan ruangnya lewat
+    // `padding(bottom = 56.dp)` (44dp tombol + 12dp jarak).
+    //
+    // Inset sistem dipasang di root (layar ini di luar Scaffold), plus imePadding
+    // agar tombol tidak tertutup keyboard saat petugas mengetik catatan.
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color(0xFFF8FAFC))
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .safeContentPadding(withIme = true)
+            .padding(16.dp),
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 56.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -163,7 +184,70 @@ fun InspectionResultScreen(
                     Text(if (vm.evidence.isEmpty()) "Pilih Foto Lapangan (Wajib GPS & EXIF)" else "Tambah Foto Lain")
                 }
             }
+
+            // Petunjuk syarat minimal. Tanpa ini, form dengan catatan terisi
+            // tapi tanpa foto menampilkan tombol mati tanpa alasan yang terlihat.
+            if (vm.evidence.isEmpty()) {
+                Text(
+                    "Minimal 1 foto wajib agar tombol kirim aktif.",
+                    color = ErrorRed,
+                    fontSize = 11.sp,
+                )
+            }
+
+            // ── Galat validasi foto ──────────────────────────────────────
+            // Ditempatkan DI DALAM kartu foto, bukan di dasar layar. Alasan
+            // penolakan (mis. foto kedaluwarsa / GPS hilang) hanya masuk akal
+            // bila terbaca tepat di tempat petugas memilih foto.
+            vm.photoError?.let { pesan ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFFFEF2F2))
+                        .border(1.dp, Color(0xFFFCA5A5), RoundedCornerShape(8.dp))
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Icon(
+                        AppIcon.Warning,
+                        contentDescription = null,
+                        tint = ErrorRed,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(pesan, color = ErrorRed, fontSize = 12.sp)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Pilih foto lain yang diambil maksimal 2 hari terakhir.",
+                            color = TextMuted,
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
+            }
         }
+
+        // ── Catatan pemeriksaan (WAJIB) ──────────────────────────────────
+        // Ditaruh TEPAT SETELAH foto, bukan di dasar form. Sebelumnya field
+        // wajib ini berada paling bawah setelah 6 field opsional, sehingga
+        // petugas mengisi semua yang terlihat di layar, tombol Kirim tetap
+        // mati, dan tidak ada petunjuk apa yang kurang. Terbukti dari dump UI
+        // perangkat: field ini tidak pernah muncul di layar tanpa scroll.
+        OutlinedTextField(
+            value = vm.notes,
+            onValueChange = { vm.notes = it },
+            label = { Text("Catatan Hasil Pemeriksaan *") },
+            placeholder = { Text("Uraikan hasil pengecekan di lokasi...") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 3,
+            supportingText = if (vm.notes.isBlank()) {
+                { Text("Wajib diisi agar tombol kirim aktif.", color = ErrorRed, fontSize = 11.sp) }
+            } else {
+                null
+            },
+        )
 
         // Field kondisi teknis
         OutlinedTextField(
@@ -185,12 +269,17 @@ fun InspectionResultScreen(
             fontWeight = FontWeight.SemiBold,
             color = TextDark,
         )
+        // Panjang & Lebar sebaris; Kedalaman DI BARIS SENDIRI.
+        // Sebelumnya ketiganya dibagi rata dalam satu baris, sehingga label
+        // "Kedalaman" (9 huruf) terpotong atau terlipat di layar sempit —
+        // sementara "Panjang"/"Lebar" muat. Satuan "m" ditaruh sebagai suffix
+        // supaya tidak perlu diulang di placeholder.
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = vm.kerusakanPanjang,
                 onValueChange = { vm.kerusakanPanjang = it },
                 label = { Text("Panjang") },
-                placeholder = { Text("0.0") },
+                suffix = { Text("m") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.weight(1f),
                 singleLine = true,
@@ -199,43 +288,66 @@ fun InspectionResultScreen(
                 value = vm.kerusakanLebar,
                 onValueChange = { vm.kerusakanLebar = it },
                 label = { Text("Lebar") },
-                placeholder = { Text("0.0") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-            )
-            OutlinedTextField(
-                value = vm.kerusakanKedalaman,
-                onValueChange = { vm.kerusakanKedalaman = it },
-                label = { Text("Kedalaman") },
-                placeholder = { Text("0.0") },
+                suffix = { Text("m") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.weight(1f),
                 singleLine = true,
             )
         }
-
-        // Field catatan pemeriksaan
         OutlinedTextField(
-            value = vm.notes,
-            onValueChange = { vm.notes = it },
-            label = { Text("Catatan Hasil Pemeriksaan *") },
-            placeholder = { Text("Uraikan hasil pengecekan di lokasi...") },
+            value = vm.kerusakanKedalaman,
+            onValueChange = { vm.kerusakanKedalaman = it },
+            label = { Text("Kedalaman") },
+            suffix = { Text("m") },
+            supportingText = { Text("Kosongkan bila kedalaman tidak diukur.") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.fillMaxWidth(),
-            minLines = 3,
+            singleLine = true,
         )
 
-        vm.error?.let {
-            Text(it, color = ErrorRed, fontSize = 13.sp)
-        }
+        // ── Karakteristik lokasi ──────────────────────────────────────────
+        // Dua pilihan tetap, bukan teks bebas, karena nilainya dipakai mesin:
+        // jenis perkerasan menentukan material perbaikan, kepadatan lalu
+        // lintas menentukan prioritas penanganan (lihat KEPADATAN_KE_PRIORITAS
+        // di backend). Keduanya opsional — petugas yang ragu boleh melewati.
+        PilihanLokasi(
+            judul = "Jenis Perkerasan",
+            keterangan = "Menentukan material perbaikan.",
+            nilai = listOf(
+                "aspal" to "Aspal",
+                "beton" to "Beton",
+                "paving" to "Paving Block",
+                "kerikil_tanah" to "Kerikil / Tanah",
+            ),
+            terpilih = vm.jenisPerkerasan,
+            onPilih = { vm.jenisPerkerasan = if (vm.jenisPerkerasan == it) null else it },
+        )
+        PilihanLokasi(
+            judul = "Kepadatan Lalu Lintas",
+            keterangan = "Menentukan prioritas penanganan.",
+            nilai = listOf(
+                "sepi" to "Sepi",
+                "sedang" to "Sedang",
+                "padat" to "Padat",
+            ),
+            terpilih = vm.kepadatanLaluLintas,
+            onPilih = { vm.kepadatanLaluLintas = if (vm.kepadatanLaluLintas == it) null else it },
+        )
 
-        Spacer(Modifier.height(4.dp))
+            vm.error?.let {
+                Text(it, color = ErrorRed, fontSize = 13.sp)
+            }
+        }
 
         BrandPrimaryButton(
             "Kirim Hasil Inspeksi",
             onClick = { vm.submit(assignmentId, sessionId) },
             enabled = vm.isValid && !vm.loading,
-            modifier = Modifier.fillMaxWidth(),
+            loading = vm.loading,
+            loadingText = "Mengirim hasil...",
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth(),
         )
     }
 }
@@ -270,14 +382,22 @@ fun DiscoveredReportScreen(
     LaunchedEffect(sessionId) { vm.prepareDiscovered(sessionId) }
     LaunchedEffect(vm.submitted) { if (vm.submitted != null) onSubmitted() }
 
-    Column(
+    // Sama seperti form inspeksi: Box + tombol overlay, supaya tombol Kirim
+    // tidak pernah terpotong bila isi form lebih tinggi dari layar.
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color(0xFFF8FAFC))
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .safeContentPadding(withIme = true)
+            .padding(16.dp),
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 56.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -343,6 +463,29 @@ fun DiscoveredReportScreen(
                 Spacer(Modifier.width(8.dp))
                 Text(if (vm.evidence.isEmpty()) "Pilih Foto Temuan (Wajib GPS)" else "Ganti Foto Temuan")
             }
+
+            // Sama seperti form inspeksi: alasan penolakan foto tampil di sini,
+            // bukan di dasar layar yang tidak terbaca.
+            vm.photoError?.let { pesan ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFFFEF2F2))
+                        .border(1.dp, Color(0xFFFCA5A5), RoundedCornerShape(8.dp))
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Icon(
+                        AppIcon.Warning,
+                        contentDescription = null,
+                        tint = ErrorRed,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(pesan, color = ErrorRed, fontSize = 12.sp)
+                }
+            }
         }
 
         OutlinedTextField(
@@ -359,12 +502,67 @@ fun DiscoveredReportScreen(
         }
 
         Spacer(Modifier.height(4.dp))
+        }
 
         BrandPrimaryButton(
             "Kirim Temuan Lapangan",
             onClick = { vm.submitDiscovered(sessionId) },
             enabled = vm.discoveredValid && !vm.loading,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth(),
+        )
+    }
+}
+
+/**
+ * Pemilih satu-dari-beberapa untuk karakteristik lokasi inspeksi.
+ *
+ * Mengetuk pilihan yang sedang aktif akan membatalkannya (null), sehingga
+ * petugas bisa mengembalikan ke "belum dicatat" tanpa tombol tambahan.
+ */
+@Composable
+private fun PilihanLokasi(
+    judul: String,
+    keterangan: String,
+    nilai: List<Pair<String, String>>,
+    terpilih: String?,
+    onPilih: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(judul, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
+        Text(keterangan, fontSize = 11.sp, color = TextMuted)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+        ) {
+            nilai.forEach { (kunci, label) ->
+                PilihanChip(label, terpilih == kunci) { onPilih(kunci) }
+            }
+        }
+    }
+}
+
+/** Chip pilihan; tampilan mengikuti FilterChip pada layar supervisor. */
+@Composable
+private fun PilihanChip(label: String, aktif: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (aktif) BrandBlue else Color.White)
+            .border(
+                width = 1.dp,
+                color = if (aktif) BrandBlue else BorderInput,
+                shape = RoundedCornerShape(999.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Text(
+            label,
+            color = if (aktif) Color.White else TextMuted,
+            fontSize = 12.sp,
+            fontWeight = if (aktif) FontWeight.SemiBold else FontWeight.Normal,
         )
     }
 }

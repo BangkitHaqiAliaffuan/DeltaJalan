@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -46,6 +45,7 @@ import com.jalankita.app.feature.home.components.EmptyState
 import com.jalankita.app.feature.home.components.formatDateShort
 import com.jalankita.app.feature.lapor.components.FraudModal
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.safeContentPadding
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandSecondaryButton
 import com.jalankita.app.ui.components.ErrorBox
@@ -102,7 +102,7 @@ fun LaporScreen(
         if (vm.stage == LaporStage.RESULT && vm.batchId != null) onAnalyzed()
     }
 
-    Column(modifier.fillMaxSize().statusBarsPadding().padding(16.dp)) {
+    Column(modifier.fillMaxSize().safeContentPadding(withIme = true).padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier

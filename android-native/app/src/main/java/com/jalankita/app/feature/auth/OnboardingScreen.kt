@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
@@ -36,6 +35,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.jalankita.app.core.network.UserDto
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.safeContentPadding
 import com.jalankita.app.ui.components.BrandBackground
 import com.jalankita.app.ui.components.BrandCard
 import com.jalankita.app.ui.components.BrandFooter
@@ -130,7 +130,7 @@ private fun OnboardingContent(
         Box(
             Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
+                .safeContentPadding(withIme = true)
                 .padding(16.dp),
         ) {
             Column(

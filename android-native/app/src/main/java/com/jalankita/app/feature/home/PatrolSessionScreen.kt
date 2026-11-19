@@ -43,6 +43,7 @@ import com.jalankita.app.feature.home.components.displayStatus
 import com.jalankita.app.feature.home.components.formatDateShort
 import com.jalankita.app.feature.home.components.statusDotColor
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.safeContentPaddingValues
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.DetailErrorState
 import com.jalankita.app.ui.theme.BrandBlue
@@ -123,7 +124,7 @@ private fun PatrolSessionBody(
     LazyColumn(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 16.dp),
+        contentPadding = safeContentPaddingValues(horizontal = 0.dp, vertical = 16.dp),
     ) {
         // ── Info sesi ──
         item {

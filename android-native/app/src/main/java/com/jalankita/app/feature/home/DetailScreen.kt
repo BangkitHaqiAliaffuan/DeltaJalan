@@ -64,6 +64,7 @@ import com.jalankita.app.ui.components.DetailErrorState
 import com.jalankita.app.ui.components.ErrorBox
 import com.jalankita.app.ui.components.FieldLabel
 import com.jalankita.app.ui.components.SuccessBox
+import com.jalankita.app.ui.components.safeContentPaddingValues
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.TextDark
 import com.jalankita.app.ui.theme.TextMuted
@@ -129,7 +130,7 @@ fun DetailScreen(
         when {
             report == null && detailError == null -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = safeContentPaddingValues(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(4) { SkeletonCard() }
@@ -189,7 +190,7 @@ private fun DetailBody(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = safeContentPaddingValues(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         // ── Galeri foto per-foto + toggle Asli/AI (port detail-report.tsx:691-878) ──
