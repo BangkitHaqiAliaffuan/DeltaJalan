@@ -1042,6 +1042,10 @@ class ReportController extends Controller
             // membedakan "baru dijadwalkan", "sedang diukur", dan "menunggu
             // review" — tanpa menambah nilai pada `reports.status`.
             ...app(InspectionProgressService::class)->payload($report),
+            // Isi hasil ukur petugas (catatan, dimensi, karakteristik lokasi,
+            // foto bukti). `payload()` di atas hanya memberi tahap + nama
+            // petugas; tanpa bagian ini layar detail supervisor kosong.
+            ...app(InspectionProgressService::class)->detail($report),
             'image_original_url' => $report->image_original_url,
             'image_result_url' => $report->image_result_url,
             'after_photo_url' => $report->after_photo_url,

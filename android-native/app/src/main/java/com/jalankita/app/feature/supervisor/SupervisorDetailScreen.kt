@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.jalankita.app.core.network.StatusHistoryDto
+import com.jalankita.app.core.network.SupervisorInspectionResult
 import com.jalankita.app.core.network.SupervisorPhotoDto
 import com.jalankita.app.core.network.SupervisorReportDetail
 import com.jalankita.app.core.util.ImageUrl
@@ -55,6 +57,7 @@ import com.jalankita.app.feature.home.components.formatDateShort
 import com.jalankita.app.feature.home.components.formatDistance
 import com.jalankita.app.feature.home.components.haversineDistance
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.safeContentPaddingValues
 import com.jalankita.app.ui.components.BadgeRow
 import com.jalankita.app.ui.components.TrackPill
 import com.jalankita.app.ui.components.BeforeAfterSlider
@@ -199,7 +202,7 @@ private fun SupervisorDetailBody(
     LazyColumn(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 16.dp, bottom = 120.dp),
+        contentPadding = safeContentPaddingValues(horizontal = 0.dp, vertical = 16.dp),
     ) {
         // ── Foto & analisis AI per foto (bisa >1) ──
         // key unik per grup (idx) agar state toggle AI tidak tertukar antar foto/after-photo.
@@ -276,6 +279,13 @@ private fun SupervisorDetailBody(
                 inspectorName = d.inspectorName,
                 modifier = Modifier.fillMaxWidth(),
             )
+        }
+
+        // ── Hasil Inspeksi Petugas ──
+        // Tanpa kartu ini supervisor hanya melihat badge tahap inspeksi, tanpa
+        // pernah membaca apa yang diukur petugas di lapangan.
+        d.inspectionResult?.let { hasil ->
+            item { HasilInspeksiCard(hasil, modifier = Modifier.fillMaxWidth()) }
         }
 
         // ── PCI ──
@@ -546,6 +556,109 @@ private fun RatingCard(rating: Int, comment: String?) {
 }
 
 /** Info jalan grid 2 kolom — port detail-report.tsx:983-1021. */
+/**
+ * Isi hasil pengukuran petugas: kondisi, dimensi, karakteristik lokasi,
+ * catatan, dan foto bukti.
+ *
+ * Semua field opsional — petugas boleh melewati dimensi atau karakteristik
+ * lokasi. Baris yang tidak diisi tidak ditampilkan agar supervisor tidak
+ * membaca "kosong" sebagai "belum dikerjakan".
+ */
+@Composable
+private fun HasilInspeksiCard(
+    hasil: SupervisorInspectionResult,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFF0F7FF))
+            .border(1.dp, Color(0xFFBFDBFE), RoundedCornerShape(12.dp))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(AppIcon.Description, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Hasil Inspeksi Petugas", color = TextDark, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        }
+
+        hasil.inspectorName?.let {
+            Text("Diukur oleh: $it", color = Color(0xFF475569), fontSize = 12.sp)
+        }
+
+        // Kondisi teknis & dimensi
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            hasil.condition?.takeIf { it.isNotBlank() }?.let {
+                InfoItem(AppIcon.Error, it, Modifier.weight(1f))
+            }
+            InfoItem(AppIcon.Description, hasil.dimensiText, Modifier.weight(1f))
+        }
+
+        val perkerasan = LABEL_PERKERASAN[hasil.jenisPerkerasan]
+        val kepadatan = LABEL_KEPADATAN[hasil.kepadatanLaluLintas]
+        if (perkerasan != null || kepadatan != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                perkerasan?.let { InfoItem(AppIcon.Map, it, Modifier.weight(1f)) }
+                kepadatan?.let { InfoItem(AppIcon.Assignment, "Lalu lintas: $it", Modifier.weight(1f)) }
+            }
+        }
+
+        hasil.notes?.takeIf { it.isNotBlank() }?.let { catatan ->
+            HorizontalDivider(color = Color(0xFFBFDBFE))
+            Text("Catatan Petugas", color = Color(0xFF475569), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            Text(catatan, color = TextDark, fontSize = 13.sp)
+        }
+
+        // Foto bukti petugas (terpisah dari foto laporan warga)
+        val foto = hasil.photos.orEmpty()
+        if (foto.isNotEmpty()) {
+            Text("Foto Bukti Petugas (${foto.size})", color = Color(0xFF475569), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(foto, key = { it.id }) { f ->
+                    val src = f.url?.let { ImageUrl.resolve(it) }
+                    AsyncImage(
+                        model = src,
+                        contentDescription = "Foto bukti inspeksi",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(96.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .border(1.dp, Color(0xFFBFDBFE), RoundedCornerShape(8.dp)),
+                    )
+                }
+            }
+        }
+
+        // Keputusan supervisor sebelumnya (bila sudah direview)
+        hasil.reviewNotes?.takeIf { it.isNotBlank() }?.let { catatanReview ->
+            HorizontalDivider(color = Color(0xFFBFDBFE))
+            Text(
+                "Catatan Reviewer" + (hasil.reviewerName?.let { " ($it)" } ?: ""),
+                color = Color(0xFF475569),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(catatanReview, color = TextDark, fontSize = 13.sp)
+        }
+    }
+}
+
+/** Label tampilan untuk nilai `inspection_results.jenis_perkerasan`. */
+private val LABEL_PERKERASAN = mapOf(
+    "aspal" to "Perkerasan: Aspal",
+    "beton" to "Perkerasan: Beton",
+    "paving" to "Perkerasan: Paving Block",
+    "kerikil_tanah" to "Perkerasan: Kerikil / Tanah",
+)
+
+/** Label tampilan untuk nilai `inspection_results.kepadatan_lalu_lintas`. */
+private val LABEL_KEPADATAN = mapOf(
+    "sepi" to "Sepi",
+    "sedang" to "Sedang",
+    "padat" to "Padat",
+)
+
 @Composable
 private fun InfoJalanCard(d: SupervisorReportDetail) {
     Column(

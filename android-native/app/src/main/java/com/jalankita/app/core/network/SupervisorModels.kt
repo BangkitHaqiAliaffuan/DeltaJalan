@@ -153,6 +153,11 @@ data class SupervisorReportDetail(
     @Json(name = "inspection_state") val inspectionState: String? = null,
     /** Nama petugas yang mengukur, bila sudah diketahui. */
     @Json(name = "inspector_name") val inspectorName: String? = null,
+    /**
+     * Isi hasil inspeksi petugas (catatan, dimensi, karakteristik lokasi, foto).
+     * Null bila laporan belum pernah diinspeksi atau hasilnya belum dikirim.
+     */
+    @Json(name = "inspection_result") val inspectionResult: SupervisorInspectionResult? = null,
     @Json(name = "kerusakan_panjang") val kerusakanPanjang: Double? = null,
     @Json(name = "kerusakan_lebar") val kerusakanLebar: Double? = null,
     @Json(name = "image_original_url") val imageOriginalUrl: String? = null,
@@ -300,4 +305,46 @@ data class BulkActionResult(
 data class BulkCountData(
     @Json(name = "approved_count") val approvedCount: Int = 0,
     @Json(name = "rejected_count") val rejectedCount: Int = 0,
+)
+
+/**
+ * Hasil pengukuran petugas untuk satu laporan, dipakai layar detail supervisor.
+ *
+ * Sebelumnya backend hanya mengirim `inspection_state` + `inspector_name`,
+ * sehingga supervisor melihat badge "Sudah Diinspeksi" tetapi tidak pernah
+ * melihat apa yang diukur petugas (catatan, dimensi, jenis perkerasan,
+ * kepadatan lalu lintas, foto bukti).
+ */
+@JsonClass(generateAdapter = true)
+data class SupervisorInspectionResult(
+    val id: String,
+    val condition: String? = null,
+    val notes: String? = null,
+    @Json(name = "kerusakan_panjang") val kerusakanPanjang: Double? = null,
+    @Json(name = "kerusakan_lebar") val kerusakanLebar: Double? = null,
+    @Json(name = "kerusakan_kedalaman") val kerusakanKedalaman: Double? = null,
+    @Json(name = "jenis_perkerasan") val jenisPerkerasan: String? = null,
+    @Json(name = "kepadatan_lalu_lintas") val kepadatanLaluLintas: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    @Json(name = "review_notes") val reviewNotes: String? = null,
+    @Json(name = "reviewed_at") val reviewedAt: String? = null,
+    @Json(name = "reviewer_name") val reviewerName: String? = null,
+    @Json(name = "inspector_name") val inspectorName: String? = null,
+    val photos: List<SupervisorInspectionPhoto>? = null,
+) {
+    /** "3 × 5 × 2 m" — bagian yang tidak diukur ditandai "-". */
+    val dimensiText: String
+        get() {
+            fun f(v: Double?): String =
+                if (v == null) "-" else if (v % 1.0 == 0.0) v.toInt().toString() else v.toString()
+            return "${f(kerusakanPanjang)} × ${f(kerusakanLebar)} × ${f(kerusakanKedalaman)} m"
+        }
+}
+
+@JsonClass(generateAdapter = true)
+data class SupervisorInspectionPhoto(
+    val id: String,
+    val url: String? = null,
+    @Json(name = "sort_order") val sortOrder: Int = 0,
 )

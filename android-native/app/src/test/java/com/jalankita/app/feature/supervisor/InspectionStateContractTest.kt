@@ -1,5 +1,6 @@
 package com.jalankita.app.feature.supervisor
 
+import com.jalankita.app.core.network.SupervisorInspectionResult
 import com.jalankita.app.core.network.SupervisorReportDetail
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -76,5 +77,60 @@ class InspectionStateContractTest {
 
         assertEquals("assigned", d.inspectionState)
         assertNull(d.inspectorName)
+    }
+
+    /**
+     * Regresi: detail supervisor tidak pernah memuat isi hasil ukur petugas.
+     *
+     * Backend dulu hanya mengirim `inspection_state` + `inspector_name`, jadi
+     * layar detail menampilkan badge "Sudah Diinspeksi" tanpa catatan, dimensi,
+     * maupun foto bukti. Test ini mengunci bentuk payload barunya.
+     */
+    @Test
+    fun `hasil inspeksi terbaca lengkap di detail supervisor`() {
+        val d = adapter.fromJson(
+            """{"id":"r-1","status":"Ditinjau","source":"warga",
+               "has_inspection":true,"inspection_state":"submitted",
+               "inspector_name":"Rizky Firmansyah",
+               "inspection_result":{"id":"res-1","condition":"Rusak Sedang",
+                 "notes":"Lubang memanjang di lajur kiri",
+                 "kerusakan_panjang":3.5,"kerusakan_lebar":5.0,"kerusakan_kedalaman":2.0,
+                 "jenis_perkerasan":"aspal","kepadatan_lalu_lintas":"padat",
+                 "inspector_name":"Rizky Firmansyah",
+                 "photos":[{"id":"p-1","url":"/storage/inspection/a.jpg","sort_order":0}]}}""",
+        )!!
+
+        val hasil = d.inspectionResult!!
+        assertEquals("Rusak Sedang", hasil.condition)
+        assertEquals("Lubang memanjang di lajur kiri", hasil.notes)
+        assertEquals("aspal", hasil.jenisPerkerasan)
+        assertEquals("padat", hasil.kepadatanLaluLintas)
+        assertEquals(3.5, hasil.kerusakanPanjang!!, 0.001)
+        assertEquals(1, hasil.photos?.size)
+        // Ringkasan dimensi dipakai langsung oleh kartu di layar detail.
+        assertEquals("3.5 \u00d7 5 \u00d7 2 m", hasil.dimensiText)
+    }
+
+    @Test
+    fun `laporan tanpa hasil inspeksi tetap aman`() {
+        val d = adapter.fromJson(
+            """{"id":"r-2","status":"Menunggu Review","source":"warga",
+               "has_inspection":false,"inspection_state":"none","inspection_result":null}""",
+        )!!
+
+        assertNull(d.inspectionResult)
+        assertNull(d.inspectorName)
+    }
+
+    @Test
+    fun `dimensi yang tidak diukur ditandai strip`() {
+        val hasil = SupervisorInspectionResult(
+            id = "res-2",
+            kerusakanPanjang = 3.0,
+            kerusakanLebar = null,
+            kerusakanKedalaman = null,
+        )
+
+        assertEquals("3 \u00d7 - \u00d7 - m", hasil.dimensiText)
     }
 }

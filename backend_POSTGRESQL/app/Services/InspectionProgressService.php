@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Report;
 use App\Models\SurveyTaskReport;
+use Illuminate\Support\Carbon;
 
 /**
  * Menentukan tahap inspeksi sebuah laporan + petugas yang mengerjakannya.
@@ -123,6 +124,94 @@ class InspectionProgressService
             'inspection_state' => $state,
             'inspector_name' => $this->inspectorName($report),
         ];
+    }
+
+    /**
+     * Isi hasil inspeksi untuk layar DETAIL laporan.
+     *
+     * `payload()` sengaja ringan karena dipakai di daftar (bisa ratusan baris
+     * sekaligus). Data di sini hanya untuk satu laporan, jadi boleh lengkap:
+     * catatan petugas, dimensi hasil ukur, karakteristik lokasi, dan foto
+     * bukti. Tanpa ini supervisor hanya melihat badge "Sudah Diinspeksi"
+     * tanpa isi apa pun — hasil pengukuran petugas tidak pernah terbaca dari
+     * layar detail laporan.
+     *
+     * @return array{inspection_result: array<string, mixed>|null}
+     */
+    public function detail(Report $report): array
+    {
+        $assignment = $this->latestAssignment($report);
+
+        // Dibaca dari relasi yang SUDAH dimuat. `latestAssignment()` di jalur
+        // detail selalu memakai `with('result.inspector')`, jadi relasinya ada;
+        // membaca lewat properti tanpa cek akan memicu query malas (dan gagal
+        // pada pengujian tanpa database).
+        $result = ($assignment !== null && $assignment->relationLoaded('result'))
+            ? $assignment->result
+            : null;
+
+        if ($result === null) {
+            return ['inspection_result' => null];
+        }
+
+        // Dimuat satu per satu HANYA bila belum ada di memori. `loadMissing()`
+        // tidak dipakai karena tetap menyentuh koneksi pada kondisi tertentu,
+        // dan service ini harus bisa diuji tanpa database.
+        foreach (['photos', 'inspector', 'reviewer'] as $relasi) {
+            if (! $result->relationLoaded($relasi)) {
+                $result->load($relasi);
+            }
+        }
+
+        // Relasi `inspector` di hasil didahulukan; bila kosong (submit lama),
+        // pakai petugas yang menekan "Mulai".
+        $inspector = $result->inspector
+            ?? ($assignment->relationLoaded('inspector') ? $assignment->inspector : null);
+
+        // Desimal dibaca sebagai string oleh cast `decimal:2`; klien butuh angka.
+        $angka = static function ($nilai): ?float {
+            return $nilai === null || $nilai === '' ? null : (float) $nilai;
+        };
+
+        return ['inspection_result' => [
+            'id' => $result->id,
+            'condition' => $result->condition,
+            'notes' => $result->notes,
+            'kerusakan_panjang' => $angka($result->kerusakan_panjang),
+            'kerusakan_lebar' => $angka($result->kerusakan_lebar),
+            'kerusakan_kedalaman' => $angka($result->kerusakan_kedalaman),
+            'jenis_perkerasan' => $result->jenis_perkerasan,
+            'kepadatan_lalu_lintas' => $result->kepadatan_lalu_lintas,
+            'latitude' => $angka($result->latitude),
+            'longitude' => $angka($result->longitude),
+            'review_notes' => $result->review_notes,
+            'reviewed_at' => $this->waktuIso($result, 'reviewed_at'),
+            'reviewer_name' => $result->reviewer?->name,
+            'inspector_name' => $inspector?->name,
+            'photos' => $result->photos
+                ->sortBy('sort_order')
+                ->map(fn ($foto) => [
+                    'id' => $foto->id,
+                    'url' => $foto->url,
+                    'sort_order' => (int) $foto->sort_order,
+                ])
+                ->values()
+                ->all(),
+        ]];
+    }
+
+    /**
+     * Tanggal ISO-8601 dari atribut mentah.
+     *
+     * Dibaca lewat `getAttributes()` + `Carbon::parse` agar tidak memakai cast
+     * datetime model — cast itu memanggil koneksi DB dan membuat service ini
+     * tidak bisa diuji tanpa database.
+     */
+    private function waktuIso(object $model, string $kolom): ?string
+    {
+        $nilai = $model->getAttributes()[$kolom] ?? null;
+
+        return $nilai === null ? null : Carbon::parse($nilai)->toIso8601String();
     }
 
     /**

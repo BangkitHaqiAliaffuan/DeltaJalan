@@ -209,4 +209,59 @@ class InspectionProgressServiceTest extends TestCase
 
         $this->assertSame(['has_inspection', 'inspection_state', 'inspector_name'], array_keys($payload));
     }
+
+    /**
+     * Regresi: detail laporan supervisor tidak pernah memuat isi hasil ukur.
+     *
+     * `payload()` hanya mengirim tahap + nama petugas, jadi layar detail
+     * menampilkan badge "Sudah Diinspeksi" tanpa catatan, dimensi, maupun foto
+     * bukti petugas. `detail()` menambal itu.
+     */
+    public function test_detail_memuat_isi_hasil_inspeksi(): void
+    {
+        $assignment = (new SurveyTaskReport)->forceFill([
+            'id' => '01a1dfa0-c603-70f1-87e1-9a404fa6c49a',
+            'report_id' => 'r-1',
+            'status' => 'submitted',
+        ]);
+
+        $result = (new InspectionResult)->forceFill([
+            'id' => 'res-1',
+            'report_id' => 'r-1',
+            'condition' => 'Rusak Sedang',
+            'notes' => 'Lubang memanjang di lajur kiri',
+            'kerusakan_panjang' => '3.50',
+            'kerusakan_lebar' => '5.00',
+            'kerusakan_kedalaman' => '2.00',
+            'jenis_perkerasan' => 'aspal',
+            'kepadatan_lalu_lintas' => 'padat',
+        ]);
+        $result->setRelation('photos', new Collection);
+        $result->setRelation('inspector', (new User)->forceFill(['id' => 1, 'name' => 'Rizky']));
+        $result->setRelation('reviewer', null);
+
+        $assignment->setRelation('result', $result);
+        $assignment->setRelation('inspector', null);
+
+        $report = (new Report)->forceFill(['id' => 'r-1'])
+            ->setRelation('inspectionAssignments', new Collection([$assignment]));
+
+        $hasil = $this->service->detail($report)['inspection_result'];
+
+        $this->assertSame('Rusak Sedang', $hasil['condition']);
+        $this->assertSame('Lubang memanjang di lajur kiri', $hasil['notes']);
+        $this->assertSame('aspal', $hasil['jenis_perkerasan']);
+        $this->assertSame('padat', $hasil['kepadatan_lalu_lintas']);
+        $this->assertSame('Rizky', $hasil['inspector_name']);
+        // Desimal harus berupa angka, bukan string "3.50" dari cast decimal.
+        $this->assertSame(3.5, $hasil['kerusakan_panjang']);
+        $this->assertSame([], $hasil['photos']);
+    }
+
+    public function test_detail_null_bila_belum_ada_hasil(): void
+    {
+        $hasil = $this->service->detail($this->reportWith('assigned'))['inspection_result'];
+
+        $this->assertNull($hasil);
+    }
 }

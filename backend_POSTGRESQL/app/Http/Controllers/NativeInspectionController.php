@@ -382,6 +382,9 @@ class NativeInspectionController extends Controller
             'kerusakan_panjang' => 'nullable|numeric|min:0.01|max:100',
             'kerusakan_lebar' => 'nullable|numeric|min:0.01|max:100',
             'kerusakan_kedalaman' => 'nullable|numeric|min:0.01|max:100',
+            // Karakteristik lokasi. Opsional: petugas yang ragu tidak dipaksa memilih.
+            'jenis_perkerasan' => ['nullable', Rule::in(InspectionResult::JENIS_PERKERASAN)],
+            'kepadatan_lalu_lintas' => ['nullable', Rule::in(InspectionResult::KEPADATAN_LALU_LINTAS)],
             'latitude' => 'nullable|numeric', 'longitude' => 'nullable|numeric', 'photos' => 'required|array|min:1', 'photos.*' => 'required|image|max:5120',
         ]);
         $files = $request->file('photos');
@@ -395,6 +398,10 @@ class NativeInspectionController extends Controller
                 $this->dim($v['kerusakan_lebar'] ?? null),
                 $this->dim($v['kerusakan_kedalaman'] ?? null),
             ],
+            // Sama seperti dimensi: koreksi jenis perkerasan / kepadatan harus
+            // mengubah fingerprint, kalau tidak submit ulang dianggap "payload sama".
+            'jenis_perkerasan' => $v['jenis_perkerasan'] ?? null,
+            'kepadatan_lalu_lintas' => $v['kepadatan_lalu_lintas'] ?? null,
             'lat' => $lat, 'lng' => $lng, 'photos' => $hashes,
         ], JSON_THROW_ON_ERROR));
         $result = DB::transaction(function () use ($request, $assignment, $v, $files, $lat, $lng, $metadata, $fingerprint) {
@@ -416,6 +423,8 @@ class NativeInspectionController extends Controller
                 'kerusakan_panjang' => $this->dim($v['kerusakan_panjang'] ?? null),
                 'kerusakan_lebar' => $this->dim($v['kerusakan_lebar'] ?? null),
                 'kerusakan_kedalaman' => $this->dim($v['kerusakan_kedalaman'] ?? null),
+                'jenis_perkerasan' => $v['jenis_perkerasan'] ?? null,
+                'kepadatan_lalu_lintas' => $v['kepadatan_lalu_lintas'] ?? null,
                 'idempotency_key' => $v['idempotency_key'], 'request_fingerprint' => $fingerprint,
             ]);
             foreach ($files as $i => $photo) {
@@ -604,7 +613,18 @@ class NativeInspectionController extends Controller
             if ($action === 'accept') {
                 $locked->update(['result' => 'accepted'] + $reviewFields);
                 $assignment->update(['status' => 'accepted']);
-                $report->update(['status' => 'Disetujui']);
+
+                // ── Kepadatan lalu lintas → prioritas laporan ──────────────
+                // Petugas melihat langsung kondisi lokasi; tebakan supervisor
+                // dari foto jauh lebih lemah. Nilai ini hanya dipakai bila
+                // petugas MENGISI kepadatan — kalau kosong, prioritas yang
+                // sudah ada (mis. ditetapkan supervisor saat approve) tetap
+                // dipertahankan, bukan ditimpa default.
+                $prioritasDariLokasi = InspectionResult::KEPADATAN_KE_PRIORITAS[$locked->kepadatan_lalu_lintas] ?? null;
+
+                $report->update($prioritasDariLokasi
+                    ? ['status' => 'Disetujui', 'priority' => $prioritasDariLokasi]
+                    : ['status' => 'Disetujui']);
 
                 return $locked->fresh(['report', 'photos']);
             }
