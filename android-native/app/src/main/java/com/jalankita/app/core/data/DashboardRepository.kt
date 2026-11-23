@@ -92,11 +92,14 @@ class DashboardRepository @Inject constructor(
             DashboardResult.Success(block())
         } catch (e: HttpException) {
             if (e.code() == 401) throw UnauthorizedException()
-            DashboardResult.Error("Terjadi kesalahan (${e.code()}).")
+            DashboardResult.Error("Terjadi kesalahan (${e.code()}).", code = e.code())
         } catch (e: UnauthorizedException) {
             throw e
         } catch (e: Exception) {
-            DashboardResult.Error(e.message ?: "Tidak dapat terhubung ke server.")
+            DashboardResult.Error(
+                e.message ?: "Tidak dapat terhubung ke server.",
+                kind = classifyFailure(e),
+            )
         }
     }
 }
@@ -109,8 +112,27 @@ data class HistoryPage(
     val lastPage: Int = 1,
 )
 
-/** Hasil operasi dashboard tanpa exception (401 dilempar sebagai [UnauthorizedException]). */
+/**
+ * Hasil operasi dashboard tanpa exception (401 dilempar sebagai
+ * [UnauthorizedException]).
+ *
+ * [Error] membawa **kode HTTP** (null bila gagal sebelum ada respons) dan
+ * [ErrorKind] hasil klasifikasi. Sebelumnya hanya ada pesan teks, sehingga
+ * pemanggil harus menebak "offline atau bukan" dari isi pesan — sumber cacat
+ * antrean offline. Gunakan [Error.isNetwork] / [Error.isPermanent].
+ */
 sealed interface DashboardResult<out T> {
     data class Success<T>(val data: T) : DashboardResult<T>
-    data class Error(val message: String) : DashboardResult<Nothing>
+
+    data class Error(
+        val message: String,
+        val code: Int? = null,
+        val kind: ErrorKind = if (code == null) ErrorKind.NETWORK else classifyStatus(code),
+    ) : DashboardResult<Nothing> {
+        /** Gangguan sementara — layak disimpan ke antrean offline & dicoba ulang. */
+        val isNetwork: Boolean get() = kind == ErrorKind.NETWORK
+
+        /** Ditolak server (4xx) — mengulang tidak akan pernah berhasil. */
+        val isPermanent: Boolean get() = kind == ErrorKind.SERVER
+    }
 }

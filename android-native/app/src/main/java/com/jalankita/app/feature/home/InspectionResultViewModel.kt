@@ -11,8 +11,9 @@ import com.jalankita.app.core.data.DashboardResult
 import com.jalankita.app.core.data.DiscoveredReportRequest
 import com.jalankita.app.core.data.InspectionRepository
 import com.jalankita.app.core.data.InspectionSubmitRequest
-import com.jalankita.app.core.data.OfflineInspectionQueue
-import com.jalankita.app.core.data.PendingInspectionResult
+import com.jalankita.app.core.data.outbox.OutboxRepository
+import com.jalankita.app.core.data.outbox.QueuePolicy
+import com.jalankita.app.core.data.outbox.QueuedSubmission
 import com.jalankita.app.core.data.UnauthorizedException
 import com.jalankita.app.core.network.InspectionResultDto
 import com.jalankita.app.core.network.SidoarjoBounds
@@ -37,7 +38,7 @@ data class InspectionEvidence(
 @HiltViewModel
 class InspectionResultViewModel @Inject constructor(
     private val repository: InspectionRepository,
-    private val offlineQueue: OfflineInspectionQueue,
+    private val outbox: OutboxRepository,
 ) : ViewModel() {
     var evidence by mutableStateOf<List<InspectionEvidence>>(emptyList())
         private set
@@ -77,6 +78,13 @@ class InspectionResultViewModel @Inject constructor(
      * di bawah area gulir dan tampak seperti tombol yang rusak.
      */
     var photoError by mutableStateOf<String?>(null)
+
+    /**
+     * Hasil inspeksi/temuan benar-benar tersimpan di antrean perangkat.
+     * Dipakai layar untuk menawarkan tombol "Lihat antrean" — sebelumnya
+     * pengguna hanya melihat teks "disimpan" tanpa jalan menuju datanya.
+     */
+    var tersimpanOffline by mutableStateOf(false)
         private set
     var loading by mutableStateOf(false)
         private set
@@ -122,6 +130,7 @@ class InspectionResultViewModel @Inject constructor(
         photoError = null
         submitted = null
         draftIdempotencyKey = null
+        tersimpanOffline = false
         draftOwnerId = null
     }
 
@@ -172,6 +181,22 @@ class InspectionResultViewModel @Inject constructor(
 
     fun clearPhotoError() { photoError = null }
 
+    private companion object {
+        const val MSG_OFFLINE_HASIL =
+            "Tidak dapat terhubung. Hasil inspeksi disimpan dan akan dikirim otomatis saat online."
+        const val MSG_OFFLINE_TEMUAN =
+            "Tidak dapat terhubung. Temuan disimpan dan akan dikirim otomatis saat online."
+        const val MSG_OFFLINE_GAGAL =
+            "Tidak dapat terhubung dan antrean offline gagal disimpan. Coba lagi."
+    }
+
+    /**
+     * Tampilkan masalah foto yang berasal dari LAYAR, bukan dari validasi EXIF
+     * (mis. izin kamera ditolak atau tidak ada aplikasi kamera). Tetap masuk
+     * `photoError` supaya terbaca di kartu foto, bukan di dasar layar.
+     */
+    fun reportPhotoProblem(pesan: String) { photoError = pesan }
+
     fun removePhoto(index: Int) {
         if (index in evidence.indices) evidence = evidence.toMutableList().also { it.removeAt(index) }
     }
@@ -206,25 +231,19 @@ class InspectionResultViewModel @Inject constructor(
                     ),
                 )) {
                     is DashboardResult.Success -> submitted = result.data
-                    is DashboardResult.Error -> error = result.message
+                    // Gangguan jaringan/server = sementara → simpan ke antrean
+                    // offline. Penolakan 4xx = permanen → tampilkan alasannya,
+                    // jangan antrekan (mengulang tidak akan pernah berhasil).
+                    is DashboardResult.Error ->
+                        if (result.isNetwork) {
+                            simpanTemuanOffline(sessionId, item, result.message)
+                        } else {
+                            error = result.message
+                        }
                 }
             } catch (_: UnauthorizedException) { sessionExpired = true }
             catch (e: Exception) {
-                offlineQueue.enqueue(PendingInspectionResult(
-                    assignmentId = sessionId,
-                    sessionId = sessionId,
-                    condition = null,
-                    notes = notes.trim(),
-                    roadName = roadName.trim(),
-                    district = district.trim(),
-                    latitude = item.latitude,
-                    longitude = item.longitude,
-                    photoPaths = listOf(item.file.absolutePath),
-                    idempotencyKey = draftKey(),
-                    lastError = e.message,
-                    discovered = true,
-                ))
-                error = "Tidak dapat terhubung. Temuan disimpan untuk dikirim ulang saat online."
+                simpanTemuanOffline(sessionId, item, e.message)
             } finally { loading = false }
         }
     }
@@ -254,11 +273,44 @@ class InspectionResultViewModel @Inject constructor(
                     ),
                 )) {
                     is DashboardResult.Success -> submitted = result.data
-                    is DashboardResult.Error -> error = result.message
+                    is DashboardResult.Error ->
+                        if (result.isNetwork) {
+                            simpanHasilOffline(assignmentId, sessionId, key, result.message)
+                        } else {
+                            error = result.message
+                        }
                 }
             } catch (_: UnauthorizedException) { sessionExpired = true }
             catch (e: Exception) {
-                offlineQueue.enqueue(PendingInspectionResult(
+                simpanHasilOffline(assignmentId, sessionId, key, e.message)
+            } finally { loading = false }
+        }
+    }
+
+    /**
+     * Simpan hasil inspeksi ke antrean offline.
+     *
+     * Dulu jalur ini HANYA ada di `catch (e: Exception)`, padahal
+     * [com.jalankita.app.core.data.InspectionRepository] membungkus semua
+     * kegagalan menjadi [DashboardResult.Error] — akibatnya blok itu tidak
+     * pernah dijalankan dan pekerjaan petugas di lokasi tanpa sinyal hilang.
+     */
+    private suspend fun simpanHasilOffline(
+        assignmentId: String,
+        sessionId: String?,
+        key: String,
+        alasan: String?,
+    ) {
+        val first = evidence.firstOrNull()
+        if (first == null) {
+            error = "Foto bukti hilang, silakan pilih ulang."
+            return
+        }
+        val now = System.currentTimeMillis()
+        val tersimpan = runCatching {
+            outbox.enqueue(
+                item = QueuedSubmission(
+                    kind = QueuedSubmission.KIND_INSPECTION_RESULT,
                     assignmentId = assignmentId,
                     sessionId = sessionId,
                     condition = condition.trim().ifBlank { null },
@@ -270,18 +322,56 @@ class InspectionResultViewModel @Inject constructor(
                     kepadatanLaluLintas = kepadatanLaluLintas,
                     latitude = first.latitude,
                     longitude = first.longitude,
-                    photoPaths = files.map(File::getAbsolutePath),
                     idempotencyKey = key,
-                    lastError = e.message,
-                    discovered = false,
-                ))
-                error = "Tidak dapat terhubung. Hasil disimpan untuk dikirim ulang saat online."
-            } finally { loading = false }
-        }
+                    lastError = alasan,
+                    createdAt = now,
+                    // Foto inspeksi hanya diterima server bila umurnya <= 2 hari.
+                    expiresAt = QueuePolicy.expiresAt(
+                        QueuedSubmission.KIND_INSPECTION_RESULT, null, now,
+                    ),
+                ),
+                photos = evidence.map { it.file },
+            )
+        }.getOrDefault(false)
+        error = if (tersimpan) MSG_OFFLINE_HASIL else MSG_OFFLINE_GAGAL
+        tersimpanOffline = tersimpan
+    }
+
+    /** Simpan temuan lapangan (satu foto) ke antrean offline. */
+    private suspend fun simpanTemuanOffline(
+        sessionId: String,
+        item: InspectionEvidence,
+        alasan: String?,
+    ) {
+        val now = System.currentTimeMillis()
+        val tersimpan = runCatching {
+            outbox.enqueue(
+                item = QueuedSubmission(
+                    kind = QueuedSubmission.KIND_DISCOVERED_REPORT,
+                    assignmentId = sessionId,
+                    sessionId = sessionId,
+                    notes = notes.trim(),
+                    roadName = roadName.trim(),
+                    district = district.trim(),
+                    latitude = item.latitude,
+                    longitude = item.longitude,
+                    idempotencyKey = draftKey(),
+                    lastError = alasan,
+                    createdAt = now,
+                    expiresAt = QueuePolicy.expiresAt(
+                        QueuedSubmission.KIND_DISCOVERED_REPORT, null, now,
+                    ),
+                ),
+                photos = listOf(item.file),
+            )
+        }.getOrDefault(false)
+        error = if (tersimpan) MSG_OFFLINE_TEMUAN else MSG_OFFLINE_GAGAL
+        tersimpanOffline = tersimpan
     }
 
     fun clearSubmitted() {
         submitted = null
         draftIdempotencyKey = null
+        tersimpanOffline = false
     }
 }

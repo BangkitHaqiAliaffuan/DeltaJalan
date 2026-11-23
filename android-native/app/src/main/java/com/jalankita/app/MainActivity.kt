@@ -15,6 +15,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -29,6 +30,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -76,8 +78,12 @@ import com.jalankita.app.feature.supervisor.SupervisorScreen
 import com.jalankita.app.feature.lapor.AiResultScreen
 import com.jalankita.app.feature.lapor.LaporScreen
 import com.jalankita.app.feature.lapor.LaporViewModel
+import com.jalankita.app.core.notify.QueueNotifier
 import com.jalankita.app.feature.notif.NotifScreen
 import com.jalankita.app.feature.notif.NotifViewModel
+import com.jalankita.app.feature.queue.QueueBanner
+import com.jalankita.app.feature.queue.QueueScreen
+import com.jalankita.app.feature.queue.QueueViewModel
 import com.jalankita.app.core.worker.LocationTracking
 import com.jalankita.app.feature.update.AppUpdateGate
 import com.jalankita.app.feature.update.AppUpdateState
@@ -133,6 +139,13 @@ class MainActivity : ComponentActivity() {
         return id
     }
 
+    /** Ambil + hapus extra open_queue dari notifikasi sinkronisasi antrean. */
+    fun takeOpenQueueExtra(): Boolean {
+        val buka = intent?.getBooleanExtra(QueueNotifier.EXTRA_OPEN_QUEUE, false) == true
+        if (buka) intent?.removeExtra(QueueNotifier.EXTRA_OPEN_QUEUE)
+        return buka
+    }
+
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val channel = NotificationChannel(
@@ -152,7 +165,7 @@ private enum class AuthScreen { LOGIN, REGISTER }
 /** Layar setelah login (dashboard + tab + alur lapor). */
 private enum class MainScreen {
     BERANDA, TUGAS, PETA, LAPORAN, PROFIL, DETAIL, INSPECTION_DETAIL, INSPECTION_RESULT, INSPECTION_DISCOVERED, LAPOR, AI_RESULT, PATROL_SESSION,
-    NOTIFIKASI,
+    NOTIFIKASI, QUEUE,
 }
 
 /** Tab bottom-nav untuk setiap layar utama (null = tanpa sorotan). */
@@ -201,13 +214,16 @@ private fun Root(vm: AuthViewModel = viewModel()) {
     // G4: tap notif FCM (cold start via onCreate intent / warm via onNewIntent).
     var pendingReportId by remember { mutableStateOf<String?>(null) }
     var pendingAssignmentId by remember { mutableStateOf<String?>(null) }
+    var pendingQueue by remember { mutableStateOf(false) }
     LaunchedEffect(activity?.deepLinkNonce) {
         activity?.takeReportIdExtra()?.let { pendingReportId = it }
         activity?.takeAssignmentIdExtra()?.let { pendingAssignmentId = it }
+        if (activity?.takeOpenQueueExtra() == true) pendingQueue = true
     }
     fun consumeDeepLink() {
         pendingReportId = null
         pendingAssignmentId = null
+        pendingQueue = false
     }
 
     var authScreen by remember { mutableStateOf(AuthScreen.LOGIN) }
@@ -318,6 +334,7 @@ private fun Root(vm: AuthViewModel = viewModel()) {
                             onNavigate = { wargaScreen = it },
                             deepLinkReportId = pendingReportId,
                             onDeepLinkConsumed = ::consumeDeepLink,
+                            openQueue = pendingQueue,
                         )
                     }
 
@@ -345,6 +362,7 @@ private fun Root(vm: AuthViewModel = viewModel()) {
                             deepLinkReportId = pendingReportId,
                             deepLinkAssignmentId = pendingAssignmentId,
                             onDeepLinkConsumed = ::consumeDeepLink,
+                            openQueue = pendingQueue,
                         )
                     }
                 }
@@ -376,6 +394,8 @@ private fun MainScaffold(
     deepLinkReportId: String? = null,
     deepLinkAssignmentId: String? = null,
     onDeepLinkConsumed: () -> Unit = {},
+    /** Notifikasi sinkronisasi menekan "buka antrean". */
+    openQueue: Boolean = false,
 ) {
     // Fase 3: izin lokasi + jadwalkan tracking GPS (hanya sesi petugas —
     // scaffold ini tidak dipakai warga/supervisor).
@@ -385,6 +405,7 @@ private fun MainScaffold(
         LocationTracking.start(trackingContext)
     }
     val dashboardVm: DashboardViewModel = viewModel()
+    val queueVm: QueueViewModel = viewModel()
     val inspectionVm: InspectionViewModel = viewModel()
     val inspectionResultVm: InspectionResultViewModel = viewModel()
     var detailId by remember { mutableStateOf<String?>(null) }
@@ -523,6 +544,16 @@ private fun MainScaffold(
     androidx.activity.compose.BackHandler(enabled = mainScreen == MainScreen.NOTIFIKASI) {
         onNavigate(notifReturn)
     }
+    androidx.activity.compose.BackHandler(enabled = mainScreen == MainScreen.QUEUE) {
+        onNavigate(MainScreen.BERANDA)
+    }
+    // Tap notifikasi "gagal terkirim" → buka antrean sekali, lalu bersihkan extra.
+    LaunchedEffect(openQueue) {
+        if (openQueue) {
+            onNavigate(MainScreen.QUEUE)
+            onDeepLinkConsumed()
+        }
+    }
 
     when (mainScreen) {
         MainScreen.LAPOR -> {
@@ -608,6 +639,7 @@ private fun MainScaffold(
                 dashboardVm.refreshInspectionTasks()
                 onNavigate(MainScreen.TUGAS)
             },
+            onOpenQueue = { onNavigate(MainScreen.QUEUE) },
         )
         MainScreen.INSPECTION_DISCOVERED -> DiscoveredReportScreen(
             vm = inspectionResultVm,
@@ -622,6 +654,7 @@ private fun MainScaffold(
                 dashboardVm.refreshInspectionTasks()
                 onNavigate(MainScreen.TUGAS)
             },
+            onOpenQueue = { onNavigate(MainScreen.QUEUE) },
         )
         MainScreen.DETAIL -> {
             Box(Modifier.fillMaxSize()) {
@@ -642,6 +675,10 @@ private fun MainScaffold(
                 )
             }
         }
+        MainScreen.QUEUE -> QueueScreen(
+            vm = queueVm,
+            onBack = { onNavigate(MainScreen.BERANDA) },
+        )
         // NOTIFIKASI di luar Scaffold tab (seperti DETAIL) → SnackbarHost sendiri.
         MainScreen.NOTIFIKASI -> {
             Box(Modifier.fillMaxSize()) {
@@ -697,24 +734,32 @@ private fun MainScaffold(
                 containerColor = Color(0xFFF5F7FA),
             ) { inner ->
                 when (mainScreen) {
-                    MainScreen.BERANDA -> DashboardScreen(
-                        user = user,
-                        vm = dashboardVm,
-                        onLapor = {
-                            laporVm.reset()
-                            onNavigate(MainScreen.LAPOR)
-                        },
-                        onOpenLaporanTab = { goTab(PetugasTab.LAPORAN) },
-                        onOpenTugasTab = { goTab(PetugasTab.TUGAS) },
-                        onOpenDetail = ::openDetail,
-                        // Kartu tugas inspeksi di Beranda membuka detail
-                        // pengukuran, bukan detail laporan biasa.
-                        onOpenInspection = { id ->
-                            inspectionAssignmentId = id
-                            onNavigate(MainScreen.INSPECTION_DETAIL)
-                        },
-                        modifier = Modifier.padding(inner),
-                    )
+                    MainScreen.BERANDA -> Column(Modifier.padding(inner)) {
+                        val antrean by queueVm.semua.collectAsState()
+                        QueueBanner(
+                            jumlah = antrean.count { !it.isFailed },
+                            gagal = antrean.count { it.isFailed },
+                            onClick = { onNavigate(MainScreen.QUEUE) },
+                        )
+                        DashboardScreen(
+                            user = user,
+                            vm = dashboardVm,
+                            onLapor = {
+                                laporVm.reset()
+                                onNavigate(MainScreen.LAPOR)
+                            },
+                            onOpenLaporanTab = { goTab(PetugasTab.LAPORAN) },
+                            onOpenTugasTab = { goTab(PetugasTab.TUGAS) },
+                            onOpenDetail = ::openDetail,
+                            // Kartu tugas inspeksi di Beranda membuka detail
+                            // pengukuran, bukan detail laporan biasa.
+                            onOpenInspection = { id ->
+                                inspectionAssignmentId = id
+                                onNavigate(MainScreen.INSPECTION_DETAIL)
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                     MainScreen.TUGAS -> TugasScreen(
                         user = user,
                         vm = dashboardVm,

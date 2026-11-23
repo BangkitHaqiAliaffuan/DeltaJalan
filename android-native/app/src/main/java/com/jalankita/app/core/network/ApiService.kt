@@ -457,6 +457,8 @@ interface ApiService {
         @Part("kerusakan_panjang") kerusakanPanjang: RequestBody? = null,
         @Part("kerusakan_lebar") kerusakanLebar: RequestBody? = null,
         @Part("full_address") fullAddress: RequestBody? = null,
+        /** Kunci idempotensi: percobaan ulang tidak membuat laporan ganda. */
+        @Part("idempotency_key") idempotencyKey: RequestBody? = null,
         @Part images: List<MultipartBody.Part>,
     ): WargaSubmitResponse
 

@@ -45,12 +45,15 @@ class SurveyRepository @Inject constructor(
             when (e.code()) {
                 403 -> throw Exception("Akses ditolak. Sesi ini bukan milik tim Anda.")
                 404 -> throw Exception("Sesi patroli tidak ditemukan.")
-                else -> DashboardResult.Error("Terjadi kesalahan (${e.code()}).")
+                else -> DashboardResult.Error("Terjadi kesalahan (${e.code()}).", code = e.code())
             }
         } catch (e: UnauthorizedException) {
             throw e
         } catch (e: Exception) {
-            DashboardResult.Error(e.message ?: "Tidak dapat terhubung ke server.")
+            DashboardResult.Error(
+                e.message ?: "Tidak dapat terhubung ke server.",
+                kind = classifyFailure(e),
+            )
         }
     }
 }

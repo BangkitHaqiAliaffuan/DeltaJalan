@@ -108,11 +108,14 @@ class InspectionRepository @Inject constructor(
         throw e
     } catch (e: HttpException) {
         if (e.code() == 401) throw UnauthorizedException()
-        DashboardResult.Error(errorMessage(e))
+        DashboardResult.Error(errorMessage(e), code = e.code())
     } catch (e: UnauthorizedException) {
         throw e
     } catch (e: Exception) {
-        DashboardResult.Error(e.message ?: "Tidak dapat terhubung ke server.")
+        DashboardResult.Error(
+            e.message ?: "Tidak dapat terhubung ke server.",
+            kind = classifyFailure(e),
+        )
     }
 
     private fun errorMessage(e: HttpException): String {

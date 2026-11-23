@@ -100,12 +100,15 @@ class PatrolRepository @Inject constructor(
                 403 -> throw Exception("Akses ditolak. Hanya supervisor yang dapat mengatur jadwal.")
                 409 -> throw Exception("Tim satgas ini sudah memiliki jadwal aktif.")
                 422 -> throw Exception(parseValidationMessage(e))
-                else -> DashboardResult.Error("Terjadi kesalahan (${e.code()}).")
+                else -> DashboardResult.Error("Terjadi kesalahan (${e.code()}).", code = e.code())
             }
         } catch (e: UnauthorizedException) {
             throw e
         } catch (e: Exception) {
-            DashboardResult.Error(e.message ?: "Tidak dapat terhubung ke server.")
+            DashboardResult.Error(
+                e.message ?: "Tidak dapat terhubung ke server.",
+                kind = classifyFailure(e),
+            )
         }
     }
 

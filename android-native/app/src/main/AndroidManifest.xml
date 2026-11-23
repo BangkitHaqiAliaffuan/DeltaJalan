@@ -41,6 +41,12 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" android:host="www.google.com" />
         </intent>
+        <!-- Kamera langsung untuk foto hasil inspeksi. Sejak Android 11 paket
+             aplikasi tidak terlihat tanpa deklarasi ini, sehingga
+             ActivityResultContracts.TakePicture bisa gagal menemukan kamera. -->
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
     </queries>
 
     <application

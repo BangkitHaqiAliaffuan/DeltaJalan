@@ -130,6 +130,8 @@ class WargaRepository @Inject constructor(
         lebar: Double?,
         fullAddress: String?,
         imageFiles: List<File>,
+        /** Kunci idempotensi per draft. Retry dengan kunci sama tidak menduplikasi. */
+        idempotencyKey: String? = null,
     ): DashboardResult<WargaSubmitData> {
         return try {
             val res = api.wargaSubmit(
@@ -142,6 +144,7 @@ class WargaRepository @Inject constructor(
                 kerusakanPanjang = panjang?.toString()?.toRequestBody(textMedia),
                 kerusakanLebar = lebar?.toString()?.toRequestBody(textMedia),
                 fullAddress = fullAddress?.takeIf { it.isNotBlank() }?.toRequestBody(textMedia),
+                idempotencyKey = idempotencyKey?.takeIf { it.isNotBlank() }?.toRequestBody(textMedia),
                 images = imageFiles.mapIndexed { i, f ->
                     MultipartBody.Part.createFormData(
                         "images[$i]", f.name,
@@ -177,7 +180,12 @@ class WargaRepository @Inject constructor(
             // sampai ke UI, bukan pesan generik.
             throw parseSubmitError(e)
         } catch (e: Exception) {
-            DashboardResult.Error(e.message ?: "Tidak dapat terhubung ke server.")
+            // Kegagalan jaringan murni (tanpa respons server). Dulu pemanggil
+            // menebaknya dari teks pesan; sekarang jenisnya ikut dikirim.
+            DashboardResult.Error(
+                e.message ?: "Tidak dapat terhubung ke server.",
+                kind = classifyFailure(e),
+            )
         }
     }
 
@@ -214,11 +222,14 @@ class WargaRepository @Inject constructor(
             if (e.code() == 403) {
                 throw Exception("Akses ditolak. Akun ini tidak memiliki akses warga.")
             }
-            DashboardResult.Error("Terjadi kesalahan (${e.code()}).")
+            DashboardResult.Error("Terjadi kesalahan (${e.code()}).", code = e.code())
         } catch (e: UnauthorizedException) {
             throw e
         } catch (e: Exception) {
-            DashboardResult.Error(e.message ?: "Tidak dapat terhubung ke server.")
+            DashboardResult.Error(
+                e.message ?: "Tidak dapat terhubung ke server.",
+                kind = classifyFailure(e),
+            )
         }
     }
 }

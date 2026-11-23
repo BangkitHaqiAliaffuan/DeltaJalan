@@ -8,10 +8,13 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jalankita.app.core.data.DashboardResult
+import com.jalankita.app.core.data.ErrorKind
+import com.jalankita.app.core.data.classifyFailure
 import com.jalankita.app.core.data.DuplicatePhotoInput
 import com.jalankita.app.core.data.DuplicateRepository
-import com.jalankita.app.core.data.OfflineReportQueue
-import com.jalankita.app.core.data.PendingWargaReport
+import com.jalankita.app.core.data.outbox.OutboxRepository
+import com.jalankita.app.core.data.outbox.QueuePolicy
+import com.jalankita.app.core.data.outbox.QueuedSubmission
 import com.jalankita.app.core.data.RoadSearchRepository
 import com.jalankita.app.core.data.RoadSuggestion
 import com.jalankita.app.core.data.UnauthorizedException
@@ -25,6 +28,7 @@ import com.jalankita.app.core.util.ExifValidator
 import com.jalankita.app.core.util.GeocodeStage
 import com.jalankita.app.core.util.ImageCompressor
 import com.jalankita.app.core.util.ReverseGeocoder
+import java.util.UUID
 import com.jalankita.app.feature.lapor.FraudAlert
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -60,7 +64,7 @@ class WargaLaporViewModel @Inject constructor(
     private val geocoder: ReverseGeocoder,
     private val dupRepo: DuplicateRepository,
     private val roadRepo: RoadSearchRepository,
-    private val offlineQueue: OfflineReportQueue,
+    private val outbox: OutboxRepository,
 ) : ViewModel() {
 
     var photos by mutableStateOf<List<WargaPhoto>>(emptyList())
@@ -112,6 +116,14 @@ class WargaLaporViewModel @Inject constructor(
 
     // ── Autocomplete nama jalan (LocationIQ; fallback manual bila key kosong) ──
     private var roadSearchJob: Job? = null
+
+    /**
+     * Kunci idempotensi untuk satu draft laporan. Dipakai bersama oleh kiriman
+     * langsung dan antrean offline: bila respons hilang di jalan padahal server
+     * sudah menyimpan, percobaan ulang mengembalikan laporan yang sama alih-alih
+     * membuat duplikat atau ditolak `DUPLICATE_IMAGE`.
+     */
+    private var draftIdempotencyKey: String = UUID.randomUUID().toString()
     var roadSuggestions by mutableStateOf<List<RoadSuggestion>>(emptyList())
         private set
     var roadSearchLoading by mutableStateOf(false)
@@ -372,30 +384,23 @@ class WargaLaporViewModel @Inject constructor(
                     lebar = parseDimensi(lebar),
                     fullAddress = fullAddress,
                     imageFiles = photos.map { it.file },
+                    idempotencyKey = draftIdempotencyKey,
                 )) {
                     is DashboardResult.Success -> {
                         savedReport = res.data
                         serverWarnings = res.data.warnings.orEmpty()
+                        // Kunci milik laporan yang sudah tersimpan; draft
+                        // berikutnya harus memakai kunci baru.
+                        draftIdempotencyKey = UUID.randomUUID().toString()
                     }
                     is DashboardResult.Error -> {
-                        val isNetwork = res.message.contains("koneksi", true) ||
-                            res.message.contains("network", true) ||
-                            res.message.contains("timeout", true) ||
-                            res.message.contains("host", true)
-                        if (isNetwork) {
-                            val pending = PendingWargaReport(
-                                reporterName = reporterName,
-                                roadName = roadName,
-                                district = district,
-                                latitude = lat,
-                                longitude = lng,
-                                description = catatan,
-                                panjang = parseDimensi(panjang),
-                                lebar = parseDimensi(lebar),
-                                fullAddress = fullAddress,
-                                photoPaths = photos.map { it.file.absolutePath },
-                            )
-                            queuedOffline = queueOffline(pending)
+                        // Jenis kegagalan datang dari repository ([ErrorKind]),
+                        // bukan ditebak dari teks pesan. Tebakan teks gagal untuk
+                        // pesan bawaan OkHttp ("Failed to connect to …:443"),
+                        // sehingga laporan yang gagal karena sinyal hilang tidak
+                        // pernah masuk antrean offline.
+                        if (res.isNetwork) {
+                            queuedOffline = queueOffline(reporterName, lat, lng)
                         } else {
                             error = res.message
                         }
@@ -406,21 +411,8 @@ class WargaLaporViewModel @Inject constructor(
             } catch (_: UnauthorizedException) {
                 sessionExpired = true
             } catch (e: Exception) {
-                val isNetwork = e is java.io.IOException || e is java.net.SocketTimeoutException || e is java.net.UnknownHostException
-                if (isNetwork) {
-                    val pending = PendingWargaReport(
-                        reporterName = reporterName,
-                        roadName = roadName,
-                        district = district,
-                        latitude = lat,
-                        longitude = lng,
-                        description = catatan,
-                        panjang = parseDimensi(panjang),
-                        lebar = parseDimensi(lebar),
-                        fullAddress = fullAddress,
-                        photoPaths = photos.map { it.file.absolutePath },
-                    )
-                    queuedOffline = queueOffline(pending)
+                if (classifyFailure(e) == ErrorKind.NETWORK) {
+                    queuedOffline = queueOffline(reporterName, lat, lng)
                 } else {
                     error = e.message
                 }
@@ -435,10 +427,34 @@ class WargaLaporViewModel @Inject constructor(
      * dari coroutine (akan mematikan app) — tampilkan sebagai `error`.
      * @return true bila laporan benar-benar tersimpan dan akan disinkronkan.
      */
-    private suspend fun queueOffline(pending: PendingWargaReport): Boolean {
+    private suspend fun queueOffline(reporterName: String, lat: Double, lng: Double): Boolean {
         return try {
-            offlineQueue.enqueue(pending)
-            true
+            val now = System.currentTimeMillis()
+            outbox.enqueue(
+                item = QueuedSubmission(
+                    kind = QueuedSubmission.KIND_WARGA_REPORT,
+                    // Kunci sama dengan kiriman langsung yang gagal tadi, supaya
+                    // percobaan ulang tidak menduplikasi laporan yang mungkin
+                    // sudah tersimpan di server.
+                    idempotencyKey = draftIdempotencyKey,
+                    reporterName = reporterName,
+                    roadName = roadName,
+                    district = district,
+                    latitude = lat,
+                    longitude = lng,
+                    description = catatan,
+                    panjang = parseDimensi(panjang),
+                    lebar = parseDimensi(lebar),
+                    fullAddress = fullAddress,
+                    createdAt = now,
+                    expiresAt = QueuePolicy.expiresAt(
+                        QueuedSubmission.KIND_WARGA_REPORT, null, now,
+                    ),
+                ),
+                // Foto disalin ke penyimpanan permanen oleh repository; berkas di
+                // cache boleh dihapus sistem kapan saja.
+                photos = photos.map { it.file },
+            )
         } catch (e: Exception) {
             error = e.message ?: "Laporan gagal disimpan di perangkat. Coba lagi."
             false
@@ -457,5 +473,6 @@ class WargaLaporViewModel @Inject constructor(
         duplicateWarning = null; duplicateChecking = false
         roadSuggestions = emptyList(); roadSearchLoading = false
         queuedOffline = false
+        draftIdempotencyKey = UUID.randomUUID().toString()
     }
 }

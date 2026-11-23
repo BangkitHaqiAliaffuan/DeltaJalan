@@ -43,7 +43,10 @@ class DuplicateRepository @Inject constructor(
                 )
                 DashboardResult.Success(res)
             } catch (e: Exception) {
-                DashboardResult.Error(e.message ?: "Gagal memeriksa duplikat.")
+                DashboardResult.Error(
+                    e.message ?: "Gagal memeriksa duplikat.",
+                    kind = classifyFailure(e),
+                )
             }
         }
 }

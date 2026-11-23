@@ -213,13 +213,16 @@ class SupervisorRepository @Inject constructor(
         } catch (e: HttpException) {
             if (e.code() == 401) throw UnauthorizedException()
             if (e.code() == 403) throw Exception("Akses ditolak untuk aksi ini.")
-            DashboardResult.Error(parseErrorMessage(e))
+            DashboardResult.Error(parseErrorMessage(e), code = e.code())
         } catch (e: UnauthorizedException) {
             throw e
         } catch (e: IllegalStateException) {
             throw e
         } catch (e: Exception) {
-            DashboardResult.Error(e.message ?: "Tidak dapat terhubung ke server.")
+            DashboardResult.Error(
+                e.message ?: "Tidak dapat terhubung ke server.",
+                kind = classifyFailure(e),
+            )
         }
     }
 

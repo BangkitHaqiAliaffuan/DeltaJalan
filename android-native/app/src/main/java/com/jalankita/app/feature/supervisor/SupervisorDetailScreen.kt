@@ -21,7 +21,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -57,6 +56,7 @@ import com.jalankita.app.feature.home.components.formatDateShort
 import com.jalankita.app.feature.home.components.formatDistance
 import com.jalankita.app.feature.home.components.haversineDistance
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.JkDialog
 import com.jalankita.app.ui.components.safeContentPaddingValues
 import com.jalankita.app.ui.components.BadgeRow
 import com.jalankita.app.ui.components.TrackPill
@@ -853,35 +853,35 @@ private fun ApprovalDialog(
     onConfirm: (priority: String?) -> Unit,
 ) {
     var priority by remember { mutableStateOf(detail.priority ?: "Sedang") }
-    AlertDialog(
+    JkDialog(
+        title = "Setujui & Tugaskan Tim",
         onDismissRequest = { if (!busy) onDismiss() },
-        title = { Text("Setujui & Tugaskan Tim", fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                Text(
-                    if (detail.source == "petugas") {
-                        "Laporan akan disetujui dan ditugaskan ke tim pelapor."
-                    } else {
-                        "Laporan akan disetujui, dianalisis AI, dan otomatis ditugaskan ke tim satgas yang sesuai."
-                    },
-                    color = Color(0xFF475569),
-                    fontSize = 13.sp,
-                )
-                Spacer(Modifier.height(14.dp))
-                Text("Prioritas", color = TextDark, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("Rendah", "Sedang", "Tinggi").forEach { p ->
-                        PriorityChip(p, priority == p) { priority = p }
-                    }
-                }
-            }
+        primaryLabel = "Setujui & Tugaskan",
+        onPrimary = { onConfirm(priority) },
+        secondaryLabel = "Batal",
+        onSecondary = { if (!busy) onDismiss() },
+    ) {
+        Column {
+        Text(
+        if (detail.source == "petugas") {
+        "Laporan akan disetujui dan ditugaskan ke tim pelapor."
+        } else {
+        "Laporan akan disetujui, dianalisis AI, dan otomatis ditugaskan ke tim satgas yang sesuai."
         },
-        confirmButton = { BrandPrimaryButton("Setujui & Tugaskan", onClick = { onConfirm(priority) }, loading = busy) },
-        dismissButton = {
-            TextButton(onClick = { if (!busy) onDismiss() }) { Text("Batal", color = TextMuted) }
-        },
-    )
+        color = Color(0xFF475569),
+        fontSize = 13.sp,
+        )
+        Spacer(Modifier.height(14.dp))
+        Text("Prioritas", color = TextDark, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf("Rendah", "Sedang", "Tinggi").forEach { p ->
+        PriorityChip(p, priority == p) { priority = p }
+        }
+        }
+        }
+
+    }
 }
 
 @Composable

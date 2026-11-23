@@ -19,15 +19,28 @@ class TokenStore @Inject constructor(
 ) {
     val token: Flow<String?> = dataStore.data.map { it[KEY_TOKEN] }
 
-    suspend fun save(token: String) {
-        dataStore.edit { it[KEY_TOKEN] = token }
+    /**
+     * Id pemilik sesi. Dipakai memisahkan antrean kiriman per akun: laporan
+     * milik akun A tidak boleh terkirim memakai token akun B setelah logout.
+     */
+    val userId: Flow<String?> = dataStore.data.map { it[KEY_USER_ID] }
+
+    suspend fun save(token: String, userId: String? = null) {
+        dataStore.edit {
+            it[KEY_TOKEN] = token
+            if (userId != null) it[KEY_USER_ID] = userId else it.remove(KEY_USER_ID)
+        }
     }
 
     suspend fun clear() {
-        dataStore.edit { it.remove(KEY_TOKEN) }
+        dataStore.edit {
+            it.remove(KEY_TOKEN)
+            it.remove(KEY_USER_ID)
+        }
     }
 
     companion object {
         private val KEY_TOKEN = stringPreferencesKey("sanctum_token")
+        private val KEY_USER_ID = stringPreferencesKey("user_id")
     }
 }

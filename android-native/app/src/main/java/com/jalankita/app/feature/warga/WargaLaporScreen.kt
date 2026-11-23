@@ -25,7 +25,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,6 +53,8 @@ import com.jalankita.app.core.util.GeocodeStage
 import com.jalankita.app.feature.lapor.components.FraudModal
 import com.jalankita.app.feature.lapor.components.KecamatanDropdown
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.JkDialog
+import com.jalankita.app.ui.components.JkDialogTextButton
 import com.jalankita.app.ui.components.safeContentPaddingValues
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandSecondaryButton
@@ -91,6 +92,8 @@ fun WargaLaporScreen(
     laporVm: WargaLaporViewModel,
     onBack: () -> Unit,
     onSuccess: () -> Unit,
+    /** Buka layar Antrean Kirim bila laporan tersimpan offline. */
+    onOpenQueue: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -389,31 +392,37 @@ fun WargaLaporScreen(
     FraudModal(alert = laporVm.fraudAlert, onDismiss = laporVm::dismissFraudAlert)
 
     if (laporVm.queuedOffline) {
-        AlertDialog(
-            onDismissRequest = {
+        JkDialog(
+        title = "Laporan Disimpan Offline",
+        onDismissRequest = {
                 laporVm.reset()
                 onBack()
             },
-            title = {
-                Text("Laporan Disimpan Offline", fontWeight = FontWeight.Bold, color = TextDark)
-            },
-            text = {
-                Text(
-                    "Koneksi internet tidak tersedia atau terputus. Laporan Anda telah tersimpan dengan aman di perangkat dan akan otomatis dikirim ke dinas saat koneksi internet kembali pulih.",
-                    fontSize = 13.sp,
-                    color = TextDark,
-                )
-            },
-            confirmButton = {
-                BrandPrimaryButton(
-                    text = "Selesai",
-                    onClick = {
+        primaryLabel = "Selesai",
+        onPrimary = {
                         laporVm.reset()
                         onBack()
                     },
-                )
-            },
+        showSecondary = false,
+        /** Jalan menuju antrean: pengguna bisa melihat dan mengirim sendiri. */
+        extraActions = {
+            JkDialogTextButton(
+                label = "Lihat Antrean Kirim",
+                onClick = {
+                    laporVm.reset()
+                    onOpenQueue()
+                },
+                color = BrandBlue,
+            )
+        },
+    ) {
+        Text(
+        "Koneksi internet tidak tersedia atau terputus. Laporan Anda telah tersimpan dengan aman di perangkat dan akan otomatis dikirim ke dinas saat koneksi internet kembali pulih.",
+        fontSize = 13.sp,
+        color = TextDark,
         )
+
+    }
     }
 }
 

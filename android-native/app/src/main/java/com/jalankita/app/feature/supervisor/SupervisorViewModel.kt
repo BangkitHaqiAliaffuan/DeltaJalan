@@ -613,7 +613,7 @@ class SupervisorViewModel @Inject constructor(
                         .filter { it.latitude != null && it.longitude != null }
                     DashboardResult.Success(items to (r.data.stats?.total ?: items.size))
                 }
-                is DashboardResult.Error -> DashboardResult.Error(r.message)
+                is DashboardResult.Error -> DashboardResult.Error(r.message, r.code, r.kind)
             }
         } catch (_: UnauthorizedException) {
             sessionExpired = true

@@ -1,5 +1,8 @@
 package com.jalankita.app.feature.home
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -24,6 +27,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
@@ -31,6 +35,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,6 +51,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.jalankita.app.core.util.PhotoCapture
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.safeContentPadding
@@ -60,6 +69,8 @@ fun InspectionResultScreen(
     sessionId: String? = null,
     onBack: () -> Unit,
     onSubmitted: () -> Unit,
+    /** Buka layar Antrean Kirim setelah hasil tersimpan offline. */
+    onOpenQueue: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -79,6 +90,53 @@ fun InspectionResultScreen(
             galleryLauncher.launch(
                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
             )
+        }
+    }
+
+    // ── Kamera langsung ──────────────────────────────────────────────
+    // Foto yang diambil saat itu membawa EXIF GPS perangkat, jadi lokasinya
+    // terikat ke tempat petugas berdiri. Berkas tujuan harus sudah ada
+    // SEBELUM kamera dibuka, karena aplikasi kamera menulis ke URI itu.
+    var captureTarget by remember { mutableStateOf<PhotoCapture.Target?>(null) }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture(),
+    ) { tersimpan ->
+        val target = captureTarget
+        captureTarget = null
+        if (tersimpan && target != null) {
+            vm.addPhotos(context, listOf(target.uri))
+        } else {
+            // Petugas membatalkan; jangan tinggalkan berkas kosong di cache.
+            PhotoCapture.discard(target)
+        }
+    }
+
+    // Aplikasi MENDECLARASIKAN android.permission.CAMERA, dan Android menolak
+    // membuka aplikasi kamera dari aplikasi yang mendeklarasikannya tanpa
+    // memegang izin itu ("Permission Denial ... with revoked permission
+    // android.permission.CAMERA" — terbukti crash di perangkat). Jadi izin
+    // diminta lebih dulu; kalau ditolak, petugas tetap bisa memakai Galeri.
+    val mulaiKamera: () -> Unit = {
+        val target = PhotoCapture.newTarget(context)
+        // Ditugaskan SEBELUM launch: hasil bisa kembali sangat cepat, dan
+        // menugaskan setelah launch membuat callback membaca nilai lama.
+        captureTarget = target
+        try {
+            cameraLauncher.launch(target.uri)
+        } catch (_: Exception) {
+            // Perangkat tanpa aplikasi kamera: jangan crash, beri jalan keluar.
+            PhotoCapture.discard(target)
+            captureTarget = null
+            vm.reportPhotoProblem("Aplikasi kamera tidak tersedia di perangkat ini. Gunakan Galeri.")
+        }
+    }
+    val mintaIzinKamera = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { diberikan ->
+        if (diberikan) {
+            mulaiKamera()
+        } else {
+            vm.reportPhotoProblem("Izin kamera ditolak. Aktifkan izin Kamera di pengaturan aplikasi, atau pilih foto lewat Galeri.")
         }
     }
 
@@ -175,13 +233,36 @@ fun InspectionResultScreen(
             }
 
             if (vm.canAddMore) {
-                OutlinedButton(
-                    onClick = openPicker,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(AppIcon.Camera, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(if (vm.evidence.isEmpty()) "Pilih Foto Lapangan (Wajib GPS & EXIF)" else "Tambah Foto Lain")
+                // Dua sumber foto, bukan satu: kamera untuk bukti yang diambil
+                // di lokasi (GPS langsung dari perangkat), galeri untuk foto
+                // yang sudah terlanjur diambil sebelum aplikasi dibuka.
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            val sudahDiizinkan = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.CAMERA,
+                            ) == PackageManager.PERMISSION_GRANTED
+                            if (sudahDiizinkan) {
+                                mulaiKamera()
+                            } else {
+                                mintaIzinKamera.launch(Manifest.permission.CAMERA)
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(AppIcon.Camera, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Kamera", fontSize = 13.sp)
+                    }
+                    OutlinedButton(
+                        onClick = openPicker,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(AppIcon.Gallery, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (vm.evidence.isEmpty()) "Galeri" else "Tambah", fontSize = 13.sp)
+                    }
                 }
             }
 
@@ -220,7 +301,7 @@ fun InspectionResultScreen(
                         Text(pesan, color = ErrorRed, fontSize = 12.sp)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "Pilih foto lain yang diambil maksimal 2 hari terakhir.",
+                            "Pastikan GPS perangkat aktif dan foto diambil maksimal 2 hari terakhir.",
                             color = TextMuted,
                             fontSize = 11.sp,
                         )
@@ -337,6 +418,7 @@ fun InspectionResultScreen(
             vm.error?.let {
                 Text(it, color = ErrorRed, fontSize = 13.sp)
             }
+            PintuAntrean(tampil = vm.tersimpanOffline, onOpenQueue = onOpenQueue)
         }
 
         BrandPrimaryButton(
@@ -358,6 +440,7 @@ fun DiscoveredReportScreen(
     sessionId: String,
     onBack: () -> Unit,
     onSubmitted: () -> Unit,
+    onOpenQueue: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -376,6 +459,44 @@ fun DiscoveredReportScreen(
             gallerySingleLauncher.launch(
                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
             )
+        }
+    }
+
+    // Kamera langsung: EXIF GPS ditulis perangkat saat pengambilan, sehingga
+    // lokasi temuan tidak bergantung pada foto lama di galeri.
+    var captureTarget by remember { mutableStateOf<PhotoCapture.Target?>(null) }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture(),
+    ) { tersimpan ->
+        val target = captureTarget
+        captureTarget = null
+        if (tersimpan && target != null) {
+            vm.addPhotos(context, listOf(target.uri), discovered = true)
+        } else {
+            PhotoCapture.discard(target)
+        }
+    }
+
+    // Alasan yang sama seperti form inspeksi: CAMERA dideklarasikan di manifest,
+    // jadi izin runtime wajib diminta sebelum membuka aplikasi kamera.
+    val mulaiKamera: () -> Unit = {
+        val target = PhotoCapture.newTarget(context, prefix = "TMW")
+        captureTarget = target
+        try {
+            cameraLauncher.launch(target.uri)
+        } catch (_: Exception) {
+            PhotoCapture.discard(target)
+            captureTarget = null
+            vm.reportPhotoProblem("Aplikasi kamera tidak tersedia di perangkat ini. Gunakan Galeri.")
+        }
+    }
+    val mintaIzinKamera = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { diberikan ->
+        if (diberikan) {
+            mulaiKamera()
+        } else {
+            vm.reportPhotoProblem("Izin kamera ditolak. Aktifkan izin Kamera di pengaturan aplikasi, atau pilih foto lewat Galeri.")
         }
     }
 
@@ -458,10 +579,30 @@ fun DiscoveredReportScreen(
                     )
                 }
             }
-            OutlinedButton(onClick = openPicker, modifier = Modifier.fillMaxWidth()) {
-                Icon(AppIcon.Camera, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(if (vm.evidence.isEmpty()) "Pilih Foto Temuan (Wajib GPS)" else "Ganti Foto Temuan")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = {
+                        val sudahDiizinkan = ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.CAMERA,
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (sudahDiizinkan) {
+                            mulaiKamera()
+                        } else {
+                            mintaIzinKamera.launch(Manifest.permission.CAMERA)
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(AppIcon.Camera, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Kamera", fontSize = 13.sp)
+                }
+                OutlinedButton(onClick = openPicker, modifier = Modifier.weight(1f)) {
+                    Icon(AppIcon.Gallery, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (vm.evidence.isEmpty()) "Galeri" else "Ganti", fontSize = 13.sp)
+                }
             }
 
             // Sama seperti form inspeksi: alasan penolakan foto tampil di sini,
@@ -500,6 +641,7 @@ fun DiscoveredReportScreen(
         vm.error?.let {
             Text(it, color = ErrorRed, fontSize = 13.sp)
         }
+        PintuAntrean(tampil = vm.tersimpanOffline, onOpenQueue = onOpenQueue)
 
         Spacer(Modifier.height(4.dp))
         }
@@ -565,4 +707,23 @@ private fun PilihanChip(label: String, aktif: Boolean, onClick: () -> Unit) {
             fontWeight = if (aktif) FontWeight.SemiBold else FontWeight.Normal,
         )
     }
+}
+
+/**
+ * Tautan ke layar Antrean Kirim. Muncul hanya saat hasil benar-benar tersimpan
+ * offline — pengguna diberi tahu "akan dikirim otomatis", dan sekarang punya
+ * jalan untuk melihat serta mengirimnya sendiri.
+ */
+@Composable
+private fun PintuAntrean(tampil: Boolean, onOpenQueue: () -> Unit) {
+    if (!tampil) return
+    Text(
+        "Lihat antrean",
+        color = BrandBlue,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier
+            .clickable(onClick = onOpenQueue)
+            .padding(vertical = 6.dp),
+    )
 }

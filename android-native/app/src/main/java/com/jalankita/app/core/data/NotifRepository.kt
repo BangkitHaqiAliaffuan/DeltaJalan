@@ -60,11 +60,14 @@ class NotifRepository @Inject constructor(
             DashboardResult.Success(block())
         } catch (e: HttpException) {
             if (e.code() == 401) throw UnauthorizedException()
-            DashboardResult.Error("Terjadi kesalahan (${e.code()}).")
+            DashboardResult.Error("Terjadi kesalahan (${e.code()}).", code = e.code())
         } catch (e: UnauthorizedException) {
             throw e
         } catch (e: Exception) {
-            DashboardResult.Error(e.message ?: "Tidak dapat terhubung ke server.")
+            DashboardResult.Error(
+                e.message ?: "Tidak dapat terhubung ke server.",
+                kind = classifyFailure(e),
+            )
         }
     }
 }

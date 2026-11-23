@@ -5,9 +5,15 @@ import androidx.work.Configuration
 import coil.ImageLoader
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
+import com.jalankita.app.core.data.outbox.OutboxRepository
 import com.jalankita.app.core.worker.LocationWorkerFactory
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.maplibre.android.MapLibre
+import javax.inject.Inject
 
 /**
  * WAJIB: [MapLibre.getInstance] sebelum MapView mana pun dibuat —
@@ -24,9 +30,21 @@ import org.maplibre.android.MapLibre
  */
 @HiltAndroidApp
 class DeltaJalanApplication : Application(), Configuration.Provider {
+
+    /**
+     * Antrean kiriman. Dibaca sekali saat aplikasi start supaya item yang
+     * sudah melewati tenggat langsung ditandai kedaluwarsa (foto inspeksi
+     * hanya diterima server ≤2 hari) dan antrean versi lama ikut dipindahkan
+     * ke penyimpanan baru.
+     */
+    @Inject lateinit var outbox: OutboxRepository
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onCreate() {
         super.onCreate()
         MapLibre.getInstance(this)
+        appScope.launch { outbox.refresh() }
         coil.Coil.setImageLoader(
             ImageLoader.Builder(this)
                 .memoryCache {

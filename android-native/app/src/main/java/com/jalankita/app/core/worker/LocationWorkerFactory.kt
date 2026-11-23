@@ -4,8 +4,7 @@ import android.content.Context
 import androidx.work.ListenableWorker
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
-import com.jalankita.app.core.data.OfflineReportQueue
-import com.jalankita.app.core.data.OfflineInspectionQueue
+import com.jalankita.app.core.data.outbox.OutboxRepository
 import com.jalankita.app.core.data.InspectionRepository
 import com.jalankita.app.core.data.TokenStore
 import com.jalankita.app.core.data.WargaRepository
@@ -23,9 +22,8 @@ import kotlinx.coroutines.runBlocking
 interface LocationWorkerEntryPoint {
     fun api(): ApiService
     fun tokenStore(): TokenStore
-    fun offlineQueue(): OfflineReportQueue
+    fun outboxRepository(): OutboxRepository
     fun wargaRepo(): WargaRepository
-    fun offlineInspectionQueue(): OfflineInspectionQueue
     fun inspectionRepository(): InspectionRepository
 }
 
@@ -51,10 +49,10 @@ class LocationWorkerFactory(
                 LocationWorker(appContext, workerParameters, entry.api(), token)
             }
             ReportUploadWorker::class.java.name -> {
-                ReportUploadWorker(appContext, workerParameters, entry.offlineQueue(), entry.wargaRepo())
+                ReportUploadWorker(appContext, workerParameters, entry.outboxRepository(), entry.wargaRepo())
             }
             InspectionUploadWorker::class.java.name -> {
-                InspectionUploadWorker(appContext, workerParameters, entry.offlineInspectionQueue(), entry.inspectionRepository())
+                InspectionUploadWorker(appContext, workerParameters, entry.outboxRepository(), entry.inspectionRepository())
             }
             else -> null
         }

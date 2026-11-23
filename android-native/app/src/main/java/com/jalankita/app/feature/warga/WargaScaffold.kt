@@ -1,6 +1,7 @@
 package com.jalankita.app.feature.warga
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -10,6 +11,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,11 +28,14 @@ import com.jalankita.app.feature.auth.AuthViewModel
 import com.jalankita.app.feature.home.ProfilScreen
 import com.jalankita.app.feature.home.components.DeltaTopBar
 import com.jalankita.app.feature.notif.NotifScreen
+import com.jalankita.app.feature.queue.QueueBanner
+import com.jalankita.app.feature.queue.QueueScreen
+import com.jalankita.app.feature.queue.QueueViewModel
 import com.jalankita.app.feature.notif.NotifViewModel
 import com.jalankita.app.ui.components.AppIcon
 
 /** Layar warga — 3 tab meniru WARGA_ITEMS web (Beranda/Peta/Laporan). */
-enum class WargaScreen { BERANDA, PETA, LAPORAN, PROFIL, DETAIL, LAPOR, SUKSES, NOTIFIKASI }
+enum class WargaScreen { BERANDA, PETA, LAPORAN, PROFIL, DETAIL, LAPOR, SUKSES, NOTIFIKASI, QUEUE }
 
 enum class WargaTab(val label: String, val icon: ImageVector, val screen: WargaScreen) {
     BERANDA("Beranda", AppIcon.Home, WargaScreen.BERANDA),
@@ -50,8 +55,11 @@ fun WargaScaffold(
     onNavigate: (WargaScreen) -> Unit,
     deepLinkReportId: String? = null,
     onDeepLinkConsumed: () -> Unit = {},
+    /** Notifikasi "gagal terkirim" ditekan → langsung buka antrean. */
+    openQueue: Boolean = false,
 ) {
     val vm: WargaViewModel = viewModel()
+    val queueVm: QueueViewModel = viewModel()
     val laporVm: WargaLaporViewModel = viewModel()
     var detailId by remember { mutableStateOf<String?>(null) }
     var returnTab by remember { mutableStateOf(WargaScreen.BERANDA) }
@@ -92,6 +100,13 @@ fun WargaScaffold(
     LaunchedEffect(vm.sessionExpired) {
         if (vm.sessionExpired) authVm.refreshSession()
     }
+    // 401 dari alur Lapor warga (kirim/analisis foto) → sesi mati → kembali ke
+    // login. Sebelumnya `laporVm.sessionExpired` diset tetapi tidak pernah
+    // dibaca, sehingga warga dengan token dicabut hanya melihat tombol yang
+    // seolah tidak bereaksi.
+    LaunchedEffect(laporVm.sessionExpired) {
+        if (laporVm.sessionExpired) authVm.refreshSession()
+    }
     // 401 dari endpoint notifikasi → sesi mati → kembali ke login.
     LaunchedEffect(notifVm.sessionExpired) {
         if (notifVm.sessionExpired) authVm.refreshSession()
@@ -130,6 +145,16 @@ fun WargaScaffold(
     androidx.activity.compose.BackHandler(enabled = wargaScreen == WargaScreen.NOTIFIKASI) {
         onNavigate(notifReturn)
     }
+    androidx.activity.compose.BackHandler(enabled = wargaScreen == WargaScreen.QUEUE) {
+        onNavigate(WargaScreen.BERANDA)
+    }
+    // Tap notifikasi "gagal terkirim" → buka antrean sekali, lalu bersihkan extra.
+    LaunchedEffect(openQueue) {
+        if (openQueue) {
+            onNavigate(WargaScreen.QUEUE)
+            onDeepLinkConsumed()
+        }
+    }
 
     when (wargaScreen) {
         WargaScreen.LAPOR -> {
@@ -139,6 +164,7 @@ fun WargaScaffold(
                 laporVm = laporVm,
                 onBack = { onNavigate(WargaScreen.BERANDA) },
                 onSuccess = { onNavigate(WargaScreen.SUKSES) },
+                onOpenQueue = { onNavigate(WargaScreen.QUEUE) },
             )
         }
         WargaScreen.SUKSES -> {
@@ -165,6 +191,10 @@ fun WargaScaffold(
                 },
             )
         }
+        WargaScreen.QUEUE -> QueueScreen(
+            vm = queueVm,
+            onBack = { onNavigate(WargaScreen.BERANDA) },
+        )
         // NOTIFIKASI di luar Scaffold tab → SnackbarHost sendiri.
         WargaScreen.NOTIFIKASI -> {
             Box(Modifier.fillMaxSize()) {
@@ -207,18 +237,26 @@ fun WargaScaffold(
                 containerColor = Color(0xFFF5F7FA),
             ) { inner ->
                 when (wargaScreen) {
-                    WargaScreen.BERANDA -> WargaDashboardScreen(
-                        user = user,
-                        vm = vm,
-                        onLapor = {
-                            laporVm.reset()
-                            vm.loadRemaining()
-                            onNavigate(WargaScreen.LAPOR)
-                        },
-                        onOpenLaporan = { goTab(WargaTab.LAPORAN) },
-                        onOpenDetail = ::openDetail,
-                        modifier = Modifier.padding(inner),
-                    )
+                    WargaScreen.BERANDA -> Column(Modifier.padding(inner)) {
+                        val antrean by queueVm.semua.collectAsState()
+                        QueueBanner(
+                            jumlah = antrean.count { !it.isFailed },
+                            gagal = antrean.count { it.isFailed },
+                            onClick = { onNavigate(WargaScreen.QUEUE) },
+                        )
+                        WargaDashboardScreen(
+                            user = user,
+                            vm = vm,
+                            onLapor = {
+                                laporVm.reset()
+                                vm.loadRemaining()
+                                onNavigate(WargaScreen.LAPOR)
+                            },
+                            onOpenLaporan = { goTab(WargaTab.LAPORAN) },
+                            onOpenDetail = ::openDetail,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                     WargaScreen.PETA -> WargaPetaScreen(
                         vm = vm,
                         onOpenDetail = ::openDetail,

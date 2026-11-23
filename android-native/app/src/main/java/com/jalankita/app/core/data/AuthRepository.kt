@@ -61,7 +61,7 @@ class AuthRepository @Inject constructor(
         if (!res.success || token.isNullOrBlank() || user == null) {
             throw Exception(res.message ?: "Login gagal, coba lagi.")
         }
-        tokenStore.save(token)
+        tokenStore.save(token, user.id.toString())
         return user
     }
 
@@ -94,7 +94,7 @@ class AuthRepository @Inject constructor(
         val token = res.token
         val user = res.user
         if (res.success && !token.isNullOrBlank() && user != null) {
-            tokenStore.save(token)
+            tokenStore.save(token, user.id.toString())
             return GoogleLoginResult.Authenticated(user)
         }
 
@@ -142,7 +142,7 @@ class AuthRepository @Inject constructor(
         val token = res.token
         val user = res.user
         if (res.success && !token.isNullOrBlank() && user != null) {
-            tokenStore.save(token)
+            tokenStore.save(token, user.id.toString())
             return OnboardingResult.Authenticated(user)
         }
 
@@ -182,7 +182,7 @@ class AuthRepository @Inject constructor(
         if (!res.success || token.isNullOrBlank() || user == null) {
             throw Exception(res.message ?: "Verifikasi gagal, coba lagi.")
         }
-        tokenStore.save(token)
+        tokenStore.save(token, user.id.toString())
         return user
     }
 
