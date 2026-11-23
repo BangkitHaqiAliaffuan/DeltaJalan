@@ -8,6 +8,7 @@ use App\Models\Report;
 use App\Models\SurveyTask;
 use App\Models\SurveyTaskReport;
 use App\Services\GeographicService;
+use App\Services\InspectionPhotoGuard;
 use App\Services\PhotoMetadataService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -388,7 +389,21 @@ class NativeInspectionController extends Controller
             'latitude' => 'nullable|numeric', 'longitude' => 'nullable|numeric', 'photos' => 'required|array|min:1', 'photos.*' => 'required|image|max:5120',
         ]);
         $files = $request->file('photos');
-        [$lat, $lng, $metadata, $hashes] = $this->validateFiles($files, $v['latitude'] ?? null, $v['longitude'] ?? null);
+        $laporan = Report::whereKey($assignment->report_id)->first(['id', 'latitude', 'longitude', 'system_notes']);
+        [$lat, $lng, $metadata, $hashes, $guard] = $this->validateFiles(
+            $files,
+            $v['latitude'] ?? null,
+            $v['longitude'] ?? null,
+            $laporan?->latitude,
+            $laporan?->longitude,
+        );
+
+        // Penjaga lokasi: tolak foto yang jauh dari titik laporan atau
+        // tersebar antar foto. Tolak keras hanya untuk kasus kasar (>1 km),
+        // sisanya jadi peringatan supaya supervisor yang memutuskan.
+        if ($guard['reject'] !== null) {
+            abort(422, $guard['reject']);
+        }
         // Dimensi WAJIB ikut fingerprint. Tanpa ini, submit ulang dengan dimensi
         // berbeda dianggap "payload sama" dan pengukuran baru hilang diam-diam.
         $fingerprint = hash('sha256', json_encode([
@@ -404,7 +419,7 @@ class NativeInspectionController extends Controller
             'kepadatan_lalu_lintas' => $v['kepadatan_lalu_lintas'] ?? null,
             'lat' => $lat, 'lng' => $lng, 'photos' => $hashes,
         ], JSON_THROW_ON_ERROR));
-        $result = DB::transaction(function () use ($request, $assignment, $v, $files, $lat, $lng, $metadata, $fingerprint) {
+        $result = DB::transaction(function () use ($request, $assignment, $v, $files, $lat, $lng, $metadata, $fingerprint, $guard) {
             $a = SurveyTaskReport::whereKey($assignment->id)->lockForUpdate()->firstOrFail();
             $existing = InspectionResult::where('inspector_id', $request->user()->id)->where('idempotency_key', $v['idempotency_key'])->lockForUpdate()->first();
             if ($existing) {
@@ -440,14 +455,33 @@ class NativeInspectionController extends Controller
             ]);
             Report::whereKey($a->report_id)->update(['status' => 'Ditinjau']);
 
+            // Peringatan lokasi (mis. foto 350 m dari titik laporan) dicatat
+            // di system_notes agar tetap terbaca oleh supervisor, tidak hanya
+            // tampil sesaat di respons kirim. Tidak menimpa catatan lama.
+            if (! empty($guard['warnings'])) {
+                $catatanLama = Report::whereKey($a->report_id)->value('system_notes');
+                $gabungan = trim(implode(' | ', array_filter([$catatanLama, implode(' | ', $guard['warnings'])])));
+                Report::whereKey($a->report_id)->update(['system_notes' => $gabungan]);
+            }
+
             return $result->load('photos');
         });
 
-        return response()->json(['data' => $result], $result->wasRecentlyCreated ? 201 : 200);
+        return response()->json(['data' => $result, 'warnings' => $guard['warnings']], $result->wasRecentlyCreated ? 201 : 200);
     }
 
-    private function validateFiles(array $files, mixed $fallbackLat, mixed $fallbackLng): array
-    {
+    /**
+     * @param  mixed  $reportLat  Lintang titik laporan warga; null bila laporan lama tidak punya koordinat.
+     * @param  mixed  $reportLng  Bujur titik laporan warga.
+     * @return array{0: float, 1: float, 2: array, 3: array, 4: array{reject: ?string, warnings: array}}
+     */
+    private function validateFiles(
+        array $files,
+        mixed $fallbackLat,
+        mixed $fallbackLng,
+        mixed $reportLat = null,
+        mixed $reportLng = null,
+    ): array {
         $fallbackLat = $fallbackLat !== null ? (float) $fallbackLat : null;
         $fallbackLng = $fallbackLng !== null ? (float) $fallbackLng : null;
         if (($fallbackLat === null) !== ($fallbackLng === null)) {
@@ -477,7 +511,19 @@ class NativeInspectionController extends Controller
             abort(422, 'Koordinat berada di luar wilayah Kabupaten Sidoarjo atau tidak tersedia.');
         }
 
-        return [$lat, $lng, $metadata, $hashes];
+        // ── Penjaga jarak ────────────────────────────────────────────────
+        // Diperiksa SETELAH semua foto punya metadata, karena aturannya
+        // membandingkan antar foto juga (satu kunjungan, bukan campuran).
+        $guard = (new InspectionPhotoGuard)->review(
+            $reportLat !== null ? (float) $reportLat : null,
+            $reportLng !== null ? (float) $reportLng : null,
+            array_map(static fn (array $m): array => [
+                'lat' => $m['gps']['lat'] ?? null,
+                'lng' => $m['gps']['lng'] ?? null,
+            ], $metadata),
+        );
+
+        return [$lat, $lng, $metadata, $hashes, $guard];
     }
 
     public function discovered(Request $request, InspectionSession $session): JsonResponse
