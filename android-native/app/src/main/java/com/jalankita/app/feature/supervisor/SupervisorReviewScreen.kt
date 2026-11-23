@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -47,6 +46,8 @@ import com.jalankita.app.feature.supervisor.components.queueDeadlineText
 import com.jalankita.app.feature.home.components.EmptyState
 import com.jalankita.app.feature.home.components.SkeletonCard
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.JkDialog
+import com.jalankita.app.ui.components.JkDialogTextButton
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandSecondaryButton
 import com.jalankita.app.ui.components.ErrorBox
@@ -392,63 +393,48 @@ private fun ReviewActionSheet(
     onTolak: () -> Unit,
     onDetail: () -> Unit,
 ) {
-    AlertDialog(
+    JkDialog(
+        title = report.roadName ?: "Laporan",
         onDismissRequest = { if (!busy) onDismiss() },
-        title = {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    report.roadName ?: "Laporan",
-                    color = Color(0xFF476788),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                Icon(
-                    AppIcon.ChevronLeft, contentDescription = "Sebelumnya",
-                    tint = BrandBlue, modifier = Modifier.size(20.dp).clickable(enabled = currentIndex > 0, onClick = onPrev),
-                )
-                Text(" ${currentIndex + 1} / $total ", color = Color(0xFF476788), fontSize = 12.sp)
-                Icon(
-                    AppIcon.ChevronRight, contentDescription = "Selanjutnya",
-                    tint = BrandBlue, modifier = Modifier.size(20.dp).clickable(enabled = currentIndex < total - 1, onClick = onNext),
-                )
-            }
+        primaryLabel = "Setujui & Assign Tim",
+        onPrimary = onApprove,
+        secondaryLabel = "Tolak",
+        onSecondary = { if (!busy) onTolak() },
+        // Tombol ketiga yang dulu ada di dismissButton AlertDialog.
+        extraActions = {
+            JkDialogTextButton(
+                label = "Detail",
+                onClick = { if (!busy) onDetail() },
+                modifier = Modifier.fillMaxWidth(),
+                color = BrandBlue,
+            )
         },
-        text = {
-            Column {
-                if (actionMsg != null) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFF8FAFC))
-                            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp))
-                            .padding(8.dp),
-                    ) { Text(actionMsg, color = TextDark, fontSize = 12.sp) }
-                    Spacer(Modifier.height(8.dp))
-                }
-                Text(report.reportCode ?: "-", color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-                Spacer(Modifier.height(4.dp))
-                Text("Kec. ${report.district ?: "-"} • Sumber: ${sourceLabel(report.source)}", color = TextMuted, fontSize = 12.sp)
-                if (report.source != null && report.source != "petugas") {
-                    Spacer(Modifier.height(8.dp))
-                    WarningBox(
-                        "Laporan warga/telegram → akan ditugaskan ke tim (approve-and-assign).",
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-        },
-        confirmButton = { BrandPrimaryButton("Setujui & Assign Tim", onClick = onApprove, loading = busy) },
-        dismissButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = { if (!busy) onTolak() }) { Text("Tolak", color = Color(0xFFDC2626)) }
-                TextButton(onClick = { if (!busy) onDetail() }) { Text("Detail", color = BrandBlue) }
-            }
-        },
-    )
+    ) {
+        Column {
+        if (actionMsg != null) {
+        Box(
+        modifier = Modifier
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(8.dp))
+        .background(Color(0xFFF8FAFC))
+        .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp))
+        .padding(8.dp),
+        ) { Text(actionMsg, color = TextDark, fontSize = 12.sp) }
+        Spacer(Modifier.height(8.dp))
+        }
+        Text(report.reportCode ?: "-", color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+        Spacer(Modifier.height(4.dp))
+        Text("Kec. ${report.district ?: "-"} • Sumber: ${sourceLabel(report.source)}", color = TextMuted, fontSize = 12.sp)
+        if (report.source != null && report.source != "petugas") {
+        Spacer(Modifier.height(8.dp))
+        WarningBox(
+        "Laporan warga/telegram → akan ditugaskan ke tim (approve-and-assign).",
+        modifier = Modifier.fillMaxWidth(),
+        )
+        }
+        }
+
+    }
 }
 
 @Composable
@@ -531,38 +517,32 @@ private fun BulkTolakDialog(
     onConfirm: (String) -> Unit,
 ) {
     var alasan by remember { mutableStateOf("") }
-    AlertDialog(
+    JkDialog(
+        title = "Tolak $count Laporan",
         onDismissRequest = { if (!busy) onDismiss() },
-        title = { Text("Tolak $count Laporan") },
-        text = {
-            Column {
-                Text("Alasan penolakan (wajib, maks 500 karakter):", color = TextMuted, fontSize = 12.sp)
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = alasan,
-                    onValueChange = { if (it.length <= 500) alasan = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 3,
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "${alasan.length}/500",
-                    color = TextMuted,
-                    fontSize = 10.sp,
-                    modifier = Modifier.align(Alignment.End),
-                )
-            }
-        },
-        confirmButton = {
-            BrandPrimaryButton(
-                text = "Tolak",
-                onClick = { onConfirm(alasan.trim()) },
-                loading = busy,
-                enabled = alasan.isNotBlank(),
-            )
-        },
-        dismissButton = {
-            TextButton(onClick = { if (!busy) onDismiss() }) { Text("Batal") }
-        },
-    )
+        primaryLabel = "Tolak",
+        onPrimary = { onConfirm(alasan.trim()) },
+        primaryEnabled = alasan.isNotBlank(),
+        secondaryLabel = "Batal",
+        onSecondary = { if (!busy) onDismiss() },
+    ) {
+        Column {
+        Text("Alasan penolakan (wajib, maks 500 karakter):", color = TextMuted, fontSize = 12.sp)
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+        value = alasan,
+        onValueChange = { if (it.length <= 500) alasan = it },
+        modifier = Modifier.fillMaxWidth(),
+        minLines = 3,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+        "${alasan.length}/500",
+        color = TextMuted,
+        fontSize = 10.sp,
+        modifier = Modifier.align(Alignment.End),
+        )
+        }
+
+    }
 }

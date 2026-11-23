@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.JkDialog
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandSecondaryButton
 import com.jalankita.app.ui.theme.BrandBlue
@@ -72,22 +72,19 @@ fun AppUpdateGate(
             onRecheck = onRecheck,
         )
         is AppUpdateState.SoftUpdate -> {
-            AlertDialog(
-                onDismissRequest = onDismissSoft,
-                title = { Text("Versi Baru Tersedia", fontWeight = FontWeight.Bold, color = TextDark) },
-                text = { Text("Perbarui aplikasi untuk mendapatkan perbaikan terbaru.") },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
+            JkDialog(
+        title = "Versi Baru Tersedia",
+        onDismissRequest = onDismissSoft,
+        primaryLabel = "Unduh",
+        onPrimary = {
                             openDownloader(state.info.apkUrl) { context.startActivity(it) }
                         },
-                        enabled = state.info.apkUrl.isNotBlank(),
-                    ) { Text("Unduh", color = BrandBlue, fontWeight = FontWeight.Bold) }
-                },
-                dismissButton = {
-                    TextButton(onClick = onDismissSoft) { Text("Nanti", color = TextMuted) }
-                },
-            )
+        primaryEnabled = state.info.apkUrl.isNotBlank(),
+        secondaryLabel = "Nanti",
+        onSecondary = onDismissSoft,
+    ) {
+        Text("Perbarui aplikasi untuk mendapatkan perbaikan terbaru.")
+    }
         }
         else -> Unit
     }

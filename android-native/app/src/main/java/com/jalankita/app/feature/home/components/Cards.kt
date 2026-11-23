@@ -28,6 +28,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.JkDialog
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.StatTint
 import com.jalankita.app.ui.theme.StatTintBorder
@@ -153,25 +155,16 @@ fun DeleteConfirmDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    androidx.compose.material3.AlertDialog(
+    // Kartu putih + tombol merah penuh, konsisten dengan dialog lain (JkDialog).
+    JkDialog(
+        title = "Hapus Laporan?",
+        subtitle = "Laporan ${reportCode ?: ""} dihapus permanen beserta fotonya. Tindakan ini tidak dapat dibatalkan.",
+        icon = AppIcon.Delete,
+        primaryColor = Color(0xFFDC2626),
+        primaryLabel = if (loading) "Menghapus..." else "Hapus Laporan",
+        primaryEnabled = !loading,
+        onPrimary = onConfirm,
         onDismissRequest = onDismiss,
-        title = { Text("Hapus Laporan?", fontWeight = FontWeight.Bold, color = TextDark) },
-        text = {
-            Text(
-                "Laporan ${reportCode ?: ""} dihapus permanen beserta fotonya. Tindakan ini tidak dapat dibatalkan.",
-                fontSize = 14.sp, color = TextDark,
-            )
-        },
-        confirmButton = {
-            androidx.compose.material3.TextButton(onClick = onConfirm, enabled = !loading) {
-                Text("Hapus", color = Color(0xFFDC2626), fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) {
-                Text("Batal", color = TextMuted)
-            }
-        },
     )
 }
 

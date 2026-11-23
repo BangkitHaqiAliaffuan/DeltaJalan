@@ -22,7 +22,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -47,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import com.jalankita.app.core.network.InspectionResultDto
 import com.jalankita.app.core.network.InspectionReviewAction
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.JkDialog
 import com.jalankita.app.ui.components.ReportThumbnail
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.ErrorRed
@@ -128,135 +128,133 @@ fun NativeInspectionReviewScreen(
         val reasonMissing = notes.trim().length < MIN_REVIEW_NOTES
         val busy = vm.loading
 
-        AlertDialog(
-            onDismissRequest = { if (!busy) showActions = false },
-            title = {
-                Text("Keputusan Review Inspeksi", color = TextDark, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 420.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Text(
-                        selected?.report?.roadName ?: "Laporan inspeksi",
-                        color = TextDark,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    selected?.report?.district?.let {
-                        Text("Kecamatan: $it", color = TextMuted, fontSize = 12.sp)
-                    }
-
-                    // Galeri Foto Bukti Inspeksi Petugas
-                    val photos = selected?.photos.orEmpty()
-                    if (photos.isNotEmpty()) {
-                        Text("Foto Bukti Petugas (${photos.size}):", color = TextDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(photos, key = { it.id }) { photo ->
-                                ReportThumbnail(
-                                    url = photo.displayUrl,
-                                    contentDescription = "Bukti inspeksi",
-                                    modifier = Modifier
-                                        .size(100.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .border(1.dp, Color(0xFFCBD5E1), RoundedCornerShape(8.dp)),
-                                )
-                            }
-                        }
-                    }
-
-                    Text("Kondisi teknis: ${selected?.condition ?: "-"}", color = TextDark, fontSize = 13.sp)
-                    // Dimensi hasil ukur petugas. Sengaja menampilkan "tidak diukur"
-                    // alih-alih 0 — angka nol akan disalahartikan sebagai hasil ukur.
-                    Text(
-                        "Dimensi: ${dimensionText(selected)}",
-                        color = TextDark,
-                        fontSize = 13.sp,
-                    )
-                    // Karakteristik lokasi. Kepadatan lalu lintas menentukan
-                    // prioritas setelah `accept` disetujui, jadi supervisor
-                    // perlu melihatnya SEBELUM memutuskan.
-                    Text(
-                        "Perkerasan: ${labelPerkerasan(selected?.jenisPerkerasan)}",
-                        color = TextDark,
-                        fontSize = 13.sp,
-                    )
-                    Text(
-                        "Kepadatan lalu lintas: ${labelKepadatan(selected?.kepadatanLaluLintas)}",
-                        color = TextDark,
-                        fontSize = 13.sp,
-                    )
-                    Text("Catatan petugas: ${selected?.notes ?: "-"}", color = TextDark, fontSize = 13.sp)
-
-                    Spacer(Modifier.height(4.dp))
-
-                    OutlinedTextField(
-                        value = notes,
-                        onValueChange = { notes = it },
-                        label = { Text("Catatan Reviewer") },
-                        placeholder = { Text("Wajib diisi jika dikembalikan, reinspeksi, atau ditolak") },
-                        isError = reasonMissing,
-                        supportingText = if (reasonMissing) {
-                            { Text("Wajib min. $MIN_REVIEW_NOTES karakter untuk kembalikan / reinspeksi / tolak.", color = ErrorRed, fontSize = 11.sp) }
-                        } else null,
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 2,
-                    )
-
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Button(
-                            onClick = {
-                                vm.review(selectedId!!, InspectionReviewAction.ACCEPT, notes.ifBlank { null })
-                                showActions = false
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
-                            enabled = !busy,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { Text("Terima Hasil Inspeksi") }
-
-                        Button(
-                            onClick = {
-                                vm.review(selectedId!!, InspectionReviewAction.RETURN, notes)
-                                showActions = false
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = WarningAmber),
-                            enabled = !busy && !reasonMissing,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { Text("Kembalikan ke Petugas") }
-
-                        Button(
-                            onClick = {
-                                vm.review(selectedId!!, InspectionReviewAction.REINSPECT, notes)
-                                showActions = false
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
-                            enabled = !busy && !reasonMissing,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { Text("Minta Inspeksi Ulang") }
-
-                        Button(
-                            onClick = {
-                                vm.review(selectedId!!, InspectionReviewAction.REJECT, notes)
-                                showActions = false
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = ErrorRed),
-                            enabled = !busy && !reasonMissing,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { Text("Tolak Laporan") }
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showActions = false }, enabled = !busy) {
-                    Text("Tutup")
-                }
-            },
+        JkDialog(
+        title = "Keputusan Review Inspeksi",
+        onDismissRequest = { if (!busy) showActions = false },
+        // Dialog ini hanya punya SATU tombol ("Tutup"): tidak ada aksi
+        // memutuskan di sini, keputusan diambil dari daftar hasil.
+        primaryLabel = "Tutup",
+        showSecondary = false,
+        onPrimary = { showActions = false },
+        primaryEnabled = !busy,
+    ) {
+        Column(
+        modifier = Modifier
+        .fillMaxWidth()
+        .heightIn(max = 420.dp)
+        .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+        Text(
+        selected?.report?.roadName ?: "Laporan inspeksi",
+        color = TextDark,
+        fontSize = 15.sp,
+        fontWeight = FontWeight.Bold,
         )
+        selected?.report?.district?.let {
+        Text("Kecamatan: $it", color = TextMuted, fontSize = 12.sp)
+        }
+
+        // Galeri Foto Bukti Inspeksi Petugas
+        val photos = selected?.photos.orEmpty()
+        if (photos.isNotEmpty()) {
+        Text("Foto Bukti Petugas (${photos.size}):", color = TextDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(photos, key = { it.id }) { photo ->
+        ReportThumbnail(
+        url = photo.displayUrl,
+        contentDescription = "Bukti inspeksi",
+        modifier = Modifier
+        .size(100.dp)
+        .clip(RoundedCornerShape(8.dp))
+        .border(1.dp, Color(0xFFCBD5E1), RoundedCornerShape(8.dp)),
+        )
+        }
+        }
+        }
+
+        Text("Kondisi teknis: ${selected?.condition ?: "-"}", color = TextDark, fontSize = 13.sp)
+        // Dimensi hasil ukur petugas. Sengaja menampilkan "tidak diukur"
+        // alih-alih 0 — angka nol akan disalahartikan sebagai hasil ukur.
+        Text(
+        "Dimensi: ${dimensionText(selected)}",
+        color = TextDark,
+        fontSize = 13.sp,
+        )
+        // Karakteristik lokasi. Kepadatan lalu lintas menentukan
+        // prioritas setelah `accept` disetujui, jadi supervisor
+        // perlu melihatnya SEBELUM memutuskan.
+        Text(
+        "Perkerasan: ${labelPerkerasan(selected?.jenisPerkerasan)}",
+        color = TextDark,
+        fontSize = 13.sp,
+        )
+        Text(
+        "Kepadatan lalu lintas: ${labelKepadatan(selected?.kepadatanLaluLintas)}",
+        color = TextDark,
+        fontSize = 13.sp,
+        )
+        Text("Catatan petugas: ${selected?.notes ?: "-"}", color = TextDark, fontSize = 13.sp)
+
+        Spacer(Modifier.height(4.dp))
+
+        OutlinedTextField(
+        value = notes,
+        onValueChange = { notes = it },
+        label = { Text("Catatan Reviewer") },
+        placeholder = { Text("Wajib diisi jika dikembalikan, reinspeksi, atau ditolak") },
+        isError = reasonMissing,
+        supportingText = if (reasonMissing) {
+        { Text("Wajib min. $MIN_REVIEW_NOTES karakter untuk kembalikan / reinspeksi / tolak.", color = ErrorRed, fontSize = 11.sp) }
+        } else null,
+        modifier = Modifier.fillMaxWidth(),
+        minLines = 2,
+        )
+
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Button(
+        onClick = {
+        vm.review(selectedId!!, InspectionReviewAction.ACCEPT, notes.ifBlank { null })
+        showActions = false
+        },
+        colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
+        enabled = !busy,
+        modifier = Modifier.fillMaxWidth(),
+        ) { Text("Terima Hasil Inspeksi") }
+
+        Button(
+        onClick = {
+        vm.review(selectedId!!, InspectionReviewAction.RETURN, notes)
+        showActions = false
+        },
+        colors = ButtonDefaults.buttonColors(containerColor = WarningAmber),
+        enabled = !busy && !reasonMissing,
+        modifier = Modifier.fillMaxWidth(),
+        ) { Text("Kembalikan ke Petugas") }
+
+        Button(
+        onClick = {
+        vm.review(selectedId!!, InspectionReviewAction.REINSPECT, notes)
+        showActions = false
+        },
+        colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
+        enabled = !busy && !reasonMissing,
+        modifier = Modifier.fillMaxWidth(),
+        ) { Text("Minta Inspeksi Ulang") }
+
+        Button(
+        onClick = {
+        vm.review(selectedId!!, InspectionReviewAction.REJECT, notes)
+        showActions = false
+        },
+        colors = ButtonDefaults.buttonColors(containerColor = ErrorRed),
+        enabled = !busy && !reasonMissing,
+        modifier = Modifier.fillMaxWidth(),
+        ) { Text("Tolak Laporan") }
+        }
+        }
+
+    }
     }
 }
 

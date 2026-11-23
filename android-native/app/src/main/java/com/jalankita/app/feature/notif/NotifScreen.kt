@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,6 +43,7 @@ import com.jalankita.app.core.network.NotifItemDto
 import com.jalankita.app.feature.home.components.EmptyState
 import com.jalankita.app.feature.home.components.SkeletonCard
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.JkDialog
 import com.jalankita.app.ui.components.safeContentPadding
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.theme.BrandBlue
@@ -196,20 +196,18 @@ fun NotifScreen(
         }
     }
     if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text("Hapus Semua Notifikasi?", fontWeight = FontWeight.Bold, color = TextDark) },
-            text = { Text("Semua notifikasi akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.") },
-            confirmButton = {
-                TextButton(
-                    onClick = { confirmDelete = false; vm.deleteAll() },
-                    enabled = !vm.deleteBusy,
-                ) { Text("Hapus", color = Color(0xFFDC2626), fontWeight = FontWeight.Bold) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("Batal", color = TextMuted) }
-            },
-        )
+        JkDialog(
+        title = "Hapus Semua Notifikasi?",
+        onDismissRequest = { confirmDelete = false },
+        primaryLabel = "Hapus",
+        onPrimary = { confirmDelete = false; vm.deleteAll() },
+        primaryEnabled = !vm.deleteBusy,
+        primaryColor = Color(0xFFDC2626),
+        secondaryLabel = "Batal",
+        onSecondary = { confirmDelete = false },
+    ) {
+        Text("Semua notifikasi akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.")
+    }
     }
 }
 

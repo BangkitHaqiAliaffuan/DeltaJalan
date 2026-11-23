@@ -4,15 +4,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -24,6 +24,7 @@ import com.jalankita.app.feature.home.components.CardActionStyle
 import com.jalankita.app.feature.home.components.DeleteConfirmDialog
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.BrandTextField
+import com.jalankita.app.ui.components.JkDialog
 import com.jalankita.app.ui.components.FieldLabel
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.TextDark
@@ -140,44 +141,47 @@ private fun CardEstimasiDialog(
     var estimasi by remember { mutableStateOf(if (isRingan) "" else "7") }
     val estimasiInt = estimasi.toIntOrNull()
     val valid = sameDay || (estimasiInt != null && estimasiInt in 1..90)
-    AlertDialog(
+    // Dialog memakai JkDialog (kartu putih + biru brand), bukan AlertDialog
+    // Material 3. AlertDialog mengambil warna `surfaceContainerHigh` yang tidak
+    // didefinisikan tema kita, sehingga tampil abu-keunguan dan lebarnya sempit.
+    JkDialog(
+        title = "Estimasi Penyelesaian",
+        subtitle = "Kapan perbaikan ini diperkirakan selesai?",
+        icon = AppIcon.CalendarMonth,
         onDismissRequest = onDismiss,
-        title = { Text("Estimasi Penyelesaian", fontWeight = FontWeight.Bold, color = TextDark) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Kapan perbaikan diperkirakan selesai?", fontSize = 14.sp, color = TextDark)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    FilterChip(
-                        selected = sameDay,
-                        onClick = { sameDay = true },
-                        label = { Text("Hari ini juga") },
-                    )
-                    FilterChip(
-                        selected = !sameDay,
-                        onClick = { sameDay = false },
-                        label = { Text("Beberapa hari") },
-                    )
-                }
-                if (!sameDay) {
-                    FieldLabel("Estimasi (hari, 1–90)")
-                    BrandTextField(
-                        value = estimasi,
-                        onValueChange = { if (it.length <= 2 && it.all(Char::isDigit)) estimasi = it },
-                        placeholder = "7",
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        isError = !valid,
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(if (sameDay) null else estimasiInt) },
-                enabled = valid && !loading,
-            ) { Text("Mulai", color = BrandBlue, fontWeight = FontWeight.Bold) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal", color = TextMuted) } },
-    )
+        primaryLabel = if (loading) "Memproses..." else "Mulai Perbaikan",
+        primaryEnabled = valid && !loading,
+        onPrimary = { onConfirm(if (sameDay) null else estimasiInt) },
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = sameDay,
+                onClick = { sameDay = true },
+                label = { Text("Hari ini juga", fontSize = 12.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = BrandBlue,
+                    selectedLabelColor = Color.White,
+                ),
+            )
+            FilterChip(
+                selected = !sameDay,
+                onClick = { sameDay = false },
+                label = { Text("Beberapa hari", fontSize = 12.sp) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = BrandBlue,
+                    selectedLabelColor = Color.White,
+                ),
+            )
+        }
+        if (!sameDay) {
+            FieldLabel("Estimasi (hari, 1–90)")
+            BrandTextField(
+                value = estimasi,
+                onValueChange = { if (it.length <= 2 && it.all(Char::isDigit)) estimasi = it },
+                placeholder = "7",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                isError = !valid,
+            )
+        }
+    }
 }

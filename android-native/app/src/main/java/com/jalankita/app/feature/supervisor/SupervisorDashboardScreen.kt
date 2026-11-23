@@ -40,6 +40,7 @@ import com.jalankita.app.core.network.TeamStatsDto
 import com.jalankita.app.feature.home.components.SectionHeader
 import com.jalankita.app.feature.home.components.StatCard
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.JkDialog
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandSecondaryButton
 import com.jalankita.app.ui.components.ErrorBox
@@ -60,7 +61,6 @@ import com.jalankita.app.ui.theme.SuccessGreen
 import com.jalankita.app.ui.theme.TextDark
 import com.jalankita.app.ui.theme.TextMuted
 import com.jalankita.app.ui.theme.WarningAmber
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import java.util.Locale
 
@@ -305,28 +305,22 @@ fun SupervisorDashboardScreen(
 
     // ── Dialog konfirmasi hapus (port ConfirmDialog index.tsx:788-797) ──
     deleteTarget?.let { id ->
-        AlertDialog(
-            onDismissRequest = { if (!vm.actionBusy) deleteTarget = null },
-            title = { Text("Hapus Laporan?", fontWeight = FontWeight.Bold) },
-            text = {
-                Text(
-                    "Laporan yang dihapus tidak bisa dikembalikan. Semua foto dan data terkait akan dihapus permanen.",
-                    fontSize = 13.sp,
-                )
-            },
-            confirmButton = {
-                BrandPrimaryButton(
-                    "Ya, Hapus",
-                    onClick = {
+        JkDialog(
+        title = "Hapus Laporan?",
+        onDismissRequest = { if (!vm.actionBusy) deleteTarget = null },
+        primaryLabel = "Ya, Hapus",
+        onPrimary = {
                         vm.deleteReport(id) { deleteTarget = null }
                     },
-                    loading = vm.actionBusy,
-                )
-            },
-            dismissButton = {
-                TextButton(onClick = { deleteTarget = null }) { Text("Batal", color = TextMuted) }
-            },
+        secondaryLabel = "Batal",
+        onSecondary = { deleteTarget = null },
+    ) {
+        Text(
+        "Laporan yang dihapus tidak bisa dikembalikan. Semua foto dan data terkait akan dihapus permanen.",
+        fontSize = 13.sp,
         )
+
+    }
     }
 
     if (showExportDialog) {
@@ -531,130 +525,119 @@ fun ExportMonthlyDialog(
         "Juli", "Agustus", "September", "Oktober", "November", "Desember"
     )
 
-    AlertDialog(
+    JkDialog(
+        title = "Export Rekap Bulanan",
         onDismissRequest = { if (!busy) onDismiss() },
-        title = {
-            Text("Export Rekap Bulanan", color = TextDark, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Pilih format dokumen dan periode rekap:", color = TextMuted, fontSize = 13.sp)
+        primaryLabel = if (busy) "Mengunduh..." else "Unduh Rekap",
+        onPrimary = { onExport(selectedFormat, selectedMonth, selectedYear) },
+        primaryEnabled = !busy,
+        secondaryLabel = "Batal",
+        onSecondary = onDismiss,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Pilih format dokumen dan periode rekap:", color = TextMuted, fontSize = 13.sp)
 
-                // Format Selector (PDF / Excel)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("pdf" to "PDF", "excel" to "Excel (.xlsx)").forEach { (fmt, label) ->
-                        val active = selectedFormat == fmt
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (active) BrandBlue else Color(0xFFF1F5F9))
-                                .clickable { selectedFormat = fmt }
-                                .padding(vertical = 10.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                label,
-                                color = if (active) Color.White else TextDark,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
-                    }
-                }
+        // Format Selector (PDF / Excel)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf("pdf" to "PDF", "excel" to "Excel (.xlsx)").forEach { (fmt, label) ->
+        val active = selectedFormat == fmt
+        Box(
+        modifier = Modifier
+        .weight(1f)
+        .clip(RoundedCornerShape(8.dp))
+        .background(if (active) BrandBlue else Color(0xFFF1F5F9))
+        .clickable { selectedFormat = fmt }
+        .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center,
+        ) {
+        Text(
+        label,
+        color = if (active) Color.White else TextDark,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+        )
+        }
+        }
+        }
 
-                // Month Selector
-                Column {
-                    Text("Bulan", color = TextDark, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFF8FAFC))
-                            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Icon(
-                            AppIcon.ChevronLeft,
-                            contentDescription = "Bulan sebelumnya",
-                            tint = BrandBlue,
-                            modifier = Modifier.size(24.dp).clickable {
-                                selectedMonth = if (selectedMonth > 1) selectedMonth - 1 else 12
-                            },
-                        )
-                        Text(
-                            bulanNames[selectedMonth - 1],
-                            color = TextDark,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Icon(
-                            AppIcon.ChevronRight,
-                            contentDescription = "Bulan berikutnya",
-                            tint = BrandBlue,
-                            modifier = Modifier.size(24.dp).clickable {
-                                selectedMonth = if (selectedMonth < 12) selectedMonth + 1 else 1
-                            },
-                        )
-                    }
-                }
+        // Month Selector
+        Column {
+        Text("Bulan", color = TextDark, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(4.dp))
+        Row(
+        modifier = Modifier
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(8.dp))
+        .background(Color(0xFFF8FAFC))
+        .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp))
+        .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+        Icon(
+        AppIcon.ChevronLeft,
+        contentDescription = "Bulan sebelumnya",
+        tint = BrandBlue,
+        modifier = Modifier.size(24.dp).clickable {
+        selectedMonth = if (selectedMonth > 1) selectedMonth - 1 else 12
+        },
+        )
+        Text(
+        bulanNames[selectedMonth - 1],
+        color = TextDark,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Bold,
+        )
+        Icon(
+        AppIcon.ChevronRight,
+        contentDescription = "Bulan berikutnya",
+        tint = BrandBlue,
+        modifier = Modifier.size(24.dp).clickable {
+        selectedMonth = if (selectedMonth < 12) selectedMonth + 1 else 1
+        },
+        )
+        }
+        }
 
-                // Year Selector
-                Column {
-                    Text("Tahun", color = TextDark, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFF8FAFC))
-                            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Icon(
-                            AppIcon.ChevronLeft,
-                            contentDescription = "Tahun sebelumnya",
-                            tint = BrandBlue,
-                            modifier = Modifier.size(24.dp).clickable {
-                                if (selectedYear > 2020) selectedYear -= 1
-                            },
-                        )
-                        Text(
-                            "$selectedYear",
-                            color = TextDark,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Icon(
-                            AppIcon.ChevronRight,
-                            contentDescription = "Tahun berikutnya",
-                            tint = BrandBlue,
-                            modifier = Modifier.size(24.dp).clickable {
-                                if (selectedYear < currentYear + 1) selectedYear += 1
-                            },
-                        )
-                    }
-                }
-            }
+        // Year Selector
+        Column {
+        Text("Tahun", color = TextDark, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(4.dp))
+        Row(
+        modifier = Modifier
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(8.dp))
+        .background(Color(0xFFF8FAFC))
+        .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp))
+        .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+        Icon(
+        AppIcon.ChevronLeft,
+        contentDescription = "Tahun sebelumnya",
+        tint = BrandBlue,
+        modifier = Modifier.size(24.dp).clickable {
+        if (selectedYear > 2020) selectedYear -= 1
         },
-        confirmButton = {
-            BrandPrimaryButton(
-                text = if (busy) "Mengunduh..." else "Unduh Rekap",
-                onClick = { onExport(selectedFormat, selectedMonth, selectedYear) },
-                enabled = !busy,
-            )
+        )
+        Text(
+        "$selectedYear",
+        color = TextDark,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Bold,
+        )
+        Icon(
+        AppIcon.ChevronRight,
+        contentDescription = "Tahun berikutnya",
+        tint = BrandBlue,
+        modifier = Modifier.size(24.dp).clickable {
+        if (selectedYear < currentYear + 1) selectedYear += 1
         },
-        dismissButton = {
-            if (!busy) {
-                TextButton(onClick = onDismiss) {
-                    Text("Batal", color = TextMuted)
-                }
-            }
-        },
-    )
+        )
+        }
+        }
+        }
+
+    }
 }

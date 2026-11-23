@@ -23,7 +23,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -56,6 +55,7 @@ import com.jalankita.app.feature.home.components.SkeletonCard
 import com.jalankita.app.feature.home.components.formatDateShort
 import com.jalankita.app.ui.rememberGalleryPickerLauncher
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.JkDialog
 import com.jalankita.app.ui.components.BeforeAfterSlider
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandSecondaryButton
@@ -436,28 +436,23 @@ private fun DetailBody(
         )
     }
     if (showDeleteConfirm && report.id == vm.detail?.id) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Hapus Laporan?", fontWeight = FontWeight.Bold, color = TextDark) },
-            text = {
-                Text("Laporan ${report.reportCode ?: ""} dihapus permanen beserta fotonya. Tindakan ini tidak dapat dibatalkan.",
-                    fontSize = 14.sp, color = TextDark)
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
+        JkDialog(
+        title = "Hapus Laporan?",
+        onDismissRequest = { showDeleteConfirm = false },
+        primaryLabel = "Hapus",
+        onPrimary = {
                         showDeleteConfirm = false
                         vm.hapus(report.id) { onBack() }
                     },
-                    enabled = !vm.actionLoading,
-                ) { Text("Hapus", color = Color(0xFFDC2626), fontWeight = FontWeight.Bold) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("Batal", color = TextMuted)
-                }
-            },
-        )
+        primaryEnabled = !vm.actionLoading,
+        primaryColor = Color(0xFFDC2626),
+        secondaryLabel = "Batal",
+        onSecondary = { showDeleteConfirm = false },
+    ) {
+        Text("Laporan ${report.reportCode ?: ""} dihapus permanen beserta fotonya. Tindakan ini tidak dapat dibatalkan.",
+        fontSize = 14.sp, color = TextDark)
+
+    }
     }
 }
 
@@ -472,46 +467,44 @@ private fun MulaiDialog(
     var catatan by remember { mutableStateOf("") }
     val estimasiInt = estimasi.toIntOrNull()
     val estimasiValid = estimasi.isBlank() || (estimasiInt != null && estimasiInt in 1..90)
-    AlertDialog(
+    JkDialog(
+        title = "Mulai Pengerjaan",
         onDismissRequest = onDismiss,
-        title = { Text("Mulai Pengerjaan", fontWeight = FontWeight.Bold, color = TextDark) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Status laporan berubah menjadi “Sedang Diperbaiki”.",
-                    fontSize = 14.sp, color = TextDark)
-                FieldLabel("Estimasi selesai (hari, opsional)")
-                BrandTextField(
-                    value = estimasi,
-                    onValueChange = { if (it.length <= 2 && it.all(Char::isDigit)) estimasi = it },
-                    placeholder = " Mis. 3 (kosong = akhir hari)",
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    isError = !estimasiValid,
-                )
-                if (!estimasiValid) {
-                    Text("Isi 1–90 atau kosongkan.", color = Color(0xFFDC2626), fontSize = 12.sp)
-                }
-                FieldLabel("Catatan (opsional, maks 500)")
-                BrandTextField(
-                    value = catatan,
-                    onValueChange = { if (it.length <= 500) catatan = it },
-                    placeholder = "Catatan awal pengerjaan",
-                    singleLine = false,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
+        primaryLabel = "Mulai",
+        onPrimary = {
                     onConfirm(
                         estimasiInt?.takeIf { it in 1..90 },
                         catatan.takeIf { it.isNotBlank() },
                     )
                 },
-                enabled = estimasiValid && !loading,
-            ) { Text("Mulai", color = BrandBlue, fontWeight = FontWeight.Bold) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal", color = TextMuted) } },
-    )
+        primaryEnabled = estimasiValid && !loading,
+        secondaryLabel = "Batal",
+        onSecondary = onDismiss,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Status laporan berubah menjadi “Sedang Diperbaiki”.",
+        fontSize = 14.sp, color = TextDark)
+        FieldLabel("Estimasi selesai (hari, opsional)")
+        BrandTextField(
+        value = estimasi,
+        onValueChange = { if (it.length <= 2 && it.all(Char::isDigit)) estimasi = it },
+        placeholder = " Mis. 3 (kosong = akhir hari)",
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        isError = !estimasiValid,
+        )
+        if (!estimasiValid) {
+        Text("Isi 1–90 atau kosongkan.", color = Color(0xFFDC2626), fontSize = 12.sp)
+        }
+        FieldLabel("Catatan (opsional, maks 500)")
+        BrandTextField(
+        value = catatan,
+        onValueChange = { if (it.length <= 500) catatan = it },
+        placeholder = "Catatan awal pengerjaan",
+        singleLine = false,
+        )
+        }
+
+    }
 }
 
 /** Dialog Update Progress — 1 foto galeri (validasi tanggal EXIF) + catatan. */
@@ -532,45 +525,12 @@ private fun ProgressDialog(
     val pickSingle = rememberGalleryPickerLauncher {
         singleLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
     }
-    AlertDialog(
+    JkDialog(
+        title = "Update Progress",
         onDismissRequest = onDismiss,
-        title = { Text("Update Progress", fontWeight = FontWeight.Bold, color = TextDark) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (picked == null) {
-                    BrandSecondaryButton(
-                        text = "Pilih Foto Progres",
-                        icon = AppIcon.Gallery,
-                        onClick = pickSingle,
-                    )
-                    Text("Foto maksimal 2 hari terakhir (aturan EXIF server).",
-                        fontSize = 12.sp, color = TextMuted)
-                } else {
-                    AsyncImage(
-                        model = picked,
-                        contentDescription = "Foto progres",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(4f / 3f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFE8F0FA)),
-                    )
-                    TextButton(onClick = pickSingle) { Text("Ganti foto", color = BrandBlue) }
-                }
-                FieldLabel("Catatan (opsional, maks 1000)")
-                BrandTextField(
-                    value = catatan,
-                    onValueChange = { if (it.length <= 1000) catatan = it },
-                    placeholder = "Kondisi pengerjaan hari ini",
-                    singleLine = false,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val uri = picked ?: return@TextButton
+        primaryLabel = if (preparing) "Memproses..." else "Kirim",
+        onPrimary = primary@{
+                    val uri = picked ?: return@primary
                     preparing = true
                     // Validasi EXIF + kompres di IO (pola LaporViewModel).
                     scope.launch(Dispatchers.IO) {
@@ -581,11 +541,42 @@ private fun ProgressDialog(
                         }
                     }
                 },
-                enabled = picked != null && !preparing && !vm.actionLoading,
-            ) { Text(if (preparing) "Memproses..." else "Kirim", color = BrandBlue, fontWeight = FontWeight.Bold) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal", color = TextMuted) } },
-    )
+        primaryEnabled = picked != null && !preparing && !vm.actionLoading,
+        secondaryLabel = "Batal",
+        onSecondary = onDismiss,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (picked == null) {
+        BrandSecondaryButton(
+        text = "Pilih Foto Progres",
+        icon = AppIcon.Gallery,
+        onClick = pickSingle,
+        )
+        Text("Foto maksimal 2 hari terakhir (aturan EXIF server).",
+        fontSize = 12.sp, color = TextMuted)
+        } else {
+        AsyncImage(
+        model = picked,
+        contentDescription = "Foto progres",
+        contentScale = ContentScale.Crop,
+        modifier = Modifier
+        .fillMaxWidth()
+        .aspectRatio(4f / 3f)
+        .clip(RoundedCornerShape(8.dp))
+        .background(Color(0xFFE8F0FA)),
+        )
+        TextButton(onClick = pickSingle) { Text("Ganti foto", color = BrandBlue) }
+        }
+        FieldLabel("Catatan (opsional, maks 1000)")
+        BrandTextField(
+        value = catatan,
+        onValueChange = { if (it.length <= 1000) catatan = it },
+        placeholder = "Kondisi pengerjaan hari ini",
+        singleLine = false,
+        )
+        }
+
+    }
 }
 
 /** Dialog Selesaikan — ≥1 foto after + catatan (tanpa field material/volume). */
@@ -606,36 +597,12 @@ private fun SelesaiDialog(
     val pickMulti = rememberGalleryPickerLauncher {
         multiLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
     }
-    AlertDialog(
+    JkDialog(
+        title = "Selesaikan Laporan",
         onDismissRequest = onDismiss,
-        title = { Text("Selesaikan Laporan", fontWeight = FontWeight.Bold, color = TextDark) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Unggah foto sesudah perbaikan. Status menjadi “Selesai”.",
-                    fontSize = 14.sp, color = TextDark)
-                BrandSecondaryButton(
-                    text = "Pilih Foto After (${picked.size}/5)",
-                    icon = AppIcon.AddPhoto,
-                    onClick = pickMulti,
-                )
-                if (picked.isNotEmpty()) {
-                    TextButton(onClick = { picked = emptyList() }) {
-                        Text("Hapus semua", color = Color(0xFFDC2626))
-                    }
-                }
-                FieldLabel("Catatan (opsional, maks 1000)")
-                BrandTextField(
-                    value = catatan,
-                    onValueChange = { if (it.length <= 1000) catatan = it },
-                    placeholder = "Hasil akhir perbaikan",
-                    singleLine = false,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (picked.isEmpty()) return@TextButton
+        primaryLabel = if (preparing) "Memproses..." else "Selesaikan",
+        onPrimary = primary@{
+                    if (picked.isEmpty()) return@primary
                     preparing = true
                     scope.launch(Dispatchers.IO) {
                         // Foto after: tanpa cek tanggal (server tidak memvalidasi).
@@ -646,11 +613,33 @@ private fun SelesaiDialog(
                         }
                     }
                 },
-                enabled = picked.isNotEmpty() && !preparing && !vm.actionLoading,
-            ) { Text(if (preparing) "Memproses..." else "Selesaikan", color = BrandBlue, fontWeight = FontWeight.Bold) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal", color = TextMuted) } },
-    )
+        primaryEnabled = picked.isNotEmpty() && !preparing && !vm.actionLoading,
+        secondaryLabel = "Batal",
+        onSecondary = onDismiss,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Unggah foto sesudah perbaikan. Status menjadi “Selesai”.",
+        fontSize = 14.sp, color = TextDark)
+        BrandSecondaryButton(
+        text = "Pilih Foto After (${picked.size}/5)",
+        icon = AppIcon.AddPhoto,
+        onClick = pickMulti,
+        )
+        if (picked.isNotEmpty()) {
+        TextButton(onClick = { picked = emptyList() }) {
+        Text("Hapus semua", color = Color(0xFFDC2626))
+        }
+        }
+        FieldLabel("Catatan (opsional, maks 1000)")
+        BrandTextField(
+        value = catatan,
+        onValueChange = { if (it.length <= 1000) catatan = it },
+        placeholder = "Hasil akhir perbaikan",
+        singleLine = false,
+        )
+        }
+
+    }
 }
 
 /**
@@ -677,82 +666,80 @@ private fun EditFormDialog(
     val lebarNum = lebar.replace(',', '.').toDoubleOrNull()
     val angkaValid = panjangNum != null && panjangNum >= 0 &&
         lebarNum != null && lebarNum >= 0
-    AlertDialog(
+    JkDialog(
+        title = "Edit Laporan",
         onDismissRequest = onDismiss,
-        title = { Text("Edit Laporan", fontWeight = FontWeight.Bold, color = TextDark) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Perubahan dikirim untuk review ulang supervisor.",
-                    fontSize = 14.sp, color = TextDark)
-                FieldLabel("Nama jalan")
-                BrandTextField(
-                    value = roadName,
-                    onValueChange = { if (it.length <= 255) roadName = it },
-                    placeholder = "Nama jalan",
-                )
-                FieldLabel("Kecamatan")
-                BrandTextField(
-                    value = district,
-                    onValueChange = { if (it.length <= 100) district = it },
-                    placeholder = "Kecamatan",
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Column(Modifier.weight(1f)) {
-                        FieldLabel("Panjang (m)")
-                        BrandTextField(
-                            value = panjang,
-                            onValueChange = {
-                                if (it.length <= 10 && it.all { c -> c.isDigit() || c == '.' || c == ',' }) panjang = it
-                            },
-                            placeholder = "0",
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            isError = panjangNum == null || panjangNum < 0,
-                        )
-                    }
-                    Column(Modifier.weight(1f)) {
-                        FieldLabel("Lebar (m)")
-                        BrandTextField(
-                            value = lebar,
-                            onValueChange = {
-                                if (it.length <= 10 && it.all { c -> c.isDigit() || c == '.' || c == ',' }) lebar = it
-                            },
-                            placeholder = "0",
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            isError = lebarNum == null || lebarNum < 0,
-                        )
-                    }
-                }
-                if (!angkaValid) {
-                    Text("Panjang dan lebar wajib diisi angka ≥ 0.",
-                        color = Color(0xFFDC2626), fontSize = 12.sp)
-                }
-                FieldLabel("Catatan (maks 1000)")
-                BrandTextField(
-                    value = catatan,
-                    onValueChange = { if (it.length <= 1000) catatan = it },
-                    placeholder = "Catatan laporan",
-                    singleLine = false,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
+        primaryLabel = "Simpan",
+        onPrimary = primary@{
                     onSave(
                         com.jalankita.app.core.network.UpdateReportRequest(
                             catatan = catatan.takeIf { it.isNotBlank() },
                             roadName = roadName.takeIf { it.isNotBlank() },
                             district = district.takeIf { it.isNotBlank() },
-                            kerusakanPanjang = panjangNum ?: return@TextButton,
-                            kerusakanLebar = lebarNum ?: return@TextButton,
+                            kerusakanPanjang = panjangNum ?: return@primary,
+                            kerusakanLebar = lebarNum ?: return@primary,
                         ),
                     )
                 },
-                enabled = angkaValid && !loading,
-            ) { Text("Simpan", color = BrandBlue, fontWeight = FontWeight.Bold) }
+        primaryEnabled = angkaValid && !loading,
+        secondaryLabel = "Batal",
+        onSecondary = onDismiss,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Perubahan dikirim untuk review ulang supervisor.",
+        fontSize = 14.sp, color = TextDark)
+        FieldLabel("Nama jalan")
+        BrandTextField(
+        value = roadName,
+        onValueChange = { if (it.length <= 255) roadName = it },
+        placeholder = "Nama jalan",
+        )
+        FieldLabel("Kecamatan")
+        BrandTextField(
+        value = district,
+        onValueChange = { if (it.length <= 100) district = it },
+        placeholder = "Kecamatan",
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.weight(1f)) {
+        FieldLabel("Panjang (m)")
+        BrandTextField(
+        value = panjang,
+        onValueChange = {
+        if (it.length <= 10 && it.all { c -> c.isDigit() || c == '.' || c == ',' }) panjang = it
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal", color = TextMuted) } },
-    )
+        placeholder = "0",
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        isError = panjangNum == null || panjangNum < 0,
+        )
+        }
+        Column(Modifier.weight(1f)) {
+        FieldLabel("Lebar (m)")
+        BrandTextField(
+        value = lebar,
+        onValueChange = {
+        if (it.length <= 10 && it.all { c -> c.isDigit() || c == '.' || c == ',' }) lebar = it
+        },
+        placeholder = "0",
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        isError = lebarNum == null || lebarNum < 0,
+        )
+        }
+        }
+        if (!angkaValid) {
+        Text("Panjang dan lebar wajib diisi angka ≥ 0.",
+        color = Color(0xFFDC2626), fontSize = 12.sp)
+        }
+        FieldLabel("Catatan (maks 1000)")
+        BrandTextField(
+        value = catatan,
+        onValueChange = { if (it.length <= 1000) catatan = it },
+        placeholder = "Catatan laporan",
+        singleLine = false,
+        )
+        }
+
+    }
 }
 
 /** Baris timeline progres: foto + badge hari + pengirim + catatan. */

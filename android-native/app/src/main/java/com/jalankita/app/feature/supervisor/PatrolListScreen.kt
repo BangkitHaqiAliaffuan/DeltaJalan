@@ -21,7 +21,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -53,6 +52,7 @@ import com.jalankita.app.feature.supervisor.components.TeamSearchSelect
 import com.jalankita.app.feature.home.components.EmptyState
 import com.jalankita.app.feature.home.components.SkeletonCard
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.JkDialog
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandSecondaryButton
 import com.jalankita.app.ui.components.BrandTextField
@@ -202,22 +202,20 @@ fun PatrolListScreen(
 
     // ── Modal Delete ──
     deleteId?.let { id ->
-        AlertDialog(
-            onDismissRequest = { if (!vm.busy) deleteId = null },
-            title = { Text("Hapus Jadwal", fontWeight = FontWeight.Bold) },
-            text = {
-                Text(
-                    "Yakin ingin menghapus jadwal ini? Shift aktif yang belum memiliki laporan akan ikut dihapus.",
-                    fontSize = 13.sp,
-                )
-            },
-            confirmButton = {
-                BrandPrimaryButton("Hapus", onClick = { vm.delete(id) { deleteId = null } }, loading = vm.busy)
-            },
-            dismissButton = {
-                TextButton(onClick = { deleteId = null }) { Text("Batal", color = TextMuted) }
-            },
+        JkDialog(
+        title = "Hapus Jadwal",
+        onDismissRequest = { if (!vm.busy) deleteId = null },
+        primaryLabel = "Hapus",
+        onPrimary = { vm.delete(id) { deleteId = null } },
+        secondaryLabel = "Batal",
+        onSecondary = { deleteId = null },
+    ) {
+        Text(
+        "Yakin ingin menghapus jadwal ini? Shift aktif yang belum memiliki laporan akan ikut dihapus.",
+        fontSize = 13.sp,
         )
+
+    }
     }
 }
 
@@ -389,167 +387,161 @@ private fun PatrolFormDialog(
     }
     var localError by remember { mutableStateOf<String?>(null) }
 
-    AlertDialog(
+    JkDialog(
+        title = if (editing) "Edit Jadwal Patroli" else "Buat Jadwal Patroli Baru",
         onDismissRequest = { if (!busy) onDismiss() },
-        title = { Text(if (editing) "Edit Jadwal Patroli" else "Buat Jadwal Patroli Baru", fontWeight = FontWeight.Bold) },
-        text = {
-            Column(modifier = Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
-                localError?.let { ErrorBox(it, modifier = Modifier.fillMaxWidth()); Spacer(Modifier.height(8.dp)) }
-
-                // Tim
-                Text("Tim Satgas *", color = TextDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(6.dp))
-                TeamSearchSelect(
-                    teams = teams,
-                    selectedTeamId = form.teamId,
-                    onSelect = { t ->
-                        // Kecamatan auto-isi dari wilayah UPTD tim (index.tsx:366).
-                        form = form.copy(
-                            teamId = t.id,
-                            kecamatanList = t.uptd?.kecamatanWilayah.orEmpty(),
-                        )
-                    },
-                )
-                Spacer(Modifier.height(12.dp))
-
-                // Hari
-                Text("Hari Patroli * (minimal $PATROL_MIN_HARI)", color = TextDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(6.dp))
-                Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    PATROL_HARI.forEach { h ->
-                        val on = form.hari.contains(h)
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(if (on) BrandBlue else Color.White)
-                                .border(1.dp, if (on) BrandBlue else Color(0xFFD0DAE8), RoundedCornerShape(6.dp))
-                                .clickable {
-                                    form = form.copy(
-                                        hari = if (on) form.hari - h else form.hari + h,
-                                    )
-                                }
-                                .padding(horizontal = 8.dp, vertical = 6.dp),
-                        ) {
-                            Text(PATROL_HARI_LABEL[h] ?: h, color = if (on) Color.White else TextMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "Terpilih: ${form.hari.ifEmpty { listOf("—") }.joinToString(", ")}",
-                    color = if (form.hari.size in 1 until PATROL_MIN_HARI) ErrorRed else TextMuted,
-                    fontSize = 11.sp,
-                )
-                Spacer(Modifier.height(12.dp))
-
-                // Kecamatan (read-only, otomatis)
-                Text("Kecamatan *", color = TextDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(6.dp))
-                if (form.kecamatanList.isEmpty()) {
-                    InfoBox("Pilih tim satgas terlebih dahulu.", modifier = Modifier.fillMaxWidth())
-                } else {
-                    Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        form.kecamatanList.forEach { k ->
-                            Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xFFEEF3FA)).padding(horizontal = 8.dp, vertical = 4.dp)) {
-                                Text(k, color = BrandBlue, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    Text("${form.kecamatanList.size} kecamatan — otomatis berdasarkan wilayah tim", color = Color(0xFF94A3B8), fontSize = 11.sp)
-                }
-                Spacer(Modifier.height(12.dp))
-
-                // Frekuensi
-                Text("Frekuensi", color = TextDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    PATROL_FREKUENSI.forEach { (value, label) ->
-                        val on = form.frekuensi == value
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (on) BrandBlue else Color.White)
-                                .border(1.dp, if (on) BrandBlue else Color(0xFFD0DAE8), RoundedCornerShape(8.dp))
-                                .clickable { form = form.copy(frekuensi = value) }
-                                .padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(label, color = if (on) Color.White else TextMuted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-
-                // Tanggal
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Mulai *", color = TextDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(4.dp))
-                        DateField(form.startDate) { form = form.copy(startDate = it) }
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Selesai", color = TextDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(4.dp))
-                        DateField(form.endDate) { form = form.copy(endDate = it) }
-                    }
-                }
-                Text("Kosongi tanggal selesai untuk tanpa batas.", color = Color(0xFF94A3B8), fontSize = 10.sp)
-                Spacer(Modifier.height(12.dp))
-
-                // Jenis tugas
-                Text("Jenis Tugas", color = TextDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    PATROL_JENIS_TUGAS.forEach { (value, label) ->
-                        val on = form.alasanTugas == value
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (on) BrandBlue else Color.White)
-                                .border(1.dp, if (on) BrandBlue else Color(0xFFD0DAE8), RoundedCornerShape(8.dp))
-                                .clickable { form = form.copy(alasanTugas = value) }
-                                .padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(label, color = if (on) Color.White else TextMuted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-
-                // Preview estimasi (opsional; web tidak menampilkan — native sebagai bantuan)
-                Spacer(Modifier.height(10.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { onPreview(form) }, enabled = !previewLoading && form.validate() == null) {
-                        Text(if (previewLoading) "Menghitung…" else "Lihat estimasi shift", color = BrandBlue, fontSize = 12.sp)
-                    }
-                }
-                preview?.let {
-                    InfoBox(
-                        "Estimasi: ${it.estimatedTasks} shift dalam ${it.totalHari} hari (${it.kecamatanCount} kecamatan).",
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            BrandPrimaryButton(
-                text = if (editing) "Perbarui" else "Simpan",
-                loading = busy,
-                onClick = {
+        primaryLabel = if (editing) "Perbarui" else "Simpan",
+        onPrimary = primary@{
                     val err = form.validate()
-                    if (err != null) { localError = err; return@BrandPrimaryButton }
+                    if (err != null) { localError = err; return@primary }
                     localError = null
                     onSubmit(form)
                 },
-            )
+        secondaryLabel = "Batal",
+        onSecondary = { if (!busy) onDismiss() },
+    ) {
+        Column(modifier = Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
+        localError?.let { ErrorBox(it, modifier = Modifier.fillMaxWidth()); Spacer(Modifier.height(8.dp)) }
+
+        // Tim
+        Text("Tim Satgas *", color = TextDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(6.dp))
+        TeamSearchSelect(
+        teams = teams,
+        selectedTeamId = form.teamId,
+        onSelect = { t ->
+        // Kecamatan auto-isi dari wilayah UPTD tim (index.tsx:366).
+        form = form.copy(
+        teamId = t.id,
+        kecamatanList = t.uptd?.kecamatanWilayah.orEmpty(),
+        )
         },
-        dismissButton = {
-            TextButton(onClick = { if (!busy) onDismiss() }) { Text("Batal", color = TextMuted) }
-        },
-    )
+        )
+        Spacer(Modifier.height(12.dp))
+
+        // Hari
+        Text("Hari Patroli * (minimal $PATROL_MIN_HARI)", color = TextDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(6.dp))
+        Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        PATROL_HARI.forEach { h ->
+        val on = form.hari.contains(h)
+        Box(
+        modifier = Modifier
+        .clip(RoundedCornerShape(6.dp))
+        .background(if (on) BrandBlue else Color.White)
+        .border(1.dp, if (on) BrandBlue else Color(0xFFD0DAE8), RoundedCornerShape(6.dp))
+        .clickable {
+        form = form.copy(
+        hari = if (on) form.hari - h else form.hari + h,
+        )
+        }
+        .padding(horizontal = 8.dp, vertical = 6.dp),
+        ) {
+        Text(PATROL_HARI_LABEL[h] ?: h, color = if (on) Color.White else TextMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+        }
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+        text = "Terpilih: ${form.hari.ifEmpty { listOf("—") }.joinToString(", ")}",
+        color = if (form.hari.size in 1 until PATROL_MIN_HARI) ErrorRed else TextMuted,
+        fontSize = 11.sp,
+        )
+        Spacer(Modifier.height(12.dp))
+
+        // Kecamatan (read-only, otomatis)
+        Text("Kecamatan *", color = TextDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(6.dp))
+        if (form.kecamatanList.isEmpty()) {
+        InfoBox("Pilih tim satgas terlebih dahulu.", modifier = Modifier.fillMaxWidth())
+        } else {
+        Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        form.kecamatanList.forEach { k ->
+        Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xFFEEF3FA)).padding(horizontal = 8.dp, vertical = 4.dp)) {
+        Text(k, color = BrandBlue, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        }
+        }
+        }
+        Spacer(Modifier.height(4.dp))
+        Text("${form.kecamatanList.size} kecamatan — otomatis berdasarkan wilayah tim", color = Color(0xFF94A3B8), fontSize = 11.sp)
+        }
+        Spacer(Modifier.height(12.dp))
+
+        // Frekuensi
+        Text("Frekuensi", color = TextDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        PATROL_FREKUENSI.forEach { (value, label) ->
+        val on = form.frekuensi == value
+        Box(
+        modifier = Modifier
+        .weight(1f)
+        .clip(RoundedCornerShape(8.dp))
+        .background(if (on) BrandBlue else Color.White)
+        .border(1.dp, if (on) BrandBlue else Color(0xFFD0DAE8), RoundedCornerShape(8.dp))
+        .clickable { form = form.copy(frekuensi = value) }
+        .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+        ) {
+        Text(label, color = if (on) Color.White else TextMuted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        }
+        }
+        }
+        Spacer(Modifier.height(12.dp))
+
+        // Tanggal
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.weight(1f)) {
+        Text("Mulai *", color = TextDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(4.dp))
+        DateField(form.startDate) { form = form.copy(startDate = it) }
+        }
+        Column(modifier = Modifier.weight(1f)) {
+        Text("Selesai", color = TextDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(4.dp))
+        DateField(form.endDate) { form = form.copy(endDate = it) }
+        }
+        }
+        Text("Kosongi tanggal selesai untuk tanpa batas.", color = Color(0xFF94A3B8), fontSize = 10.sp)
+        Spacer(Modifier.height(12.dp))
+
+        // Jenis tugas
+        Text("Jenis Tugas", color = TextDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        PATROL_JENIS_TUGAS.forEach { (value, label) ->
+        val on = form.alasanTugas == value
+        Box(
+        modifier = Modifier
+        .weight(1f)
+        .clip(RoundedCornerShape(8.dp))
+        .background(if (on) BrandBlue else Color.White)
+        .border(1.dp, if (on) BrandBlue else Color(0xFFD0DAE8), RoundedCornerShape(8.dp))
+        .clickable { form = form.copy(alasanTugas = value) }
+        .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+        ) {
+        Text(label, color = if (on) Color.White else TextMuted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+        }
+        }
+        }
+
+        // Preview estimasi (opsional; web tidak menampilkan — native sebagai bantuan)
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = { onPreview(form) }, enabled = !previewLoading && form.validate() == null) {
+        Text(if (previewLoading) "Menghitung…" else "Lihat estimasi shift", color = BrandBlue, fontSize = 12.sp)
+        }
+        }
+        preview?.let {
+        InfoBox(
+        "Estimasi: ${it.estimatedTasks} shift dalam ${it.totalHari} hari (${it.kecamatanCount} kecamatan).",
+        modifier = Modifier.fillMaxWidth(),
+        )
+        }
+        }
+
+    }
 }
 
 /** Field tanggal sederhana (ISO yyyy-MM-dd). Web pakai <input type=date>; native pakai teks. */
@@ -572,30 +564,32 @@ private fun GenerateDialog(
 ) {
     var start by remember { mutableStateOf(LocalDate.now().toString()) }
     var end by remember { mutableStateOf(LocalDate.now().plusDays(14).toString()) }
-    AlertDialog(
+    JkDialog(
+        title = "Generate Shift Patroli",
         onDismissRequest = { if (!busy) onDismiss() },
-        title = { Text("Generate Shift Patroli", fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                WarningBox("Generate shift untuk rentang tanggal berdasarkan pola jadwal.", modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Dari Tanggal", color = TextDark, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(4.dp))
-                        DateField(start) { start = it }
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Sampai Tanggal", color = TextDark, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(4.dp))
-                        DateField(end) { end = it }
-                    }
-                }
-            }
-        },
-        confirmButton = { BrandPrimaryButton("Generate", loading = busy, onClick = { onConfirm(start, end) }) },
-        dismissButton = { TextButton(onClick = { if (!busy) onDismiss() }) { Text("Batal", color = TextMuted) } },
-    )
+        primaryLabel = "Generate",
+        onPrimary = { onConfirm(start, end) },
+        secondaryLabel = "Batal",
+        onSecondary = { if (!busy) onDismiss() },
+    ) {
+        Column {
+        WarningBox("Generate shift untuk rentang tanggal berdasarkan pola jadwal.", modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.weight(1f)) {
+        Text("Dari Tanggal", color = TextDark, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(4.dp))
+        DateField(start) { start = it }
+        }
+        Column(modifier = Modifier.weight(1f)) {
+        Text("Sampai Tanggal", color = TextDark, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(4.dp))
+        DateField(end) { end = it }
+        }
+        }
+        }
+
+    }
 }
 
 // ── Helper ────────────────────────────────────────────────────────────────
