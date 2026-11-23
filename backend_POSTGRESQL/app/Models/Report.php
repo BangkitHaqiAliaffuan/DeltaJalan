@@ -47,6 +47,7 @@ class Report extends Model
      */
     protected $fillable = [
         'user_id',
+        'idempotency_key',
         'report_code',
         'reporter_name',
         'road_name',

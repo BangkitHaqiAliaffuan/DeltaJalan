@@ -11,6 +11,7 @@ use App\Services\DuplicateCheckService;
 use App\Services\GeographicService;
 use App\Services\PciService;
 use App\Services\ReportTriageHook;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -55,6 +56,7 @@ class WargaReportController extends Controller
                 'quality_scores' => ['nullable', 'array', 'max:3'],
                 'quality_scores.*' => ['nullable', 'json'],
                 'captcha_token' => ['nullable', 'string'],
+                'idempotency_key' => ['nullable', 'string', 'max:120'],
             ]);
         } catch (ValidationException $e) {
             return response()->json([
@@ -80,6 +82,14 @@ class WargaReportController extends Controller
         }
 
         $userId = auth()->id();
+
+        // ── Idempotensi ──────────────────────────────────────────────
+        // Dicek SEBELUM batas harian: laporan yang sudah tersimpan ikut
+        // dihitung kuota, jadi percobaan ulang akan ditolak "batas harian"
+        // padahal laporannya sudah ada — pengguna lalu diberi tahu gagal.
+        if ($replay = $this->replayIfStored($validated['idempotency_key'] ?? null, $userId)) {
+            return $replay;
+        }
 
         $dailyLimitResult = $this->checkDailyLimit($userId);
         if ($dailyLimitResult !== null) {
@@ -1256,6 +1266,9 @@ class WargaReportController extends Controller
 
                 $report = Report::create([
                     'user_id' => $userId,
+                    // Kunci idempotensi dari klien: percobaan ulang dengan kunci
+                    // yang sama mengembalikan laporan ini, bukan duplikat.
+                    'idempotency_key' => $validated['idempotency_key'] ?? null,
                     'report_code' => $reportCode,
                     'reporter_name' => $validated['reporter_name'],
                     'road_name' => $validated['road_name'],
@@ -1377,6 +1390,25 @@ class WargaReportController extends Controller
                 ],
             ], 201);
 
+        } catch (QueryException $e) {
+            // Balapan dua permintaan dengan kunci idempotensi yang sama: yang
+            // kalah menabrak indeks unik. Itu bukan kegagalan — laporannya ada.
+            if (str_contains($e->getMessage(), 'reports_user_idempotency_unique')) {
+                if ($replay = $this->replayIfStored($validated['idempotency_key'] ?? null, $userId)) {
+                    return $replay;
+                }
+            }
+            Log::error('DeltaJalan: Gagal menyimpan laporan warga.', [
+                'error' => $e->getMessage(),
+                'user_id' => $userId,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat menyimpan laporan. Silakan coba lagi.',
+                'debug' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+
         } catch (\Exception $e) {
             Log::error('DeltaJalan: Gagal menyimpan laporan warga.', [
                 'error' => $e->getMessage(),
@@ -1392,6 +1424,44 @@ class WargaReportController extends Controller
     }
 
     // ── Helper Methods ──────────────────────────────────────────────────
+
+    /**
+     * Respons untuk kunci idempotensi yang sudah pernah tersimpan.
+     *
+     * Aplikasi Android menyimpan laporan ke antrean saat sinyal hilang,
+     * padahal permintaan sebelumnya bisa saja sudah tersimpan (respons hilang
+     * di jalan). Tanpa ini, percobaan ulang membuat laporan duplikat atau
+     * ditolak `DUPLICATE_IMAGE` — pengguna diberi tahu "gagal" padahal ada.
+     *
+     * Bentuk respons disamakan dengan pembuatan baru (`success` + `data.report`)
+     * ditambah penanda `replayed`, status 200 (bukan 201) karena tidak ada
+     * baris baru.
+     */
+    private function replayIfStored(?string $key, int $userId): ?JsonResponse
+    {
+        if ($key === null || trim($key) === '') {
+            return null;
+        }
+
+        $report = Report::where('user_id', $userId)
+            ->where('idempotency_key', $key)
+            ->first();
+
+        if (! $report) {
+            return null;
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Laporan ini sudah tersimpan sebelumnya.',
+            'replayed' => true,
+            'data' => [
+                'report' => Report::trimAiRawOutput($report->toArray()),
+                'total_photos' => ReportPhoto::where('report_id', $report->id)->count() + 1,
+                'warnings' => [],
+            ],
+        ], 200);
+    }
 
     private function validatePhotoDateExif(string $filePath, ?array $allExif = null): array
     {
