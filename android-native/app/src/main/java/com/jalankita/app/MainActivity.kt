@@ -685,6 +685,7 @@ private fun MainScaffold(
                 NotifScreen(
                     vm = notifVm,
                     onBack = { onNavigate(notifReturn) },
+                    onOpenReport = ::openDetail,
                 )
                 SnackbarHost(
                     hostState = snackbar,
@@ -706,22 +707,23 @@ private fun MainScaffold(
                     )
                     HorizontalDivider(color = Color(0xFFD0DAE8), thickness = 1.dp)
                 },
-                // CTA upload mengambang — port Fab.tsx web (lingkaran biru + plus,
-                // hanya di tab; otomatis di atas bottom bar).
+                // CTA upload mengambang — disembunyikan di tab PETA (agar tidak menimpa kartu detail) dan PROFIL.
                 floatingActionButton = {
-                    Box(
-                        Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(BrandBlue)
-                            .clickable {
-                                laporVm.reset()
-                                onNavigate(MainScreen.LAPOR)
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(AppIcon.Add, contentDescription = "Upload Laporan",
-                            tint = Color.White, modifier = Modifier.size(28.dp))
+                    if (mainScreen != MainScreen.PETA && mainScreen != MainScreen.PROFIL) {
+                        Box(
+                            Modifier
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .background(BrandBlue)
+                                .clickable {
+                                    laporVm.reset()
+                                    onNavigate(MainScreen.LAPOR)
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(AppIcon.Add, contentDescription = "Upload Laporan",
+                                tint = Color.White, modifier = Modifier.size(28.dp))
+                        }
                     }
                 },
                 bottomBar = {

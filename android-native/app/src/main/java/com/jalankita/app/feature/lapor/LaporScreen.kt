@@ -1,6 +1,7 @@
 package com.jalankita.app.feature.lapor
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -26,12 +27,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -51,6 +57,7 @@ import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandSecondaryButton
 import com.jalankita.app.ui.components.ErrorBox
 import com.jalankita.app.ui.components.InlineLoading
+import com.jalankita.app.ui.components.JkDialog
 import com.jalankita.app.ui.components.PatrolContextBanner
 import com.jalankita.app.ui.components.rememberCameraCapture
 import com.jalankita.app.ui.components.WarningBox
@@ -58,6 +65,7 @@ import com.jalankita.app.ui.map.PhotoLocationMapCard
 import com.jalankita.app.ui.rememberGalleryPickerLauncher
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.DeltaJalanTypography
+import com.jalankita.app.ui.theme.ErrorRed
 import com.jalankita.app.ui.theme.TextDark
 import com.jalankita.app.ui.theme.TextMuted
 
@@ -112,21 +120,33 @@ fun LaporScreen(
         if (vm.stage == LaporStage.RESULT && vm.batchId != null) onAnalyzed()
     }
 
+    var showDiscardConfirm by remember { mutableStateOf(false) }
+    fun requestBack() {
+        if (vm.photos.isNotEmpty()) {
+            showDiscardConfirm = true
+        } else {
+            onBack()
+        }
+    }
+    BackHandler(enabled = vm.photos.isNotEmpty()) {
+        requestBack()
+    }
+
     Column(modifier.fillMaxSize().safeContentPadding(withIme = true).padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
                     .size(40.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(Color.White.copy(alpha = .9f))
-                    .clickable { onBack() },
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFE8F0FA))
+                    .clickable { requestBack() },
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcon.ArrowBack, "Kembali", tint = BrandBlue, modifier = Modifier.size(22.dp)) }
             Spacer(Modifier.size(12.dp))
             Text(
                 "Lapor Kerusakan",
                 style = DeltaJalanTypography.headlineLarge.copy(fontSize = 20.sp),
-                color = Color.White,
+                color = TextDark,
             )
         }
 
@@ -180,10 +200,15 @@ fun LaporScreen(
                                 color = TextMuted, fontSize = 11.sp,
                             )
                         }
-                        Icon(
-                            AppIcon.Delete, contentDescription = "Hapus",
-                            tint = Color(0xFFEF4444), modifier = Modifier.size(20.dp).clickable { vm.removePhoto(i) },
-                        )
+                        // Target sentuh 44 dp (standar M3) untuk ikon hapus 20 dp.
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clickable(role = Role.Button) { vm.removePhoto(i) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(AppIcon.Delete, contentDescription = "Hapus foto ${i + 1}", tint = Color(0xFFEF4444), modifier = Modifier.size(20.dp))
+                        }
                     }
                 }
             }
@@ -235,6 +260,28 @@ fun LaporScreen(
     }
 
     FraudModal(vm.fraudAlert) { vm.dismissFraudAlert() }
+
+    if (showDiscardConfirm) {
+        JkDialog(
+            title = "Batalkan Laporan?",
+            onDismissRequest = { showDiscardConfirm = false },
+            primaryLabel = "Ya, Batalkan",
+            onPrimary = {
+                showDiscardConfirm = false
+                vm.reset()
+                onBack()
+            },
+            primaryColor = ErrorRed,
+            secondaryLabel = "Lanjut Mengisi",
+            onSecondary = { showDiscardConfirm = false },
+        ) {
+            Text(
+                "Foto yang telah dipilih akan dibuang. Apakah Anda yakin ingin membatalkan?",
+                fontSize = 13.sp,
+                color = TextDark,
+            )
+        }
+    }
 }
 
 /**
@@ -257,7 +304,7 @@ private fun ScheduleSelect(
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = BrandBlue, modifier = Modifier.size(32.dp))
             }
-            Text("Memuat jadwal patroli...", color = Color.White, fontSize = 13.sp,
+            Text("Memuat jadwal patroli...", color = TextMuted, fontSize = 13.sp,
                 modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
         } else if (vm.todayTasks.isEmpty()) {
             Column(

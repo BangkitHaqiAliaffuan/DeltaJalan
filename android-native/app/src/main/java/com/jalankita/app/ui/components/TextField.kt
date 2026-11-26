@@ -2,6 +2,7 @@ package com.jalankita.app.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Box
@@ -189,19 +190,21 @@ fun BrandPrimaryButton(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
         modifier = modifier.fillMaxWidth().height(44.dp),
     ) {
+        val disabled = !enabled && !loading
+        val bgModifier = when {
+            loading -> Modifier
+                .background(Brush.horizontalGradient(listOf(BrandBlue, BrandBlueLight)), shape)
+                .background(Color.Black.copy(alpha = 0.15f), shape)
+            disabled -> Modifier.background(Color(0xFFE2E8F0), shape)
+            else -> Modifier.background(Brush.horizontalGradient(listOf(BrandBlue, BrandBlueLight)), shape)
+        }
+        val textColor = if (disabled) Color(0xFF94A3B8) else Color.White
+
         Box(
             Modifier
                 .fillMaxWidth()
                 .height(44.dp)
-                .background(
-                    brush = Brush.horizontalGradient(listOf(BrandBlue, BrandBlueLight)),
-                    shape = shape,
-                )
-                .then(
-                    if (loading || !enabled) {
-                        Modifier.background(Color.Black.copy(alpha = 0.15f), shape)
-                    } else Modifier,
-                ),
+                .then(bgModifier),
             contentAlignment = Alignment.Center,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -215,10 +218,10 @@ fun BrandPrimaryButton(
                     Text(loadingText, style = DeltaJalanTypography.labelMedium, color = Color.White)
                 } else {
                     if (icon != null) {
-                        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        Icon(icon, contentDescription = null, tint = textColor, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.size(8.dp))
                     }
-                    Text(text, style = DeltaJalanTypography.labelMedium, color = Color.White)
+                    Text(text, style = DeltaJalanTypography.labelMedium, color = textColor)
                 }
             }
         }
@@ -259,10 +262,15 @@ fun BrandSecondaryButton(
     }
 }
 
-/** Toggle ikon mata untuk field password. */
+/** Toggle ikon mata untuk field password dengan target sentuh ergonomis (44dp). */
 @Composable
 fun PasswordToggle(visible: Boolean, onToggle: () -> Unit) {
-    IconButton(onClick = onToggle, modifier = Modifier.size(28.dp)) {
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clickable(onClick = onToggle),
+        contentAlignment = Alignment.Center,
+    ) {
         Icon(
             imageVector = if (visible) AppIcon.VisibilityOff else AppIcon.Visibility,
             contentDescription = if (visible) "Sembunyikan kata sandi" else "Tampilkan kata sandi",

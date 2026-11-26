@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -33,13 +34,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.jalankita.app.core.network.ReportItemDto
 import com.jalankita.app.core.network.TeamDto
+import com.jalankita.app.core.util.ImageUrl
 import com.jalankita.app.feature.supervisor.components.TeamPickerSheet
 import com.jalankita.app.feature.supervisor.components.TolakFormDialog
 import com.jalankita.app.feature.supervisor.components.queueDeadlineText
@@ -48,6 +54,7 @@ import com.jalankita.app.feature.home.components.SkeletonCard
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.JkDialog
 import com.jalankita.app.ui.components.JkDialogTextButton
+import com.jalankita.app.ui.components.PhotoViewerDialog
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandSecondaryButton
 import com.jalankita.app.ui.components.ErrorBox
@@ -378,7 +385,46 @@ private fun ReviewQueueRow(
     Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFE2E8F0)))
 }
 
-/** Panel aksi review — pengganti ReviewDrawer (header prev/next + tombol aksi). */
+/** Panel aksi review — pengganti ReviewDrawer (header prev/next + pratinjau foto + tombol aksi). */
+/**
+ * Tombol navigasi antrean di panel review.
+ *
+ * Target sentuh 44 dp (standar M3) sementara chip yang terlihat tetap 28 dp —
+ * pola yang sama dengan bintang rating di layar detail warga. Sebelumnya
+ * kotak 28 dp itu sendiri yang bisa diketuk, terlalu kecil untuk jempol.
+ */
+@Composable
+private fun NavigasiAntrean(
+    ikon: ImageVector,
+    label: String,
+    aktif: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(enabled = aktif, role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(if (aktif) Color(0xFFE8F0FA) else Color(0xFFF1F5F9)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = ikon,
+                contentDescription = label,
+                tint = if (aktif) BrandBlue else TextMuted,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    }
+}
+
+/** Panel aksi review — pengganti ReviewDrawer (header prev/next + pratinjau foto + tombol aksi). */
 @Composable
 private fun ReviewActionSheet(
     report: ReportItemDto,
@@ -393,6 +439,16 @@ private fun ReviewActionSheet(
     onTolak: () -> Unit,
     onDetail: () -> Unit,
 ) {
+    val imgUrl = ImageUrl.resolve(report.displayImageUrl)
+    var viewerOpen by remember(report.id) { mutableStateOf(false) }
+
+    if (viewerOpen && imgUrl != null) {
+        PhotoViewerDialog(
+            urls = listOf(imgUrl),
+            onDismiss = { viewerOpen = false },
+        )
+    }
+
     JkDialog(
         title = report.roadName ?: "Laporan",
         onDismissRequest = { if (!busy) onDismiss() },
@@ -400,10 +456,9 @@ private fun ReviewActionSheet(
         onPrimary = onApprove,
         secondaryLabel = "Tolak",
         onSecondary = { if (!busy) onTolak() },
-        // Tombol ketiga yang dulu ada di dismissButton AlertDialog.
         extraActions = {
             JkDialogTextButton(
-                label = "Detail",
+                label = "Detail Lengkap",
                 onClick = { if (!busy) onDetail() },
                 modifier = Modifier.fillMaxWidth(),
                 color = BrandBlue,
@@ -411,29 +466,102 @@ private fun ReviewActionSheet(
         },
     ) {
         Column {
-        if (actionMsg != null) {
-        Box(
-        modifier = Modifier
-        .fillMaxWidth()
-        .clip(RoundedCornerShape(8.dp))
-        .background(Color(0xFFF8FAFC))
-        .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp))
-        .padding(8.dp),
-        ) { Text(actionMsg, color = TextDark, fontSize = 12.sp) }
-        Spacer(Modifier.height(8.dp))
-        }
-        Text(report.reportCode ?: "-", color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-        Spacer(Modifier.height(4.dp))
-        Text("Kec. ${report.district ?: "-"} • Sumber: ${sourceLabel(report.source)}", color = TextMuted, fontSize = 12.sp)
-        if (report.source != null && report.source != "petugas") {
-        Spacer(Modifier.height(8.dp))
-        WarningBox(
-        "Laporan warga/telegram → akan ditugaskan ke tim (approve-and-assign).",
-        modifier = Modifier.fillMaxWidth(),
-        )
-        }
-        }
+            // Navigasi antrean jika ada lebih dari 1 laporan
+            if (total > 1) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "${currentIndex + 1} dari $total antrean",
+                        color = TextMuted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        // weight(1f) agar dua tombol 44 dp tidak mendesak label.
+                        modifier = Modifier.weight(1f),
+                    )
+                    NavigasiAntrean(
+                        ikon = AppIcon.ArrowBack,
+                        label = "Laporan sebelumnya",
+                        aktif = currentIndex > 0 && !busy,
+                        onClick = onPrev,
+                    )
+                    NavigasiAntrean(
+                        ikon = AppIcon.ChevronRight,
+                        label = "Laporan berikutnya",
+                        aktif = currentIndex < total - 1 && !busy,
+                        onClick = onNext,
+                    )
+                }
+            }
 
+            // Pratinjau foto kerusakan
+            if (imgUrl != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFFE8F0FA))
+                        .clickable { viewerOpen = true },
+                ) {
+                    AsyncImage(
+                        model = imgUrl,
+                        contentDescription = "Foto kerusakan ${report.roadName}",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(6.dp)
+                            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    ) {
+                        Text("Ketuk untuk perbesar", color = Color.White, fontSize = 10.sp)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
+            if (actionMsg != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFFF8FAFC))
+                        .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp))
+                        .padding(8.dp),
+                ) { Text(actionMsg, color = TextDark, fontSize = 12.sp) }
+                Spacer(Modifier.height(8.dp))
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(report.reportCode ?: "-", color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                if (report.pciScore != null) {
+                    Spacer(Modifier.width(8.dp))
+                    val badge = pciBgColor(report.pciScore)
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(badge.bg)
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    ) {
+                        Text("PCI ${pciText(report.pciScore, 0)}", color = badge.fg, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text("Kec. ${report.district ?: "-"} • Sumber: ${sourceLabel(report.source)}", color = TextMuted, fontSize = 12.sp)
+            if (report.source != null && report.source != "petugas") {
+                Spacer(Modifier.height(8.dp))
+                WarningBox(
+                    "Laporan warga/telegram → akan ditugaskan ke tim (approve-and-assign).",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
     }
 }
 

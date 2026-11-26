@@ -70,6 +70,7 @@ fun NotifScreen(
     vm: NotifViewModel,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenReport: ((String) -> Unit)? = null,
 ) {
     LaunchedEffect(Unit) {
         if (vm.items.isEmpty() && !vm.loading) vm.load(reset = true)
@@ -97,10 +98,10 @@ fun NotifScreen(
                 modifier = Modifier.weight(1f),
             )
             TextButton(onClick = vm::markAllRead) {
-                Text("Tandai dibaca", color = BrandBlue, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                Text("Tandai dibaca", color = BrandBlue, fontSize = 12.sp, fontWeight = FontWeight.Medium)
             }
-            TextButton(onClick = { confirmDelete = true }) {
-                Text("Hapus semua", color = Color(0xFFDC2626), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+            IconButton(onClick = { confirmDelete = true }) {
+                Icon(AppIcon.Delete, contentDescription = "Hapus semua", tint = Color(0xFFDC2626), modifier = Modifier.size(20.dp))
             }
         }
         // Chip filter tipe (cermin types[] web — filter client-side).
@@ -152,7 +153,16 @@ fun NotifScreen(
                         items(5) { SkeletonCard() }
                     }
                     items(visible, key = { "notif-${it.id}" }) { item ->
-                        NotifRow(item = item, onClick = { vm.markRead(item) })
+                        NotifRow(
+                            item = item,
+                            onClick = {
+                                vm.markRead(item)
+                                val repId = item.data?.reportId
+                                if (repId != null && onOpenReport != null) {
+                                    onOpenReport(repId)
+                                }
+                            },
+                        )
                     }
                     if (vm.page < vm.lastPage) {
                         item(key = "more") {
@@ -220,6 +230,17 @@ private fun NotifRow(item: NotifItemDto, onClick: () -> Unit) {
                 Text(text = " • ", color = TextMuted, fontSize = 10.sp)
                 Text(text = timeAgo(item.createdAt), color = TextMuted, fontSize = 10.sp)
             }
+        }
+        if (item.data?.reportId != null) {
+            Spacer(Modifier.width(8.dp))
+            Icon(
+                AppIcon.ChevronRight,
+                contentDescription = "Buka laporan",
+                tint = BrandBlue.copy(alpha = 0.7f),
+                modifier = Modifier
+                    .size(18.dp)
+                    .align(Alignment.CenterVertically),
+            )
         }
     }
 }

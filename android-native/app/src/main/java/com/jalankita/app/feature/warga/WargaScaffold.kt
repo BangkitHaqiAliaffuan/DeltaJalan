@@ -201,6 +201,7 @@ fun WargaScaffold(
                 NotifScreen(
                     vm = notifVm,
                     onBack = { onNavigate(notifReturn) },
+                    onOpenReport = ::openDetail,
                 )
                 SnackbarHost(
                     hostState = snackbar,

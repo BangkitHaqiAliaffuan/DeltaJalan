@@ -442,19 +442,23 @@ private fun WargaDetailBody(
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         for (i in 1..5) {
                             val active = i <= stars
-                            Icon(
-                                imageVector = if (active) AppIcon.Star else AppIcon.StarOutline,
-                                contentDescription = "Beri $i bintang",
-                                tint = if (active) StarAmber else StarIdle,
+                            Box(
                                 modifier = Modifier
+                                    .size(44.dp)
                                     .clip(RoundedCornerShape(8.dp))
                                     .clickable(
                                         enabled = !rated && !ratingBusy,
                                         role = Role.Button,
-                                    ) { stars = i }
-                                    .padding(4.dp)
-                                    .size(26.dp),
-                            )
+                                    ) { stars = i },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = if (active) AppIcon.Star else AppIcon.StarOutline,
+                                    contentDescription = "Beri $i bintang",
+                                    tint = if (active) StarAmber else StarIdle,
+                                    modifier = Modifier.size(28.dp),
+                                )
+                            }
                         }
                     }
                     if (!rated) {

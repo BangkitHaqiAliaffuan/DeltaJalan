@@ -23,6 +23,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,6 +38,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -49,6 +54,7 @@ import com.jalankita.app.ui.components.ErrorBox
 import com.jalankita.app.ui.components.FieldLabel
 import com.jalankita.app.ui.components.InlineLoading
 import com.jalankita.app.ui.components.PatrolContextBanner
+import com.jalankita.app.ui.components.PhotoViewerDialog
 import com.jalankita.app.ui.components.RoadAutocompleteField
 import com.jalankita.app.ui.components.SuccessBox
 import com.jalankita.app.ui.components.WarningBox
@@ -83,12 +89,13 @@ fun AiResultScreen(
         ) {
             Icon(AppIcon.CheckCircle, null, tint = SuccessGreen, modifier = Modifier.size(72.dp))
             Spacer(Modifier.height(16.dp))
-            Text("Laporan Terkirim", style = DeltaJalanTypography.headlineLarge.copy(fontSize = 24.sp), color = Color.White)
+            Text("Laporan Terkirim", style = DeltaJalanTypography.headlineLarge.copy(fontSize = 24.sp), color = TextDark)
             Spacer(Modifier.height(8.dp))
             Text(
                 "Kode laporan:\n${saved.reportCode}",
-                color = Color.White, fontWeight = FontWeight.SemiBold,
+                color = TextDark, fontWeight = FontWeight.SemiBold,
                 style = DeltaJalanTypography.bodySmall,
+                textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(8.dp))
             saved.systemNotes?.takeIf { it.contains("[PERINGATAN]") }?.let {
@@ -100,15 +107,24 @@ fun AiResultScreen(
         return
     }
 
+    var viewerPhotoIndex by remember { mutableStateOf<Int?>(null) }
+    viewerPhotoIndex?.let { idx ->
+        PhotoViewerDialog(
+            urls = vm.photos.map { it.uri.toString() },
+            initialIndex = idx,
+            onDismiss = { viewerPhotoIndex = null },
+        )
+    }
+
     Column(modifier.fillMaxSize().safeContentPadding().padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(40.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = .9f))
+                Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFE8F0FA))
                     .clickable { onBack() },
                 contentAlignment = Alignment.Center,
             ) { Icon(AppIcon.ArrowBack, "Kembali", tint = BrandBlue, modifier = Modifier.size(22.dp)) }
             Spacer(Modifier.size(12.dp))
-            Text("Hasil Analisis", style = DeltaJalanTypography.headlineLarge.copy(fontSize = 20.sp), color = Color.White)
+            Text("Hasil Analisis", style = DeltaJalanTypography.headlineLarge.copy(fontSize = 20.sp), color = TextDark)
         }
 
         Spacer(Modifier.height(16.dp))
@@ -162,16 +178,26 @@ fun AiResultScreen(
                             fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                         )
                     }
-                    // Foto + overlay bbox
+                    // Foto + overlay bbox (ketuk untuk perbesar layar penuh)
                     Box(
                         Modifier.fillMaxWidth().aspectRatio(4f / 3f)
-                            .clip(RoundedCornerShape(10.dp)).background(Color(0xFFF1F5F9)),
+                            .clip(RoundedCornerShape(10.dp)).background(Color(0xFFF1F5F9))
+                            .clickable { viewerPhotoIndex = i },
                     ) {
                         AsyncImage(
                             model = p.uri, contentDescription = "Foto ${i + 1}",
                             contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
                         )
                         BboxOverlay(detections = p.detections)
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(6.dp)
+                                .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        ) {
+                            Text("Ketuk untuk perbesar", color = Color.White, fontSize = 10.sp)
+                        }
                     }
                     // Daftar deteksi
                     if (p.detections.isNotEmpty()) {

@@ -1,6 +1,7 @@
 package com.jalankita.app.feature.warga
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -30,6 +31,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -93,8 +98,8 @@ fun WargaLaporScreen(
     onBack: () -> Unit,
     onSuccess: () -> Unit,
     /** Buka layar Antrean Kirim bila laporan tersimpan offline. */
-    onOpenQueue: () -> Unit = {},
     modifier: Modifier = Modifier,
+    onOpenQueue: () -> Unit = {},
 ) {
     val context = LocalContext.current
     // Sukses submit → layar hijau (sekali per submit).
@@ -127,6 +132,18 @@ fun WargaLaporScreen(
         onError = { pesan -> laporVm.laporkanMasalahFoto(pesan) },
     )
 
+    var showDiscardConfirm by remember { mutableStateOf(false) }
+    fun requestBack() {
+        if (laporVm.photos.isNotEmpty() || laporVm.catatan.isNotBlank()) {
+            showDiscardConfirm = true
+        } else {
+            onBack()
+        }
+    }
+    BackHandler(enabled = laporVm.photos.isNotEmpty() || laporVm.catatan.isNotBlank()) {
+        requestBack()
+    }
+
     Column(modifier = modifier.fillMaxSize()) {
         // Header biru + kembali (gaya LaporScreen petugas).
         Row(
@@ -137,7 +154,7 @@ fun WargaLaporScreen(
                 .padding(horizontal = 4.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onBack) {
+            IconButton(onClick = { requestBack() }) {
                 Icon(AppIcon.ArrowBack, contentDescription = "Kembali", tint = Color.White)
             }
             Text("Lapor Kerusakan", color = Color.White, fontSize = 18.sp,
@@ -416,6 +433,28 @@ fun WargaLaporScreen(
         )
 
     }
+    }
+
+    if (showDiscardConfirm) {
+        JkDialog(
+            title = "Batalkan Laporan?",
+            onDismissRequest = { showDiscardConfirm = false },
+            primaryLabel = "Ya, Batalkan",
+            onPrimary = {
+                showDiscardConfirm = false
+                laporVm.reset()
+                onBack()
+            },
+            primaryColor = ErrorRed,
+            secondaryLabel = "Lanjut Mengisi",
+            onSecondary = { showDiscardConfirm = false },
+        ) {
+            Text(
+                "Foto dan keterangan yang telah dimasukkan akan dibuang. Apakah Anda yakin ingin membatalkan?",
+                fontSize = 13.sp,
+                color = TextDark,
+            )
+        }
     }
 }
 

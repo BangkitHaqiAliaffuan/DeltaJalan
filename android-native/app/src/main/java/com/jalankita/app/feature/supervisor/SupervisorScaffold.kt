@@ -287,6 +287,7 @@ fun SupervisorScaffold(
             NotifScreen(
                 vm = notifVm,
                 onBack = { onNavigate(notifReturn) },
+                onOpenReport = ::openDetail,
             )
             SnackbarHost(
                 hostState = snackbar,

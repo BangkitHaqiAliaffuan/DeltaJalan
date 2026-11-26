@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.text.KeyboardOptions
@@ -175,17 +176,25 @@ fun InspectionResultScreen(
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize(),
                             )
+                            // Target sentuh 44 dp (standar M3) di atas chip 24 dp yang
+                            // terlihat; sebelumnya kotak 24 dp itu sendiri yang diketuk.
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
-                                    .padding(4.dp)
-                                    .size(24.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(Color.Black.copy(alpha = 0.65f))
-                                    .clickable { vm.removePhoto(index) },
-                                contentAlignment = Alignment.Center,
+                                    .size(44.dp)
+                                    .clickable(role = Role.Button) { vm.removePhoto(index) },
+                                contentAlignment = Alignment.TopEnd,
                             ) {
-                                Icon(AppIcon.Close, contentDescription = "Hapus", tint = Color.White, modifier = Modifier.size(16.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 4.dp, end = 4.dp)
+                                        .size(24.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color.Black.copy(alpha = 0.65f)),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(AppIcon.Close, contentDescription = "Hapus foto ${index + 1}", tint = Color.White, modifier = Modifier.size(16.dp))
+                                }
                             }
                         }
                     }
