@@ -22,6 +22,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,6 +35,7 @@ import com.jalankita.app.feature.home.components.formatDateRelative
 import com.jalankita.app.feature.home.components.monospace
 import com.jalankita.app.feature.home.components.statusDotColor
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.inspectionLabel
 import com.jalankita.app.ui.components.ReportThumbnail
 import com.jalankita.app.ui.theme.TextDark
@@ -85,6 +88,14 @@ fun ReportCard(
     showSourceBadge: Boolean = true,
     rejectedNote: String? = "Dihapus otomatis 3 hari setelah ditolak",
     actions: (@Composable () -> Unit)? = null,
+    /**
+     * Aksi utama kartu: dirender sebagai tombol lebar penuh 44 dp di bawah isi.
+     * Pakai untuk kasus "kartu ini adalah pekerjaan pengguna sekarang"
+     * (mis. supervisor meninjau laporan). Aksi sekunder tetap lewat [actions].
+     */
+    primaryAction: CardAction? = null,
+    /** Garis aksen 4 dp di tepi kiri — penanda visual tanpa mengubah tata letak. */
+    accentColor: Color? = null,
 ) {
     val severityLabel = report.effectiveSeverity
     val severityColor = SEVERITY_COLOR[severityLabel ?: ""] ?: SLATE_500
@@ -109,6 +120,19 @@ fun ReportCard(
             .fillMaxWidth()
             .clip(shape)
             .background(Color.White)
+            .then(
+                if (accentColor != null) {
+                    Modifier.drawWithContent {
+                        drawContent()
+                        drawRect(
+                            color = accentColor,
+                            size = Size(4.dp.toPx(), size.height),
+                        )
+                    }
+                } else {
+                    Modifier
+                },
+            )
             .border(borderWidth, borderColor, shape)
             .clickable(onClick = onClick),
     ) {
@@ -327,6 +351,19 @@ fun ReportCard(
                 if (report.pciScore != null) {
                     Spacer(Modifier.height(10.dp))
                     CardPciRow(report.pciScore)
+                }
+
+                // ── Aksi utama (CTA penuh) ──
+                primaryAction?.let {
+                    Spacer(Modifier.height(12.dp))
+                    CardDivider()
+                    Spacer(Modifier.height(10.dp))
+                    BrandPrimaryButton(
+                        text = it.label,
+                        onClick = it.onClick,
+                        icon = it.icon,
+                        enabled = !it.disabled,
+                    )
                 }
 
                 // ── Aksi (slot) ──

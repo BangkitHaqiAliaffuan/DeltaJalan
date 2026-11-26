@@ -48,6 +48,8 @@ fun StatCard(
     value: Int?,
     color: Color,
     modifier: Modifier = Modifier,
+    /** Bila diisi, kartu bisa diketuk (mis. "Perlu Review" → buka tab antrean). */
+    onClick: (() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(12.dp)
     Column(
@@ -56,6 +58,7 @@ fun StatCard(
             .clip(shape)
             .background(Brush.verticalGradient(listOf(StatTint, Color.White)))
             .border(1.dp, StatTintBorder, shape)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,

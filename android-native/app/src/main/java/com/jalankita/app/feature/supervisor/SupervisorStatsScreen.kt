@@ -39,6 +39,7 @@ import com.jalankita.app.feature.home.components.SkeletonCard
 import com.jalankita.app.feature.home.components.StatCard
 import com.jalankita.app.feature.supervisor.components.PciCard
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.chart.TrenBulanan
 import com.jalankita.app.ui.theme.TextDark
 import com.jalankita.app.ui.theme.TextMuted
 
@@ -120,10 +121,8 @@ fun SupervisorStatsScreen(
             if (trend.isNotEmpty()) {
                 item(key = "trend") {
                     CardBox(title = "Tren Bulanan") {
-                        TrendBars(
-                            labels = trend.map { it.bulan?.take(3) ?: "-" },
-                            values = trend.map { it.total },
-                        )
+                        // Grafik bersama — label bulan kini benar ("Nov", bukan "202").
+                        TrenBulanan(tren = trend)
                     }
                 }
             }
@@ -208,47 +207,6 @@ private fun SeverityPie(berat: Int, sedang: Int, ringan: Int, total: Int) {
                     Spacer(Modifier.width(8.dp))
                     Text("$label: $v", color = TextMuted, fontSize = 12.sp)
                 }
-            }
-        }
-    }
-}
-
-/** Bar chart tren — nilai total per bulan (label 3 huruf). */
-@Composable
-private fun TrendBars(labels: List<String>, values: List<Int>) {
-    val max = (values.maxOrNull() ?: 0).coerceAtLeast(1).toFloat()
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(140.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            values.forEach { v ->
-                val h = (v / max * 100f).coerceAtLeast(if (v > 0) 6f else 2f)
-                Box(
-                    modifier = Modifier
-                        .width(28.dp)
-                        .height(h.dp)
-                        .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
-                        .background(Color(0xFF1E40AF)),
-                )
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            labels.forEach {
-                Text(
-                    text = it,
-                    color = TextMuted,
-                    fontSize = 10.sp,
-                    modifier = Modifier.width(28.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                )
             }
         }
     }

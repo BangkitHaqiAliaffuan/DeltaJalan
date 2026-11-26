@@ -71,6 +71,21 @@ object Waktu {
     /** Instant dari ISO server; `null` bila tidak bisa diurai. */
     fun instantOrNull(iso: String?): Instant? = urai(iso)?.instant
 
+    /**
+     * "Nov" dari bulan server berformat `"2026-11"` (lihat
+     * `ReportController::stats` → `format('Y-m')`).
+     *
+     * Sengaja mengembalikan `null` untuk format yang tidak dikenal, bukan menebak:
+     * label grafik yang salah lebih buruk daripada tanpa label.
+     */
+    fun namaBulanSingkat(bulanIso: String?): String? {
+        val bagian = bulanIso?.trim()?.split("-") ?: return null
+        if (bagian.size < 2) return null
+        val nomor = bagian[1].toIntOrNull() ?: return null
+        if (nomor !in 1..12) return null
+        return BULAN[nomor - 1]
+    }
+
     /** Tanggal WIB (mis. untuk kalender & jadwal patroli). */
     fun tanggalWib(iso: String?): LocalDate? = urai(iso)?.instant?.atZone(zona)?.toLocalDate()
 

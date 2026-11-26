@@ -33,7 +33,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.jalankita.app.core.network.MonthlyTrendDto
 import com.jalankita.app.core.network.PciDistrictDto
 import com.jalankita.app.core.network.ReportItemDto
 import com.jalankita.app.core.network.TeamStatsDto
@@ -41,6 +40,7 @@ import com.jalankita.app.feature.home.components.SectionHeader
 import com.jalankita.app.ui.util.Waktu
 import com.jalankita.app.feature.home.components.StatCard
 import com.jalankita.app.ui.components.AppIcon
+import com.jalankita.app.ui.components.chart.TrenBulanan
 import com.jalankita.app.ui.components.JkDialog
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandSecondaryButton
@@ -171,7 +171,9 @@ fun SupervisorDashboardScreen(
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     StatCard(AppIcon.Description, "Total", s.total, BrandBlue, Modifier.weight(1f))
-                    StatCard(AppIcon.PendingActions, "Perlu Review", s.menungguReview, WarningAmber, Modifier.weight(1f))
+                    StatCard(AppIcon.PendingActions, "Perlu Review", s.menungguReview, WarningAmber, Modifier.weight(1f)) {
+                        vm.selectTab("menunggu")
+                    }
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -209,12 +211,20 @@ fun SupervisorDashboardScreen(
             }
         }
 
-        // Tren bulanan (list sederhana — chart penuh milik S3)
+        // Tren bulanan — grafik bersama (dulu daftar teks yang mencetak "2026-11")
         vm.stats?.monthlyTrend?.takeIf { it.isNotEmpty() }?.let { trend ->
             item {
                 SectionHeader(icon = AppIcon.BarChart, title = "Tren 6 Bulan")
                 Spacer(Modifier.height(8.dp))
-                MonthlyTrendList(trend)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White)
+                        .padding(12.dp),
+                ) {
+                    TrenBulanan(tren = trend)
+                }
             }
         }
 
@@ -251,6 +261,10 @@ fun SupervisorDashboardScreen(
                 )
             }
             else -> items(vm.reports, key = { it.id }) { r ->
+                // Laporan yang menunggu keputusan supervisor adalah pekerjaan utama
+                // di layar ini: tombolnya tampil penuh + kartu diberi aksen amber,
+                // bukan chip ikon 13 sp seperti aksi sekunder.
+                val perluReview = r.status == "Menunggu Review"
                 val actions = buildList {
                     // Hapus hanya bila Ditolak (web: index.tsx:734) — native juga
                     // boleh 4 status per backend, tapi UX mengikuti web = Ditolak.
@@ -261,20 +275,30 @@ fun SupervisorDashboardScreen(
                             },
                         )
                     }
-                    add(
-                        CardAction(
-                            label = "Lihat Detail",
-                            icon = AppIcon.ChevronRight,
-                            iconOnly = true,
-                            variant = CardActionVariant.SECONDARY,
-                        ) { onOpenDetail(r.id) },
-                    )
+                    if (!perluReview) {
+                        add(
+                            CardAction(
+                                label = "Lihat Detail",
+                                icon = AppIcon.ChevronRight,
+                                iconOnly = true,
+                                variant = CardActionVariant.SECONDARY,
+                            ) { onOpenDetail(r.id) },
+                        )
+                    }
                 }
                 ReportCard(
                     report = r,
                     onClick = { onOpenDetail(r.id) },
                     showDeadline = true,
-                    actions = { actions.forEach { CardActionButton(it) } },
+                    accentColor = if (perluReview) WarningAmber else null,
+                    primaryAction = if (perluReview) {
+                        CardAction("Tinjau Laporan", AppIcon.ChevronRight) { onOpenDetail(r.id) }
+                    } else {
+                        null
+                    },
+                    actions = if (actions.isEmpty()) null else {
+                        { actions.forEach { CardActionButton(it) } }
+                    },
                 )
                 Spacer(Modifier.height(4.dp))
             }
@@ -486,28 +510,6 @@ private fun TeamStatsGroups(
 /** Helper clickable sederhana agar tak bentrok import di file ini. */
 private fun Modifier.clickableToggle(onClick: () -> Unit): Modifier =
     this.then(Modifier.clickable(onClick = onClick))
-
-@Composable
-private fun MonthlyTrendList(trend: List<MonthlyTrendDto>) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(androidx.compose.ui.graphics.Color.White)
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        trend.forEach { t ->
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(t.bulan ?: "—", color = TextMuted, fontSize = 12.sp, modifier = Modifier.width(96.dp))
-                Text("${t.total}", color = TextDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(40.dp))
-                Text("Menunggu ${t.menungguReview}", color = WarningAmber, fontSize = 11.sp)
-                Spacer(Modifier.width(8.dp))
-                Text("Selesai ${t.selesai}", color = SuccessGreen, fontSize = 11.sp)
-            }
-        }
-    }
-}
 
 @Composable
 fun ExportMonthlyDialog(
