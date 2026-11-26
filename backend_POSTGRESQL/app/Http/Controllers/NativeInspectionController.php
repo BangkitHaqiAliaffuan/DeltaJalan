@@ -151,7 +151,27 @@ class NativeInspectionController extends Controller
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
-        $assignment->load(['report', 'session.team', 'result.photos']);
+        $assignment->load(['report.photos', 'session.team', 'result.photos']);
+
+        // Petugas harus menilai kerusakan dari SELURUH foto warga, bukan hanya
+        // foto utama. Foto ke-2 dan ke-3 hidup di tabel `report_photos`, jadi
+        // tanpa ini layar inspeksi hanya menampilkan 1 dari 3 foto. Disatukan
+        // lewat helper yang sama dengan detail warga agar urutannya konsisten
+        // (foto utama selalu di depan).
+        if ($assignment->report !== null) {
+            $report = $assignment->report;
+            $foto = $report->photos->map(fn ($p) => [
+                'id' => $p->id,
+                'image_original_url' => $p->image_original_url,
+                'latitude' => $p->latitude !== null ? (float) $p->latitude : null,
+                'longitude' => $p->longitude !== null ? (float) $p->longitude : null,
+                'created_at' => $p->created_at?->toIso8601String(),
+            ])->all();
+            // Relasi `photos` dilepas dulu: kalau tidak, serialisasi Eloquent
+            // memakai koleksi relasi dan menimpa atribut gabungan di bawah.
+            $report->unsetRelation('photos');
+            $report->setAttribute('photos', Report::ensurePrimaryPhotoInPhotos($foto, $report));
+        }
         // Inspeksi ulang: assignment baru belum punya hasil sendiri, jadi alasan
         // supervisor diambil dari hasil terakhir laporan yang sama agar petugas
         // tahu apa yang harus diulang di lokasi.

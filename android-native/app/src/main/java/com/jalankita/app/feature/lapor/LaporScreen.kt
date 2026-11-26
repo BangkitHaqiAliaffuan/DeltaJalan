@@ -43,6 +43,7 @@ import com.jalankita.app.core.network.SurveyTask
 import com.jalankita.app.core.util.GeocodeStage
 import com.jalankita.app.feature.home.components.EmptyState
 import com.jalankita.app.feature.home.components.formatDateShort
+import com.jalankita.app.ui.util.Waktu
 import com.jalankita.app.feature.lapor.components.FraudModal
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.safeContentPadding
@@ -51,6 +52,7 @@ import com.jalankita.app.ui.components.BrandSecondaryButton
 import com.jalankita.app.ui.components.ErrorBox
 import com.jalankita.app.ui.components.InlineLoading
 import com.jalankita.app.ui.components.PatrolContextBanner
+import com.jalankita.app.ui.components.rememberCameraCapture
 import com.jalankita.app.ui.components.WarningBox
 import com.jalankita.app.ui.map.PhotoLocationMapCard
 import com.jalankita.app.ui.rememberGalleryPickerLauncher
@@ -96,6 +98,14 @@ fun LaporScreen(
             )
         }
     }
+
+    // Kamera langsung: jalur bersama (izin CAMERA + stempel GPS EXIF).
+    // Sebelumnya tombol "Kamera" di layar ini hanya membuka galeri.
+    val ambilKamera = rememberCameraCapture(
+        prefix = "PTG",
+        onPhoto = { uri -> vm.addPhotos(context, listOf(uri), checkDate = true) },
+        onError = { pesan -> vm.laporkanMasalahFoto(pesan) },
+    )
 
     // Navigasi setelah analisis sukses.
     LaunchedEffect(vm.stage, vm.batchId) {
@@ -181,7 +191,7 @@ fun LaporScreen(
             if (vm.canAddMore) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     PickButton("Galeri", AppIcon.Gallery, Modifier.weight(1f)) { pickFromGallery() }
-                    PickButton("Kamera", AppIcon.Camera, Modifier.weight(1f)) { pickFromGallery() }
+                    PickButton("Kamera", AppIcon.Camera, Modifier.weight(1f)) { ambilKamera() }
                 }
             } else {
                 Text(
@@ -287,7 +297,8 @@ private fun TodayTaskCard(task: SurveyTask, onPick: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         task.tanggalPatroli?.let {
-            Text(formatDateShort(it), color = TextMuted, fontSize = 12.sp)
+            // Kolom tanggal: tampilkan tanggal WIB saja, tanpa jam palsu 00:00.
+            Text(Waktu.tanggalSaja(it) ?: "-", color = TextMuted, fontSize = 12.sp)
         }
         Text(
             task.kecamatan?.let { "Kec. $it" } ?: "Jadwal Patroli",

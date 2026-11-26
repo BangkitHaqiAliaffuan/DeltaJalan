@@ -2,7 +2,6 @@ package com.jalankita.app.feature.warga
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -55,6 +54,7 @@ import com.jalankita.app.feature.lapor.components.KecamatanDropdown
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.JkDialog
 import com.jalankita.app.ui.components.JkDialogTextButton
+import com.jalankita.app.ui.components.rememberCameraCapture
 import com.jalankita.app.ui.components.safeContentPaddingValues
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandSecondaryButton
@@ -102,12 +102,6 @@ fun WargaLaporScreen(
     LaunchedEffect(saved) {
         if (saved != null) onSuccess()
     }
-    val singleLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickVisualMedia(),
-    ) { uri: Uri? ->
-        if (uri != null) laporVm.addPhotos(context, listOf(uri))
-    }
-
     /**
      * DEFAULT: pemilih dokumen sistem (SAF, ACTION_OPEN_DOCUMENT). URI
      * media.documents mendukung setRequireOriginal + query kolom MediaStore
@@ -125,12 +119,13 @@ fun WargaLaporScreen(
         safLauncher.launch(arrayOf("image/jpeg"))
     }
 
-    // Minta izin ACCESS_MEDIA_LOCATION dulu agar GPS EXIF tidak di-redact.
-    val pickSingle = rememberGalleryPickerLauncher {
-        singleLauncher.launch(
-            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-        )
-    }
+    // Kamera langsung: jalur bersama (izin CAMERA + stempel GPS EXIF).
+    // Sebelumnya tombol "Kamera" di layar ini hanya membuka galeri.
+    val ambilKamera = rememberCameraCapture(
+        prefix = "WRG",
+        onPhoto = { uri -> laporVm.addPhotos(context, listOf(uri)) },
+        onError = { pesan -> laporVm.laporkanMasalahFoto(pesan) },
+    )
 
     Column(modifier = modifier.fillMaxSize()) {
         // Header biru + kembali (gaya LaporScreen petugas).
@@ -180,10 +175,7 @@ fun WargaLaporScreen(
                 if (laporVm.photos.isEmpty()) {
                     PhotoPlaceholder(
                         onGallery = { pickSaf() },
-                        onCamera = {
-                            // TODO Fase 5: CameraX (EXIF GPS asli). Sementara galeri.
-                            pickSingle()
-                        },
+                        onCamera = { ambilKamera() },
                     )
                 } else {
                     laporVm.photos.forEachIndexed { i, photo ->
@@ -234,7 +226,8 @@ fun WargaLaporScreen(
                     if (laporVm.canAddMore) {
                         AddMoreButton(
                             left = WARGA_MAX_PHOTOS - laporVm.photos.size,
-                            onClick = { pickSaf() },
+                            onGallery = { pickSaf() },
+                            onCamera = { ambilKamera() },
                         )
                     }
                 }
@@ -472,22 +465,24 @@ private fun PickMiniButton(label: String, icon: androidx.compose.ui.graphics.vec
 }
 
 @Composable
-private fun AddMoreButton(left: Int, onClick: () -> Unit) {
+private fun AddMoreButton(left: Int, onGallery: () -> Unit, onCamera: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(Color.White)
-            .clickable(onClick = onClick)
             .padding(12.dp),
-        horizontalArrangement = Arrangement.Center,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(AppIcon.UploadPhoto, contentDescription = null, tint = BrandBlue,
             modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(8.dp))
         Text("Tambah foto (sisa $left)", color = BrandBlue, fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold)
+            fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        // Dua sumber, seperti dropzone kosong di atas: kamera untuk bukti baru,
+        // galeri untuk foto yang sudah diambil di lokasi.
+        PickMiniButton("Galeri", AppIcon.Gallery, onGallery)
+        PickMiniButton("Kamera", AppIcon.Camera, onCamera)
     }
 }
 

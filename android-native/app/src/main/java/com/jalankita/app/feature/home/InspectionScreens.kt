@@ -16,7 +16,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -28,6 +30,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,6 +49,7 @@ import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.safeContentPadding
 import com.jalankita.app.ui.components.LokasiCard
 import com.jalankita.app.ui.components.ReportThumbnail
+import com.jalankita.app.ui.components.PhotoViewerDialog
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.ErrorRed
 import com.jalankita.app.ui.theme.SuccessGreen
@@ -219,6 +226,22 @@ fun InspectionAssignmentDetailScreen(
             vm.detail != null -> {
                 val item = vm.detail!!
                 val report = item.report
+                // Indeks foto yang dibuka layar penuh (null = tertutup).
+                var fotoDibuka by remember(item.id) { mutableStateOf<Int?>(null) }
+                val semuaFotoWarga = remember(report) {
+                    buildList {
+                        report?.photos?.mapNotNullTo(this) { it.imageOriginalUrl }
+                        val utama = report?.imageOriginalUrl ?: report?.imageOriginalPath
+                        if (!utama.isNullOrBlank() && utama !in this) add(utama)
+                    }
+                }
+                fotoDibuka?.let { idx ->
+                    PhotoViewerDialog(
+                        urls = semuaFotoWarga,
+                        initialIndex = idx,
+                        onDismiss = { fotoDibuka = null },
+                    )
+                }
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -293,16 +316,46 @@ fun InspectionAssignmentDetailScreen(
                             fontSize = 12.sp,
                         )
 
-                        val photoUrl = report?.imageOriginalUrl ?: report?.imageOriginalPath
-                        if (!photoUrl.isNullOrBlank()) {
-                            ReportThumbnail(
-                                url = photoUrl,
-                                contentDescription = "Foto kerusakan jalan dari warga",
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(200.dp)
-                                    .clip(RoundedCornerShape(8.dp)),
-                            )
+                        // Semua bukti foto warga, bukan hanya foto utama. Petugas
+                        // perlu melihat seluruh sudut kerusakan; ketuk untuk
+                        // memperbesar (retak halus tidak terbaca di thumbnail).
+                        val urlFotoWarga = semuaFotoWarga
+                        if (urlFotoWarga.isNotEmpty()) {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                itemsIndexed(urlFotoWarga) { idx, url ->
+                                    Box {
+                                        ReportThumbnail(
+                                            url = url,
+                                            contentDescription = "Foto kerusakan jalan dari warga ${idx + 1}",
+                                            modifier = Modifier
+                                                .size(120.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .clickable { fotoDibuka = idx },
+                                        )
+                                        if (urlFotoWarga.size > 1) {
+                                            Text(
+                                                "${idx + 1}/${urlFotoWarga.size}",
+                                                color = Color.White,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier
+                                                    .align(Alignment.BottomEnd)
+                                                    .padding(4.dp)
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(Color.Black.copy(alpha = 0.55f))
+                                                    .padding(horizontal = 5.dp, vertical = 2.dp),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            if (urlFotoWarga.size > 1) {
+                                Text(
+                                    "Ketuk foto untuk memperbesar (${urlFotoWarga.size} foto).",
+                                    color = TextMuted,
+                                    fontSize = 11.sp,
+                                )
+                            }
                         } else {
                             Box(
                                 modifier = Modifier

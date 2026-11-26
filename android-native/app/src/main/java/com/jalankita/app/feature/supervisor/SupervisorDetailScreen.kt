@@ -61,6 +61,7 @@ import com.jalankita.app.ui.components.safeContentPaddingValues
 import com.jalankita.app.ui.components.BadgeRow
 import com.jalankita.app.ui.components.TrackPill
 import com.jalankita.app.ui.components.BeforeAfterSlider
+import com.jalankita.app.ui.components.PhotoViewerDialog
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandSecondaryButton
 import com.jalankita.app.ui.components.DetailErrorState
@@ -199,6 +200,26 @@ private fun SupervisorDetailBody(
     onConfirmAi: () -> Unit,
     onBack: () -> Unit,
 ) {
+    // Foto yang dibuka layar penuh. Daftar URL-nya disusun sekali agar urutan
+    // geser sama dengan urutan kartu di layar.
+    var fotoDibuka by remember(d.id) { mutableStateOf<Int?>(null) }
+    val fotoPenuh = remember(d.id, d.photos) {
+        val daftar = d.photos.orEmpty()
+        if (daftar.isNotEmpty()) {
+            daftar.mapNotNull { it.originalUrl ?: it.displayUrl }
+        } else {
+            listOfNotNull(d.displayImageUrl)
+        }
+    }
+
+    fotoDibuka?.let { idx ->
+        PhotoViewerDialog(
+            urls = fotoPenuh,
+            initialIndex = idx,
+            onDismiss = { fotoDibuka = null },
+        )
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -208,9 +229,13 @@ private fun SupervisorDetailBody(
         // key unik per grup (idx) agar state toggle AI tidak tertukar antar foto/after-photo.
         val photos = d.photos.orEmpty()
         if (photos.isNotEmpty()) {
-            itemsIndexed(photos, key = { idx, p -> "photo-${p.id ?: idx}" }) { _, p -> PhotoCard(p) }
+            itemsIndexed(photos, key = { idx, p -> "photo-${p.id ?: idx}" }) { idx, p ->
+                PhotoCard(p, onShowFullscreen = { fotoDibuka = idx })
+            }
         } else if (d.displayImageUrl != null) {
-            item(key = "photo-single") { PhotoCard(SinglePhotoAdapter(d)) }
+            item(key = "photo-single") {
+                PhotoCard(SinglePhotoAdapter(d), onShowFullscreen = { fotoDibuka = 0 })
+            }
         }
 
         // ── Progress bar ──
@@ -398,7 +423,7 @@ private fun SinglePhotoAdapter(d: SupervisorReportDetail): SupervisorPhotoDto = 
 
 /** Foto per-foto + toggle Asli/Deteksi AI + meta AI — port detail-report.tsx:691-822. */
 @Composable
-private fun PhotoCard(p: SupervisorPhotoDto) {
+private fun PhotoCard(p: SupervisorPhotoDto, onShowFullscreen: () -> Unit = {}) {
     // key remember: pakai originalUrl sebagai fallback bila id null, agar tiap
     // kartu punya state toggle sendiri (tidak bentrok saat id kosong).
     val stateKey = p.id ?: p.originalUrl ?: p.displayUrl ?: "photo"
@@ -427,7 +452,12 @@ private fun PhotoCard(p: SupervisorPhotoDto) {
                     model = shown,
                     contentDescription = "Foto laporan",
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxWidth().height(260.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(260.dp)
+                        // Ketuk untuk memperbesar: foto Fit 260 dp masih menyembunyikan
+                        // detail retak/tepi lubang yang menentukan keputusan supervisor.
+                        .clickable(onClick = onShowFullscreen),
                 )
             } else {
                 Icon(AppIcon.Camera, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(40.dp))
@@ -613,9 +643,19 @@ private fun HasilInspeksiCard(
         // Foto bukti petugas (terpisah dari foto laporan warga)
         val foto = hasil.photos.orEmpty()
         if (foto.isNotEmpty()) {
+            // Supervisor harus bisa memperbesar bukti petugas: retak halus dan
+            // tepi lubang tidak terbaca di thumbnail 96 dp.
+            var fotoDibuka by remember(foto.size) { mutableStateOf<Int?>(null) }
+            fotoDibuka?.let { idx ->
+                PhotoViewerDialog(
+                    urls = foto.mapNotNull { it.url },
+                    initialIndex = idx,
+                    onDismiss = { fotoDibuka = null },
+                )
+            }
             Text("Foto Bukti Petugas (${foto.size})", color = Color(0xFF475569), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(foto, key = { it.id }) { f ->
+                itemsIndexed(foto, key = { idx, f -> "bukti-${f.id ?: "foto"}-$idx" }) { idx, f ->
                     val src = f.url?.let { ImageUrl.resolve(it) }
                     AsyncImage(
                         model = src,
@@ -624,7 +664,8 @@ private fun HasilInspeksiCard(
                         modifier = Modifier
                             .size(96.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .border(1.dp, Color(0xFFBFDBFE), RoundedCornerShape(8.dp)),
+                            .border(1.dp, Color(0xFFBFDBFE), RoundedCornerShape(8.dp))
+                            .clickable { fotoDibuka = idx },
                     )
                 }
             }

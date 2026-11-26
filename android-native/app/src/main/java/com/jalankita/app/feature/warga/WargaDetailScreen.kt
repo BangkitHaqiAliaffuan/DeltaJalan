@@ -59,6 +59,7 @@ import com.jalankita.app.feature.home.components.statusLabel
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.safeContentPaddingValues
 import com.jalankita.app.ui.components.BeforeAfterSlider
+import com.jalankita.app.ui.components.PhotoViewerDialog
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.BrandTextField
 import com.jalankita.app.ui.components.DetailErrorState
@@ -173,25 +174,39 @@ private fun WargaDetailBody(
     var stars by remember(report.id) { mutableStateOf(report.rating ?: 0) }
     var comment by remember(report.id) { mutableStateOf(report.ratingComment.orEmpty()) }
     var showAi by remember(report.id) { mutableStateOf(false) }
+    // Foto yang sedang dibuka layar penuh (null = tertutup).
+    var fotoDibuka by remember(report.id) { mutableStateOf<Int?>(null) }
     val rated = report.ratedAt != null
     val context = LocalContext.current
+
+    // Dipindah ke luar LazyColumn supaya penampil layar penuh bisa memakai
+    // daftar yang sama dengan carousel (termasuk saat mode "Hasil AI").
+    val hasAiPhoto = report.imageResultUrl != null
+    val urlFoto = buildList {
+        if (showAi && hasAiPhoto) {
+            ImageUrl.resolve(report.imageResultUrl)?.let { add(it) }
+        } else {
+            report.photos?.mapNotNullTo(this) { ImageUrl.resolve(it.displayUrl) }
+            ImageUrl.resolve(
+                report.imageOriginalUrl ?: report.firstPhotoUrl,
+            )?.let { if (it !in this) add(it) }
+        }
+    }
+
+    fotoDibuka?.let { idx ->
+        PhotoViewerDialog(
+            urls = urlFoto,
+            initialIndex = idx,
+            onDismiss = { fotoDibuka = null },
+        )
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = safeContentPaddingValues(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        val hasAiPhoto = report.imageResultUrl != null
-        val urls = buildList {
-            if (showAi && hasAiPhoto) {
-                ImageUrl.resolve(report.imageResultUrl)?.let { add(it) }
-            } else {
-                report.photos?.mapNotNullTo(this) { ImageUrl.resolve(it.displayUrl) }
-                ImageUrl.resolve(
-                    report.imageOriginalUrl ?: report.firstPhotoUrl,
-                )?.let { if (it !in this) add(it) }
-            }
-        }
+        val urls = urlFoto
         if (hasAiPhoto) {
             item(key = "photo-toggle") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -202,7 +217,11 @@ private fun WargaDetailBody(
         }
         if (urls.isNotEmpty()) {
             item(key = "gallery") {
-                PhotoCarousel(urls = urls, contentDescription = report.roadName)
+                PhotoCarousel(
+                    urls = urls,
+                    contentDescription = report.roadName,
+                    onShowFullscreen = { idx -> fotoDibuka = idx },
+                )
             }
         }
         item(key = "head") {
@@ -361,7 +380,10 @@ private fun WargaDetailBody(
             item(key = "tl-h") {
                 SectionHeader(icon = AppIcon.PendingActions, title = "Riwayat Status")
             }
-            items(timeline.size, key = { "tl-${timeline[it].createdAt}-${timeline[it].newStatus}" }) { idx ->
+            // Indeks ikut ke dalam key: dua event progres pada detik yang sama
+            // (mis. diperbaiki → selesai) akan menghasilkan key kembar dan
+            // membuat LazyColumn melempar IllegalArgumentException.
+            items(timeline.size, key = { "tl-$it-${timeline[it].createdAt}-${timeline[it].newStatus}" }) { idx ->
                 val t = timeline[idx]
                 val isLast = idx == timeline.lastIndex
                 Row {
@@ -462,7 +484,11 @@ private fun WargaDetailBody(
 }
 
 @Composable
-private fun PhotoCarousel(urls: List<String>, contentDescription: String?) {
+private fun PhotoCarousel(
+    urls: List<String>,
+    contentDescription: String?,
+    onShowFullscreen: (Int) -> Unit = {},
+) {
     val pagerState = androidx.compose.foundation.pager.rememberPagerState(
         pageCount = { urls.size },
     )
@@ -482,7 +508,11 @@ private fun PhotoCarousel(urls: List<String>, contentDescription: String?) {
                 model = urls[page],
                 contentDescription = contentDescription,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    // Ketuk foto untuk memperbesar: crop 4:3 menyembunyikan tepi
+                    // kerusakan, dan warga butuh memastikan laporannya benar.
+                    .clickable { onShowFullscreen(pagerState.currentPage) },
             )
         }
         if (urls.size > 1) {

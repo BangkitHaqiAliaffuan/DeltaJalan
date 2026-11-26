@@ -19,6 +19,7 @@ import com.jalankita.app.core.data.RoadSearchRepository
 import com.jalankita.app.core.data.RoadSuggestion
 import com.jalankita.app.core.data.SurveyRepository
 import com.jalankita.app.core.data.UnauthorizedException
+import com.jalankita.app.ui.util.Waktu
 import com.jalankita.app.core.network.BatchAnalysisDto
 import com.jalankita.app.core.network.DetectionDto
 import com.jalankita.app.core.network.DuplicateWarning
@@ -38,9 +39,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import javax.inject.Inject
 
 /** Batas tunggu reverse geocoding sebelum form dianggap gagal terisi otomatis. */
@@ -107,7 +105,8 @@ class LaporViewModel @Inject constructor(
      */
     fun loadTodayTasks(teamId: String?, force: Boolean = false) {
         if (todayLoading) return
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale("id")).format(Date())
+        // "Hari ini" harus WIB: perangkat berzona UTC tidak boleh mencari jadwal kemarin.
+        val today = Waktu.hariIniWib().toString()
         if (!force && todayDate == today && todayTasks.isNotEmpty()) return
         viewModelScope.launch {
             todayLoading = true
@@ -208,6 +207,11 @@ class LaporViewModel @Inject constructor(
         private set
     var savedReport by mutableStateOf<ReportDataDto?>(null)
         private set
+
+    /** Pesan gagal dari jalur yang tidak lewat jaringan (mis. izin kamera/lokasi). */
+    fun laporkanMasalahFoto(pesan: String) {
+        error = pesan
+    }
 
     /**
      * true bila server membalas 401 (token dicabut). MainScaffold memakai ini

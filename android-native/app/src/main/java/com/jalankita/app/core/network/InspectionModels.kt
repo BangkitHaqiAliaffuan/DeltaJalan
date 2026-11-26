@@ -208,6 +208,23 @@ data class InspectionReportDto(
     val source: String? = null,
     val description: String? = null,
     @Json(name = "survey_task_id") val surveyTaskId: String? = null,
+    /**
+     * Seluruh bukti foto warga (maks 3), foto utama di urutan pertama.
+     *
+     * Bernilai `null` bila server belum memuat relasi `report.photos` (versi
+     * backend lama) — layar harus jatuh ke [imageOriginalUrl] agar tidak kosong.
+     */
+    val photos: List<InspectionReportPhotoDto>? = null,
+)
+
+/** Satu bukti foto warga pada detail tugas inspeksi. */
+@JsonClass(generateAdapter = true)
+data class InspectionReportPhotoDto(
+    val id: String? = null,
+    @Json(name = "image_original_url") val imageOriginalUrl: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    @Json(name = "created_at") val createdAt: String? = null,
 )
 
 @JsonClass(generateAdapter = true)

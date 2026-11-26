@@ -99,6 +99,11 @@ class WargaLaporViewModel @Inject constructor(
         private set
     var savedReport by mutableStateOf<WargaSubmitData?>(null)
         private set
+
+    /** Pesan gagal dari jalur yang tidak lewat jaringan (mis. izin kamera/lokasi). */
+    fun laporkanMasalahFoto(pesan: String) {
+        error = pesan
+    }
     var serverWarnings by mutableStateOf<List<String>>(emptyList())
         private set
     var sessionExpired by mutableStateOf(false)

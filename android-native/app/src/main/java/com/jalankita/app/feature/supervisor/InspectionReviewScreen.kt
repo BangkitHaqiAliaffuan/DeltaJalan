@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -48,6 +49,7 @@ import com.jalankita.app.core.network.InspectionReviewAction
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.JkDialog
 import com.jalankita.app.ui.components.ReportThumbnail
+import com.jalankita.app.ui.components.PhotoViewerDialog
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.ErrorRed
 import com.jalankita.app.ui.theme.SuccessGreen
@@ -159,15 +161,26 @@ fun NativeInspectionReviewScreen(
         val photos = selected?.photos.orEmpty()
         if (photos.isNotEmpty()) {
         Text("Foto Bukti Petugas (${photos.size}):", color = TextDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        // Penampil layar penuh: supervisor memutuskan berdasarkan bukti ini, dan
+        // thumbnail 100 dp tidak cukup untuk menilai retak/tepi lubang.
+        var fotoReview by remember(selected?.id) { mutableStateOf<Int?>(null) }
+        fotoReview?.let { idx ->
+        PhotoViewerDialog(
+        urls = photos.mapNotNull { it.displayUrl },
+        initialIndex = idx,
+        onDismiss = { fotoReview = null },
+        )
+        }
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(photos, key = { it.id }) { photo ->
+        itemsIndexed(photos, key = { idx, photo -> "bukti-${photo.id ?: "foto"}-$idx" }) { idx, photo ->
         ReportThumbnail(
         url = photo.displayUrl,
         contentDescription = "Bukti inspeksi",
         modifier = Modifier
         .size(100.dp)
         .clip(RoundedCornerShape(8.dp))
-        .border(1.dp, Color(0xFFCBD5E1), RoundedCornerShape(8.dp)),
+        .border(1.dp, Color(0xFFCBD5E1), RoundedCornerShape(8.dp))
+        .clickable { fotoReview = idx },
         )
         }
         }
@@ -304,7 +317,8 @@ private fun InspectionReviewCard(
             Text("Kecamatan: $it", color = TextMuted, fontSize = 12.sp)
         }
 
-        // Tampilkan preview foto bukti inspeksi petugas
+        // Tampilkan preview foto bukti inspeksi petugas (kartu ringkas, tidak
+        // bisa diketuk: seluruh kartu sudah membuka dialog review).
         if (photos.isNotEmpty()) {
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),

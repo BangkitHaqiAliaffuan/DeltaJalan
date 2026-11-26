@@ -45,6 +45,7 @@ import com.jalankita.app.core.network.PetugasPhotoDto
 import com.jalankita.app.core.network.PetugasStatusHistoryDto
 import com.jalankita.app.core.network.ReportItemDto
 import com.jalankita.app.core.util.ImageUrl
+import com.jalankita.app.ui.components.PhotoViewerDialog
 import com.jalankita.app.feature.home.components.displayStatus
 import com.jalankita.app.feature.home.components.formatDateShort
 import com.jalankita.app.feature.home.components.formatDistance
@@ -325,49 +326,14 @@ fun PetugasAfterGallery(
             }
         }
     }
+    // Lightbox bersama: satu implementasi penampil foto untuk seluruh aplikasi
+    // (geser antar foto + cubit-zoom), menggantikan lightbox lokal tanpa zoom.
     lightbox?.let { idx ->
-        val u = ImageUrl.resolve(photos.getOrNull(idx)?.url)
-        if (u != null) {
-            Dialog(
-                onDismissRequest = { lightbox = null },
-                properties = DialogProperties(usePlatformDefaultWidth = false),
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.9f))
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        AsyncImage(
-                            model = u,
-                            contentDescription = "Foto sesudah perbaikan",
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.fillMaxWidth().height(320.dp),
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(24.dp),
-                        ) {
-                            Text("‹", color = Color.White, fontSize = 28.sp,
-                                modifier = Modifier.clickable(
-                                    enabled = idx > 0,
-                                ) { if (idx > 0) lightbox = idx - 1 })
-                            Text("${idx + 1} / ${photos.size}", color = Color.White, fontSize = 14.sp)
-                            Text("›", color = Color.White, fontSize = 28.sp,
-                                modifier = Modifier.clickable(
-                                    enabled = idx < photos.size - 1,
-                                ) { if (idx < photos.size - 1) lightbox = idx + 1 })
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Text("Tutup", color = Color.White, fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clickable { lightbox = null })
-                    }
-                }
-            }
-        }
+        PhotoViewerDialog(
+            urls = photos.mapNotNull { it.url },
+            initialIndex = idx,
+            onDismiss = { lightbox = null },
+        )
     }
 }
 

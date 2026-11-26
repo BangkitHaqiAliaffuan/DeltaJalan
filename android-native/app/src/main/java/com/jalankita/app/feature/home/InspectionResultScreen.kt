@@ -1,8 +1,5 @@
 package com.jalankita.app.feature.home
 
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -51,10 +48,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.jalankita.app.core.util.PhotoCapture
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.BrandPrimaryButton
 import com.jalankita.app.ui.components.safeContentPadding
+import com.jalankita.app.ui.components.rememberCameraCapture
 import com.jalankita.app.ui.rememberGalleryPickerLauncher
 import com.jalankita.app.ui.theme.BorderInput
 import com.jalankita.app.ui.theme.BrandBlue
@@ -94,51 +91,14 @@ fun InspectionResultScreen(
     }
 
     // ── Kamera langsung ──────────────────────────────────────────────
-    // Foto yang diambil saat itu membawa EXIF GPS perangkat, jadi lokasinya
-    // terikat ke tempat petugas berdiri. Berkas tujuan harus sudah ada
-    // SEBELUM kamera dibuka, karena aplikasi kamera menulis ke URI itu.
-    var captureTarget by remember { mutableStateOf<PhotoCapture.Target?>(null) }
-    val cameraLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.TakePicture(),
-    ) { tersimpan ->
-        val target = captureTarget
-        captureTarget = null
-        if (tersimpan && target != null) {
-            vm.addPhotos(context, listOf(target.uri))
-        } else {
-            // Petugas membatalkan; jangan tinggalkan berkas kosong di cache.
-            PhotoCapture.discard(target)
-        }
-    }
-
-    // Aplikasi MENDECLARASIKAN android.permission.CAMERA, dan Android menolak
-    // membuka aplikasi kamera dari aplikasi yang mendeklarasikannya tanpa
-    // memegang izin itu ("Permission Denial ... with revoked permission
-    // android.permission.CAMERA" — terbukti crash di perangkat). Jadi izin
-    // diminta lebih dulu; kalau ditolak, petugas tetap bisa memakai Galeri.
-    val mulaiKamera: () -> Unit = {
-        val target = PhotoCapture.newTarget(context)
-        // Ditugaskan SEBELUM launch: hasil bisa kembali sangat cepat, dan
-        // menugaskan setelah launch membuat callback membaca nilai lama.
-        captureTarget = target
-        try {
-            cameraLauncher.launch(target.uri)
-        } catch (_: Exception) {
-            // Perangkat tanpa aplikasi kamera: jangan crash, beri jalan keluar.
-            PhotoCapture.discard(target)
-            captureTarget = null
-            vm.reportPhotoProblem("Aplikasi kamera tidak tersedia di perangkat ini. Gunakan Galeri.")
-        }
-    }
-    val mintaIzinKamera = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { diberikan ->
-        if (diberikan) {
-            mulaiKamera()
-        } else {
-            vm.reportPhotoProblem("Izin kamera ditolak. Aktifkan izin Kamera di pengaturan aplikasi, atau pilih foto lewat Galeri.")
-        }
-    }
+    // Jalur bersama (izin CAMERA + stempel GPS EXIF bila aplikasi kamera tidak
+    // menuliskannya). Sebelumnya layar ini bergantung penuh pada EXIF kamera
+    // sehingga foto ditolak bila pengaturan "tag lokasi" kamera mati.
+    val ambilKamera = rememberCameraCapture(
+        prefix = "INS",
+        onPhoto = { uri -> vm.addPhotos(context, listOf(uri)) },
+        onError = { pesan -> vm.reportPhotoProblem(pesan) },
+    )
 
     LaunchedEffect(assignmentId) { vm.prepare(assignmentId) }
     LaunchedEffect(vm.submitted) { if (vm.submitted != null) onSubmitted() }
@@ -238,17 +198,7 @@ fun InspectionResultScreen(
                 // yang sudah terlanjur diambil sebelum aplikasi dibuka.
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
-                        onClick = {
-                            val sudahDiizinkan = ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.CAMERA,
-                            ) == PackageManager.PERMISSION_GRANTED
-                            if (sudahDiizinkan) {
-                                mulaiKamera()
-                            } else {
-                                mintaIzinKamera.launch(Manifest.permission.CAMERA)
-                            }
-                        },
+                        onClick = ambilKamera,
                         modifier = Modifier.weight(1f),
                     ) {
                         Icon(AppIcon.Camera, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -462,43 +412,14 @@ fun DiscoveredReportScreen(
         }
     }
 
-    // Kamera langsung: EXIF GPS ditulis perangkat saat pengambilan, sehingga
-    // lokasi temuan tidak bergantung pada foto lama di galeri.
-    var captureTarget by remember { mutableStateOf<PhotoCapture.Target?>(null) }
-    val cameraLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.TakePicture(),
-    ) { tersimpan ->
-        val target = captureTarget
-        captureTarget = null
-        if (tersimpan && target != null) {
-            vm.addPhotos(context, listOf(target.uri), discovered = true)
-        } else {
-            PhotoCapture.discard(target)
-        }
-    }
-
-    // Alasan yang sama seperti form inspeksi: CAMERA dideklarasikan di manifest,
-    // jadi izin runtime wajib diminta sebelum membuka aplikasi kamera.
-    val mulaiKamera: () -> Unit = {
-        val target = PhotoCapture.newTarget(context, prefix = "TMW")
-        captureTarget = target
-        try {
-            cameraLauncher.launch(target.uri)
-        } catch (_: Exception) {
-            PhotoCapture.discard(target)
-            captureTarget = null
-            vm.reportPhotoProblem("Aplikasi kamera tidak tersedia di perangkat ini. Gunakan Galeri.")
-        }
-    }
-    val mintaIzinKamera = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { diberikan ->
-        if (diberikan) {
-            mulaiKamera()
-        } else {
-            vm.reportPhotoProblem("Izin kamera ditolak. Aktifkan izin Kamera di pengaturan aplikasi, atau pilih foto lewat Galeri.")
-        }
-    }
+    // Kamera langsung: jalur bersama (izin CAMERA + stempel GPS EXIF). Temuan
+    // lapangan punya masalah yang sama dengan form inspeksi: tanpa cadangan
+    // lokasi perangkat, foto dari kamera bisa ditolak karena EXIF GPS kosong.
+    val ambilKamera = rememberCameraCapture(
+        prefix = "TMW",
+        onPhoto = { uri -> vm.addPhotos(context, listOf(uri), discovered = true) },
+        onError = { pesan -> vm.reportPhotoProblem(pesan) },
+    )
 
     LaunchedEffect(sessionId) { vm.prepareDiscovered(sessionId) }
     LaunchedEffect(vm.submitted) { if (vm.submitted != null) onSubmitted() }
@@ -581,17 +502,7 @@ fun DiscoveredReportScreen(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
-                    onClick = {
-                        val sudahDiizinkan = ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.CAMERA,
-                        ) == PackageManager.PERMISSION_GRANTED
-                        if (sudahDiizinkan) {
-                            mulaiKamera()
-                        } else {
-                            mintaIzinKamera.launch(Manifest.permission.CAMERA)
-                        }
-                    },
+                    onClick = ambilKamera,
                     modifier = Modifier.weight(1f),
                 ) {
                     Icon(AppIcon.Camera, contentDescription = null, modifier = Modifier.size(18.dp))
