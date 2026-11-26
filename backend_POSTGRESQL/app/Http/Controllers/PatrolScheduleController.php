@@ -362,8 +362,11 @@ class PatrolScheduleController extends Controller
         $kecamatanCount = count(array_unique($validated['kecamatan_list']));
 
         $start = Carbon::parse($validated['start_date']);
-        $end = $validated['end_date']
-            ? Carbon::parse($validated['end_date'])
+        // `end_date` nullable: key bisa tidak dikirim sama sekali oleh klien yang
+        // membuang field null (lihat catatan yang sama di ReportController::mulai).
+        $endDateRaw = $validated['end_date'] ?? null;
+        $end = $endDateRaw
+            ? Carbon::parse($endDateRaw)
             : $start->copy()->addWeeks(2)->endOfDay();
 
         $dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];

@@ -2712,7 +2712,13 @@ class ReportController extends Controller
             'estimasi_selesai_hari' => 'nullable|integer|min:1|max:90',
         ]);
 
-        $estimasiHari = $validated['estimasi_selesai_hari'];
+        // ── Kenapa `?? null` wajib ──────────────────────────────────────────
+        // Klien membuang field bernilai null (Moshi: `serializeNulls = false`),
+        // sehingga untuk pilihan "hari ini juga" key-nya TIDAK ADA di
+        // `$validated` (Validator hanya menyalin key yang dikirim). Akses
+        // langsung tanpa fallback memicu "Undefined array key" → Laravel
+        // mengubah warning menjadi ErrorException → HTTP 500.
+        $estimasiHari = $validated['estimasi_selesai_hari'] ?? null;
 
         if ($estimasiHari !== null) {
             $deadline = now()->copy()->addHours((int) $estimasiHari * 24);
@@ -2944,9 +2950,10 @@ class ReportController extends Controller
             // Notifikasi supervisor
             try {
                 $supervisors = User::where('role', 'supervisor')->get();
-                $msg = 'Progress baru pada '.$report->report_code.': '.($validated['catatan'] ?? 'foto terbaru');
+                $catatan = $validated['catatan'] ?? null;
+                $msg = 'Progress baru pada '.$report->report_code.': '.($catatan ?? 'foto terbaru');
                 foreach ($supervisors as $supervisor) {
-                    $supervisor->notify(new ProgressUpdateNotification($report, $user->name, $validated['catatan']));
+                    $supervisor->notify(new ProgressUpdateNotification($report, $user->name, $catatan));
                 }
             } catch (\Throwable $e) {
                 Log::warning('Gagal kirim notif progress: '.$e->getMessage());
