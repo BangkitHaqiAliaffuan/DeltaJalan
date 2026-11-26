@@ -59,6 +59,8 @@ fun TrenBulanan(
 
     var dipilih by remember(tren) { mutableStateOf<Int?>(null) }
     val maks = tren.maxOf { it.total }.coerceAtLeast(1)
+    val adaSisa = tren.any { sisaSegmen(it) > 0 }
+    val tinggiBatangEfektif = (tinggiBatang - 18.dp).coerceAtLeast(1.dp)
 
     val ringkasan = tren.joinToString("; ") { t ->
         val bulan = Waktu.namaBulanSingkat(t.bulan) ?: "?"
@@ -94,7 +96,7 @@ fun TrenBulanan(
                     }
                     BatangBulan(
                         t = t,
-                        tinggi = tinggiBatang(t.total, maks, tinggiBatang - 18.dp),
+                        tinggi = tinggiBatang(t.total, maks, tinggiBatangEfektif),
                     )
                 }
             }
@@ -119,7 +121,7 @@ fun TrenBulanan(
         }
 
         Spacer(Modifier.height(10.dp))
-        Legenda()
+        Legenda(tampilkanLainnya = adaSisa)
 
         dipilih?.let { indeks ->
             tren.getOrNull(indeks)?.let { t ->
@@ -171,18 +173,36 @@ private fun BatangBulan(t: MonthlyTrendDto, tinggi: Dp) {
                     .background(segmen.warna),
             )
         }
+        // Status yang tidak dirinci (Ditugaskan, Hasil AI, Diedit) tetap harus
+        // tampil, kalau tidak batangnya bolong dan tinggi tidak cocok dengan total.
+        val sisa = sisaSegmen(t)
+        if (sisa > 0) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(sisa.toFloat())
+                    .background(WARNA_LAINNYA),
+            )
+        }
     }
 }
 
 @Composable
-private fun Legenda() {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        SEGMEN.forEach { segmen ->
-            KeyLabel(warna = segmen.warna, teks = segmen.label)
+private fun Legenda(tampilkanLainnya: Boolean) {
+    val item = buildList {
+        SEGMEN.forEach { add(it.label to it.warna) }
+        if (tampilkanLainnya) add("Lainnya" to WARNA_LAINNYA)
+    }
+    // Dua baris: 5–6 label tidak muat satu baris di layar 320–360 dp.
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        item.chunked(3).forEach { baris ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                baris.forEach { (label, warna) -> KeyLabel(warna = warna, teks = label) }
+            }
         }
     }
 }
@@ -205,10 +225,20 @@ private fun rincian(t: MonthlyTrendDto): String {
     val bagian = SEGMEN.mapNotNull { s ->
         val nilai = s.nilai(t)
         if (nilai > 0) "${s.label} $nilai" else null
-    }
+    }.toMutableList()
+    val sisa = sisaSegmen(t)
+    if (sisa > 0) bagian += "Lainnya $sisa"
     val bulan = Waktu.namaBulanSingkat(t.bulan) ?: "-"
     return "$bulan · Total ${t.total}" + if (bagian.isEmpty()) "" else " · " + bagian.joinToString(" · ")
 }
+
+/**
+ * Jumlah laporan pada bulan itu yang tidak tercakup segmen status yang dirinci:
+ * `total` menghitung SEMUA status (termasuk `Ditugaskan`, `Hasil AI`, `Diedit`),
+ * sedangkan [SEGMEN] hanya merinci lima status akhir.
+ */
+fun sisaSegmen(t: MonthlyTrendDto): Int =
+    (t.total - SEGMEN.sumOf { it.nilai(t) }).coerceAtLeast(0)
 
 /**
  * Tinggi batang proporsional terhadap bulan tertinggi.
@@ -221,6 +251,8 @@ fun tinggiBatang(nilai: Int, maks: Int, tinggi: Dp): Dp {
     val rasio = (nilai.toFloat() / maks.toFloat()).coerceIn(0f, 1f)
     return tinggi * rasio
 }
+
+private val WARNA_LAINNYA = Color(0xFF94A3B8)
 
 /** Segmen status pada grafik (urutan = urutan tumpukan dari atas). */
 private data class Segmen(

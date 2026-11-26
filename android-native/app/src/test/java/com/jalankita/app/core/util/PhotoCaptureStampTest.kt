@@ -95,6 +95,13 @@ class PhotoCaptureStampTest {
     @Test
     fun `jalur kamera memakai stempel hanya bila exif kamera kosong`() {
         val helper = baca("ui/components/CameraCapture.kt")
-        assertTrue(helper.contains("if (!PhotoCapture.hasGps(t.file))"))
+        // EXIF kamera yang sudah ber-GPS tidak boleh ditimpa: stempel hanya di
+        // cabang "tidak punya GPS".
+        assertTrue(helper.contains("PhotoCapture.hasGps(t.file)"))
+        assertTrue(helper.contains("PhotoCapture.stampLocation(t.file"))
+        assertTrue(
+            "baca/tulis EXIF tidak boleh di Main thread",
+            helper.contains("withContext(Dispatchers.IO)"),
+        )
     }
 }

@@ -127,3 +127,6 @@ Testing/
 
 # Build outputs — regenerable (DeltaJalan.apk sudah diabaikan di atas)
 *.apk
+
+# Screenshot/verifikasi lokal (bukan bagian repo)
+.tmp-shots/

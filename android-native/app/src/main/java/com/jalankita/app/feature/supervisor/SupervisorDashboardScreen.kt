@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import com.jalankita.app.core.network.PciDistrictDto
 import com.jalankita.app.core.network.ReportItemDto
 import com.jalankita.app.core.network.TeamStatsDto
+import com.jalankita.app.feature.home.components.displayStatus
 import com.jalankita.app.feature.home.components.SectionHeader
 import com.jalankita.app.ui.util.Waktu
 import com.jalankita.app.feature.home.components.StatCard
@@ -264,7 +265,10 @@ fun SupervisorDashboardScreen(
                 // Laporan yang menunggu keputusan supervisor adalah pekerjaan utama
                 // di layar ini: tombolnya tampil penuh + kartu diberi aksen amber,
                 // bukan chip ikon 13 sp seperti aksi sekunder.
-                val perluReview = r.status == "Menunggu Review"
+                // "Ditinjau" ditampilkan sebagai "Menunggu Review" (lihat displayStatus),
+                // jadi CTA harus ikut label itu — kalau tidak kartunya tampak review
+                // tetapi tanpa tombol tinjau.
+                val perluReview = displayStatus(r.status) == "Menunggu Review"
                 val actions = buildList {
                     // Hapus hanya bila Ditolak (web: index.tsx:734) — native juga
                     // boleh 4 status per backend, tapi UX mengikuti web = Ditolak.

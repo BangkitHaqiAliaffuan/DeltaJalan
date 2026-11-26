@@ -16,7 +16,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import com.jalankita.app.core.util.DeviceLocation
 import com.jalankita.app.core.util.PhotoCapture
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Pesan kegagalan jalur kamera — dipakai bersama semua form agar seragam. */
 object CameraMessages {
@@ -80,25 +82,31 @@ fun rememberCameraCapture(
             return@rememberLauncherForActivityResult
         }
         scope.launch {
-            if (!PhotoCapture.hasGps(t.file)) {
-                if (!DeviceLocation.hasPermission(context)) {
+            // Pembacaan/penulisan EXIF + pencarian lokasi itu IO: jalankan di
+            // Dispatchers.IO supaya UI tidak tersendat pada foto 5 MB. Callback
+            // `onPhoto`/`onError` tetap kembali ke Main untuk memperbarui state.
+            val galat = withContext(Dispatchers.IO) {
+                if (PhotoCapture.hasGps(t.file)) {
+                    null
+                } else if (!DeviceLocation.hasPermission(context)) {
                     PhotoCapture.discard(t)
-                    onError(CameraMessages.IZIN_LOKASI)
-                    return@launch
-                }
-                val fix = DeviceLocation.current(context)
-                if (fix == null) {
-                    PhotoCapture.discard(t)
-                    onError(CameraMessages.LOKASI_GAGAL)
-                    return@launch
-                }
-                if (!PhotoCapture.stampLocation(t.file, fix.first, fix.second)) {
-                    PhotoCapture.discard(t)
-                    onError(CameraMessages.STEMPEL_GAGAL)
-                    return@launch
+                    CameraMessages.IZIN_LOKASI
+                } else {
+                    val fix = DeviceLocation.current(context)
+                    when {
+                        fix == null -> {
+                            PhotoCapture.discard(t)
+                            CameraMessages.LOKASI_GAGAL
+                        }
+                        !PhotoCapture.stampLocation(t.file, fix.first, fix.second) -> {
+                            PhotoCapture.discard(t)
+                            CameraMessages.STEMPEL_GAGAL
+                        }
+                        else -> null
+                    }
                 }
             }
-            onPhoto(t.uri)
+            if (galat == null) onPhoto(t.uri) else onError(galat)
         }
     }
 

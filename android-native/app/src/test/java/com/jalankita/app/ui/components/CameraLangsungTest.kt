@@ -86,11 +86,15 @@ class CameraLangsungTest {
         )
         assertTrue(
             "EXIF kamera yang sudah ber-GPS tidak ditimpa",
-            helper.contains("if (!PhotoCapture.hasGps(t.file))"),
+            helper.contains("PhotoCapture.hasGps(t.file)"),
         )
         assertTrue(
             "koordinat perangkat ditambal ke berkas",
             helper.contains("PhotoCapture.stampLocation(t.file, fix.first, fix.second)"),
+        )
+        assertTrue(
+            "baca/tulis EXIF dipindah ke Dispatchers.IO",
+            helper.contains("withContext(Dispatchers.IO)"),
         )
         assertTrue(
             "berkas sementara dibuang saat pengambilan dibatalkan",

@@ -59,6 +59,38 @@ class TrendChartScaleTest {
     }
 
     @Test
+    fun `sisa segmen menutup status yang tidak dirinci`() {
+        // Total 10, hanya 5 yang dirinci → 5 laporan "Ditugaskan" dsb. harus tetap tampil.
+        val t = com.jalankita.app.core.network.MonthlyTrendDto(
+            bulan = "2026-11",
+            total = 10,
+            selesai = 3,
+            disetujui = 2,
+        )
+        assertEquals(5, sisaSegmen(t))
+    }
+
+    @Test
+    fun `sisa segmen nol saat semua status dirinci`() {
+        val t = com.jalankita.app.core.network.MonthlyTrendDto(
+            bulan = "2026-11",
+            total = 6,
+            selesai = 1,
+            disetujui = 2,
+            sedangDiperbaiki = 1,
+            menungguReview = 1,
+            ditolak = 1,
+        )
+        assertEquals(0, sisaSegmen(t))
+    }
+
+    @Test
+    fun `sisa segmen tidak negatif bila data tidak konsisten`() {
+        val t = com.jalankita.app.core.network.MonthlyTrendDto(bulan = "2026-11", total = 1, selesai = 3)
+        assertEquals(0, sisaSegmen(t))
+    }
+
+    @Test
     fun `label bulan tidak dipotong mentah`() {
         val pelanggar = File(akar, "").walkTopDown()
             .filter { it.isFile && it.extension == "kt" }
