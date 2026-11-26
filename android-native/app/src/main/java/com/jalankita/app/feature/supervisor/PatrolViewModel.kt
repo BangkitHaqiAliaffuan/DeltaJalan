@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.jalankita.app.core.data.DashboardResult
 import com.jalankita.app.core.data.PatrolRepository
 import com.jalankita.app.core.data.UnauthorizedException
+import com.jalankita.app.ui.util.Waktu
 import com.jalankita.app.core.network.PATROL_MIN_HARI
 import com.jalankita.app.core.network.PatrolPreview
 import com.jalankita.app.core.network.PatrolSchedule
@@ -27,7 +28,7 @@ data class PatrolFormState(
     val hari: List<String> = emptyList(),
     val kecamatanList: List<String> = emptyList(),
     val frekuensi: String = "setiap_minggu",
-    val startDate: String = LocalDate.now().toString(),
+    val startDate: String = Waktu.hariIniWib().toString(),
     val endDate: String = "",
     val alasanTugas: String = "rutin",
 ) {

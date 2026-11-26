@@ -38,6 +38,7 @@ import com.jalankita.app.core.network.PciDistrictDto
 import com.jalankita.app.core.network.ReportItemDto
 import com.jalankita.app.core.network.TeamStatsDto
 import com.jalankita.app.feature.home.components.SectionHeader
+import com.jalankita.app.ui.util.Waktu
 import com.jalankita.app.feature.home.components.StatCard
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.JkDialog
@@ -514,8 +515,8 @@ fun ExportMonthlyDialog(
     onDismiss: () -> Unit,
     onExport: (format: String, month: Int, year: Int) -> Unit,
 ) {
-    val currentMonth = java.time.LocalDate.now().monthValue
-    val currentYear = java.time.LocalDate.now().year
+    val currentMonth = Waktu.hariIniWib().monthValue
+    val currentYear = Waktu.hariIniWib().year
     var selectedMonth by remember { mutableStateOf(currentMonth) }
     var selectedYear by remember { mutableStateOf(currentYear) }
     var selectedFormat by remember { mutableStateOf("pdf") }

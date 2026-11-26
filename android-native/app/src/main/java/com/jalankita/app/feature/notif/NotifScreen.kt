@@ -50,41 +50,14 @@ import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.ContainerLow
 import com.jalankita.app.ui.theme.PillShape
 import com.jalankita.app.ui.theme.TextDark
+import com.jalankita.app.ui.util.Waktu
 import com.jalankita.app.ui.theme.TextMuted
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 /** "baru saja / Nm / Nj / Nh" — cermin timeAgo() notifications.tsx:22-32. */
-private fun timeAgo(createdAt: String?): String {
-    if (createdAt.isNullOrBlank()) return ""
-    return try {
-        val parsed = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
-            .parse(createdAt.substringBefore('.').substringBefore('+').substringBefore('Z'))
-            ?: return ""
-        val diff = System.currentTimeMillis() - parsed.time
-        val mins = diff / 60_000
-        if (mins < 1) return "baru saja"
-        if (mins < 60) return "${mins}m"
-        val hours = mins / 60
-        if (hours < 24) return "${hours}j"
-        "${hours / 24}h"
-    } catch (_: Exception) {
-        ""
-    }
-}
+private fun timeAgo(createdAt: String?): String = Waktu.relatif(createdAt).orEmpty()
 
 /** Tanggal pendek "12 Okt 2026, 08:45" — cermin formatDate short web. */
-private fun shortDate(createdAt: String?): String {
-    if (createdAt.isNullOrBlank()) return ""
-    return try {
-        val parsed = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
-            .parse(createdAt.substringBefore('.').substringBefore('+').substringBefore('Z'))
-            ?: return ""
-        SimpleDateFormat("d MMM yyyy, HH:mm", Locale("id")).format(parsed)
-    } catch (_: Exception) {
-        createdAt.take(16).replace('T', ' ')
-    }
-}
+private fun shortDate(createdAt: String?): String = Waktu.tanggalJam(createdAt).orEmpty()
 
 /**
  * Layar Notifikasi — replikasi routes/notifications.tsx.

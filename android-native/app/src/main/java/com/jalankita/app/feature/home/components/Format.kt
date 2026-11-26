@@ -2,59 +2,26 @@ package com.jalankita.app.feature.home.components
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
-import java.time.Instant
-import java.time.OffsetDateTime
-import java.time.ZoneId
+import com.jalankita.app.ui.util.Waktu
 
 /** Kode laporan web memakai JetBrains Mono — native memakai monospace sistem. */
 fun monospace(): FontFamily = FontFamily.Monospace
 
 /**
  * ISO-8601 → "12 Jan 2026, 08:45" (ringkas ala daftar web).
- * Gagal parsir → tampilkan mentah.
+ * Gagal parse → tampilkan mentah.
+ *
+ * Sebelumnya jam UTC dipakai apa adanya sehingga semua tanggal tampil 7 jam
+ * lebih awal (dan kolom tanggal bisa mundur sehari). Konversi WIB kini ada di
+ * [Waktu].
  */
-fun formatDateShort(iso: String): String {
-    return try {
-        val instant = java.time.OffsetDateTime.parse(iso)
-        val months = arrayOf(
-            "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
-            "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
-        )
-        val m = months[(instant.monthValue - 1).coerceIn(0, 11)]
-        val hh = instant.hour.toString().padStart(2, '0')
-        val mm = instant.minute.toString().padStart(2, '0')
-        "${instant.dayOfMonth} $m ${instant.year}, $hh:$mm"
-    } catch (_: Exception) {
-        iso
-    }
-}
+fun formatDateShort(iso: String): String = Waktu.tanggalJam(iso) ?: iso
 
 /**
  * Port persis Frontend-stable/src/lib/format.ts ::formatDateRelative.
  * "Hari ini, HH:mm" / "Kemarin" / "12 Jan 2026". Gagal → string mentah.
  */
-fun formatDateRelative(dateStr: String): String {
-    return try {
-        val d = OffsetDateTime.parse(dateStr).atZoneSameInstant(ZoneId.systemDefault())
-        val now = Instant.now().atZone(ZoneId.systemDefault())
-        val days: Long = java.time.Duration.between(d.toInstant(), now.toInstant()).toDays()
-        val months = arrayOf(
-            "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
-            "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
-        )
-        when {
-            days <= 0L -> {
-                val h = d.hour.toString().padStart(2, '0')
-                val m = d.minute.toString().padStart(2, '0')
-                "Hari ini, $h:$m"
-            }
-            days == 1L -> "Kemarin"
-            else -> "${d.dayOfMonth} ${months[(d.monthValue - 1).coerceIn(0, 11)]} ${d.year}"
-        }
-    } catch (_: Exception) {
-        dateStr
-    }
-}
+fun formatDateRelative(dateStr: String): String = Waktu.tanggalRelatif(dateStr) ?: dateStr
 
 /**
  * Port lib/format.ts ::statusDotStyle — warna dot status.

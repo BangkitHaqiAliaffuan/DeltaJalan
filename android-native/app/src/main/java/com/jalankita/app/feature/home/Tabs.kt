@@ -49,6 +49,7 @@ import com.jalankita.app.feature.home.components.SectionHeader
 import com.jalankita.app.feature.home.components.SkeletonCard
 import com.jalankita.app.feature.home.ReportCardActions
 import com.jalankita.app.feature.home.components.formatDateShort
+import com.jalankita.app.ui.util.Waktu
 import com.jalankita.app.ui.theme.BrandBlue
 import com.jalankita.app.ui.theme.SuccessGreen
 import com.jalankita.app.ui.theme.TextDark
@@ -371,7 +372,7 @@ private fun PatrolSessionRow(task: SurveyTask, onClick: () -> Unit) {
             Text(
                 text = listOfNotNull(
                     task.kecamatan?.let { "Kec. $it" },
-                    task.tanggalPatroli?.let { formatDateShort(it) },
+                    task.tanggalPatroli?.let { Waktu.tanggalSaja(it) },
                     task.alasanTugas?.replace("_", " "),
                 ).joinToString(" • "),
                 color = TextMuted, fontSize = 11.sp,

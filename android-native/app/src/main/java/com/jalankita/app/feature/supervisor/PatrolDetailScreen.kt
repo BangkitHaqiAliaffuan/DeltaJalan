@@ -42,6 +42,7 @@ import com.jalankita.app.core.network.PatrolSchedule
 import com.jalankita.app.core.network.PatrolTask
 import com.jalankita.app.feature.home.components.SkeletonCard
 import com.jalankita.app.feature.home.components.formatDateShort
+import com.jalankita.app.ui.util.Waktu
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.safeContentPaddingValues
 import com.jalankita.app.ui.components.BrandPrimaryButton
@@ -128,7 +129,7 @@ private fun PatrolDetailBody(
     // PatrolSessionScreen, padahal layar itu tidak bisa dibuka dari sini —
     // akibatnya tombol "Antrekan laporan untuk inspeksi" tak pernah terjangkau.
     val activeTask = remember(tasks) {
-        val today = LocalDate.now()
+        val today = Waktu.hariIniWib()
         tasks
             .filter { it.status == "aktif" }
             .sortedWith(
@@ -299,16 +300,8 @@ private fun PatrolDetailBody(
  * Fallback ke 10 karakter pertama tetap dipakai bila offset zona tak terbaca,
  * supaya data lama tidak hilang dari tampilan hanya karena parsing gagal.
  */
-private fun taskDate(task: PatrolTask): LocalDate? {
-    val raw = task.tanggalPatroli?.takeIf { it.isNotBlank() } ?: return null
-    return runCatching {
-        java.time.OffsetDateTime.parse(raw)
-            .atZoneSameInstant(java.time.ZoneId.of("Asia/Jakarta"))
-            .toLocalDate()
-    }.recoverCatching {
-        LocalDate.parse(raw.take(10))
-    }.getOrNull()
-}
+private fun taskDate(task: PatrolTask): LocalDate? =
+    Waktu.tanggalWib(task.tanggalPatroli)
 
 @Composable
 private fun InfoStat(label: String, value: String, valueColor: Color = TextDark) {
@@ -326,7 +319,7 @@ private fun PatrolCalendar(
     modifier: Modifier = Modifier,
 ) {
     var current by remember { mutableStateOf(YearMonth.now()) }
-    val today = LocalDate.now()
+    val today = Waktu.hariIniWib()
 
     val patrolDates = remember(schedule) { buildPatrolDateMap(schedule) }
     val withReports = tasksByDate.values.count { it.reportsCount > 0 }
@@ -500,9 +493,9 @@ private fun buildPatrolDateMap(schedule: PatrolSchedule): Map<String, String> {
     val kecList = schedule.kecamatanList.orEmpty()
     if (kecList.isEmpty()) return map
 
-    val start = runCatching { LocalDate.parse(startStr.substringBefore("T")) }.getOrNull() ?: return map
-    val end = schedule.endDate?.let { runCatching { LocalDate.parse(it.substringBefore("T")) }.getOrNull() }
-        ?: LocalDate.now().plusYears(1)
+    val start = Waktu.tanggalWib(startStr) ?: return map
+    val end = schedule.endDate?.let { Waktu.tanggalWib(it) }
+        ?: Waktu.hariIniWib().plusYears(1)
 
     var kecIndex = 0
     var cursor = start
@@ -522,7 +515,7 @@ private fun isPatrolDay(date: LocalDate, schedule: PatrolSchedule): Boolean {
     if (schedule.hari?.contains(dayName) != true) return false
     return when (schedule.frekuensi) {
         "dua_mingguan" -> {
-            val start = runCatching { LocalDate.parse(schedule.startDate!!.substringBefore("T")) }.getOrNull() ?: return false
+            val start = Waktu.tanggalWib(schedule.startDate) ?: return false
             val weeks = java.time.temporal.ChronoUnit.WEEKS.between(startOfWeek(start), startOfWeek(date))
             weeks % 2 == 0L
         }

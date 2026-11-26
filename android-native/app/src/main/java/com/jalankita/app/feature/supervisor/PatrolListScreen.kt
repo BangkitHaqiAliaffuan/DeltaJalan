@@ -46,6 +46,7 @@ import com.jalankita.app.core.network.PATROL_HARI
 import com.jalankita.app.core.network.PATROL_HARI_LABEL
 import com.jalankita.app.core.network.PATROL_JENIS_TUGAS
 import com.jalankita.app.core.network.PATROL_MIN_HARI
+import com.jalankita.app.ui.util.Waktu
 import com.jalankita.app.core.network.PatrolSchedule
 import com.jalankita.app.core.network.TeamDto
 import com.jalankita.app.feature.supervisor.components.TeamSearchSelect
@@ -376,7 +377,7 @@ private fun PatrolFormDialog(
                     hari = initial.hari.orEmpty(),
                     kecamatanList = initial.kecamatanList.orEmpty(),
                     frekuensi = initial.frekuensi ?: "setiap_minggu",
-                    startDate = initial.startDate ?: LocalDate.now().toString(),
+                    startDate = initial.startDate ?: Waktu.hariIniWib().toString(),
                     endDate = initial.endDate.orEmpty(),
                     alasanTugas = initial.alasanTugas ?: "rutin",
                 )
@@ -562,8 +563,8 @@ private fun GenerateDialog(
     onDismiss: () -> Unit,
     onConfirm: (String, String) -> Unit,
 ) {
-    var start by remember { mutableStateOf(LocalDate.now().toString()) }
-    var end by remember { mutableStateOf(LocalDate.now().plusDays(14).toString()) }
+    var start by remember { mutableStateOf(Waktu.hariIniWib().toString()) }
+    var end by remember { mutableStateOf(Waktu.hariIniWib().plusDays(14).toString()) }
     JkDialog(
         title = "Generate Shift Patroli",
         onDismissRequest = { if (!busy) onDismiss() },

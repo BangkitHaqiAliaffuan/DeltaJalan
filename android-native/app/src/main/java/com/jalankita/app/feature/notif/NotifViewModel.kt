@@ -9,8 +9,10 @@ import com.jalankita.app.core.data.DashboardResult
 import com.jalankita.app.core.data.NotifRepository
 import com.jalankita.app.core.data.UnauthorizedException
 import com.jalankita.app.core.network.NotifItemDto
+import com.jalankita.app.core.util.gabungUnik
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
+import java.time.Instant
 import javax.inject.Inject
 
 /** Nilai filter = `data.type` server (cermin types[] notifications.tsx). */
@@ -104,7 +106,15 @@ class NotifViewModel @Inject constructor(
                 val p = if (reset) 1 else page + 1
                 when (val r = repo.list(page = p)) {
                     is DashboardResult.Success -> {
-                        items = if (reset || p == 1) r.data.items else items + r.data.items
+                        // Paginasi berbasis offset: notifikasi baru bisa masuk di
+                        // antara dua pengambilan halaman sehingga id yang sama
+                        // muncul dua kali. Tanpa dedupe, key LazyColumn duplikat →
+                        // IllegalArgumentException saat scroll.
+                        items = if (reset || p == 1) {
+                            r.data.items
+                        } else {
+                            items.gabungUnik(r.data.items) { it.id }
+                        }
                         page = r.data.page
                         lastPage = r.data.lastPage
                         total = r.data.total
@@ -134,7 +144,9 @@ class NotifViewModel @Inject constructor(
                 when (val r = repo.markRead(item.id)) {
                     is DashboardResult.Success -> {
                         items = items.map {
-                            if (it.id == item.id) it.copy(readAt = "now") else it
+                            // Timestamp sungguhan, bukan sentinel "now": nilai ini
+                            // bisa ikut diformat layar lain.
+                            if (it.id == item.id) it.copy(readAt = Instant.now().toString()) else it
                         }
                         if (unread > 0) unread -= 1
                     }
@@ -153,7 +165,7 @@ class NotifViewModel @Inject constructor(
             try {
                 when (val r = repo.markAllRead()) {
                     is DashboardResult.Success -> {
-                        items = items.map { it.copy(readAt = it.readAt ?: "now") }
+                        items = items.map { it.copy(readAt = it.readAt ?: Instant.now().toString()) }
                         unread = 0
                     }
                     is DashboardResult.Error -> errorMessage = r.message

@@ -41,6 +41,7 @@ import com.jalankita.app.feature.home.components.EmptyState
 import com.jalankita.app.feature.home.components.SkeletonCard
 import com.jalankita.app.feature.home.components.displayStatus
 import com.jalankita.app.feature.home.components.formatDateShort
+import com.jalankita.app.ui.util.Waktu
 import com.jalankita.app.feature.home.components.statusDotColor
 import com.jalankita.app.ui.components.AppIcon
 import com.jalankita.app.ui.components.safeContentPaddingValues
@@ -138,7 +139,7 @@ private fun PatrolSessionBody(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "Patroli ${task.tanggalPatroli?.let { formatDateShort(it) } ?: ""}",
+                        "Patroli ${task.tanggalPatroli?.let { Waktu.tanggalSaja(it) } ?: ""}",
                         color = TextDark, fontSize = 17.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f),
                     )
@@ -152,7 +153,7 @@ private fun PatrolSessionBody(
                     }
                     InfoRow(AppIcon.Assignment, task.team?.name?.let { "Tim: $it" } ?: "—")
                     InfoRow(AppIcon.CalendarMonth, "${jam(task.jamMulai)} — ${jam(task.jamSelesai)}")
-                    task.tanggalPatroli?.let { InfoRow(AppIcon.CalendarMonth, formatDateShort(it)) }
+                    task.tanggalPatroli?.let { InfoRow(AppIcon.CalendarMonth, Waktu.tanggalSaja(it) ?: "-") }
                     task.alasanTugas?.let { InfoRow(AppIcon.Info, it.replace("_", " ").replaceFirstChar { c -> c.uppercase() }) }
                 }
                 if (reports.isNotEmpty()) {

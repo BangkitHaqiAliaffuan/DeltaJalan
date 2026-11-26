@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.jalankita.app.ui.util.Waktu
 import androidx.compose.ui.unit.sp
 import com.jalankita.app.core.network.SurveyTask
 import com.jalankita.app.ui.components.AppIcon
@@ -51,7 +52,8 @@ import java.time.YearMonth
  * untuk melihat sesi hari itu, ketuk sesi untuk membuka detailnya.
  *
  * Sumber data: GET /survei (`DashboardViewModel.surveys`). `tanggal_patroli`
- * bisa berformat ISO penuh, jadi selalu dinormalisasi lewat `substringBefore("T")`.
+ * dikirim UTC (tanggal 26 Nov 00:00 WIB → `25 Nov 17:00Z`), jadi selalu
+ * dinormalisasi lewat `Waktu.tanggalWib` agar tidak mundur sehari.
  */
 @Composable
 fun PatrolTeamCalendar(
@@ -91,7 +93,7 @@ fun PatrolTeamCalendar(
         kecamatanColors[task.kecamatan?.trim().orEmpty().ifBlank { LAINNYA }]
             ?: KECAMATAN_PALETTE.first()
 
-    val today = remember { LocalDate.now() }
+    val today = remember { Waktu.hariIniWib() }
 
     // Bila bulan berjalan tidak punya sesi (mis. jadwal bulan lalu), lompat ke
     // bulan terdekat yang ada sesinya — kecuali pengguna sudah menekan panah.
@@ -252,10 +254,7 @@ fun PatrolTeamCalendar(
 }
 
 /** Tanggal `tanggal_patroli` bisa `Y-m-d` atau ISO penuh. */
-private fun parseSurveyDate(raw: String?): LocalDate? {
-    if (raw.isNullOrBlank()) return null
-    return runCatching { LocalDate.parse(raw.substringBefore("T")) }.getOrNull()
-}
+private fun parseSurveyDate(raw: String?): LocalDate? = Waktu.tanggalWib(raw)
 
 private fun formatTanggal(date: LocalDate): String =
     "${date.dayOfMonth} ${namaBulan(date.monthValue)} ${date.year}"
