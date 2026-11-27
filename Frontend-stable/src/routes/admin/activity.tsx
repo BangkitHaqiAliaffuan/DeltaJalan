@@ -21,18 +21,31 @@ function RouteComponent() {
   );
 }
 
+/** Inisial dua huruf: "Budi Santoso" -> "BS", "Budi" -> "BU". */
+function inisialDuaHuruf(nama: string | null): string {
+  const kata = (nama ?? "").trim().split(/\s+/).filter(Boolean);
+  if (kata.length === 0) return "S";
+  if (kata.length === 1) return kata[0].slice(0, 2).toUpperCase();
+  return (kata[0][0] + kata[kata.length - 1][0]).toUpperCase();
+}
+
 function AdminActivity() {
   const token = getToken() ?? "";
   const [search, setSearch] = useState("");
+  const [dariTanggal, setDariTanggal] = useState("");
+  const [sampaiTanggal, setSampaiTanggal] = useState("");
   const [page, setPage] = useState(1);
 
   const params = new URLSearchParams();
   if (search) params.set("actor_name", search);
+  // Backend sudah menerima `from`/`to` (StatusLogController::index).
+  if (dariTanggal) params.set("from", dariTanggal);
+  if (sampaiTanggal) params.set("to", sampaiTanggal);
   params.set("page", String(page));
   params.set("limit", "30");
 
   const logsQuery = useQuery({
-    queryKey: ["admin-activity", search, page],
+    queryKey: ["admin-activity", search, dariTanggal, sampaiTanggal, page],
     queryFn: () =>
       apiFetch(`/api/activity?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -84,8 +97,10 @@ function AdminActivity() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-[22px] font-bold text-[#0F172A]">Aktivitas Sistem</h1>
-        <p className="text-[13px] text-[#64748B] mt-1">
+        <h1 className="text-headline-md font-headline-md font-bold text-[#0F172A]">
+          Aktivitas Sistem
+        </h1>
+        <p className="text-body-sm font-body-sm text-[#64748B] mt-1">
           Riwayat semua aktivitas pengguna dalam sistem
         </p>
       </div>
@@ -104,8 +119,50 @@ function AdminActivity() {
                 setPage(1);
               }}
               placeholder="Cari nama pengguna..."
-              className="w-full h-9 pl-9 pr-3 border border-[#E2E8F0] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+              className="w-full h-9 pl-9 pr-3 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
             />
+          </div>
+          <div className="flex flex-wrap items-end gap-2 mt-3">
+            <label className="flex flex-col gap-1">
+              <span className="text-label-sm font-label-sm text-[#64748B]">Dari tanggal</span>
+              <input
+                type="date"
+                value={dariTanggal}
+                max={sampaiTanggal || undefined}
+                onChange={(e) => {
+                  setDariTanggal(e.target.value);
+                  setPage(1);
+                }}
+                className="h-9 px-3 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-label-sm font-label-sm text-[#64748B]">Sampai tanggal</span>
+              <input
+                type="date"
+                value={sampaiTanggal}
+                min={dariTanggal || undefined}
+                onChange={(e) => {
+                  setSampaiTanggal(e.target.value);
+                  setPage(1);
+                }}
+                className="h-9 px-3 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20"
+              />
+            </label>
+            {(search || dariTanggal || sampaiTanggal) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setDariTanggal("");
+                  setSampaiTanggal("");
+                  setPage(1);
+                }}
+                className="h-9 px-3 rounded-lg border border-[#E2E8F0] text-body-sm font-body-sm text-[#475569] hover:bg-[#F8FAFC]"
+              >
+                Reset filter
+              </button>
+            )}
           </div>
         </div>
         {logsQuery.isPending ? (
@@ -121,23 +178,25 @@ function AdminActivity() {
                 logs.map((log) => (
                   <div key={log.id} className="flex items-start gap-3 px-4 py-3 hover:bg-[#F8FAFC]">
                     <div className="w-8 h-8 rounded-full bg-[#F1F5F9] flex items-center justify-center shrink-0 mt-0.5">
-                      <span className="text-[11px] font-bold text-[#475569]">
-                        {(log.actor_name ?? "S")[0]}
+                      <span className="text-label-sm font-label-sm font-bold text-[#475569]">
+                        {inisialDuaHuruf(log.actor_name)}
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] text-[#0F172A]">
+                      <p className="text-body-sm font-body-sm text-[#0F172A]">
                         {formatAction(log.actor_name, log.new_status, log.old_status)}
                         {log.report_code && (
-                          <span className="font-mono text-[12px] text-[#1A4F8A] ml-1">
+                          <span className="font-id-code text-label-sm font-label-sm text-[#1A4F8A] ml-1">
                             {log.report_code}
                           </span>
                         )}
                       </p>
                       {log.notes && (
-                        <p className="text-[11px] text-[#64748B] mt-0.5">{log.notes}</p>
+                        <p className="text-label-sm font-label-sm text-[#64748B] mt-0.5">
+                          {log.notes}
+                        </p>
                       )}
-                      <p className="text-[11px] text-[#94A3B8] mt-0.5">
+                      <p className="text-label-sm font-label-sm text-[#94A3B8] mt-0.5">
                         {log.created_at ? new Date(log.created_at).toLocaleString("id-ID") : "—"}
                       </p>
                     </div>
@@ -147,21 +206,21 @@ function AdminActivity() {
             </div>
             {total > 30 && (
               <div className="flex items-center justify-between px-4 py-3 border-t border-[#E2E8F0]">
-                <span className="text-[12px] text-[#64748B]">
+                <span className="text-label-sm font-label-sm text-[#64748B]">
                   {from}–{to} dari {total}
                 </span>
                 <div className="flex gap-1">
                   <button
                     disabled={page <= 1}
                     onClick={() => setPage(page - 1)}
-                    className="px-3 py-1.5 text-[12px] border border-[#E2E8F0] rounded-lg text-[#475569] hover:bg-[#F8FAFC] disabled:opacity-30"
+                    className="px-3 py-1.5 text-label-sm font-label-sm border border-[#E2E8F0] rounded-lg text-[#475569] hover:bg-[#F8FAFC] disabled:opacity-30"
                   >
                     Sebelumnya
                   </button>
                   <button
                     disabled={page >= lastPage}
                     onClick={() => setPage(page + 1)}
-                    className="px-3 py-1.5 text-[12px] border border-[#E2E8F0] rounded-lg text-[#475569] hover:bg-[#F8FAFC] disabled:opacity-30"
+                    className="px-3 py-1.5 text-label-sm font-label-sm border border-[#E2E8F0] rounded-lg text-[#475569] hover:bg-[#F8FAFC] disabled:opacity-30"
                   >
                     Selanjutnya
                   </button>

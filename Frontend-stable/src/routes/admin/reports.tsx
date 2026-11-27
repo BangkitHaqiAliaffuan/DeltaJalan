@@ -28,7 +28,6 @@ const STATUS_CLASSES: Record<string, string> = {
   Disetujui: "bg-blue-50 text-[#2563EB] border border-blue-200",
   Ditolak: "bg-[#E11D48] text-white",
   "Menunggu Review": "bg-amber-50 text-[#F59E0B] border border-amber-200",
-
 };
 
 function RouteComponent() {
@@ -165,7 +164,9 @@ function AdminReports() {
         body: JSON.stringify({ ids: Array.from(selectedIds) }),
       });
       await res.json();
-    } catch {}
+    } catch {
+      // Daftar tetap disegarkan di bawah; galat jaringan tidak memblokir admin.
+    }
     setBulkLoading(false);
     setBulkModal(null);
     setSelectedIds(new Set());
@@ -182,7 +183,9 @@ function AdminReports() {
         body: JSON.stringify({ ids: Array.from(selectedIds), alasan: bulkAlasan }),
       });
       await res.json();
-    } catch {}
+    } catch {
+      // Daftar tetap disegarkan di bawah; galat jaringan tidak memblokir admin.
+    }
     setBulkLoading(false);
     setBulkModal(null);
     setBulkAlasan("");
@@ -197,8 +200,10 @@ function AdminReports() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-[22px] font-bold text-[#0F172A]">Semua Laporan</h1>
-        <p className="text-[13px] text-[#64748B] mt-1">
+        <h1 className="text-headline-md font-headline-md font-bold text-[#0F172A]">
+          Semua Laporan
+        </h1>
+        <p className="text-body-sm font-body-sm text-[#64748B] mt-1">
           Lihat dan kelola seluruh laporan kerusakan jalan
         </p>
       </div>
@@ -217,7 +222,7 @@ function AdminReports() {
                 handleFilterChange();
               }}
               placeholder="Cari kode, jalan, atau pelapor..."
-              className="w-full h-9 pl-9 pr-3 border border-[#E2E8F0] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+              className="w-full h-9 pl-9 pr-3 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
             />
           </div>
           <select
@@ -226,7 +231,7 @@ function AdminReports() {
               setStatusFilter(e.target.value);
               handleFilterChange();
             }}
-            className="h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px]"
+            className="h-9 px-3 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm"
           >
             <option value="">Semua Status</option>
             <option value="Menunggu Review">Menunggu Review</option>
@@ -241,7 +246,7 @@ function AdminReports() {
               setPciFilter(e.target.value);
               handleFilterChange();
             }}
-            className="h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px]"
+            className="h-9 px-3 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm"
           >
             <option value="">Semua PCI</option>
             <option value="kritis">Kritis (&le;40)</option>
@@ -254,7 +259,7 @@ function AdminReports() {
               setUptdFilter(e.target.value);
               handleFilterChange();
             }}
-            className="h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px]"
+            className="h-9 px-3 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm"
           >
             <option value="">Semua Tim Satgas</option>
             <option value="0">Belum Assign</option>
@@ -267,14 +272,14 @@ function AdminReports() {
         </div>
         {selectedIds.size > 0 && (
           <div className="flex items-center gap-2 px-4 py-2.5 bg-[#EEF2FF] border-b border-[#C7D2FE]">
-            <span className="text-[12px] font-semibold text-[#1A4F8A]">
+            <span className="text-label-sm font-label-sm font-semibold text-[#1A4F8A]">
               {selectedIds.size} laporan dipilih
             </span>
             <div className="flex-1" />
             <button
               onClick={() => setBulkModal("approve")}
               disabled={bulkLoading}
-              className="px-3 py-1.5 text-[12px] font-semibold bg-[#1A4F8A] text-white rounded-lg hover:bg-[#0F3A6A] disabled:opacity-40 transition-colors flex items-center gap-1"
+              className="px-3 py-1.5 text-label-sm font-label-sm font-semibold bg-[#1A4F8A] text-white rounded-lg hover:bg-[#0F3A6A] disabled:opacity-40 transition-colors flex items-center gap-1"
             >
               <Icon name="check" className="!text-[14px]" />
               Setujui
@@ -282,7 +287,7 @@ function AdminReports() {
             <button
               onClick={() => setBulkModal("tolak")}
               disabled={bulkLoading}
-              className="px-3 py-1.5 text-[12px] font-semibold bg-[#FFF5F5] border border-[#FECACA] text-[#DC2626] rounded-lg hover:bg-[#FEF2F2] disabled:opacity-40 transition-colors flex items-center gap-1"
+              className="px-3 py-1.5 text-label-sm font-label-sm font-semibold bg-[#FFF5F5] border border-[#FECACA] text-[#DC2626] rounded-lg hover:bg-[#FEF2F2] disabled:opacity-40 transition-colors flex items-center gap-1"
             >
               <Icon name="close" className="!text-[14px]" />
               Tolak
@@ -290,187 +295,209 @@ function AdminReports() {
             <button
               onClick={() => setSelectedIds(new Set())}
               disabled={bulkLoading}
-              className="px-3 py-1.5 text-[12px] font-semibold text-[#64748B] hover:bg-[#E2E8F0] rounded-lg transition-colors"
+              className="px-3 py-1.5 text-label-sm font-label-sm font-semibold text-[#64748B] hover:bg-[#E2E8F0] rounded-lg transition-colors"
             >
               Batal
             </button>
           </div>
         )}
-        <div className="overflow-x-auto">
-          {reportsQuery.isPending ? (
-            <div className="p-8 text-center text-[#64748B]">Memuat data...</div>
-          ) : reportsQuery.isError ? (
-            <div className="p-8 text-center text-[#E11D48]">Gagal memuat data.</div>
-          ) : (
-            <>
-              <table className="w-full text-[13px]">
-                <thead>
-                  <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
-                    <th className="w-10 py-3 px-2 text-center">
-                      <input
-                        type="checkbox"
-                        checked={reports.length > 0 && selectedIds.size === reports.length}
-                        onChange={toggleSelectAll}
-                        className="accent-[#1A4F8A] w-4 h-4"
-                      />
-                    </th>
-                    <th className="text-left py-3 px-4 font-semibold text-[#475569]">Kode</th>
-                    <th className="text-left py-3 px-4 font-semibold text-[#475569]">Ruas Jalan</th>
-                    <th className="text-left py-3 px-4 font-semibold text-[#475569]">Kecamatan</th>
-                    <th className="text-left py-3 px-4 font-semibold text-[#475569]">Severity</th>
-                    <th className="text-left py-3 px-4 font-semibold text-[#475569]">PCI</th>
-                    <th className="text-left py-3 px-4 font-semibold text-[#475569]">Status</th>
-                    <th className="text-left py-3 px-4 font-semibold text-[#475569]">Tim Satgas</th>
-                    <th className="text-left py-3 px-4 font-semibold text-[#475569]">Tanggal</th>
-                    <th className="text-right py-3 px-4 font-semibold text-[#475569]">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reports.length === 0 ? (
-                    <tr>
-                      <td colSpan={10} className="py-8 text-center text-[#64748B]">
-                        Tidak ada laporan.
-                      </td>
+        <div className="relative">
+          {/* Petunjuk geser: gradien tipis di kanan saat tabel lebih lebar dari layar. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent md:hidden"
+          />
+          <div className="overflow-x-auto">
+            {reportsQuery.isPending ? (
+              <div className="p-8 text-center text-[#64748B]">Memuat data...</div>
+            ) : reportsQuery.isError ? (
+              <div className="p-8 text-center text-[#E11D48]">Gagal memuat data.</div>
+            ) : (
+              <>
+                <table className="w-full text-body-sm font-body-sm">
+                  <thead>
+                    <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
+                      <th className="w-10 py-3 px-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={reports.length > 0 && selectedIds.size === reports.length}
+                          onChange={toggleSelectAll}
+                          className="accent-[#1A4F8A] w-4 h-4"
+                        />
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-[#475569]">Kode</th>
+                      <th className="text-left py-3 px-4 font-semibold text-[#475569]">
+                        Ruas Jalan
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-[#475569]">Severity</th>
+                      <th className="hidden lg:table-cell text-left py-3 px-4 font-semibold text-[#475569]">
+                        PCI
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-[#475569]">Status</th>
+                      <th className="text-left py-3 px-4 font-semibold text-[#475569]">
+                        Tim Satgas
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-[#475569]">Tanggal</th>
+                      <th className="text-right py-3 px-4 font-semibold text-[#475569]">Aksi</th>
                     </tr>
-                  ) : (
-                    reports.map((r) => (
-                      <tr
-                        key={r.id}
-                        className={`border-b border-[#E2E8F0] last:border-0 hover:bg-[#F8FAFC] ${selectedIds.has(r.id) ? "bg-blue-50/50" : ""}`}
-                      >
-                        <td className="w-10 py-3 px-2 text-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.has(r.id)}
-                            onChange={() => toggleSelect(r.id)}
-                            className="accent-[#1A4F8A] w-4 h-4"
-                          />
-                        </td>
-                        <td className="py-3 px-4 font-mono text-[12px] font-semibold text-[#0F172A]">
-                          {r.report_code}
-                        </td>
-                        <td className="py-3 px-4 text-[#0F172A]">{r.road_name}</td>
-                        <td className="py-3 px-4 text-[#64748B]">{r.district}</td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`text-[11px] font-semibold px-2 py-0.5 rounded ${SEVERITY_CLASSES[r.overall_severity] ?? "bg-gray-50 text-gray-600 border border-gray-200"}`}
-                          >
-                            {r.overall_severity}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          {r.pci_score != null ? (
-                            <span className="text-[12px] font-semibold" style={{ color: pciColor(r.pci_score) }}>
-                              {r.pci_score.toFixed(0)}
-                            </span>
-                          ) : (
-                            <span className="text-[11px] text-[#94A3B8]">—</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`text-[11px] font-semibold px-2 py-0.5 rounded ${STATUS_CLASSES[r.status] ?? "bg-gray-50 text-gray-600 border border-gray-200"}`}
-                          >
-                            {r.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-[#64748B]">{r.assigned_team_name ?? "—"}</td>
-                        <td className="py-3 px-4 text-[#64748B]">
-                          {r.created_at ? r.created_at.slice(0, 10) : "—"}
-                        </td>
-                        <td className="py-3 px-4 text-right relative">
-                          <div className="flex items-center justify-end gap-1">
-                            <Link
-                              to="/detail-report"
-                              search={{ reportId: r.id }}
-                              className="p-1.5 hover:bg-[#F1F5F9] rounded-lg text-[#475569] inline-block"
-                              title="Lihat Detail"
-                            >
-                              <Icon name="open_in_new" className="!text-[18px]" />
-                            </Link>
-                            <button
-                              onClick={() =>
-                                setActionMenuReportId(actionMenuReportId === r.id ? null : r.id)
-                              }
-                              className="p-1.5 hover:bg-[#F1F5F9] rounded-lg text-[#475569]"
-                              title="Aksi"
-                            >
-                              <Icon name="more_vert" className="!text-[18px]" />
-                            </button>
-                          </div>
-                          {actionMenuReportId === r.id && (
-                            <div
-                              ref={menuRef}
-                              className="absolute right-2 top-10 z-50 w-44 bg-white rounded-xl border border-[#E2E8F0] shadow-xl py-1 text-[13px]"
-                            >
-                              <button
-                                onClick={() => {
-                                  setActionMenuReportId(null);
-                                  navigate({ to: "/edit-report", search: { reportId: r.id } });
-                                }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-[#0F172A] hover:bg-[#F8FAFC] text-left"
-                              >
-                                <Icon name="edit" className="!text-[16px] text-[#64748B]" />
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setActionMenuReportId(null);
-                                  setStatusModal({
-                                    id: r.id,
-                                    code: r.report_code,
-                                    current: r.status,
-                                  });
-                                }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-[#0F172A] hover:bg-[#F8FAFC] text-left"
-                              >
-                                <Icon name="swap_horiz" className="!text-[16px] text-[#64748B]" />
-                                Ubah Status
-                              </button>
-                              <hr className="my-1 border-[#E2E8F0]" />
-                              <button
-                                onClick={() => {
-                                  setActionMenuReportId(null);
-                                  setConfirmDeleteId(r.id);
-                                }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-[#E11D48] hover:bg-[#FFF1F2] text-left"
-                              >
-                                <Icon name="delete" className="!text-[16px]" />
-                                Hapus
-                              </button>
-                            </div>
-                          )}
+                  </thead>
+                  <tbody>
+                    {reports.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="py-8 text-center text-[#64748B]">
+                          Tidak ada laporan.
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-              {total > 20 && (
-                <div className="flex items-center justify-between px-4 py-3 border-t border-[#E2E8F0]">
-                  <span className="text-[12px] text-[#64748B]">
-                    {from}–{to} dari {total}
-                  </span>
-                  <div className="flex gap-1">
-                    <button
-                      disabled={page <= 1}
-                      onClick={() => setPage(page - 1)}
-                      className="px-3 py-1.5 text-[12px] border border-[#E2E8F0] rounded-lg text-[#475569] hover:bg-[#F8FAFC] disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      Sebelumnya
-                    </button>
-                    <button
-                      disabled={page >= lastPage}
-                      onClick={() => setPage(page + 1)}
-                      className="px-3 py-1.5 text-[12px] border border-[#E2E8F0] rounded-lg text-[#475569] hover:bg-[#F8FAFC] disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      Selanjutnya
-                    </button>
+                    ) : (
+                      reports.map((r) => (
+                        <tr
+                          key={r.id}
+                          className={`border-b border-[#E2E8F0] last:border-0 hover:bg-[#F8FAFC] ${selectedIds.has(r.id) ? "bg-blue-50/50" : ""}`}
+                        >
+                          <td className="w-10 py-3 px-2 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(r.id)}
+                              onChange={() => toggleSelect(r.id)}
+                              className="accent-[#1A4F8A] w-4 h-4"
+                            />
+                          </td>
+                          <td className="py-3 px-4 font-id-code text-label-sm font-label-sm font-semibold text-[#0F172A]">
+                            {r.report_code}
+                          </td>
+                          <td className="py-3 px-4 text-[#0F172A]">
+                            {r.road_name}
+                            {/* Kecamatan menyatu di bawah nama jalan agar kolom berkurang satu. */}
+                            <span className="block text-label-sm font-label-sm text-[#94A3B8] lg:hidden">
+                              {r.district}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`text-label-sm font-label-sm font-semibold px-2 py-0.5 rounded ${SEVERITY_CLASSES[r.overall_severity] ?? "bg-gray-50 text-gray-600 border border-gray-200"}`}
+                            >
+                              {r.overall_severity}
+                            </span>
+                          </td>
+                          <td className="hidden lg:table-cell py-3 px-4">
+                            {r.pci_score != null ? (
+                              <span
+                                className="text-label-sm font-label-sm font-semibold"
+                                style={{ color: pciColor(r.pci_score) }}
+                              >
+                                {r.pci_score.toFixed(0)}
+                              </span>
+                            ) : (
+                              <span className="text-label-sm font-label-sm text-[#94A3B8]">—</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`text-label-sm font-label-sm font-semibold px-2 py-0.5 rounded ${STATUS_CLASSES[r.status] ?? "bg-gray-50 text-gray-600 border border-gray-200"}`}
+                            >
+                              {r.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-[#64748B]">
+                            {r.assigned_team_name ?? "—"}
+                          </td>
+                          <td className="py-3 px-4 text-[#64748B]">
+                            {r.created_at ? r.created_at.slice(0, 10) : "—"}
+                          </td>
+                          <td className="py-3 px-4 text-right relative">
+                            <div className="flex items-center justify-end gap-1">
+                              <Link
+                                to="/detail-report"
+                                search={{ reportId: r.id }}
+                                className="p-1.5 hover:bg-[#F1F5F9] rounded-lg text-[#475569] inline-block"
+                                title="Lihat Detail"
+                              >
+                                <Icon name="open_in_new" className="!text-[18px]" />
+                              </Link>
+                              <button
+                                onClick={() =>
+                                  setActionMenuReportId(actionMenuReportId === r.id ? null : r.id)
+                                }
+                                className="p-1.5 hover:bg-[#F1F5F9] rounded-lg text-[#475569]"
+                                title="Aksi"
+                              >
+                                <Icon name="more_vert" className="!text-[18px]" />
+                              </button>
+                            </div>
+                            {actionMenuReportId === r.id && (
+                              <div
+                                ref={menuRef}
+                                className="absolute right-2 top-10 z-50 w-44 bg-white rounded-xl border border-[#E2E8F0] shadow-xl py-1 text-body-sm font-body-sm animate-fade-in"
+                              >
+                                <button
+                                  onClick={() => {
+                                    setActionMenuReportId(null);
+                                    navigate({ to: "/edit-report", search: { reportId: r.id } });
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-[#0F172A] hover:bg-[#F8FAFC] text-left"
+                                >
+                                  <Icon name="edit" className="!text-[16px] text-[#64748B]" />
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setActionMenuReportId(null);
+                                    setStatusModal({
+                                      id: r.id,
+                                      code: r.report_code,
+                                      current: r.status,
+                                    });
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-[#0F172A] hover:bg-[#F8FAFC] text-left"
+                                >
+                                  <Icon name="swap_horiz" className="!text-[16px] text-[#64748B]" />
+                                  Ubah Status
+                                </button>
+                                <hr className="my-1 border-[#E2E8F0]" />
+                                <button
+                                  onClick={() => {
+                                    setActionMenuReportId(null);
+                                    setConfirmDeleteId(r.id);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-[#E11D48] hover:bg-[#FFF1F2] text-left"
+                                >
+                                  <Icon name="delete" className="!text-[16px]" />
+                                  Hapus
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+                {total > 20 && (
+                  <div className="flex items-center justify-between px-4 py-3 border-t border-[#E2E8F0]">
+                    <span className="text-label-sm font-label-sm text-[#64748B]">
+                      {from}–{to} dari {total}
+                    </span>
+                    <div className="flex gap-1">
+                      <button
+                        disabled={page <= 1}
+                        onClick={() => setPage(page - 1)}
+                        className="px-3 py-1.5 text-label-sm font-label-sm border border-[#E2E8F0] rounded-lg text-[#475569] hover:bg-[#F8FAFC] disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        Sebelumnya
+                      </button>
+                      <button
+                        disabled={page >= lastPage}
+                        onClick={() => setPage(page + 1)}
+                        className="px-3 py-1.5 text-label-sm font-label-sm border border-[#E2E8F0] rounded-lg text-[#475569] hover:bg-[#F8FAFC] disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        Selanjutnya
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
-            </>
-          )}
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -515,13 +542,15 @@ function AdminReports() {
         onConfirm={handleBulkApprove}
         onCancel={() => setBulkModal(null)}
         icon="check"
-        confirmClassName="flex-1 px-4 py-2.5 text-[13px] font-bold text-white bg-[#1A4F8A] rounded-xl hover:bg-[#0F3A6A] disabled:opacity-40 transition-all flex items-center justify-center gap-1.5"
+        confirmClassName="flex-1 px-4 py-2.5 text-body-sm font-body-sm font-bold text-white bg-[#1A4F8A] rounded-xl hover:bg-[#0F3A6A] disabled:opacity-40 transition-all flex items-center justify-center gap-1.5"
       />
 
       {/* ── Bulk Tolak Modal ── */}
       {bulkModal === "tolak" && (
         <ModalBase
-          onClose={() => { if (!bulkLoading) setBulkModal(null); }}
+          onClose={() => {
+            if (!bulkLoading) setBulkModal(null);
+          }}
           icon="close"
           badge="TOLAK LAPORAN"
           title="Tolak Laporan"
@@ -530,14 +559,14 @@ function AdminReports() {
               <button
                 onClick={() => setBulkModal(null)}
                 disabled={bulkLoading}
-                className="flex-1 h-11 border border-[#E2E8F0] rounded-lg text-[13px] font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40 transition-colors"
+                className="flex-1 h-11 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40 transition-colors"
               >
                 Batal
               </button>
               <button
                 onClick={handleBulkTolak}
                 disabled={!bulkAlasan.trim() || bulkLoading}
-                className="flex-1 h-11 bg-[#E11D48] text-white rounded-lg text-[14px] font-semibold hover:bg-[#BE123C] disabled:opacity-40 transition-all flex items-center justify-center gap-1"
+                className="flex-1 h-11 bg-[#E11D48] text-white rounded-lg text-body-sm font-body-sm font-semibold hover:bg-[#BE123C] disabled:opacity-40 transition-all flex items-center justify-center gap-1"
               >
                 {bulkLoading ? (
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -548,7 +577,7 @@ function AdminReports() {
             </div>
           }
         >
-          <p className="text-[13px] text-[#64748B] mb-3">
+          <p className="text-body-sm font-body-sm text-[#64748B] mb-3">
             Tolak {selectedIds.size} laporan yang dipilih. Sertakan alasan penolakan.
           </p>
           <textarea
@@ -557,7 +586,7 @@ function AdminReports() {
             placeholder="Alasan penolakan..."
             rows={3}
             disabled={bulkLoading}
-            className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-[13px] resize-none focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A] disabled:opacity-40"
+            className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A] disabled:opacity-40"
           />
         </ModalBase>
       )}
@@ -630,14 +659,14 @@ function StatusChangeModal({
           <button
             onClick={onClose}
             disabled={loading}
-            className="flex-1 h-11 border border-[#E2E8F0] rounded-lg text-[13px] font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40 transition-colors"
+            className="flex-1 h-11 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40 transition-colors"
           >
             Batal
           </button>
           <button
             onClick={handleSave}
             disabled={!selected || loading}
-            className="flex-1 h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold hover:bg-[#0F3A6A] disabled:opacity-40 transition-all flex items-center justify-center gap-1"
+            className="flex-1 h-11 bg-[#1A4F8A] text-white rounded-lg text-body-sm font-body-sm font-semibold hover:bg-[#0F3A6A] disabled:opacity-40 transition-all flex items-center justify-center gap-1"
           >
             {loading ? (
               <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -648,7 +677,7 @@ function StatusChangeModal({
         </div>
       }
     >
-      <p className="text-[13px] text-[#64748B] mb-1">
+      <p className="text-body-sm font-body-sm text-[#64748B] mb-1">
         {code} — Status saat ini: <span className="font-semibold text-[#0F172A]">{current}</span>
       </p>
       <div className="flex flex-col gap-2">
@@ -665,11 +694,11 @@ function StatusChangeModal({
               onChange={(e) => setSelected(e.target.value)}
               className="accent-[#1A4F8A]"
             />
-            <span className="text-[13px] font-medium text-[#0F172A]">{s}</span>
+            <span className="text-body-sm font-body-sm font-medium text-[#0F172A]">{s}</span>
           </label>
         ))}
       </div>
-      {error && <p className="text-[12px] text-[#E11D48]">{error}</p>}
+      {error && <p className="text-label-sm font-label-sm text-[#E11D48]">{error}</p>}
     </ModalBase>
   );
 }

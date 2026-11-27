@@ -114,12 +114,16 @@ function AdminTeams() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-[22px] font-bold text-[#0F172A]">Kelola Tim Satgas</h1>
-          <p className="text-[13px] text-[#64748B] mt-1">Atur tim satgas dan anggota</p>
+          <h1 className="text-headline-md font-headline-md font-bold text-[#0F172A]">
+            Kelola Tim Satgas
+          </h1>
+          <p className="text-body-sm font-body-sm text-[#64748B] mt-1">
+            Atur tim satgas dan anggota
+          </p>
         </div>
         <button
           onClick={openCreate}
-          className="flex items-center gap-1.5 bg-[#1A4F8A] text-white text-[13px] font-semibold px-4 py-2 rounded-lg hover:bg-[#15407A] transition-colors"
+          className="flex items-center gap-1.5 bg-[#1A4F8A] text-white text-body-sm font-body-sm font-semibold px-4 py-2 rounded-lg hover:bg-[#15407A] transition-colors"
         >
           <Icon name="add" className="!text-[18px]" /> Buat Tim Baru
         </button>
@@ -136,7 +140,7 @@ function AdminTeams() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Cari nama tim..."
-              className="w-full h-9 pl-9 pr-3 border border-[#E2E8F0] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+              className="w-full h-9 pl-9 pr-3 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
             />
           </div>
         </div>
@@ -157,7 +161,7 @@ function AdminTeams() {
               </button>
             </div>
           ) : (
-            <table className="w-full text-[13px]">
+            <table className="w-full text-body-sm font-body-sm">
               <thead>
                 <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
                   <th className="text-left py-3 px-4 font-semibold text-[#475569]">Nama Tim</th>
@@ -218,14 +222,14 @@ function AdminTeams() {
               <button
                 onClick={() => setModal(null)}
                 disabled={formBusy}
-                className="flex-1 h-11 border border-[#E2E8F0] rounded-lg text-[13px] font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
+                className="flex-1 h-11 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
               >
                 Batal
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={formBusy}
-                className="flex-1 h-11 bg-[#1A4F8A] text-white rounded-lg text-[14px] font-semibold hover:bg-[#15407A] disabled:opacity-50 flex items-center justify-center gap-1"
+                className="flex-1 h-11 bg-[#1A4F8A] text-white rounded-lg text-body-sm font-body-sm font-semibold hover:bg-[#15407A] disabled:opacity-50 flex items-center justify-center gap-1"
               >
                 {formBusy && (
                   <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -236,28 +240,30 @@ function AdminTeams() {
           }
         >
           {formError && (
-            <div className="text-[13px] text-[#E11D48] bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+            <div className="text-body-sm font-body-sm text-[#E11D48] bg-red-50 border border-red-200 rounded-lg px-4 py-2">
               {formError}
             </div>
           )}
           <div>
-            <label className="block text-[13px] font-semibold text-[#0F172A] mb-1">
+            <label className="block text-body-sm font-body-sm font-semibold text-[#0F172A] mb-1">
               Nama Tim <span className="text-[#E11D48]">*</span>
             </label>
             <input
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="Nama tim satgas"
-              className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20"
+              className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20"
             />
           </div>
           <div>
-            <label className="block text-[13px] font-semibold text-[#0F172A] mb-1">Deskripsi</label>
+            <label className="block text-body-sm font-body-sm font-semibold text-[#0F172A] mb-1">
+              Deskripsi
+            </label>
             <textarea
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               placeholder="Deskripsi tim (opsional)"
-              className="w-full h-20 px-3 py-2 border border-[#E2E8F0] rounded-lg text-[13px] resize-none focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20"
+              className="w-full h-20 px-3 py-2 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20"
             />
           </div>
         </ModalBase>
@@ -275,14 +281,14 @@ function AdminTeams() {
               <button
                 onClick={() => setDeleteId(null)}
                 disabled={deleteMut.isPending}
-                className="flex-1 h-11 border border-[#E2E8F0] rounded-lg text-[13px] font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
+                className="flex-1 h-11 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
               >
                 Batal
               </button>
               <button
                 onClick={() => deleteMut.mutate(deleteId)}
                 disabled={deleteMut.isPending}
-                className="flex-1 h-11 bg-[#E11D48] text-white rounded-lg text-[14px] font-semibold hover:bg-[#C11A3E] disabled:opacity-50 flex items-center justify-center gap-1"
+                className="flex-1 h-11 bg-[#E11D48] text-white rounded-lg text-body-sm font-body-sm font-semibold hover:bg-[#C11A3E] disabled:opacity-50 flex items-center justify-center gap-1"
               >
                 {deleteMut.isPending && (
                   <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -292,7 +298,7 @@ function AdminTeams() {
             </div>
           }
         >
-          <p className="text-[13px] text-[#475569] leading-relaxed">
+          <p className="text-body-sm font-body-sm text-[#475569] leading-relaxed">
             Yakin ingin menghapus tim ini? Tim yang memiliki anggota tidak dapat dihapus.
           </p>
         </ModalBase>

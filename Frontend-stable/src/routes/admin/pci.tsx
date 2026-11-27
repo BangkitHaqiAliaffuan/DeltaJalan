@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Icon } from "@/components/jk/Icon";
 import { AdminLayout } from "@/components/jk/AdminLayout";
 import { requireAdmin } from "@/lib/adminGuard";
@@ -8,7 +8,6 @@ import { useQuery } from "@tanstack/react-query";
 import { PciCard } from "@/components/jk/PciCard";
 import { pciColor, pciConditionLabel, pciDotColor } from "@/lib/pci";
 import { apiFetch } from "@/lib/api";
-import "./admin.css";
 
 export const Route = createFileRoute("/admin/pci")({
   component: RouteComponent,
@@ -57,7 +56,9 @@ function RouteComponent() {
 function AdminPciDashboard() {
   const token = getToken() ?? "";
   const [isClient, setIsClient] = useState(false);
-  useEffect(() => { setIsClient(true); }, []);
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const overviewQuery = useQuery({
     queryKey: ["admin-pci-overview"],
@@ -78,8 +79,7 @@ function AdminPciDashboard() {
   });
 
   const overviewData = overviewQuery.data?.data as
-    | { districts: DistrictPci[]; kabupaten: KabupatenData }
-    | undefined;
+    { districts: DistrictPci[]; kabupaten: KabupatenData } | undefined;
   const kritisData = kritisQuery.data?.data as KritisReport[] | undefined;
   const kab = overviewData?.kabupaten;
   const districts = overviewData?.districts ?? [];
@@ -89,8 +89,10 @@ function AdminPciDashboard() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-[22px] font-bold text-[#0F172A]">PCI Dashboard</h1>
-        <p className="text-[13px] text-[#64748B] mt-1">
+        <h1 className="text-headline-md font-headline-md font-bold text-[#0F172A]">
+          PCI Dashboard
+        </h1>
+        <p className="text-body-sm font-body-sm text-[#64748B] mt-1">
           Indeks Kondisi Jalan (Pavement Condition Index) Kab. Sidoarjo
         </p>
       </div>
@@ -113,8 +115,10 @@ function AdminPciDashboard() {
                 <Icon name="warning" className="!text-[20px] text-red-600" />
               </div>
               <div>
-                <p className="text-[12px] text-[#64748B]">Laporan Kritis (PCI &le; 40)</p>
-                <p className="text-[22px] font-bold text-[#E11D48]">
+                <p className="text-label-sm font-label-sm text-[#64748B]">
+                  Laporan Kritis (PCI &le; 40)
+                </p>
+                <p className="text-headline-md font-headline-md font-bold text-[#E11D48]">
                   {(kab.kritis ?? 0).toLocaleString()}
                 </p>
               </div>
@@ -124,8 +128,10 @@ function AdminPciDashboard() {
                 <Icon name="description" className="!text-[20px] text-[#1A4F8A]" />
               </div>
               <div>
-                <p className="text-[12px] text-[#64748B]">Total Laporan dengan PCI</p>
-                <p className="text-[22px] font-bold text-[#0F172A]">
+                <p className="text-label-sm font-label-sm text-[#64748B]">
+                  Total Laporan dengan PCI
+                </p>
+                <p className="text-headline-md font-headline-md font-bold text-[#0F172A]">
                   {kab.total_laporan.toLocaleString()}
                 </p>
               </div>
@@ -136,10 +142,10 @@ function AdminPciDashboard() {
 
       <div className="bg-white border border-[#E2E8F0] rounded-xl mb-6">
         <div className="px-4 py-4 border-b border-[#E2E8F0]">
-          <h2 className="text-[15px] font-bold text-[#0F172A]">Per Kecamatan</h2>
+          <h2 className="text-body-md font-body-md font-bold text-[#0F172A]">Per Kecamatan</h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
+          <table className="w-full text-body-sm font-body-sm">
             <thead>
               <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
                 <th className="text-left py-3 px-4 font-semibold text-[#475569]">Kecamatan</th>
@@ -165,18 +171,27 @@ function AdminPciDashboard() {
                   >
                     <td className="py-3 px-4 text-[#0F172A] font-medium">{d.district}</td>
                     <td className="py-3 px-4 text-right">
-                      <span className="text-[13px] font-semibold" style={{ color: pciColor(d.avg_pci) }}>
+                      <span
+                        className="text-body-sm font-body-sm font-semibold"
+                        style={{ color: pciColor(d.avg_pci) }}
+                      >
                         {Number(d.avg_pci).toFixed(1)}
                       </span>
-                      <span className="ml-1.5 text-[11px] text-[#64748B]">
+                      <span className="ml-1.5 text-label-sm font-label-sm text-[#64748B]">
                         ({pciConditionLabel(d.avg_pci)})
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-right text-[#64748B]">{Number(d.min_pci).toFixed(1)}</td>
-                    <td className="py-3 px-4 text-right text-[#64748B]">{Number(d.max_pci).toFixed(1)}</td>
+                    <td className="py-3 px-4 text-right text-[#64748B]">
+                      {Number(d.min_pci).toFixed(1)}
+                    </td>
+                    <td className="py-3 px-4 text-right text-[#64748B]">
+                      {Number(d.max_pci).toFixed(1)}
+                    </td>
                     <td className="py-3 px-4 text-right text-[#0F172A]">{d.total}</td>
                     <td className="py-3 px-4 text-right">
-                      <span className={`text-[12px] font-semibold px-2 py-0.5 rounded ${d.kritis > 0 ? "bg-red-50 text-red-700" : "text-[#64748B]"}`}>
+                      <span
+                        className={`text-label-sm font-label-sm font-semibold px-2 py-0.5 rounded ${d.kritis > 0 ? "bg-red-50 text-red-700" : "text-[#64748B]"}`}
+                      >
                         {d.kritis}
                       </span>
                     </td>
@@ -190,10 +205,12 @@ function AdminPciDashboard() {
 
       <div className="bg-white border border-[#E2E8F0] rounded-xl">
         <div className="px-4 py-4 border-b border-[#E2E8F0]">
-          <h2 className="text-[15px] font-bold text-[#0F172A]">Laporan Kritis (PCI &le; 40)</h2>
+          <h2 className="text-body-md font-body-md font-bold text-[#0F172A]">
+            Laporan Kritis (PCI &le; 40)
+          </h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
+          <table className="w-full text-body-sm font-body-sm">
             <thead>
               <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
                 <th className="text-left py-3 px-4 font-semibold text-[#475569]">Kode</th>
@@ -202,12 +219,13 @@ function AdminPciDashboard() {
                 <th className="text-right py-3 px-4 font-semibold text-[#475569]">PCI</th>
                 <th className="text-right py-3 px-4 font-semibold text-[#475569]">Status</th>
                 <th className="text-right py-3 px-4 font-semibold text-[#475569]">Tanggal</th>
+                <th className="text-right py-3 px-4 font-semibold text-[#475569]">Aksi</th>
               </tr>
             </thead>
             <tbody>
               {!kritisData || kritisData.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-[#64748B]">
+                  <td colSpan={7} className="py-8 text-center text-[#64748B]">
                     Tidak ada laporan kritis.
                   </td>
                 </tr>
@@ -217,19 +235,39 @@ function AdminPciDashboard() {
                     key={r.id}
                     className="border-b border-[#E2E8F0] last:border-0 hover:bg-[#F8FAFC]"
                   >
-                    <td className="py-3 px-4 font-mono text-[12px] font-semibold text-[#0F172A]">
-                      {r.report_code}
+                    <td className="py-3 px-4 font-id-code text-label-sm font-label-sm font-semibold">
+                      <Link
+                        to="/detail-report"
+                        search={{ reportId: r.id }}
+                        className="text-[#1A4F8A] hover:underline"
+                        title={`Buka ${r.report_code}`}
+                      >
+                        {r.report_code}
+                      </Link>
                     </td>
                     <td className="py-3 px-4 text-[#0F172A]">{r.road_name}</td>
                     <td className="py-3 px-4 text-[#64748B]">{r.district}</td>
                     <td className="py-3 px-4 text-right">
-                      <span className="text-[13px] font-bold" style={{ color: pciColor(r.pci_score) }}>
+                      <span
+                        className="text-body-sm font-body-sm font-bold"
+                        style={{ color: pciColor(r.pci_score) }}
+                      >
                         {Number(r.pci_score).toFixed(1)}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right">{r.status}</td>
                     <td className="py-3 px-4 text-right text-[#64748B]">
                       {r.created_at ? r.created_at.slice(0, 10) : "—"}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <Link
+                        to="/detail-report"
+                        search={{ reportId: r.id }}
+                        className="inline-flex items-center gap-1 rounded-lg border border-[#E2E8F0] px-2.5 py-1 text-label-sm font-label-sm font-semibold text-[#1A4F8A] hover:bg-[#E8F0FA] transition-colors"
+                      >
+                        <Icon name="open_in_new" className="!text-[14px]" />
+                        Tinjau Laporan
+                      </Link>
                     </td>
                   </tr>
                 ))

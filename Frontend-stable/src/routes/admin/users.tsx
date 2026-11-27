@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Icon } from "@/components/jk/Icon";
 import { AdminLayout } from "@/components/jk/AdminLayout";
 import { ModalBase } from "@/components/jk/ModalBase";
+import { EmptyState } from "@/components/jk/EmptyState";
+import { SkeletonTableRow } from "@/components/jk/Skeleton";
 import { requireAdmin } from "@/lib/adminGuard";
 import { getToken } from "@/lib/auth";
 import { useState } from "react";
@@ -42,6 +44,7 @@ function AdminUsers() {
   const token = getToken() ?? "";
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [banTarget, setBanTarget] = useState<{ id: number; name: string; banned: boolean } | null>(
     null,
   );
@@ -50,10 +53,11 @@ function AdminUsers() {
   const params = new URLSearchParams();
   if (search) params.set("q", search);
   if (roleFilter) params.set("role", roleFilter);
-  params.set("limit", "100");
+  params.set("limit", "20");
+  params.set("page", String(page));
 
   const usersQuery = useQuery({
-    queryKey: ["admin-users", search, roleFilter],
+    queryKey: ["admin-users", search, roleFilter, page],
     queryFn: () =>
       apiFetch(`/api/users?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -72,6 +76,11 @@ function AdminUsers() {
     team_name: string | null;
     banned_at: string | null;
   }[] = usersQuery.data?.data ?? [];
+
+  const totalUsers: number = usersQuery.data?.total ?? users.length;
+  const lastPage: number = usersQuery.data?.last_page ?? 1;
+  const from = totalUsers === 0 ? 0 : (page - 1) * 20 + 1;
+  const to = Math.min(page * 20, totalUsers);
 
   const banMut = useMutation({
     mutationFn: ({ id, ban }: { id: number; ban: boolean }) =>
@@ -102,8 +111,12 @@ function AdminUsers() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-[22px] font-bold text-[#0F172A]">Manajemen User</h1>
-          <p className="text-[13px] text-[#64748B] mt-1">Kelola akun pengguna sistem</p>
+          <h1 className="text-headline-md font-headline-md font-bold text-[#0F172A]">
+            Manajemen User
+          </h1>
+          <p className="text-body-sm font-body-sm text-[#64748B] mt-1">
+            Kelola akun pengguna sistem
+          </p>
         </div>
       </div>
 
@@ -116,15 +129,21 @@ function AdminUsers() {
             />
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
               placeholder="Cari nama atau email..."
-              className="w-full h-9 pl-9 pr-3 border border-[#E2E8F0] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
+              className="w-full h-9 pl-9 pr-3 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20 focus:border-[#1A4F8A]"
             />
           </div>
           <select
             value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px] focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20"
+            onChange={(e) => {
+              setRoleFilter(e.target.value);
+              setPage(1);
+            }}
+            className="h-9 px-3 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm focus:outline-none focus:ring-2 focus:ring-[#1A4F8A]/20"
           >
             <option value="">Semua Role</option>
             <option value="petugas">Petugas Satgas</option>
@@ -134,11 +153,35 @@ function AdminUsers() {
         </div>
         <div className="overflow-x-auto">
           {usersQuery.isPending ? (
-            <div className="p-8 text-center text-[#64748B]">Memuat data...</div>
+            <table className="w-full text-body-sm font-body-sm" aria-busy="true" aria-live="polite">
+              <thead>
+                <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
+                  <th className="text-left py-3 px-4 font-semibold text-[#475569]">Nama</th>
+                  <th className="text-left py-3 px-4 font-semibold text-[#475569]">Email</th>
+                  <th className="text-left py-3 px-4 font-semibold text-[#475569]">Role</th>
+                  <th className="text-left py-3 px-4 font-semibold text-[#475569]">
+                    Wilayah / Tim Satgas
+                  </th>
+                  <th className="text-left py-3 px-4 font-semibold text-[#475569]">Status</th>
+                  <th className="text-right py-3 px-4 font-semibold text-[#475569]">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* Kerangka 5 baris: header tabel tetap tampil agar tata letak tidak bergeser. */}
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <SkeletonTableRow key={i} cols={6} />
+                ))}
+              </tbody>
+            </table>
           ) : usersQuery.isError ? (
-            <div className="p-8 text-center text-[#E11D48]">Gagal memuat data.</div>
+            <EmptyState
+              icon="cloud_off"
+              title="Gagal memuat data pengguna"
+              description="Periksa koneksi Anda, lalu coba lagi."
+              action={{ label: "Coba Lagi", onClick: () => void usersQuery.refetch() }}
+            />
           ) : (
-            <table className="w-full text-[13px]">
+            <table className="w-full text-body-sm font-body-sm">
               <thead>
                 <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
                   <th className="text-left py-3 px-4 font-semibold text-[#475569]">Nama</th>
@@ -172,7 +215,7 @@ function AdminUsers() {
                         <td className="py-3 px-4 text-[#64748B]">{u.email}</td>
                         <td className="py-3 px-4">
                           <span
-                            className={`text-[11px] font-semibold px-2 py-0.5 rounded ${ROLE_VARIANTS[u.role] ?? "bg-gray-50 text-gray-600"}`}
+                            className={`text-label-sm font-label-sm font-semibold px-2 py-0.5 rounded ${ROLE_VARIANTS[u.role] ?? "bg-gray-50 text-gray-600"}`}
                           >
                             {ROLE_LABEL[u.role] ?? u.role}
                           </span>
@@ -182,11 +225,11 @@ function AdminUsers() {
                         </td>
                         <td className="py-3 px-4">
                           {isBanned ? (
-                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-red-50 text-red-600">
+                            <span className="text-label-sm font-label-sm font-semibold px-2 py-0.5 rounded bg-red-50 text-red-600">
                               Dinonaktifkan
                             </span>
                           ) : (
-                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-600">
+                            <span className="text-label-sm font-label-sm font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-600">
                               Aktif
                             </span>
                           )}
@@ -231,6 +274,32 @@ function AdminUsers() {
             </table>
           )}
         </div>
+
+        {/* Penghitung + navigasi halaman, konsisten dengan tabel laporan. */}
+        <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-[#E2E8F0]">
+          <p className="text-label-sm font-label-sm text-[#64748B]">
+            Menampilkan {from}–{to} dari {totalUsers} pengguna
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+              className="px-3 py-1.5 text-label-sm font-label-sm border border-[#E2E8F0] rounded-lg text-[#475569] hover:bg-[#F8FAFC] disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              Sebelumnya
+            </button>
+            <span className="text-label-sm font-label-sm text-[#64748B]">
+              {page} / {lastPage}
+            </span>
+            <button
+              disabled={page >= lastPage}
+              onClick={() => setPage(page + 1)}
+              className="px-3 py-1.5 text-label-sm font-label-sm border border-[#E2E8F0] rounded-lg text-[#475569] hover:bg-[#F8FAFC] disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              Selanjutnya
+            </button>
+          </div>
+        </div>
       </div>
 
       {banTarget !== null && (
@@ -244,14 +313,14 @@ function AdminUsers() {
               <button
                 onClick={() => setBanTarget(null)}
                 disabled={banMut.isPending}
-                className="flex-1 h-11 border border-[#E2E8F0] rounded-lg text-[13px] font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
+                className="flex-1 h-11 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
               >
                 Batal
               </button>
               <button
                 onClick={() => banMut.mutate({ id: banTarget.id, ban: banTarget.banned })}
                 disabled={banMut.isPending}
-                className={`flex-1 h-11 text-white rounded-lg text-[14px] font-semibold disabled:opacity-50 flex items-center justify-center gap-1 ${
+                className={`flex-1 h-11 text-white rounded-lg text-body-sm font-body-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-1 ${
                   banTarget.banned
                     ? "bg-[#E11D48] hover:bg-[#C11A3E]"
                     : "bg-[#16A34A] hover:bg-[#15803D]"
@@ -265,7 +334,7 @@ function AdminUsers() {
             </div>
           }
         >
-          <p className="text-[13px] text-[#475569] leading-relaxed">
+          <p className="text-body-sm font-body-sm text-[#475569] leading-relaxed">
             {banTarget.banned
               ? `Yakin ingin menonaktifkan akun "${banTarget.name}"? User tidak akan bisa login lagi.`
               : `Yakin ingin mengaktifkan kembali akun "${banTarget.name}"?`}
@@ -284,14 +353,14 @@ function AdminUsers() {
               <button
                 onClick={() => setDeleteId(null)}
                 disabled={deleteMut.isPending}
-                className="flex-1 h-11 border border-[#E2E8F0] rounded-lg text-[13px] font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
+                className="flex-1 h-11 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
               >
                 Batal
               </button>
               <button
                 onClick={() => deleteMut.mutate(deleteId)}
                 disabled={deleteMut.isPending}
-                className="flex-1 h-11 bg-[#E11D48] text-white rounded-lg text-[14px] font-semibold hover:bg-[#C11A3E] disabled:opacity-50 flex items-center justify-center gap-1"
+                className="flex-1 h-11 bg-[#E11D48] text-white rounded-lg text-body-sm font-body-sm font-semibold hover:bg-[#C11A3E] disabled:opacity-50 flex items-center justify-center gap-1"
               >
                 {deleteMut.isPending && (
                   <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -301,7 +370,7 @@ function AdminUsers() {
             </div>
           }
         >
-          <p className="text-[13px] text-[#475569] leading-relaxed">
+          <p className="text-body-sm font-body-sm text-[#475569] leading-relaxed">
             Yakin ingin menghapus user ini? Tindakan ini tidak dapat dibatalkan.
           </p>
         </ModalBase>

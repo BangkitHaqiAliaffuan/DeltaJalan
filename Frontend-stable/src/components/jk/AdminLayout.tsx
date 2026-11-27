@@ -1,9 +1,27 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { Icon } from "@/components/jk/Icon";
 import { NotificationBell } from "@/components/jk/NotificationBell";
+import { ConfirmDialog } from "@/components/jk/ConfirmDialog";
 import { clearAuth } from "@/lib/auth";
 import { useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "@/lib/AuthContext";
+
+/**
+ * Judul halaman per rute admin.
+ *
+ * Header sebelumnya kosong (hanya tombol menu, bell, avatar) sehingga admin
+ * tidak punya indikator halaman aktif selain highlight sidebar.
+ */
+const PAGE_TITLES: Record<string, string> = {
+  "/admin/dashboard": "Dashboard",
+  "/admin/users": "Manajemen User",
+  "/admin/teams": "Tim Satgas",
+  "/admin/reports": "Semua Laporan",
+  "/admin/pci": "PCI Dashboard",
+  "/admin/export": "Export Laporan",
+  "/admin/activity": "Aktivitas Sistem",
+  "/admin/config": "Pengaturan Sistem",
+};
 
 const ADMIN_MENU = [
   {
@@ -17,9 +35,7 @@ const ADMIN_MENU = [
   },
   {
     section: "Pemantauan",
-    items: [
-      { icon: "road", label: "PCI", to: "/admin/pci" },
-    ],
+    items: [{ icon: "road", label: "PCI", to: "/admin/pci" }],
   },
   {
     section: "Sistem",
@@ -35,6 +51,9 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
   const { pathname } = useLocation();
   const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [konfirmasiKeluar, setKonfirmasiKeluar] = useState(false);
+  // Rute tak dikenal (mis. sub-halaman baru) tetap menampilkan "Admin" daripada kosong.
+  const judulHalaman = PAGE_TITLES[pathname] ?? "Admin";
 
   useEffect(() => {
     if (!user || user.role !== "admin") {
@@ -55,13 +74,13 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
         <div className="flex items-center justify-between px-5 h-[68px] border-b border-white/15 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0 border border-white/30">
-              <span className="text-white text-[15px] font-bold">DJ</span>
+              <span className="text-white text-body-md font-body-md font-bold">DJ</span>
             </div>
             <div className="min-w-0">
-              <span className="font-semibold text-white text-[15px] leading-tight block truncate">
+              <span className="font-semibold text-white text-body-md font-body-md leading-tight block truncate">
                 DeltaJalan
               </span>
-              <span className="text-white/60 text-[10px] leading-tight block truncate">
+              <span className="text-white/60 text-label-sm font-label-sm leading-tight block truncate">
                 Dinas PU Bina Marga
               </span>
             </div>
@@ -76,7 +95,7 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
         <nav className="flex-1 overflow-y-auto px-3 py-4 no-scrollbar">
           {ADMIN_MENU.map((group) => (
             <div key={group.section} className="mb-1">
-              <span className="block px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-white/40">
+              <span className="block px-3 py-2 text-label-sm font-label-sm font-semibold uppercase tracking-widest text-white/40">
                 {group.section}
               </span>
               <div className="flex flex-col gap-0.5">
@@ -87,14 +106,15 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
                       key={item.to}
                       to={item.to}
                       onClick={() => setSidebarOpen(false)}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+                      aria-current={active ? "page" : undefined}
+                      className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
                         active
-                          ? "bg-white/15 text-white font-semibold"
+                          ? "bg-white/20 text-white font-semibold shadow-xs before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-1 before:rounded-r-full before:bg-white"
                           : "text-white/70 hover:bg-white/10 hover:text-white"
                       }`}
                     >
                       <Icon name={item.icon} className="!text-[22px]" filled={active} />
-                      <span className="text-[14px] font-medium">{item.label}</span>
+                      <span className="text-body-sm font-body-sm font-medium">{item.label}</span>
                     </Link>
                   );
                 })}
@@ -105,26 +125,46 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
         <div className="shrink-0 px-4 py-4 border-t border-white/15">
           <div className="flex items-center gap-3 mb-3 px-3">
             <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center border border-white/30 shrink-0">
-              <span className="text-white text-[13px] font-bold">{user?.initials ?? "A"}</span>
+              <span className="text-white text-body-sm font-body-sm font-bold">
+                {user?.initials ?? "A"}
+              </span>
             </div>
             <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-white text-[13px] font-semibold truncate leading-tight">
+              <span className="text-white text-body-sm font-body-sm font-semibold truncate leading-tight">
                 {user?.name ?? "Admin"}
               </span>
-              <span className="text-white/60 text-[11px] truncate leading-tight capitalize">
+              <span className="text-white/60 text-label-sm font-label-sm truncate leading-tight capitalize">
                 Admin
               </span>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-colors text-[13px]"
-          >
-            <Icon name="logout" className="!text-[18px]" />
-            Keluar
-          </button>
+          {/* Garis pemisah + konfirmasi: tombol Keluar menempel di bawah profil
+              dan sebelumnya bisa tertekan tanpa sengaja. */}
+          <div className="mt-1 pt-3 border-t border-white/15">
+            <button
+              onClick={() => setKonfirmasiKeluar(true)}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition-colors text-body-sm font-body-sm"
+            >
+              <Icon name="logout" className="!text-[18px]" />
+              Keluar
+            </button>
+          </div>
         </div>
       </aside>
+
+      <ConfirmDialog
+        open={konfirmasiKeluar}
+        title="Keluar dari Panel Admin?"
+        message="Anda akan keluar dari sesi ini dan harus masuk kembali untuk melanjutkan."
+        confirmText="Ya, Keluar"
+        icon="logout"
+        confirmClassName="flex-1 px-4 py-2.5 text-body-sm font-body-sm font-bold text-white bg-[#E23A3A] rounded-xl hover:bg-[#C22F2F] transition-all flex items-center justify-center gap-1.5"
+        onConfirm={() => {
+          setKonfirmasiKeluar(false);
+          handleLogout();
+        }}
+        onCancel={() => setKonfirmasiKeluar(false)}
+      />
 
       {sidebarOpen && (
         <div
@@ -141,9 +181,21 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
           >
             <Icon name="menu" className="!text-[22px]" />
           </button>
-          <div className="flex-1" />
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
+            <nav
+              aria-label="Breadcrumb"
+              className="hidden md:flex items-center gap-1 font-label-sm text-label-sm text-[#94A3B8] leading-none"
+            >
+              <span>Admin</span>
+              <Icon name="chevron_right" className="!text-[14px]" />
+              <span className="text-[#64748B]">{judulHalaman}</span>
+            </nav>
+            <h1 className="font-headline-sm text-headline-sm font-semibold text-[#0F172A] truncate leading-tight">
+              {judulHalaman}
+            </h1>
+          </div>
           <NotificationBell />
-          <div className="w-8 h-8 rounded-full bg-[#1e40af] flex items-center justify-center text-white text-[12px] font-bold shrink-0">
+          <div className="w-8 h-8 rounded-full bg-[#1e40af] flex items-center justify-center text-white text-label-sm font-label-sm font-bold shrink-0">
             {user?.initials ?? "A"}
           </div>
         </header>

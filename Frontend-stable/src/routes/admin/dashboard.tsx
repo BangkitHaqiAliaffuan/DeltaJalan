@@ -7,7 +7,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { authFetch, type PciOverview } from "@/hooks/useReportQueries";
 import { pciColor, pciConditionLabel } from "@/lib/pci";
-import "./admin.css";
+import { EmptyState } from "@/components/jk/EmptyState";
 
 export const Route = createFileRoute("/admin/dashboard")({
   component: RouteComponent,
@@ -55,18 +55,29 @@ const BULAN_PANJANG = [
   "Desember",
 ];
 
-function MiniSparkline({ data, color, className = "" }: { data: number[]; color: string; className?: string }) {
+function MiniSparkline({
+  data,
+  color,
+  className = "",
+}: {
+  data: number[];
+  color: string;
+  className?: string;
+}) {
   const clean = data.filter((v) => typeof v === "number" && !isNaN(v));
   if (clean.length < 2) return null;
   const max = Math.max(...clean, 1);
   const min = Math.min(...clean);
   const range = max - min || 1;
-  const w = 80; const h = 24;
-  const points = clean.map((v, i) => {
-    const x = (i / (clean.length - 1)) * w;
-    const y = h - ((v - min) / range) * h;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
+  const w = 80;
+  const h = 24;
+  const points = clean
+    .map((v, i) => {
+      const x = (i / (clean.length - 1)) * w;
+      const y = h - ((v - min) / range) * h;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
   const gradientId = `spark-${color.replace(/[^a-zA-Z0-9]/g, "")}`;
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className={`shrink-0 ${className}`}>
@@ -129,7 +140,16 @@ function AdminDashboard() {
         rusak_berat: number;
         rusak_sedang: number;
         rusak_ringan: number;
-        monthly_trend: { bulan: string; total: number; menunggu_review: number; disetujui: number; ditolak: number; sedang_diperbaiki: number; selesai: number; rusak_berat: number }[];
+        monthly_trend: {
+          bulan: string;
+          total: number;
+          menunggu_review: number;
+          disetujui: number;
+          ditolak: number;
+          sedang_diperbaiki: number;
+          selesai: number;
+          rusak_berat: number;
+        }[];
       }>("/api/reports/stats", token),
     refetchInterval: 60_000,
   });
@@ -152,8 +172,7 @@ function AdminDashboard() {
 
   const pciOverviewQuery = useQuery({
     queryKey: ["admin-pci-overview"],
-    queryFn: () =>
-      authFetch<PciOverview>("/api/pci/overview", token),
+    queryFn: () => authFetch<PciOverview>("/api/pci/overview", token),
     refetchInterval: 120_000,
   });
 
@@ -171,9 +190,19 @@ function AdminDashboard() {
   const bulanIni = monthlyTrend.find((m) => m.bulan === currentMonthStr);
   const selesaiBulanIni = bulanIni?.selesai ?? stats?.selesai ?? 0;
   const totalBulanIni = bulanIni?.total ?? 0;
+  const persenSelesai = totalBulanIni > 0 ? Math.round((selesaiBulanIni / totalBulanIni) * 100) : 0;
 
   // ── Helpers for primary card sparklines & deltas ──
-  function monthDelta(key: "total" | "menunggu_review" | "disetujui" | "ditolak" | "sedang_diperbaiki" | "selesai" | "rusak_berat"): { pct: string; up: boolean } | null {
+  function monthDelta(
+    key:
+      | "total"
+      | "menunggu_review"
+      | "disetujui"
+      | "ditolak"
+      | "sedang_diperbaiki"
+      | "selesai"
+      | "rusak_berat",
+  ): { pct: string; up: boolean } | null {
     const cur = monthlyTrend[monthlyTrend.length - 1];
     const prev = monthlyTrend[monthlyTrend.length - 2];
     if (!cur || !prev) return null;
@@ -186,7 +215,7 @@ function AdminDashboard() {
 
   if (isLoading) {
     return (
-    <div>
+      <div>
         <section className="bg-gradient-to-br from-[#1e40af] to-[#2e68d8] px-4 md:px-6 py-6 -m-4 md:-m-6 mb-6">
           <div className="h-7 w-60 bg-white/20 rounded animate-pulse mb-2" />
           <div className="h-5 w-48 bg-white/20 rounded animate-pulse" />
@@ -240,14 +269,14 @@ function AdminDashboard() {
             </p>
             <p className="text-xs text-blue-300 mt-0.5">{formatTanggal(isClient)}</p>
           </div>
-          <span className="px-2.5 py-1 bg-white/15 text-xs font-semibold text-blue-200 uppercase tracking-wide">
+          <span className="px-2.5 py-1 bg-white/15 text-label-sm font-semibold text-blue-200 uppercase tracking-wide rounded-full">
             Admin
           </span>
         </div>
       </section>
 
       {/* ── Primary KPI Row (4 cards, always visible) ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 margin-top">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         {[
           {
             label: "Total Laporan",
@@ -288,19 +317,31 @@ function AdminDashboard() {
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 min-w-0">
-                <Icon name={card.icon} className={`!text-[16px] shrink-0`} style={{ color: card.color }} />
-                <span className="text-[11px] font-medium text-[#64748B] truncate">{card.label}</span>
+                <Icon
+                  name={card.icon}
+                  className={`!text-[16px] shrink-0`}
+                  style={{ color: card.color }}
+                />
+                <span className="text-label-sm font-label-sm font-medium text-[#64748B] truncate">
+                  {card.label}
+                </span>
               </div>
               {card.delta && (
                 <span
-                  className={`text-[11px] font-semibold flex items-center gap-0.5 shrink-0 ${card.delta.up ? "text-[#059669]" : "text-[#E11D48]"}`}
+                  className={`text-label-sm font-label-sm font-semibold flex items-center gap-0.5 shrink-0 ${card.delta.up ? "text-[#059669]" : "text-[#E11D48]"}`}
                 >
-                  <Icon name={card.delta.up ? "trending_up" : "trending_down"} className="!text-[12px]" />
+                  <Icon
+                    name={card.delta.up ? "trending_up" : "trending_down"}
+                    className="!text-[12px]"
+                  />
                   {card.delta.pct}
                 </span>
               )}
             </div>
-            <span className="text-[22px] font-bold tracking-tight leading-none" style={{ color: card.color }}>
+            <span
+              className="text-headline-md font-headline-md font-bold tracking-tight leading-none"
+              style={{ color: card.color }}
+            >
               {card.value.toLocaleString()}
             </span>
             {card.sparkline && (
@@ -315,7 +356,7 @@ function AdminDashboard() {
       {/* ── Secondary Stats Toggle ── */}
       <button
         onClick={() => setShowAllStats((v) => !v)}
-        className="w-full flex items-center justify-center gap-1.5 py-2 text-[12px] font-medium text-[#64748B] hover:text-[#1A4F8A] transition-colors mb-1"
+        className="w-full flex items-center justify-center gap-1.5 py-2 text-label-sm font-label-sm font-medium text-[#64748B] hover:text-[#1A4F8A] transition-colors mb-1"
       >
         <Icon name={showAllStats ? "expand_less" : "expand_more"} className="!text-[16px]" />
         {showAllStats ? "Sembunyikan" : "Lihat Semua Statistik"}
@@ -325,26 +366,64 @@ function AdminDashboard() {
       {showAllStats && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-6 animate-in fade-in slide-in-from-top-1 duration-200">
           {[
-            { label: "Disetujui", value: stats?.disetujui ?? 0, icon: "thumb_up", color: "#2563EB" },
-            { label: "Sedang Diperbaiki", value: stats?.sedang_diperbaiki ?? 0, icon: "build", color: "#F97316" },
-            { label: "Ditugaskan", value: stats?.ditugaskan ?? 0, icon: "assignment", color: "#8B5CF6" },
-            { label: "Hasil AI", value: stats?.hasil_ai ?? 0, icon: "auto_awesome", color: "#06B6D4" },
-            { label: "Rusak Sedang", value: stats?.rusak_sedang ?? 0, icon: "warning_amber", color: "#F97316" },
-            { label: "Rusak Ringan", value: stats?.rusak_ringan ?? 0, icon: "info", color: "#F59E0B" },
+            {
+              label: "Disetujui",
+              value: stats?.disetujui ?? 0,
+              icon: "thumb_up",
+              color: "#2563EB",
+            },
+            {
+              label: "Sedang Diperbaiki",
+              value: stats?.sedang_diperbaiki ?? 0,
+              icon: "build",
+              color: "#F97316",
+            },
+            {
+              label: "Ditugaskan",
+              value: stats?.ditugaskan ?? 0,
+              icon: "assignment",
+              color: "#8B5CF6",
+            },
+            {
+              label: "Hasil AI",
+              value: stats?.hasil_ai ?? 0,
+              icon: "auto_awesome",
+              color: "#06B6D4",
+            },
+            {
+              label: "Rusak Sedang",
+              value: stats?.rusak_sedang ?? 0,
+              icon: "warning_amber",
+              color: "#F97316",
+            },
+            {
+              label: "Rusak Ringan",
+              value: stats?.rusak_ringan ?? 0,
+              icon: "info",
+              color: "#F59E0B",
+            },
             { label: "Ditolak", value: stats?.ditolak ?? 0, icon: "block", color: "#E11D48" },
           ].map((card) => (
             <div
               key={card.label}
               className="bg-white border border-[#E2E8F0] rounded-lg px-3 py-2.5 flex items-center gap-2.5 transition-colors hover:border-[#CBD5E1]"
             >
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${card.color}12` }}>
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                style={{ backgroundColor: `${card.color}12` }}
+              >
                 <Icon name={card.icon} className="!text-[15px]" style={{ color: card.color }} />
               </div>
               <div className="min-w-0">
-                <span className="text-[15px] font-bold leading-none block" style={{ color: card.color }}>
+                <span
+                  className="text-body-md font-body-md font-bold leading-none block"
+                  style={{ color: card.color }}
+                >
                   {card.value.toLocaleString()}
                 </span>
-                <span className="text-[10px] text-[#64748B] leading-tight block">{card.label}</span>
+                <span className="text-label-sm font-label-sm text-[#64748B] leading-tight block">
+                  {card.label}
+                </span>
               </div>
             </div>
           ))}
@@ -383,10 +462,12 @@ function AdminDashboard() {
                     <div
                       className="w-full bg-[#F59E0B]"
                       style={{ height: `${hProses}%`, minHeight: hProses > 0 ? 4 : 0 }}
+                      title={`Sedang Diperbaiki: ${m.sedang_diperbaiki}`}
                     />
                     <div
                       className="w-full bg-[#10B981]"
                       style={{ height: `${hSelesai}%`, minHeight: hSelesai > 0 ? 4 : 0 }}
+                      title={`Selesai: ${m.selesai}`}
                     />
                   </div>
                   <span className="font-label-sm text-label-sm text-[#64748B]">{parsed.label}</span>
@@ -428,6 +509,30 @@ function AdminDashboard() {
                 {selesaiBulanIni.toLocaleString()} selesai diperbaiki
               </p>
             </div>
+            <div>
+              <div className="flex items-baseline justify-between mb-1">
+                <p className="font-label-sm text-label-sm text-[#64748B]">Tingkat Penyelesaian</p>
+                <p className="font-label-sm text-label-sm font-bold text-[#0F172A]">
+                  {persenSelesai}%
+                </p>
+              </div>
+              <div
+                className="h-2 w-full rounded-full bg-[#E2E8F0] overflow-hidden"
+                role="progressbar"
+                aria-valuenow={persenSelesai}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Tingkat penyelesaian laporan bulan ini"
+              >
+                <div
+                  className="h-full rounded-full bg-[#10B981] transition-all"
+                  style={{ width: `${persenSelesai}%` }}
+                />
+              </div>
+              <p className="font-label-sm text-label-sm text-[#94A3B8] mt-1">
+                {selesaiBulanIni.toLocaleString()} dari {totalBulanIni.toLocaleString()} laporan
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -445,7 +550,7 @@ function AdminDashboard() {
           <div className="p-4">
             {pciOverviewQuery.isPending ? (
               <div className="flex gap-3">
-                {[1,2,3].map((i) => (
+                {[1, 2, 3].map((i) => (
                   <div key={i} className="flex-1 h-20 bg-[#F1F5F9] rounded-lg animate-pulse" />
                 ))}
               </div>
@@ -453,53 +558,85 @@ function AdminDashboard() {
               <>
                 <div className="grid grid-cols-3 gap-3 mb-4">
                   <div className="bg-[#F0FDF4] rounded-lg p-3.5">
-                    <span className="text-[11px] text-[#059669] font-medium">Rata-rata PCI</span>
+                    <span className="text-label-sm font-label-sm text-[#059669] font-medium">
+                      Rata-rata PCI
+                    </span>
                     <div className="flex items-baseline gap-2 mt-1">
-                      <span className="text-[28px] font-bold" style={{ color: pciColor(pciOverview.kabupaten.avg_pci) }}>
+                      <span
+                        className="text-headline-lg-mobile font-headline-lg-mobile font-bold"
+                        style={{ color: pciColor(pciOverview.kabupaten.avg_pci) }}
+                      >
                         {Number(pciOverview.kabupaten.avg_pci).toFixed(1)}
                       </span>
-                      <span className="text-[12px] font-medium" style={{ color: pciColor(pciOverview.kabupaten.avg_pci) }}>
+                      <span
+                        className="text-label-sm font-label-sm font-medium"
+                        style={{ color: pciColor(pciOverview.kabupaten.avg_pci) }}
+                      >
                         {pciConditionLabel(pciOverview.kabupaten.avg_pci)}
                       </span>
                     </div>
                   </div>
                   <div className="bg-[#FEF2F2] rounded-lg p-3.5">
-                    <span className="text-[11px] text-[#DC2626] font-medium">Kritis (PCI ≤ 40)</span>
-                    <div className="text-[28px] font-bold text-[#DC2626] mt-1">
+                    <span className="text-label-sm font-label-sm text-[#DC2626] font-medium">
+                      Kritis (PCI ≤ 40)
+                    </span>
+                    <div className="text-headline-lg-mobile font-headline-lg-mobile font-bold text-[#DC2626] mt-1">
                       {pciOverview.kabupaten.kritis}
                     </div>
                   </div>
                   <div className="bg-[#EFF6FF] rounded-lg p-3.5">
-                    <span className="text-[11px] text-[#2563EB] font-medium">Total dengan PCI</span>
-                    <div className="text-[28px] font-bold text-[#2563EB] mt-1">
+                    <span className="text-label-sm font-label-sm text-[#2563EB] font-medium">
+                      Total dengan PCI
+                    </span>
+                    <div className="text-headline-lg-mobile font-headline-lg-mobile font-bold text-[#2563EB] mt-1">
                       {pciOverview.kabupaten.total_laporan}
                     </div>
                   </div>
                 </div>
                 {pciOverview.districts.length > 0 && (
                   <details className="group">
-                    <summary className="text-[12px] text-[#64748B] cursor-pointer hover:text-[#0F172A] font-medium">
+                    <summary className="text-label-sm font-label-sm text-[#64748B] cursor-pointer hover:text-[#0F172A] font-medium">
                       Lihat per Kecamatan
                     </summary>
                     <div className="mt-3 overflow-x-auto">
                       <table className="w-full">
                         <thead>
                           <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
-                            <th className="text-left px-3 py-2 text-[11px] font-semibold text-[#64748B] uppercase">Kecamatan</th>
-                            <th className="text-right px-3 py-2 text-[11px] font-semibold text-[#64748B] uppercase">Rata-rata PCI</th>
-                            <th className="text-right px-3 py-2 text-[11px] font-semibold text-[#64748B] uppercase">Total</th>
-                            <th className="text-right px-3 py-2 text-[11px] font-semibold text-[#64748B] uppercase">Kritis</th>
+                            <th className="text-left px-3 py-2 text-label-sm font-label-sm font-semibold text-[#64748B] uppercase">
+                              Kecamatan
+                            </th>
+                            <th className="text-right px-3 py-2 text-label-sm font-label-sm font-semibold text-[#64748B] uppercase">
+                              Rata-rata PCI
+                            </th>
+                            <th className="text-right px-3 py-2 text-label-sm font-label-sm font-semibold text-[#64748B] uppercase">
+                              Total
+                            </th>
+                            <th className="text-right px-3 py-2 text-label-sm font-label-sm font-semibold text-[#64748B] uppercase">
+                              Kritis
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
                           {pciOverview.districts.map((d) => (
-                            <tr key={d.district} className="border-b border-[#E2E8F0] last:border-b-0 hover:bg-[#F8FAFC]">
-                              <td className="px-3 py-2.5 text-[12px] text-[#0F172A] font-medium">{d.district}</td>
-                              <td className="px-3 py-2.5 text-right text-[12px] font-semibold" style={{ color: pciColor(d.avg_pci) }}>
+                            <tr
+                              key={d.district}
+                              className="border-b border-[#E2E8F0] last:border-b-0 hover:bg-[#F8FAFC]"
+                            >
+                              <td className="px-3 py-2.5 text-label-sm font-label-sm text-[#0F172A] font-medium">
+                                {d.district}
+                              </td>
+                              <td
+                                className="px-3 py-2.5 text-right text-label-sm font-label-sm font-semibold"
+                                style={{ color: pciColor(d.avg_pci) }}
+                              >
                                 {Number(d.avg_pci).toFixed(1)} — {pciConditionLabel(d.avg_pci)}
                               </td>
-                              <td className="px-3 py-2.5 text-right text-[12px] text-[#475569]">{d.total}</td>
-                              <td className="px-3 py-2.5 text-right text-[12px] font-semibold text-[#DC2626]">{d.kritis}</td>
+                              <td className="px-3 py-2.5 text-right text-label-sm font-label-sm text-[#475569]">
+                                {d.total}
+                              </td>
+                              <td className="px-3 py-2.5 text-right text-label-sm font-label-sm font-semibold text-[#DC2626]">
+                                {d.kritis}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -509,7 +646,9 @@ function AdminDashboard() {
                 )}
               </>
             ) : (
-              <div className="text-center text-[#64748B] text-[13px] py-4">Gagal memuat data PCI</div>
+              <div className="text-center text-[#64748B] text-body-sm font-body-sm py-4">
+                Gagal memuat data PCI
+              </div>
             )}
           </div>
         </div>
@@ -540,11 +679,13 @@ function AdminDashboard() {
             <tbody>
               {(uptdList ?? []).length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={4}
-                    className="text-center py-8 font-body-md text-body-md text-[#64748B]"
-                  >
-                    Belum ada data Tim Satgas
+                  <td colSpan={4} className="p-0">
+                    <EmptyState
+                      icon="groups"
+                      title="Belum ada data Tim Satgas"
+                      description="Buat tim terlebih dahulu agar kinerja per tim bisa dipantau di sini."
+                      action={{ label: "Buat Tim Baru", href: "/admin/teams" }}
+                    />
                   </td>
                 </tr>
               ) : (

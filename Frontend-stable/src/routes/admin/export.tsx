@@ -28,6 +28,13 @@ const BULAN = [
   "Desember",
 ];
 
+/**
+ * Rentang tahun export: dua tahun ke belakang sampai dua tahun ke depan.
+ * Sebelumnya daftar statis [2024..2027] sehingga harus diedit tiap tahun.
+ */
+const TAHUN_DASAR = new Date().getFullYear();
+const TAHUN_OPSI = Array.from({ length: 5 }, (_, i) => TAHUN_DASAR - 2 + i);
+
 function RouteComponent() {
   return (
     <AdminLayout>
@@ -41,6 +48,9 @@ function AdminExport() {
   const [month, setMonth] = useState("01");
   const [year, setYear] = useState("2026");
   const [dlBusy, setDlBusy] = useState<string | null>(null);
+  // Pesan galat unduhan tampil sebagai banner di dalam halaman, bukan alert() peramban
+  // yang memblokir dan tidak bisa diberi konteks.
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     const n = new Date();
@@ -74,6 +84,7 @@ function AdminExport() {
   async function doDownload(format: "excel" | "pdf") {
     const m = parseInt(month, 10);
     setDlBusy(format);
+    setErrorMsg(null);
     const url = `/api/reports/export/monthly-${format}?month=${m}&year=${year}`;
 
     try {
@@ -102,30 +113,53 @@ function AdminExport() {
       }
       URL.revokeObjectURL(blobUrl);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Gagal mengunduh file.");
+      setErrorMsg(err instanceof Error ? err.message : "Gagal mengunduh file.");
     }
     setDlBusy(null);
   }
 
   return (
     <div>
+      {errorMsg && (
+        <div
+          role="alert"
+          className="mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3"
+        >
+          <Icon name="error" className="!text-[18px] text-[#DC2626] shrink-0 mt-0.5" />
+          <p className="flex-1 font-body-sm text-body-sm text-[#B91C1C]">{errorMsg}</p>
+          <button
+            type="button"
+            onClick={() => setErrorMsg(null)}
+            aria-label="Tutup pesan galat"
+            className="text-[#DC2626] hover:text-[#991B1B] shrink-0"
+          >
+            <Icon name="close" className="!text-[18px]" />
+          </button>
+        </div>
+      )}
       <div className="mb-6">
-        <h1 className="text-[22px] font-bold text-[#0F172A]">Export Laporan</h1>
-        <p className="text-[13px] text-[#64748B] mt-1">
+        <h1 className="text-headline-md font-headline-md font-bold text-[#0F172A]">
+          Export Laporan
+        </h1>
+        <p className="text-body-sm font-body-sm text-[#64748B] mt-1">
           Download laporan bulanan dalam format Excel atau PDF
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-[#E2E8F0] p-5">
-          <h2 className="text-[15px] font-semibold text-[#0F172A] mb-4">Export Bulanan</h2>
+          <h2 className="text-body-md font-body-md font-semibold text-[#0F172A] mb-4">
+            Export Bulanan
+          </h2>
           <div className="flex gap-3 mb-4">
             <div className="flex-1">
-              <label className="text-[11px] font-semibold text-[#475569] block mb-1">Bulan</label>
+              <label className="text-label-sm font-label-sm font-semibold text-[#475569] block mb-1">
+                Bulan
+              </label>
               <select
                 value={month}
                 onChange={(e) => setMonth(e.target.value)}
-                className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px]"
+                className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm"
               >
                 {BULAN.map((m, i) => (
                   <option key={i} value={String(i + 1).padStart(2, "0")}>
@@ -135,13 +169,15 @@ function AdminExport() {
               </select>
             </div>
             <div className="flex-1">
-              <label className="text-[11px] font-semibold text-[#475569] block mb-1">Tahun</label>
+              <label className="text-label-sm font-label-sm font-semibold text-[#475569] block mb-1">
+                Tahun
+              </label>
               <select
                 value={year}
                 onChange={(e) => setYear(e.target.value)}
-                className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-[13px]"
+                className="w-full h-9 px-3 border border-[#E2E8F0] rounded-lg text-body-sm font-body-sm"
               >
-                {[2024, 2025, 2026, 2027].map((y) => (
+                {TAHUN_OPSI.map((y) => (
                   <option key={y} value={y}>
                     {y}
                   </option>
@@ -153,7 +189,7 @@ function AdminExport() {
             <button
               onClick={() => doDownload("excel")}
               disabled={dlBusy !== null}
-              className="w-full flex items-center justify-between px-4 py-3 rounded-lg border border-[#E2E8F0] hover:bg-[#F8FAFC] transition-colors text-[13px] disabled:opacity-50"
+              className="w-full flex items-center justify-between px-4 py-3 rounded-lg border border-[#E2E8F0] hover:bg-[#F8FAFC] transition-colors text-body-sm font-body-sm disabled:opacity-50"
             >
               <span className="flex items-center gap-2">
                 <Icon name="table_chart" className="text-emerald-600 !text-[20px]" />
@@ -164,7 +200,7 @@ function AdminExport() {
             <button
               onClick={() => doDownload("pdf")}
               disabled={dlBusy !== null}
-              className="w-full flex items-center justify-between px-4 py-3 rounded-lg border border-[#E2E8F0] hover:bg-[#F8FAFC] transition-colors text-[13px] disabled:opacity-50"
+              className="w-full flex items-center justify-between px-4 py-3 rounded-lg border border-[#E2E8F0] hover:bg-[#F8FAFC] transition-colors text-body-sm font-body-sm disabled:opacity-50"
             >
               <span className="flex items-center gap-2">
                 <Icon name="picture_as_pdf" className="text-red-600 !text-[20px]" />
@@ -176,11 +212,13 @@ function AdminExport() {
         </div>
 
         <div className="bg-white rounded-xl border border-[#E2E8F0] p-5">
-          <h2 className="text-[15px] font-semibold text-[#0F172A] mb-4">Preview Ringkasan</h2>
+          <h2 className="text-body-md font-body-md font-semibold text-[#0F172A] mb-4">
+            Preview Ringkasan
+          </h2>
           {statsQuery.isPending ? (
-            <div className="text-[13px] text-[#64748B]">Memuat data...</div>
+            <div className="text-body-sm font-body-sm text-[#64748B]">Memuat data...</div>
           ) : (
-            <div className="space-y-3 text-[13px]">
+            <div className="space-y-3 text-body-sm font-body-sm">
               {(d
                 ? [
                     { label: "Total Laporan", value: (d.total ?? 0).toLocaleString() },
